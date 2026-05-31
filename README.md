@@ -14,6 +14,29 @@ Then open **http://localhost:3000**. The backend serves the website *and* the AP
 
 To use a different port: `PORT=8080 python3 server.py`
 
+## Deploying to Render
+
+This repo includes `Dockerfile` and `render.yaml`, so deploying is mostly clicks:
+
+1. **Push to GitHub** — create a repo and push this folder (already a git repo):
+   ```bash
+   git remote add origin https://github.com/<you>/coding4kids.git
+   git push -u origin main
+   ```
+2. **Create the service on Render** — go to [render.com](https://render.com) → **New ▸ Blueprint** → connect your repo. Render reads `render.yaml` and creates a Docker web service with a 1 GB persistent disk mounted at `/data`.
+3. **Set admin credentials** — in the service's **Environment** tab set `SUPER_ADMIN_USER`, `SUPER_ADMIN_PASS`, `ADMIN_USER`, `ADMIN_PASS` to strong values. (If you skip this, a strong random super-admin password is generated on first boot and printed once in the **Logs** tab.)
+4. **Deploy.** Render gives you an HTTPS URL like `https://coding4kids.onrender.com`. Point your `coding4kids.com` domain at it under **Settings ▸ Custom Domains**.
+
+Notes:
+- The **Starter plan ($7/mo)** is required for the persistent disk — accounts, progress and the admin config live in `/data`. The free tier wipes the disk on each deploy.
+- `DATA_DIR` controls where `data.db` + `admin_config.json` are stored (set to `/data` by the blueprint).
+- `admin_config.json` and `data.db` are git-ignored and never committed.
+
+### Before real users (especially children)
+- Payments are **simulated** — wire up Stripe before charging.
+- Email (parent invites, contact) is **simulated** — connect a mail provider.
+- Add **login rate-limiting** and have your COPPA/privacy practices legally reviewed.
+
 ## Accounts & roles
 
 The **Log In** button (home page) has four tabs — **👦 Kid**, **👨‍👩‍👧 Parent**, **🛠️ Admin**, **👑 Super**.
