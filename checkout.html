@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .co-wrap { max-width: 860px; margin: 0 auto; padding: 30px 20px 80px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; }
+    @media (max-width: 760px) { .co-wrap { grid-template-columns: 1fr; } }
+    .co-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; }
+    .co-card h2 { font-size: 1.1rem; font-weight: 900; margin-bottom: 16px; }
+    .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .summary-row:last-of-type { border-bottom: none; }
+    .summary-row .lbl { color: var(--text-dim); }
+    .summary-plan { font-size: 1.4rem; font-weight: 900; }
+    .summary-total { font-size: 1.6rem; font-weight: 900; color: var(--purple); }
+    .feat { list-style: none; display: flex; flex-direction: column; gap: 7px; margin: 14px 0 0; padding: 14px 0 0; border-top: 1px solid var(--border); }
+    .feat li { font-size: 0.86rem; color: var(--text-dim); }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; }
+    .field input { width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.95rem; outline: none; }
+    .field input:focus { border-color: var(--border-bright); }
+    .field.invalid input { border-color: #ef4444; }
+    .row2 { display: flex; gap: 12px; }
+    .row2 .field { flex: 1; }
+    .err { color: #f87171; font-size: 0.78rem; font-weight: 700; min-height: 14px; margin-top: 4px; }
+
+    .applepay-btn { width: 100%; background: #000; color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 1.1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: -apple-system, 'Nunito', sans-serif; }
+    .applepay-btn:hover { background: #1a1a1a; }
+    .or-divider { display: flex; align-items: center; gap: 12px; color: var(--text-faint); font-size: 0.8rem; font-weight: 800; margin: 18px 0; }
+    .or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .secure-note { font-size: 0.76rem; color: var(--text-faint); text-align: center; margin-top: 14px; }
+
+    .co-success { max-width: 460px; margin: 60px auto; text-align: center; background: var(--surface); border: 1px solid var(--green); border-radius: var(--radius); padding: 40px 30px; }
+    .co-success .big { font-size: 3.4rem; }
+    .co-success h1 { font-size: 1.6rem; font-weight: 900; margin: 10px 0; }
+    .co-success p { color: var(--text-dim); margin-bottom: 22px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="legal-nav">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <span style="margin-left:auto;color:var(--text-faint);font-weight:800;font-size:0.85rem;">🔒 Secure Checkout</span>
+    </div>
+  </nav>
+
+  <main id="coMain" class="co-wrap">
+    <!-- Order summary -->
+    <div class="co-card">
+      <h2>Your plan</h2>
+      <div class="summary-row">
+        <div><div class="summary-plan" id="planName">Pro</div><div class="lbl" style="font-size:0.82rem;" id="planDesc">Billed monthly</div></div>
+        <div class="summary-plan" id="planPrice">$9</div>
+      </div>
+      <div class="summary-row"><span class="lbl">Billed monthly</span><span id="planPrice2">$9.00</span></div>
+      <div class="summary-row"><span class="lbl" style="font-weight:900;color:var(--text);">Total today</span><span class="summary-total" id="planTotal">$9.00</span></div>
+      <ul class="feat" id="planFeatures"></ul>
+    </div>
+
+    <!-- Payment -->
+    <div class="co-card">
+      <h2>Payment</h2>
+
+      <button class="applepay-btn" id="applePayBtn" onclick="payWithApple()" aria-label="Pay with Apple Pay">&#xF8FF; Apple&nbsp;Pay</button>
+      <div class="or-divider">or pay with card</div>
+
+      <form onsubmit="payWithCard(event)" novalidate>
+        <div class="field" id="f-name">
+          <label>Name on card</label>
+          <input id="ccName" placeholder="Alex Parent" autocomplete="cc-name" />
+          <div class="err" id="e-name"></div>
+        </div>
+        <div class="field" id="f-num">
+          <label>Card number</label>
+          <input id="ccNum" placeholder="1234 5678 9012 3456" inputmode="numeric" autocomplete="cc-number" maxlength="23" />
+          <div class="err" id="e-num"></div>
+        </div>
+        <div class="row2">
+          <div class="field" id="f-exp">
+            <label>Expiry (MM/YY)</label>
+            <input id="ccExp" placeholder="08/29" inputmode="numeric" autocomplete="cc-exp" maxlength="5" />
+            <div class="err" id="e-exp"></div>
+          </div>
+          <div class="field" id="f-cvc">
+            <label>CVC</label>
+            <input id="ccCvc" placeholder="123" inputmode="numeric" autocomplete="cc-csc" maxlength="4" />
+            <div class="err" id="e-cvc"></div>
+          </div>
+          <div class="field" id="f-zip">
+            <label>ZIP</label>
+            <input id="ccZip" placeholder="90210" inputmode="numeric" maxlength="10" />
+            <div class="err" id="e-zip"></div>
+          </div>
+        </div>
+        <div class="err" id="e-form" style="text-align:center;"></div>
+        <button type="submit" class="btn btn-primary btn-lg btn-full" id="payBtn">Pay <span id="payAmt">$9.00</span></button>
+        <div class="secure-note">🔒 Your card details stay on your device for this demo and are never stored. Cancel anytime.</div>
+      </form>
+    </div>
+  </main>
+
+  <div id="coSuccess" class="co-success hidden">
+    <div class="big">🎉</div>
+    <h1 id="successTitle">You're on Pro!</h1>
+    <p id="successMsg">Your account has been upgraded. Enjoy everything Coding4Kids has to offer!</p>
+    <button class="btn btn-primary btn-lg" id="successBtn" onclick="goHome()">Go to my dashboard →</button>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    const PRICES = { pro: 9, family: 15 };
+    const params = new URLSearchParams(location.search);
+    let plan = params.get('plan');
+    if (!PRICES[plan]) plan = 'pro';
+    const planInfo = C4K.pricingPlans.find(p => p.id === plan);
+    const amount = PRICES[plan];
+    const amtStr = '$' + amount.toFixed(2);
+
+    // Fill summary
+    document.getElementById('planName').textContent = planInfo.name;
+    document.getElementById('planPrice').textContent = '$' + amount;
+    document.getElementById('planPrice2').textContent = amtStr;
+    document.getElementById('planTotal').textContent = amtStr;
+    document.getElementById('payAmt').textContent = amtStr;
+    document.getElementById('applePayBtn').innerHTML = '\uF8FF Apple Pay \u00b7 ' + amtStr;
+    document.getElementById('planFeatures').innerHTML = planInfo.features
+      .filter(f => !f.startsWith('—')).map(f => `<li>✓ ${f}</li>`).join('');
+
+    // Must be logged in to buy
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me) {
+        document.getElementById('coMain').innerHTML =
+          '<div class="co-card" style="grid-column:1/-1;text-align:center;"><h2>Please log in first</h2>' +
+          '<p style="color:var(--text-dim);margin-bottom:16px;">You need to be logged in to upgrade an account.</p>' +
+          '<a href="index.html" class="btn btn-primary">Go to log in</a></div>';
+      }
+    })();
+
+    // Input niceties
+    const num = document.getElementById('ccNum');
+    num.addEventListener('input', () => {
+      let v = num.value.replace(/\D/g, '').slice(0, 19);
+      num.value = v.replace(/(.{4})/g, '$1 ').trim();
+    });
+    const exp = document.getElementById('ccExp');
+    exp.addEventListener('input', () => {
+      let v = exp.value.replace(/\D/g, '').slice(0, 4);
+      exp.value = v.length > 2 ? v.slice(0, 2) + '/' + v.slice(2) : v;
+    });
+    document.getElementById('ccCvc').addEventListener('input', e => e.target.value = e.target.value.replace(/\D/g, ''));
+    document.getElementById('ccZip').addEventListener('input', e => e.target.value = e.target.value.replace(/\D/g, ''));
+
+    function setErr(id, msg) {
+      document.getElementById('e-' + id).textContent = msg || '';
+      document.getElementById('f-' + id).classList.toggle('invalid', !!msg);
+      return !msg;
+    }
+
+    function validate() {
+      let ok = true;
+      ok = setErr('name', document.getElementById('ccName').value.trim() ? '' : 'Enter the name on the card.') && ok;
+      const digits = document.getElementById('ccNum').value.replace(/\s/g, '');
+      ok = setErr('num', /^\d{12,19}$/.test(digits) ? '' : 'Enter a valid card number.') && ok;
+      const e = document.getElementById('ccExp').value;
+      let expOk = /^\d{2}\/\d{2}$/.test(e);
+      if (expOk) { const m = +e.slice(0, 2); expOk = m >= 1 && m <= 12; }
+      ok = setErr('exp', expOk ? '' : 'MM/YY') && ok;
+      ok = setErr('cvc', /^\d{3,4}$/.test(document.getElementById('ccCvc').value) ? '' : '3–4 digits') && ok;
+      ok = setErr('zip', document.getElementById('ccZip').value.length >= 3 ? '' : 'ZIP') && ok;
+      return ok;
+    }
+
+    async function payWithCard(ev) {
+      ev.preventDefault();
+      document.getElementById('e-form').textContent = '';
+      if (!validate()) return;
+      const btn = document.getElementById('payBtn');
+      btn.disabled = true; btn.textContent = 'Processing…';
+      await completePurchase();
+      btn.disabled = false; btn.innerHTML = 'Pay ' + amtStr;
+    }
+
+    function payWithApple() {
+      // Real Apple Pay needs an Apple merchant ID, HTTPS and domain verification.
+      // Here we run the same simulated purchase so the flow works in the demo.
+      const b = document.getElementById('applePayBtn');
+      b.textContent = ' Authorizing…';
+      setTimeout(() => completePurchase(), 700);
+    }
+
+    async function completePurchase() {
+      const { ok, data } = await C4K.api('/api/checkout', 'POST', { plan });
+      if (!ok) {
+        document.getElementById('e-form').textContent = '⚠️ ' + (data.error || 'Could not complete purchase.');
+        document.getElementById('applePayBtn').innerHTML = '\uF8FF Apple Pay \u00b7 ' + amtStr;
+        return;
+      }
+      document.getElementById('coMain').classList.add('hidden');
+      const s = document.getElementById('coSuccess');
+      document.getElementById('successTitle').textContent = `You're on ${planInfo.name}! 🎉`;
+      document.getElementById('successMsg').textContent =
+        `Your account is now ${planInfo.name}${plan === 'pro' || plan === 'family' ? ' with AI unlocked' : ''}. Enjoy Coding4Kids!`;
+      s.classList.remove('hidden');
+    }
+
+    function goHome() {
+      const r = C4K.user && C4K.user.role;
+      if (r === 'parent') location.href = 'parent.html';
+      else if (r === 'admin' || r === 'super_admin') location.href = 'admin.html';
+      else location.href = 'dashboard.html';
+    }
+  </script>
+</body>
+</html>

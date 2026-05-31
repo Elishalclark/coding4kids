@@ -1,0 +1,15 @@
+# Secrets & data — never commit these
+admin_config.json
+data.db
+data.db-journal
+data.db-wal
+data.db-shm
+/data/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.claude/

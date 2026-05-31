@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lessons — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .lessons-hero { padding: 50px 20px 10px; text-align: center; max-width: 1160px; margin: 0 auto; }
+    .lessons-hero h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 900; margin-bottom: 10px; }
+    .lessons-hero p { color: var(--text-dim); font-size: 1.05rem; max-width: 580px; margin: 0 auto; }
+    .progress-banner { max-width: 820px; margin: 24px auto 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 24px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+    .pb-stat { text-align: center; }
+    .pb-stat .n { font-size: 1.4rem; font-weight: 900; color: var(--purple); }
+    .pb-stat .l { font-size: 0.72rem; color: var(--text-dim); font-weight: 800; text-transform: uppercase; }
+    .pb-bar-wrap { flex: 1; min-width: 160px; }
+    .pb-bar-wrap .lab { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; margin-bottom: 6px; display:flex; justify-content:space-between; }
+
+    .units { max-width: 1160px; margin: 0 auto; padding: 30px 20px 80px; }
+    .unit { margin-bottom: 40px; }
+    .unit-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+    .unit-head h2 { font-size: 1.35rem; font-weight: 900; }
+    .unit-lock { font-size: 0.8rem; font-weight: 800; color: var(--text-faint); background: var(--surface-2); padding: 5px 12px; border-radius: 50px; border: 1px solid var(--border); }
+    .unit-test-pill { margin-left: auto; }
+    .lesson-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+    .lesson-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; cursor: pointer; transition: all 0.2s; position: relative; }
+    .lesson-tile:hover { transform: translateY(-4px); border-color: var(--border-bright); box-shadow: var(--shadow); }
+    .lesson-tile.done { border-color: var(--green); }
+    .lesson-tile.locked { opacity: 0.55; cursor: not-allowed; }
+    .lesson-tile.locked:hover { transform: none; border-color: var(--border); box-shadow: none; }
+    .lesson-num { font-size: 0.72rem; font-weight: 800; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+    .lesson-tile h3 { font-size: 1.05rem; font-weight: 900; margin: 6px 0 8px; }
+    .lesson-tile p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; margin-bottom: 12px; }
+    .lesson-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .lesson-level { font-size: 0.7rem; font-weight: 800; padding: 3px 10px; border-radius: 50px; background: var(--purple-light); color: var(--purple); border: 1px solid var(--border-bright); }
+    .lesson-xp { font-size: 0.76rem; font-weight: 800; color: var(--yellow); }
+    .corner { position: absolute; top: 14px; right: 14px; font-size: 1.2rem; }
+    .lock-reason { font-size: 0.74rem; color: var(--text-faint); margin-top: 8px; }
+
+    .unit-test-card { background: linear-gradient(135deg, var(--surface-2), var(--surface)); border: 1px dashed var(--border-bright); border-radius: var(--radius); padding: 18px 22px; margin-top: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .utc-emoji { font-size: 1.8rem; }
+    .utc-txt { flex: 1; min-width: 180px; }
+    .utc-txt h4 { font-size: 1rem; font-weight: 900; }
+    .utc-txt p { color: var(--text-dim); font-size: 0.85rem; }
+
+    /* worlds */
+    .world { border-left: 4px solid var(--world-color, var(--purple)); padding-left: 18px; }
+    .world-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+    .world-emoji { font-size: 2.4rem; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4)); }
+    .world-title { flex: 1; min-width: 180px; }
+    .world-title h2 { font-size: 1.4rem; font-weight: 900; color: var(--world-color, #fff); }
+    .world-title p { color: var(--text-dim); font-size: 0.88rem; }
+    .world-badge { font-size: 0.74rem; font-weight: 900; padding: 5px 12px; border-radius: 50px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); }
+    .world-badge.done { color: var(--green); border-color: var(--green); }
+    .world-badge.locked { color: var(--text-faint); }
+
+    /* boss battle card */
+    .boss-card { border-radius: var(--radius); padding: 18px 22px; margin-top: 16px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), var(--surface)); border: 1px solid var(--border); }
+    .boss-card.ready { border-color: var(--boss-color, var(--border-bright)); box-shadow: 0 0 30px -8px var(--boss-color, transparent); }
+    .boss-card.beaten { border-color: var(--green); }
+    .boss-card.locked { opacity: 0.6; }
+    .boss-emoji { font-size: 2.6rem; }
+    .boss-card.ready .boss-emoji { animation: bossbob 1.6s ease-in-out infinite; }
+    @keyframes bossbob { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
+    .boss-card h4 { font-size: 1.05rem; font-weight: 900; }
+    .boss-card p { color: var(--text-dim); font-size: 0.86rem; }
+
+    /* viewer */
+    .lesson-view { max-width: 680px; width: 100%; max-height: 92vh; display: flex; flex-direction: column; }
+    .lv-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--surface-2); }
+    .lv-header h2 { font-size: 1.1rem; font-weight: 900; flex: 1; }
+    .lv-dots { display: flex; gap: 6px; padding: 14px 24px 0; flex-wrap: wrap; }
+    .lv-dot { height: 6px; flex: 1; min-width: 14px; border-radius: 50px; background: var(--border); transition: background 0.2s; }
+    .lv-dot.active { background: var(--purple-mid); }
+    .lv-dot.done { background: var(--green); }
+    .lv-body { padding: 18px 24px; overflow-y: auto; flex: 1; }
+    .lv-step h4 { font-size: 1.05rem; font-weight: 900; margin-bottom: 10px; color: var(--purple); }
+    .lv-step p { color: var(--text); line-height: 1.7; font-size: 0.96rem; }
+    .lv-code { background: #06040f; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 18px; font-family: monospace; font-size: 0.9rem; color: #67e8f9; margin: 12px 0; white-space: pre-wrap; line-height: 1.6; }
+    .lv-tip { background: var(--purple-light); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 16px; font-size: 0.88rem; color: #c4b5fd; margin: 12px 0; }
+    .run-btn { margin-top: 6px; }
+    .run-out { margin-top: 10px; background: #02030a; border: 1px solid var(--green); border-radius: var(--radius-sm); padding: 10px 14px; font-family: monospace; font-size: 0.85rem; color: var(--green); }
+    .activity-tag { display:inline-block; font-size:0.7rem; font-weight:900; letter-spacing:0.05em; text-transform:uppercase; color:var(--pink); background:rgba(244,114,182,0.14); padding:4px 12px; border-radius:50px; margin-bottom:12px; }
+
+    /* drag and drop */
+    .drag-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+    .drag-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; font-family: monospace; font-size: 0.88rem; color: var(--text); cursor: grab; display: flex; align-items: center; gap: 10px; }
+    .drag-item:active { cursor: grabbing; }
+    .drag-item.dragging { opacity: 0.4; border-color: var(--border-bright); }
+    .drag-item .grip { color: var(--text-faint); }
+    .drag-item.correct { border-color: var(--green); }
+    .drag-item.wrong { border-color: #ef4444; }
+
+    /* mcq */
+    .mcq-opt { display: block; width: 100%; text-align: left; padding: 13px 16px; margin: 8px 0; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.95rem; transition: all 0.15s; }
+    .mcq-opt:hover { border-color: var(--border-bright); }
+    .mcq-opt.correct { border-color: var(--green); background: rgba(52,211,153,0.12); }
+    .mcq-opt.wrong { border-color: #ef4444; background: rgba(239,68,68,0.12); }
+    .feedback { font-weight: 800; margin-top: 12px; font-size: 0.95rem; min-height: 22px; }
+    .lv-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; background: var(--surface-2); }
+    .lv-footer .btn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; transform: none; }
+
+    /* pledge / policy */
+    .pledge-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+    .pledge-list li { font-size: 0.9rem; color: var(--text); padding-left: 4px; }
+    .consequences { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-sm); padding: 12px 16px; font-size: 0.84rem; color: #fca5a5; margin: 12px 0; line-height: 1.6; }
+    .pledge-check { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 0.92rem; margin: 14px 0; }
+
+    /* test */
+    .test-q { margin-bottom: 22px; }
+    .test-q .qn { font-weight: 900; margin-bottom: 10px; }
+    .test-result { text-align: center; padding: 10px; }
+    .test-result .big { font-size: 3rem; font-weight: 900; }
+    .test-result.pass .big { color: var(--green); }
+    .test-result.fail .big { color: #f87171; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">📊 My Dashboard</a>
+        <a href="#" class="btn btn-ghost" id="policyLink" onclick="showPolicy();return false;">No-Cheat Policy</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="lessons-hero">
+    <h1>🗺️ Coding Worlds &amp; Boss Battles</h1>
+    <p>Explore themed <strong>worlds</strong>, learn by doing, then face the <strong>boss battle</strong> at the end of each world to level up and unlock the next one! ⚔️🚀</p>
+    <div class="progress-banner" id="progressBanner">
+      <div class="pb-stat"><div class="n" id="pbLevel">1</div><div class="l">Level</div></div>
+      <div class="pb-stat"><div class="n" id="pbDone">0</div><div class="l">Lessons</div></div>
+      <div class="pb-stat"><div class="n" id="pbXp">0</div><div class="l">XP ⚡</div></div>
+      <div class="pb-bar-wrap">
+        <div class="lab"><span id="pbBarLabel">Overall progress</span><span id="pbBarPct">0%</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="pbFill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="units" id="unitsWrap"></main>
+
+  <!-- LESSON VIEWER -->
+  <div class="modal-overlay hidden" id="lessonModal">
+    <div class="modal lesson-view">
+      <div class="lv-header">
+        <span style="font-size:1.5rem;" id="lvEmoji">🧩</span>
+        <h2 id="lvTitle">Lesson</h2>
+        <button class="modal-close" onclick="closeLesson()">✕</button>
+      </div>
+      <div class="lv-dots" id="lvDots"></div>
+      <div class="lv-body" id="lvBody"></div>
+      <div class="lv-footer">
+        <button class="btn btn-outline" id="lvBack" onclick="lvPrev()">← Back</button>
+        <button class="btn btn-primary" id="lvNext" onclick="lvNext()">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NO-CHEAT PLEDGE -->
+  <div class="modal-overlay hidden" id="pledgeModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🤝</span>
+        <div style="flex:1;"><div class="chat-name">No-Cheat Policy</div><div class="chat-status">Please read &amp; accept before the test</div></div>
+        <button class="modal-close" onclick="closePledge()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;">
+        <p style="color:var(--text-dim);font-size:0.9rem;">To keep learning fair for everyone, you agree <strong>not</strong> to:</p>
+        <ul class="pledge-list">
+          <li>🚫 Share or copy test answers with anyone</li>
+          <li>🐞 Exploit bugs or glitches to pass</li>
+          <li>👥 Make extra accounts to dodge limits</li>
+          <li>🤖 Use unauthorized tools or help during a test</li>
+        </ul>
+        <div class="consequences">⚠️ Breaking these rules can lead to: a <strong>warning</strong>, your <strong>test being invalidated</strong>, an <strong>account review</strong>, or a <strong>temporary suspension</strong>.</div>
+        <label class="pledge-check"><input type="checkbox" id="pledgeCheck" onchange="document.getElementById('pledgeStart').disabled=!this.checked"> I promise to do my own work and follow these rules. 🌟</label>
+        <button class="btn btn-primary btn-lg btn-full" id="pledgeStart" disabled onclick="startTest()">Start the Unit Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UNIT TEST -->
+  <div class="modal-overlay hidden" id="testModal">
+    <div class="modal lesson-view">
+      <div class="lv-header">
+        <span style="font-size:1.5rem;">📝</span>
+        <h2 id="testTitle">Unit Test</h2>
+        <button class="modal-close" onclick="closeTest()">✕</button>
+      </div>
+      <div class="lv-body" id="testBody"></div>
+      <div class="lv-footer" id="testFooter">
+        <span style="font-size:0.78rem;color:var(--text-faint);" id="testNote"></span>
+        <button class="btn btn-primary" id="testSubmit" onclick="submitTest()">Submit Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POLICY (view only) -->
+  <div class="modal-overlay hidden" id="policyModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">📜</span>
+        <div style="flex:1;"><div class="chat-name">No-Cheat Policy</div><div class="chat-status">Coding4Kids fair-play rules</div></div>
+        <button class="modal-close" onclick="document.getElementById('policyModal').classList.add('hidden')">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;">
+        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:10px;">Coding4Kids is about real learning. Every coder agrees to:</p>
+        <ul class="pledge-list">
+          <li>🚫 No sharing or copying test answers</li>
+          <li>🐞 No exploiting bugs or glitches</li>
+          <li>👥 No extra accounts to bypass restrictions</li>
+          <li>🤖 No unauthorized tools or outside help during assessments</li>
+        </ul>
+        <div class="consequences">⚠️ Consequences for breaking the rules: warning → test invalidation → account review → temporary suspension.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LESSON LIMIT / UPGRADE POPUP -->
+  <div class="modal-overlay hidden" id="upgradeModal">
+    <div class="modal" style="max-width:600px;">
+      <div style="padding:26px 24px;text-align:center;">
+        <div style="font-size:2.4rem;margin-bottom:8px;">🚀</div>
+        <h2 style="font-size:1.25rem;font-weight:900;margin-bottom:8px;">You can learn more with Pro or a Family Plan.</h2>
+        <p style="color:var(--text-dim);font-size:0.92rem;margin-bottom:18px;" id="upgradeSub">You've reached your lesson limit for now.</p>
+        <div id="upgradePricing" style="margin-bottom:18px;text-align:left;"></div>
+        <div id="upgradeActions"></div>
+        <div id="upgradeDone" class="hidden" style="background:rgba(52,211,153,0.12);border:1px solid var(--green);border-radius:10px;padding:14px;color:var(--green);font-weight:800;font-size:0.9rem;"></div>
+        <button class="btn btn-ghost" style="margin-top:12px;" onclick="closeUpgrade()">Maybe later</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer"><div class="footer-bottom" style="padding-top:30px;"><p>© 2026 Coding4Kids.com — Made with ❤️ for the next generation of builders</p></div></footer>
+
+  <script src="auth.js"></script>
+  <script src="lessons.js"></script>
+</body>
+</html>

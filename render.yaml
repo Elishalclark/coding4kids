@@ -1,0 +1,27 @@
+# Render Blueprint — deploys Coding4Kids as a web service with a persistent disk.
+# In Render: New → Blueprint → connect this repo. It reads this file automatically.
+services:
+  - type: web
+    name: coding4kids
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter          # Starter ($7/mo) is needed for a persistent disk. (Free tier wipes data on every deploy.)
+    healthCheckPath: /
+    envVars:
+      - key: DATA_DIR
+        value: /data       # matches the disk mountPath below
+      # Set strong admin credentials in the Render dashboard (Environment tab).
+      # If you leave these unset, the app generates a strong random password on
+      # first boot and prints it once in the deploy Logs.
+      - key: SUPER_ADMIN_USER
+        sync: false
+      - key: SUPER_ADMIN_PASS
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASS
+        sync: false
+    disk:
+      name: c4k-data
+      mountPath: /data     # data.db + admin_config.json persist here across deploys
+      sizeGB: 1

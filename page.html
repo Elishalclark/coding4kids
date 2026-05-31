@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="legal-nav">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">Home</a>
+    </div>
+  </nav>
+
+  <main class="legal">
+    <h1 id="pgTitle">Coding4Kids</h1>
+    <p class="intro" id="pgLead"></p>
+    <div class="legal-card" id="pgBody"></div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner" style="justify-content:center;gap:40px;">
+      <div class="footer-col"><h4>Product</h4><a href="index.html#features">Features</a><a href="page.html?p=curriculum">Curriculum</a><a href="index.html#pricing">Pricing</a><a href="page.html?p=schools">For Schools</a></div>
+      <div class="footer-col"><h4>Learn</h4><a href="page.html?p=blog">Blog</a><a href="page.html?p=parent-guide">Parent Guide</a><a href="page.html?p=teachers">Teacher Resources</a><a href="page.html?p=help">Help Center</a></div>
+      <div class="footer-col"><h4>Company</h4><a href="page.html?p=about">About Us</a><a href="page.html?p=careers">Careers</a><a href="page.html?p=press">Press</a><a href="page.html?p=contact">Contact</a></div>
+      <div class="footer-col"><h4>Legal</h4><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a><a href="privacy.html#coppa">COPPA</a><a href="privacy.html#cookies">Cookies</a></div>
+    </div>
+    <div class="footer-bottom"><p>© 2026 Coding4Kids.com — Made with ❤️ for the next generation of builders</p></div>
+  </footer>
+
+  <script>
+    const PAGES = {
+      curriculum: {
+        title: '🗺️ Curriculum', lead: 'A guided journey from first line of code to building real projects — organized into themed worlds with a boss battle at the end of each.',
+        body: `
+          <h2>How it works</h2>
+          <p>Kids learn through short, interactive lessons — running code, dragging blocks, and answering quick checks with instant feedback. Finish a world's lessons, beat its <strong>boss battle</strong>, and unlock the next world.</p>
+          <h2>The worlds</h2>
+          <ul>
+            <li>🌱 <strong>Greenwood Basics</strong> — printing, variables, if-statements, loops. Boss: 🐛 Buggle the Glitch.</li>
+            <li>🌊 <strong>Builder's Bay</strong> — functions, a number game, web pages, a chatbot. Boss: 🦑 Krakode.</li>
+            <li>🚀 <strong>Cosmic Code Station</strong> — lists, randomness, dictionaries. Boss: 👾 Glitchoid.</li>
+            <li>🏰 <strong>Algorithm Castle</strong> — sorting, debugging, a capstone quiz game. Boss: 🐉 Recursor the Dragon.</li>
+          </ul>
+          <h2>What kids master</h2>
+          <ul>
+            <li>Core programming ideas: variables, conditionals, loops, functions, lists & dictionaries;</li>
+            <li>Problem-solving and debugging;</li>
+            <li>Building real things — games, a web page, and a chatbot.</li>
+          </ul>
+          <p style="margin-top:14px;"><a href="lessons.html">Explore the lessons →</a></p>`
+      },
+      schools: {
+        title: '🏫 Coding4Kids for Schools', lead: 'Bring safe, engaging, standards-friendly coding to your classroom.',
+        body: `
+          <h2>Built for classrooms</h2>
+          <ul>
+            <li>100% ad-free and safe — no private messaging;</li>
+            <li>Self-paced, interactive lessons grouped into worlds;</li>
+            <li>Mastery-based progress with unit "boss battle" tests;</li>
+            <li>A No-Cheat Policy that keeps assessments fair.</li>
+          </ul>
+          <h2>For teachers &amp; admins</h2>
+          <p>Manage students, monitor progress, and control which features each group can use. Set lesson limits and passing scores to match your class.</p>
+          <div class="callout">📦 Want a classroom or school-wide plan? Email <a href="mailto:schools@coding4kids.com">schools@coding4kids.com</a> for bulk pricing and onboarding.</div>`
+      },
+      blog: {
+        title: '✍️ The Coding4Kids Blog', lead: 'Tips, stories, and ideas for young coders and the grown-ups who cheer them on.',
+        body: `
+          <h2>5 signs your kid is ready to code</h2>
+          <p>From building elaborate LEGO machines to asking "how does this work?" — curiosity is the #1 sign. Here's how to nurture it.</p>
+          <h2>Why "boss battles" make learning stick</h2>
+          <p>A little challenge at the end of each world turns review into a celebration. We dig into the learning science behind mastery checks.</p>
+          <h2>Screen time that actually teaches</h2>
+          <p>Not all screen time is equal. Here's how active, creative coding differs from passive scrolling.</p>
+          <p style="margin-top:14px;color:var(--text-faint);font-size:0.85rem;">More posts coming soon. Want a topic covered? <a href="page.html?p=contact">Tell us</a>.</p>`
+      },
+      'parent-guide': {
+        title: '👨‍👩‍👧 Parent Guide', lead: 'Everything you need to set your child up for a safe, fun coding adventure.',
+        body: `
+          <h2>Getting started</h2>
+          <ol style="margin:0 0 14px 22px;display:flex;flex-direction:column;gap:8px;">
+            <li>Your child creates an account and gets a 3-day trial.</li>
+            <li>You'll receive an invite (QR code or email) to create your own <strong>Family</strong> account and connect to your child.</li>
+            <li>From your Family Dashboard you can add more kids, see progress, and manage the account.</li>
+          </ol>
+          <h2>Safety &amp; controls</h2>
+          <ul>
+            <li>No ads, no private messaging, no data selling;</li>
+            <li>Kids can't sign themselves out — only you (or an admin) can;</li>
+            <li>You can sign your kids out of their devices anytime from the Family Dashboard.</li>
+          </ul>
+          <h2>Plans &amp; AI</h2>
+          <p>AI features (the Byte buddy) are a Pro/Family perk. Pricing only appears when your child reaches a lesson limit, or via your upgrade link — we never push it during normal use.</p>
+          <p style="margin-top:14px;">Questions? See the <a href="page.html?p=help">Help Center</a> or <a href="page.html?p=contact">contact us</a>.</p>`
+      },
+      teachers: {
+        title: '🍎 Teacher Resources', lead: 'Free resources to bring Coding4Kids into your lessons.',
+        body: `
+          <h2>Lesson alignment</h2>
+          <p>Each world maps to core computer-science concepts — sequencing, variables, conditionals, loops, functions, data structures, and debugging — so you can slot them into your scheme of work.</p>
+          <h2>In the classroom</h2>
+          <ul>
+            <li>Use worlds as weekly units; the boss battle doubles as a quick assessment;</li>
+            <li>Project the AI chatbot demos for whole-class discussion;</li>
+            <li>Set lesson limits/passing scores to fit your group.</li>
+          </ul>
+          <h2>Get the educator pack</h2>
+          <div class="callout">📚 Email <a href="mailto:teachers@coding4kids.com">teachers@coding4kids.com</a> for printable lesson plans and a classroom setup guide.</div>`
+      },
+      help: {
+        title: '💬 Help Center', lead: 'Quick answers to common questions.',
+        body: `
+          <h2>How do I create an account?</h2>
+          <p>Tap "Start Free" on the home page. Kids enter a first name, username, password, parent email, and age range.</p>
+          <h2>How does a parent connect to a child?</h2>
+          <p>After a child signs up, scan the QR code or use the emailed "Sign My Kid and Myself Up" link to create a Family account that's linked to the child.</p>
+          <h2>Why can't my child log out?</h2>
+          <p>For safety, kids don't have a logout button. A parent (from the Family Dashboard) or an admin can sign a child out.</p>
+          <h2>How do I unlock the AI buddy?</h2>
+          <p>The AI buddy (Byte) is included on Pro and Family plans. You can upgrade from the checkout page.</p>
+          <h2>How do I get more lessons?</h2>
+          <p>Free and trial accounts have a lesson limit. When you reach it, you'll see upgrade options. Pro & Family have unlimited lessons.</p>
+          <p style="margin-top:14px;">Still stuck? <a href="page.html?p=contact">Contact support</a>.</p>`
+      },
+      about: {
+        title: '🚀 About Coding4Kids', lead: 'We make coding feel like a game — so every kid can become a builder.',
+        body: `
+          <h2>Our mission</h2>
+          <p>Coding is a superpower, but most tools are too boring, too advanced, or too expensive for kids. We're on a mission to make learning to code joyful, safe, and accessible for every child.</p>
+          <h2>What we believe</h2>
+          <ul>
+            <li><strong>Learning by doing</strong> beats reading walls of text;</li>
+            <li><strong>Safety first</strong> — no ads, no toxic chat, real parent controls;</li>
+            <li><strong>Mastery, not memorization</strong> — kids prove what they learned to level up.</li>
+          </ul>
+          <h2>The story</h2>
+          <p>Coding4Kids started with a simple question: what if learning to code felt as fun as your favorite game? Worlds, bosses, tokens, and an AI buddy are our answer.</p>`
+      },
+      careers: {
+        title: '💼 Careers', lead: 'Help us teach the next generation to build.',
+        body: `
+          <h2>Why work here</h2>
+          <ul>
+            <li>Mission-driven work that helps kids worldwide;</li>
+            <li>Small, friendly, remote-first team;</li>
+            <li>Real impact and ownership.</li>
+          </ul>
+          <h2>Open roles</h2>
+          <ul>
+            <li>Frontend Engineer (interactive learning UIs)</li>
+            <li>Curriculum Designer (K-8 computer science)</li>
+            <li>Community &amp; Safety Specialist</li>
+          </ul>
+          <div class="callout">📨 Interested? Send your CV and a note to <a href="mailto:careers@coding4kids.com">careers@coding4kids.com</a>.</div>`
+      },
+      press: {
+        title: '📰 Press', lead: 'News, brand assets, and media contact.',
+        body: `
+          <h2>About us (for media)</h2>
+          <p>Coding4Kids.com is a Duolingo-style coding platform for kids ages 6–16, featuring themed worlds, boss-battle assessments, an AI helper, and strong parental controls.</p>
+          <h2>Press kit</h2>
+          <ul>
+            <li>Logo &amp; brand colors (purple/pink gradient on dark);</li>
+            <li>Product screenshots;</li>
+            <li>Founder bios &amp; fact sheet.</li>
+          </ul>
+          <div class="callout">🎤 Media inquiries: <a href="mailto:press@coding4kids.com">press@coding4kids.com</a>.</div>`
+      },
+      contact: {
+        title: '📬 Contact Us', lead: "We'd love to hear from you — questions, feedback, or just to say hi!",
+        body: `
+          <h2>Reach us</h2>
+          <ul>
+            <li>General: <a href="mailto:support@coding4kids.com">support@coding4kids.com</a></li>
+            <li>Schools: <a href="mailto:schools@coding4kids.com">schools@coding4kids.com</a></li>
+            <li>Privacy: <a href="mailto:privacy@coding4kids.com">privacy@coding4kids.com</a></li>
+          </ul>
+          <h2>Send a message</h2>
+          <form onsubmit="sendContact(event)" style="display:flex;flex-direction:column;gap:12px;max-width:460px;">
+            <input id="cName" placeholder="Your name" required style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;" />
+            <input id="cEmail" type="email" placeholder="Your email" required style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;" />
+            <textarea id="cMsg" placeholder="How can we help?" required rows="4" style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;resize:vertical;"></textarea>
+            <button type="submit" class="btn btn-primary">Send message</button>
+            <div id="cDone" style="color:var(--green);font-weight:800;min-height:18px;"></div>
+          </form>`
+      }
+    };
+
+    function sendContact(e) {
+      e.preventDefault();
+      document.getElementById('cDone').textContent = "✅ Thanks! We'll reply to " + document.getElementById('cEmail').value + " soon.";
+      e.target.reset();
+    }
+
+    const key = new URLSearchParams(location.search).get('p');
+    const pg = PAGES[key] || { title: 'Page not found', lead: 'That page does not exist yet.', body: '<p><a href="index.html">← Back home</a></p>' };
+    document.title = pg.title.replace(/^[^A-Za-z]+/, '') + ' — Coding4Kids';
+    document.getElementById('pgTitle').textContent = pg.title;
+    document.getElementById('pgLead').textContent = pg.lead;
+    document.getElementById('pgBody').innerHTML = pg.body;
+  </script>
+</body>
+</html>

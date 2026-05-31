@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coding4Kids — Learn to Code Like a Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <span class="logo-icon">🚀</span>
+        <span>Coding<strong>4Kids</strong></span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="lessons.html">Lessons</a></li>
+        <li><a href="#botlab">AI Chatbots</a></li>
+        <li><a href="#build">Build Things</a></li>
+        <li><a href="#how">How It Works</a></li>
+      </ul>
+      <div class="nav-cta" id="navCta">
+        <a href="#" class="btn btn-ghost" onclick="openLogin();return false;">Log In</a>
+        <a href="#signup" class="btn btn-primary">Start Free</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="lessons.html">Lessons</a>
+      <a href="#botlab">AI Chatbots</a>
+      <a href="#build">Build Things</a>
+      <a href="#how">How It Works</a>
+      <a href="#" onclick="openLogin();return false;">Log In</a>
+      <a href="#signup" class="btn btn-primary" style="margin-top:8px;">Start Free</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg-blobs">
+      <div class="blob blob1"></div>
+      <div class="blob blob2"></div>
+      <div class="blob blob3"></div>
+    </div>
+    <div class="hero-content">
+      <div class="hero-badge">🎮 The Duolingo of Coding for Kids</div>
+      <h1>Learn to Code.<br /><span class="gradient-text">Level Up Your Life.</span></h1>
+      <p class="hero-sub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks — just a coding adventure made for kids ages 6–16.</p>
+      <div class="hero-btns">
+        <a href="#signup" class="btn btn-primary btn-lg">Start for Free 🚀</a>
+        <a href="#how" class="btn btn-outline btn-lg">See How It Works</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">50K+</span><span class="stat-label">Young Coders</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">200+</span><span class="stat-label">Fun Lessons</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">100%</span><span class="stat-label">Ad-Free & Safe</span></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="app-card">
+        <div class="app-card-header">
+          <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+          <span class="app-card-title">Level 3 — Variables</span>
+        </div>
+        <div class="app-card-body">
+          <p class="lesson-prompt">🧩 Drag the blocks to say hello!</p>
+          <div class="block-area">
+            <div class="code-block block-purple">🖨️ print</div>
+            <div class="code-block block-blue">" Hello, World! "</div>
+          </div>
+          <div class="output-box">
+            <span class="output-label">Output:</span>
+            <span class="output-text" id="outputText">Hello, World! 🎉</span>
+          </div>
+          <div class="xp-bar-wrap">
+            <span class="xp-label">XP  ⚡ 340 / 500</span>
+            <div class="xp-bar"><div class="xp-fill" style="width:68%"></div></div>
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="badge">🔥 5 Day Streak</span>
+          <span class="badge">⭐ Star Coder</span>
+          <span class="badge">🏆 Top 10%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUSTED BY -->
+  <section class="trusted">
+    <p class="trusted-label">Loved by kids, trusted by parents</p>
+    <div class="trusted-logos">
+      <span>👨‍👩‍👧 15,000+ Happy Families</span>
+      <span>🏫 500+ Schools</span>
+      <span>🌍 40+ Countries</span>
+      <span>⭐ 4.9 App Rating</span>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features section" id="features">
+    <div class="section-inner">
+      <div class="section-tag">Core Features</div>
+      <h2 class="section-title">Everything a Kid Needs to Become a Coder</h2>
+      <p class="section-sub">No boring textbooks. No confusing jargon. Just pure coding fun.</p>
+      <div class="features-grid">
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#ede9fe;">🧩</div>
+          <h3>Drag-and-Drop Coding</h3>
+          <p>Start with visual blocks before typing a single line of code. Perfect for ages 6+.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#fef9c3;">🎮</div>
+          <h3>Gamified Lessons</h3>
+          <p>Earn XP, unlock worlds, collect badges, and compete on leaderboards — learning feels like playing.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#dcfce7;">🤖</div>
+          <h3>AI Code Buddy</h3>
+          <p>Stuck? Your AI helper explains errors simply, gives hints, and cheers you on every step of the way.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#fee2e2;">🔥</div>
+          <h3>Daily Streaks</h3>
+          <p>Build a habit with 5-minute daily challenges. Miss a day? Streak shields keep you protected.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#e0f2fe;">🛡️</div>
+          <h3>100% Safe & Ad-Free</h3>
+          <p>No ads, no toxic chats, no private messages. Full parent controls and activity reports.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon" style="background:#fce7f3;">🌍</div>
+          <h3>Build Real Projects</h3>
+          <p>Kids make actual games, animations, and websites — not just exercises. Real results, real pride.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how section" id="how">
+    <div class="section-inner">
+      <div class="section-tag">How It Works</div>
+      <h2 class="section-title">Go from Zero to Coder in 3 Simple Steps</h2>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-icon">🗺️</div>
+          <h3>Pick Your Path</h3>
+          <p>Choose a learning adventure: Game Maker, Web Creator, or AI Explorer. Ages 6–16 all have a perfect starting point.</p>
+        </div>
+
+        <div class="step-arrow">→</div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-icon">⚡</div>
+          <h3>Complete Mini Lessons</h3>
+          <p>5-minute interactive lessons with drag-and-drop, mini challenges, and instant visual feedback. No reading walls!</p>
+        </div>
+
+        <div class="step-arrow">→</div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-icon">🏆</div>
+          <h3>Build & Share</h3>
+          <p>Use your skills to make real things — then share them in our safe, moderated gallery for the world to play!</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- GAMIFICATION BAND -->
+  <section class="gamification">
+    <div class="gami-inner">
+      <div class="gami-text">
+        <div class="section-tag light">Gamification</div>
+        <h2>Learning That Feels Like a Game</h2>
+        <p>We borrowed the best parts of your favorite games and turned them into a coding adventure.</p>
+        <ul class="gami-list">
+          <li>⚡ <strong>XP & Levels</strong> — Gain experience for every lesson and challenge you complete</li>
+          <li>🔥 <strong>Daily Streaks</strong> — Come back every day to keep your flame alive</li>
+          <li>🌍 <strong>Unlock Worlds</strong> — Space, Ocean, Jungle, and more — each with unique coding themes</li>
+          <li>⚔️ <strong>Boss Battles</strong> — Epic coding challenges at the end of every world</li>
+          <li>🏅 <strong>Badges</strong> — Collect achievements and show them off on your profile</li>
+          <li>👥 <strong>Multiplayer Challenges</strong> — Race friends to solve coding puzzles</li>
+        </ul>
+      </div>
+      <div class="gami-visual">
+        <div class="level-card">
+          <div class="level-header">
+            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=cody&backgroundColor=b6e3f4" alt="Avatar" class="avatar" />
+            <div>
+              <div class="player-name">Cody ⚡</div>
+              <div class="player-level">Level 12 — Star Coder</div>
+            </div>
+          </div>
+          <div class="xp-section">
+            <div class="xp-info"><span>XP Progress</span><span>340 / 500</span></div>
+            <div class="xp-bar"><div class="xp-fill" style="width:68%"></div></div>
+          </div>
+          <div class="badges-grid">
+            <div class="badge-item" title="5-Day Streak">🔥</div>
+            <div class="badge-item" title="First Game">🎮</div>
+            <div class="badge-item" title="Loop Master">🔄</div>
+            <div class="badge-item" title="Bug Squasher">🐛</div>
+            <div class="badge-item" title="AI Whisperer">🤖</div>
+            <div class="badge-item locked" title="???">🔒</div>
+          </div>
+          <div class="streak-row">
+            <div class="streak-day active">M</div>
+            <div class="streak-day active">T</div>
+            <div class="streak-day active">W</div>
+            <div class="streak-day active">T</div>
+            <div class="streak-day active">F</div>
+            <div class="streak-day">S</div>
+            <div class="streak-day">S</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILD REAL THINGS -->
+  <section class="build section" id="build">
+    <div class="section-inner">
+      <div class="section-tag">Build Real Things</div>
+      <h2 class="section-title">Kids Make Stuff They're Actually Proud Of</h2>
+      <p class="section-sub">Every lesson leads toward a real creation. Not homework — actual cool projects.</p>
+      <div class="projects-grid">
+
+        <div class="project-card" style="--card-color: #7c3aed;">
+          <div class="project-emoji">🎮</div>
+          <h3>Mini Games</h3>
+          <p>Build platformers, quizzes, and arcade games using drag-and-drop or Python.</p>
+          <span class="project-tag">Ages 8+</span>
+        </div>
+
+        <div class="project-card" style="--card-color: #059669;">
+          <div class="project-emoji">🌐</div>
+          <h3>Websites</h3>
+          <p>Design and publish your own website with HTML, CSS, and a dash of JavaScript.</p>
+          <span class="project-tag">Ages 10+</span>
+        </div>
+
+        <div class="project-card" style="--card-color: #d97706;">
+          <div class="project-emoji">✨</div>
+          <h3>Animations</h3>
+          <p>Make characters move, dance, and tell stories with visual coding blocks.</p>
+          <span class="project-tag">Ages 6+</span>
+        </div>
+
+        <div class="project-card" style="--card-color: #dc2626;">
+          <div class="project-emoji">🤖</div>
+          <h3>AI Chatbots</h3>
+          <p>Build your own AI assistant that can answer questions and have conversations.</p>
+          <span class="project-tag">Ages 12+</span>
+        </div>
+
+        <div class="project-card" style="--card-color: #0284c7;">
+          <div class="project-emoji">📱</div>
+          <h3>Simple Apps</h3>
+          <p>Create to-do lists, calculators, and fun apps you can actually use every day.</p>
+          <span class="project-tag">Ages 10+</span>
+        </div>
+
+        <div class="project-card" style="--card-color: #db2777;">
+          <div class="project-emoji">🎨</div>
+          <h3>Digital Art</h3>
+          <p>Use code to create generative art, patterns, and interactive drawings.</p>
+          <span class="project-tag">Ages 7+</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- AI BUDDY -->
+  <section class="ai-buddy section">
+    <div class="section-inner ai-inner">
+      <div class="ai-chat" id="aiChatWrap">
+        <div class="ai-lock hidden" id="aiLock">
+          <div class="ai-lock-inner">
+            <div class="ai-lock-icon">🔒</div>
+            <h3>AI is a Pro feature</h3>
+            <p id="aiLockMsg">Byte and the AI chatbots are unlocked on the <strong>Pro</strong> plan. Free and trial accounts don't include AI.</p>
+            <a href="#pricing" class="btn btn-primary">Upgrade to Pro 🚀</a>
+          </div>
+        </div>
+        <div class="chat-header">
+          <span class="chat-avatar">🤖</span>
+          <div>
+            <div class="chat-name">Byte — Your AI Code Buddy</div>
+            <div class="chat-status">● Online & ready to help</div>
+          </div>
+        </div>
+        <div class="chat-messages" id="byteMessages">
+          <div class="msg msg-ai">
+            <span class="msg-avatar">🤖</span>
+            <div class="msg-bubble">Hi! I'm Byte, your AI code buddy! 🎉 Ask me anything about coding — try "what is a variable?" or "how do loops work?"</div>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" class="chat-input" id="byteInput" placeholder="Ask Byte a question..." onkeydown="if(event.key==='Enter')sendToByte()" />
+          <button class="chat-send" onclick="sendToByte()" aria-label="Send">➤</button>
+        </div>
+      </div>
+      <div class="ai-text">
+        <div class="section-tag">AI Code Buddy</div>
+        <h2>Meet Byte — Your Personal Coding Coach</h2>
+        <p>Byte is an always-available AI assistant that speaks kid. No confusing error messages — just friendly hints, simple explanations, and non-stop encouragement.</p>
+        <ul class="ai-features">
+          <li>✅ Explains errors in plain English</li>
+          <li>✅ Gives hints instead of just answers</li>
+          <li>✅ Teaches concepts step-by-step</li>
+          <li>✅ Celebrates every win, big or small</li>
+          <li>✅ Never makes kids feel dumb</li>
+          <li>✅ Available 24/7, always patient</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHATBOT LAB -->
+  <section class="botlab section" id="botlab">
+    <div class="section-inner">
+      <div class="section-tag">AI Chatbot Lab · Pro 🔒</div>
+      <h2 class="section-title">Pre-Made AI Chatbots to Play With</h2>
+      <p class="section-sub">We built these bots for you! Available on the Pro plan — click any one to start chatting.</p>
+      <div class="bot-grid">
+
+        <div class="bot-card" onclick="openBot('joke')">
+          <div class="bot-emoji">😂</div>
+          <h3>Giggle Bot</h3>
+          <p>Tells you a fresh joke every time you ask. Warning: very silly!</p>
+          <button class="btn btn-primary">Chat Now</button>
+        </div>
+
+        <div class="bot-card" onclick="openBot('math')">
+          <div class="bot-emoji">🔢</div>
+          <h3>Math Buddy</h3>
+          <p>Type a sum like "12 + 8" and it solves it instantly with a smile.</p>
+          <button class="btn btn-primary">Chat Now</button>
+        </div>
+
+        <div class="bot-card" onclick="openBot('story')">
+          <div class="bot-emoji">📖</div>
+          <h3>Story Spark</h3>
+          <p>Give it a hero and a place — it writes a mini adventure for you.</p>
+          <button class="btn btn-primary">Chat Now</button>
+        </div>
+
+        <div class="bot-card" onclick="openBot('quiz')">
+          <div class="bot-emoji">🧠</div>
+          <h3>Quiz Master</h3>
+          <p>Test your coding brain with fun questions. Type "start" to play!</p>
+          <button class="btn btn-primary">Chat Now</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- BOT MODAL -->
+  <div class="modal-overlay hidden" id="botModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar" id="botModalEmoji">🤖</span>
+        <div style="flex:1;">
+          <div class="chat-name" id="botModalName">Bot</div>
+          <div class="chat-status">● Online & ready to play</div>
+        </div>
+        <button class="modal-close" onclick="closeBot()">✕</button>
+      </div>
+      <div class="chat-messages" id="botModalMessages" style="max-height:300px;"></div>
+      <div class="chat-input-row">
+        <input type="text" class="chat-input" id="botModalInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendToBot()" />
+        <button class="chat-send" onclick="sendToBot()" aria-label="Send">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TESTIMONIALS -->
+  <section class="testimonials section">
+    <div class="section-inner">
+      <div class="section-tag">Real Stories</div>
+      <h2 class="section-title">Kids (and Parents) Love It</h2>
+      <div class="testimonials-grid">
+
+        <div class="testimonial-card">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <p>"My 8-year-old built his first game in week 2. He asks to do coding lessons every single day now. I literally have to tell him to stop!"</p>
+          <div class="testimonial-author">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=parent1" alt="" class="t-avatar" />
+            <div><strong>Sarah M.</strong><br/><span>Mom of Marcus, age 8</span></div>
+          </div>
+        </div>
+
+        <div class="testimonial-card featured">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <p>"I made my own website and showed it to my whole class! The AI buddy Byte helped me when I got stuck and never made me feel stupid."</p>
+          <div class="testimonial-author">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=kid1" alt="" class="t-avatar" />
+            <div><strong>Zara, age 11</strong><br/><span>Level 18 Star Coder</span></div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <p>"As a teacher I've tried many coding apps. Coding4Kids is the only one where I see ALL my students engaged — not just the naturally technical ones."</p>
+          <div class="testimonial-author">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=teacher1" alt="" class="t-avatar" />
+            <div><strong>Mr. James T.</strong><br/><span>3rd Grade Teacher, Chicago</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing is intentionally NOT shown inline. It only appears in a popup
+       when a kid runs out of lessons, or via the #pricing link (see #pricingModal). -->
+
+  <!-- SIGNUP CTA -->
+  <section class="signup section" id="signup">
+    <div class="signup-inner">
+      <div class="section-tag light">Get Started Today</div>
+      <h2>Your Kid's Coding Adventure Starts Now</h2>
+      <p>Create a free account and start a <strong>3-day trial</strong> (no credit card, no AI). Upgrade to Pro any time to unlock AI.</p>
+      <form class="signup-form" id="signupForm" onsubmit="handleSignup(event)">
+        <input type="text" id="suName" placeholder="Child's first name" required class="form-input" />
+        <input type="email" id="suEmail" placeholder="Parent's email address" required class="form-input" />
+        <input type="text" id="suUsername" placeholder="Pick a username (3-20 letters/numbers)" required class="form-input" />
+        <input type="password" id="suPassword" placeholder="Create a password (min 6 characters)" required class="form-input" />
+        <select class="form-input" id="suAge">
+          <option value="">Child's age</option>
+          <option>6–7 years old</option>
+          <option>8–10 years old</option>
+          <option>11–13 years old</option>
+          <option>14–16 years old</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-lg">Create Free Account 🚀</button>
+      </form>
+      <p class="signup-fine">By signing up you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>. We never sell data or show ads.</p>
+      <div id="signupSuccess" class="signup-success hidden"></div>
+      <p class="signup-fine" style="margin-top:14px;">Already have an account? <a href="#" onclick="openLogin();return false;">Log in here</a></p>
+      <p class="signup-fine" style="margin-top:6px;">👨‍👩‍👧 A parent? <a href="#" onclick="openParentSignup();return false;">Create a Family account</a> to manage your kids (Family plan, AI included).</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a href="#" class="logo">
+          <span class="logo-icon">🚀</span>
+          <span>Coding<strong>4Kids</strong></span>
+        </a>
+        <p>Making coding accessible, fun, and safe for every kid on the planet.</p>
+        <div class="social-links">
+          <a href="https://www.youtube.com/@coding4kids" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
+            <svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path fill="#FF0000" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          </a>
+          <a href="https://www.tiktok.com/@coding4kids" target="_blank" rel="noopener" aria-label="TikTok" title="TikTok">
+            <svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path fill="#FFFFFF" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.08-.14 1.62.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+          </a>
+          <a href="https://www.instagram.com/coding4kids" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+            <svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path fill="#E4405F" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163C8.741 0 8.332.014 7.052.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+          </a>
+          <a href="https://www.linkedin.com/company/coding4kids" target="_blank" rel="noopener" aria-label="LinkedIn" title="LinkedIn">
+            <svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path fill="#0A66C2" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="#features">Features</a>
+          <a href="page.html?p=curriculum">Curriculum</a>
+          <a href="#" onclick="openPricing();return false;">Pricing</a>
+          <a href="page.html?p=schools">For Schools</a>
+        </div>
+        <div class="footer-col">
+          <h4>Learn</h4>
+          <a href="page.html?p=blog">Blog</a>
+          <a href="page.html?p=parent-guide">Parent Guide</a>
+          <a href="page.html?p=teachers">Teacher Resources</a>
+          <a href="page.html?p=help">Help Center</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="page.html?p=about">About Us</a>
+          <a href="page.html?p=careers">Careers</a>
+          <a href="page.html?p=press">Press</a>
+          <a href="page.html?p=contact">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="privacy.html#coppa">COPPA Compliance</a>
+          <a href="privacy.html#cookies">Cookie Policy</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 Coding4Kids.com — Made with ❤️ for the next generation of builders</p>
+    </div>
+  </footer>
+
+  <!-- LOGIN MODAL -->
+  <div class="modal-overlay hidden" id="loginModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar" id="loginIcon">🔐</span>
+        <div style="flex:1;">
+          <div class="chat-name" id="loginTitle">Kid Log In</div>
+          <div class="chat-status" id="loginSubtitle">Welcome back, coder!</div>
+        </div>
+        <button class="modal-close" onclick="closeLogin()">✕</button>
+      </div>
+      <div class="role-tabs">
+        <button type="button" class="role-tab active" data-role="kid" onclick="setLoginRole('kid')">👦 Kid</button>
+        <button type="button" class="role-tab" data-role="parent" onclick="setLoginRole('parent')">👨‍👩‍👧 Parent</button>
+        <button type="button" class="role-tab" data-role="admin" onclick="setLoginRole('admin')">🛠️ Admin</button>
+        <button type="button" class="role-tab" data-role="super_admin" onclick="setLoginRole('super_admin')">👑 Super</button>
+      </div>
+      <form style="padding:8px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleLogin(event)">
+        <input type="text" id="loginUsername" placeholder="Username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="password" id="loginPassword" placeholder="Password" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <div id="loginError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
+        <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In</button>
+        <p class="signup-fine" id="loginFootnote" style="color:var(--text-dim);text-align:center;">New here? <a href="#signup" onclick="closeLogin()">Create an account</a></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- PARENT SIGNUP MODAL -->
+  <div class="modal-overlay hidden" id="parentModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">👨‍👩‍👧</span>
+        <div style="flex:1;">
+          <div class="chat-name">Create a Family Account</div>
+          <div class="chat-status">Family plan · AI included · manage your kids</div>
+        </div>
+        <button class="modal-close" onclick="closeParentSignup()">✕</button>
+      </div>
+      <form style="padding:16px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleParentSignup(event)">
+        <div id="parentLinkNote" class="hidden" style="background:var(--purple-light);border:1px solid var(--border-bright);border-radius:10px;padding:10px 14px;font-size:0.85rem;color:#c4b5fd;font-weight:700;"></div>
+        <input type="text" id="pName" placeholder="Your name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="email" id="pEmail" placeholder="Your email" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="text" id="pUsername" placeholder="Choose a username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="password" id="pPassword" placeholder="Create a password (min 6 chars)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <div id="parentError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
+        <button type="submit" class="btn btn-primary btn-lg">Create Family Account 👨‍👩‍👧</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PARENT INVITE (after a kid signs up) -->
+  <div class="modal-overlay hidden" id="inviteModal">
+    <div class="modal" style="max-width:460px;">
+      <div class="chat-header">
+        <span class="chat-avatar">👨‍👩‍👧</span>
+        <div style="flex:1;"><div class="chat-name">Invite Your Parent</div><div class="chat-status">Connect a grown-up to your account</div></div>
+      </div>
+      <div style="padding:22px 24px 26px;text-align:center;">
+        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:16px;">Scan this QR code, or send the email below, so your parent can make their own account and connect to yours.</p>
+        <img id="inviteQr" alt="Parent signup QR code" width="180" height="180" style="background:#fff;border-radius:12px;padding:8px;" />
+        <div style="margin:16px 0;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:left;">
+          <div style="font-size:0.72rem;font-weight:800;color:var(--text-faint);text-transform:uppercase;margin-bottom:6px;">📧 Email to <span id="inviteEmail">your parent</span></div>
+          <p style="font-size:0.85rem;color:var(--text-dim);line-height:1.5;">“<span id="inviteKid">Your kid</span> just joined Coding4Kids! Tap the button to create your parent account and connect.”</p>
+          <a id="inviteEmailBtn" href="#" class="btn btn-primary" style="margin-top:10px;">Sign My Kid and Myself Up</a>
+        </div>
+        <button class="btn btn-outline btn-full" onclick="finishInvite()">Continue to my dashboard →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRICING POPUP (only shown on request / lesson limit) -->
+  <div class="modal-overlay hidden" id="pricingModal">
+    <div class="modal" style="max-width:600px;">
+      <div class="chat-header">
+        <span class="chat-avatar">💎</span>
+        <div style="flex:1;"><div class="chat-name">Plans</div><div class="chat-status">Unlock more with Pro or a Family Plan</div></div>
+        <button class="modal-close" onclick="closePricing()" aria-label="Close">✕</button>
+      </div>
+      <div style="padding:24px;" id="pricingBody"></div>
+      <div style="padding:0 24px 22px;text-align:center;color:var(--text-faint);font-size:0.8rem;">🔒 Cancel anytime · Trials include no AI · 100% safe for kids</div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

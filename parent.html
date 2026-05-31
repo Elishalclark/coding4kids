@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Dashboard — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
+    .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
+    .pd-head h1 { font-size: 1.7rem; font-weight: 900; }
+    .plan-banner {
+      background: linear-gradient(135deg, var(--purple-dark), #4c1d95);
+      border: 1px solid var(--border-bright); border-radius: var(--radius); padding: 22px 26px;
+      display: flex; align-items: center; gap: 20px; margin-bottom: 28px; flex-wrap: wrap;
+    }
+    .plan-banner .pb-emoji { font-size: 2.4rem; }
+    .plan-banner h2 { font-size: 1.2rem; font-weight: 900; }
+    .plan-banner p { color: #d6c9ff; font-size: 0.9rem; }
+    .plan-banner .pill { margin-left: auto; background: rgba(255,255,255,0.15); color: #fff; font-weight: 900; padding: 8px 18px; border-radius: 50px; }
+    .kid-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 16px; }
+    .kid-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .kid-card .kid-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .kid-av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg,var(--purple-mid),var(--pink)); display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff; }
+    .kid-card h3 { font-size: 1.05rem; font-weight: 900; }
+    .kid-card .uname { color: var(--text-faint); font-size: 0.8rem; }
+    .kid-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    .empty { color: var(--text-dim); padding: 20px 0; }
+    .add-card {
+      background: var(--surface-2); border: 1px dashed var(--border-bright); border-radius: var(--radius);
+      padding: 22px; display: flex; flex-direction: column; gap: 12px; align-items: stretch; justify-content: center;
+    }
+    .add-card input { padding: 11px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family:'Nunito',sans-serif; font-weight:700; outline:none; }
+    .add-card input:focus { border-color: var(--border-bright); }
+    .add-card .lbl { font-weight: 900; font-size: 0.95rem; }
+    .add-err { color:#f87171; font-weight:700; font-size:0.82rem; min-height:16px; }
+    .back-btn { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); text-decoration:none; font-weight:800; font-size:0.9rem; padding:8px 14px; border:1px solid var(--border); border-radius:50px; transition:all .15s; }
+    .back-btn:hover { color:var(--purple); border-color:var(--border-bright); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+        <button class="btn btn-outline" onclick="logout()">Log Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pd-main">
+    <div class="pd-head">
+      <h1>👨‍👩‍👧 Family Dashboard</h1>
+    </div>
+
+    <div class="plan-banner">
+      <span class="pb-emoji">👑</span>
+      <div>
+        <h2 id="planName">Family Plan</h2>
+        <p id="planDesc">AI included for everyone in your family.</p>
+      </div>
+      <span class="pill" id="planPill">FAMILY</span>
+    </div>
+
+    <div id="msgWrap" class="hidden" style="margin-bottom:28px;">
+      <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:14px;">📬 Messages</h2>
+      <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+
+    <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Your Kids</h2>
+    <div class="kid-grid" id="kidGrid"></div>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    function logout() { C4K.logout().then(() => location.href = 'index.html'); }
+
+    function kidCard(k) {
+      return `<div class="kid-card">
+        <div class="kid-top">
+          <div class="kid-av">${(k.name||'?')[0].toUpperCase()}</div>
+          <div><h3>${k.name}</h3><div class="uname">@${k.username}</div></div>
+        </div>
+        <div class="kid-meta">
+          <span class="plan-tag ${k.effectivePlan==='family'||k.effectivePlan==='pro'?'pro':k.effectivePlan}">${k.effectivePlan}</span>
+          <span class="plan-tag ${k.hasAI?'pro':'free'}">${k.hasAI?'🤖 AI on':'no AI'}</span>
+        </div>
+        <button class="btn btn-outline" style="margin-top:14px;width:100%;font-size:0.82rem;padding:8px;"
+          onclick="signOutKid(${k.id}, '${(k.name||'').replace(/'/g,"\\'")}')">🔒 Sign out ${k.name}</button>
+        <div class="signout-msg" id="so${k.id}" style="color:var(--green);font-weight:800;font-size:0.78rem;margin-top:6px;min-height:14px;"></div>
+      </div>`;
+    }
+
+    async function signOutKid(id, name) {
+      if (!confirm(`Sign out ${name}? They'll be logged out on their device and need to log in again.`)) return;
+      const { ok, data } = await C4K.api('/api/parent/signout-kid', 'POST', { kidId: id });
+      const msg = document.getElementById('so' + id);
+      if (msg) { msg.style.color = ok ? 'var(--green)' : '#f87171'; msg.textContent = ok ? `✅ ${name} has been signed out.` : '⚠️ ' + (data.error || 'Could not sign out.'); }
+    }
+
+    function addKidCard() {
+      return `<div class="add-card">
+        <div class="lbl">➕ Add a kid</div>
+        <input id="akName" placeholder="Kid's name" />
+        <input id="akUser" placeholder="Username" />
+        <input id="akPass" type="password" placeholder="Password (min 6)" />
+        <input id="akAge" placeholder="Age (e.g. 8–10)" />
+        <div class="add-err" id="akErr"></div>
+        <button class="btn btn-primary" onclick="addKid()">Add to Family</button>
+      </div>`;
+    }
+
+    async function load() {
+      const me = await C4K.loadMe();
+      if (!me || me.role !== 'parent') { location.href = 'index.html'; return; }
+      const { ok, data } = await C4K.api('/api/parent/family');
+      const grid = document.getElementById('kidGrid');
+      const kids = (ok && data.kids) ? data.kids : [];
+      grid.innerHTML = kids.map(kidCard).join('') + addKidCard();
+      if (kids.length === 0) {
+        grid.insertAdjacentHTML('afterbegin', '<div class="empty">No kids yet — add your first one! They\'ll be on your Family plan with AI. 🎉</div>');
+      }
+      // messages (e.g. a kid asked to upgrade)
+      const mr = await C4K.api('/api/parent/messages');
+      const msgs = (mr.ok && mr.data.messages) ? mr.data.messages : [];
+      if (msgs.length) {
+        document.getElementById('msgWrap').classList.remove('hidden');
+        document.getElementById('msgList').innerHTML = msgs.map(m => {
+          const upgrade = m.kind === 'upgrade_request';
+          return `<div style="background:var(--surface);border:1px solid ${upgrade?'var(--border-bright)':'var(--border)'};border-radius:12px;padding:16px 18px;">
+            <div style="font-weight:800;margin-bottom:4px;">${upgrade?'⬆️ Upgrade request':'📩 Notification'}</div>
+            <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;">${m.body}</p>
+            ${upgrade?'<a href="index.html#pricing" class="btn btn-primary" style="margin-top:10px;">View plans</a>':''}
+          </div>`;
+        }).join('');
+      }
+    }
+
+    async function addKid() {
+      const payload = {
+        name: document.getElementById('akName').value.trim(),
+        username: document.getElementById('akUser').value.trim(),
+        password: document.getElementById('akPass').value,
+        ageBand: document.getElementById('akAge').value.trim()
+      };
+      const { ok, data } = await C4K.api('/api/parent/add-kid', 'POST', payload);
+      if (ok) load();
+      else document.getElementById('akErr').textContent = '❌ ' + (data.error || 'Could not add kid.');
+    }
+
+    load();
+  </script>
+</body>
+</html>
