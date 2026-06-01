@@ -1216,6 +1216,11 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"ok": True})
 
     # ---- static files ----
+    def _security_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+
     def serve_static(self, path):
         if path in ("/", ""):
             path = "/index.html"
@@ -1225,10 +1230,15 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.isfile(fs):
             if os.path.isfile(fs + ".html"):
                 fs = fs + ".html"
-            else:
+            else:  # styled 404 page if available
+                page = os.path.join(ROOT, "404.html")
+                body = open(page, "rb").read() if os.path.isfile(page) else b"404 Not Found"
                 self.send_response(404)
+                self._security_headers()
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
-                self.wfile.write(b"404 Not Found")
+                self.wfile.write(body)
                 return
         ext = os.path.splitext(fs)[1]
         with open(fs, "rb") as f:
@@ -1236,6 +1246,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", STATIC_TYPES.get(ext, "application/octet-stream"))
         self.send_header("Content-Length", str(len(body)))
+        self._security_headers()
+        # Long cache for icons/manifest; short for everything else.
+        if ext in (".png", ".svg", ".ico"):
+            self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(body)
 
