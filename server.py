@@ -36,6 +36,8 @@ PORT = int(os.environ.get("PORT", "3000"))
 
 TRIAL_DAYS = 3
 ADMIN_ROLES = ("admin", "super_admin")
+GUARDIAN_ROLES = ("parent", "teacher")   # adults who manage kids
+COPPA_AGE = 13                            # under this age, verifiable consent is required (US COPPA)
 STATIC_TYPES = {
     ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
     ".js": "application/javascript; charset=utf-8", ".json": "application/json; charset=utf-8",
@@ -273,6 +275,7 @@ def init_db():
             salt TEXT NOT NULL,
             parent_email TEXT,
             age_band TEXT,
+            age_years INTEGER,
             plan TEXT NOT NULL DEFAULT 'trial',
             trial_ends TEXT,
             family_id INTEGER,
@@ -280,7 +283,18 @@ def init_db():
             avatar TEXT,
             owned_items TEXT,
             link_token TEXT,
+            consent_status TEXT DEFAULT 'not_required',
+            consent_method TEXT,
+            consent_at TEXT,
+            consent_by TEXT,
+            consent_token TEXT,
+            consent_confirm_token TEXT,
+            school TEXT,
             created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS consent_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            child_id INTEGER, child_username TEXT, method TEXT, granted_by TEXT, detail TEXT, created_at TEXT
         );
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +317,16 @@ def init_db():
         );
         """
     )
+    # Migrate older databases (add any missing user columns) without touching existing rows.
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    add_cols = {
+        "age_years": "INTEGER", "consent_status": "TEXT DEFAULT 'not_required'",
+        "consent_method": "TEXT", "consent_at": "TEXT", "consent_by": "TEXT",
+        "consent_token": "TEXT", "consent_confirm_token": "TEXT", "school": "TEXT",
+    }
+    for col, decl in add_cols.items():
+        if col not in existing:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
     conn.commit()
     conn.close()
 
@@ -412,6 +436,31 @@ def now_iso():
 
 def today_str():
     return datetime.date.today().isoformat()
+
+
+# ────────────────────────────── COPPA consent ──────────────────────────────
+def consent_ok(user):
+    """Has this account cleared the parental-consent gate?"""
+    if user["role"] != "kid":
+        return True
+    status = _row_get(user, "consent_status", "not_required")
+    return status in ("granted", "not_required")
+
+
+def log_consent(child_id, child_username, method, granted_by, detail=""):
+    conn = db()
+    conn.execute(
+        "INSERT INTO consent_log (child_id,child_username,method,granted_by,detail,created_at) VALUES (?,?,?,?,?,?)",
+        (child_id, child_username, method, granted_by, detail, now_iso()))
+    conn.commit()
+    conn.close()
+
+
+def grant_consent(conn, kid_id, method, granted_by):
+    conn.execute(
+        "UPDATE users SET consent_status='granted', consent_method=?, consent_by=?, consent_at=?, "
+        "consent_token=NULL, consent_confirm_token=NULL WHERE id=?",
+        (method, granted_by, now_iso(), kid_id))
 
 
 # ────────────────────────────── admin accounts ──────────────────────────────
@@ -532,7 +581,7 @@ def _row_get(row, key, default=None):
 
 def public_user(user):
     eff = effective_plan(user)
-    up = units_passed(user["id"]) if user["role"] in ("kid", "parent") else []
+    up = units_passed(user["id"]) if user["role"] == "kid" else []
     try:
         avatar = json.loads(_row_get(user, "avatar") or "null") or dict(DEFAULT_AVATAR)
     except (ValueError, TypeError):
@@ -541,6 +590,7 @@ def public_user(user):
         owned = json.loads(_row_get(user, "owned_items") or "null") or list(FREE_ITEMS)
     except (ValueError, TypeError):
         owned = list(FREE_ITEMS)
+    cstatus = _row_get(user, "consent_status", "not_required")
     return {
         "id": user["id"], "role": user["role"], "name": user["name"], "username": user["username"],
         "plan": user["plan"], "effectivePlan": eff, "trialDaysLeft": trial_days_left(user),
@@ -549,7 +599,10 @@ def public_user(user):
         "unitsPassed": up, "level": len(up) + 1,
         "tokens": _row_get(user, "tokens", 0), "avatar": avatar, "ownedItems": owned,
         "linkToken": _row_get(user, "link_token"), "parentEmail": _row_get(user, "parent_email"),
-        "ageBand": user["age_band"], "familyId": user["family_id"],
+        "ageBand": user["age_band"], "ageYears": _row_get(user, "age_years"), "familyId": user["family_id"],
+        "consentStatus": cstatus, "consentMethod": _row_get(user, "consent_method"),
+        "needsConsent": (user["role"] == "kid" and cstatus == "pending"),
+        "school": _row_get(user, "school"),
     }
 
 
@@ -643,7 +696,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/parent/messages":
             u = self._current_user()
-            if not u or u["role"] != "parent":
+            if not u or u["role"] not in GUARDIAN_ROLES:
                 return self._send_json({"error": "forbidden"}, 403)
             conn = db()
             rows = conn.execute("SELECT * FROM messages WHERE to_email=? ORDER BY id DESC LIMIT 50", (u["parent_email"] or "",)).fetchall()
@@ -695,12 +748,44 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/parent/family":
             u = self._current_user()
-            if not u or u["role"] != "parent":
+            if not u or u["role"] not in GUARDIAN_ROLES:
                 return self._send_json({"error": "forbidden"}, 403)
             conn = db()
             kids = conn.execute("SELECT * FROM users WHERE role='kid' AND family_id=? ORDER BY id", (u["family_id"],)).fetchall()
             conn.close()
             return self._send_json({"parent": public_user(u), "kids": [public_user(k) for k in kids]})
+
+        if path.startswith("/api/consent/"):  # public: parent opens the consent link
+            tok = path.rsplit("/", 1)[1]
+            conn = db()
+            kid = conn.execute("SELECT id,name,age_years,parent_email FROM users WHERE consent_token=? AND role='kid'", (tok,)).fetchone()
+            conn.close()
+            if not kid:
+                return self._send_json({"error": "This consent link is invalid or already used."}, 404)
+            return self._send_json({"childName": kid["name"], "ageYears": kid["age_years"], "parentEmail": kid["parent_email"]})
+
+        if path.startswith("/api/parent/kid-data/"):  # guardian downloads a child's stored data (COPPA review right)
+            u = self._current_user()
+            if not u or u["role"] not in GUARDIAN_ROLES:
+                return self._send_json({"error": "forbidden"}, 403)
+            try:
+                kid_id = int(path.rsplit("/", 1)[1])
+            except ValueError:
+                return self._send_json({"error": "bad id"}, 400)
+            conn = db()
+            kid = conn.execute("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?", (kid_id, u["family_id"])).fetchone()
+            if not kid:
+                conn.close()
+                return self._send_json({"error": "Not your family's kid."}, 403)
+            prog = [r["lesson_id"] for r in conn.execute("SELECT lesson_id FROM progress WHERE user_id=?", (kid_id,)).fetchall()]
+            tests = [dict(r) for r in conn.execute("SELECT unit,passed,best_score,attempts FROM unit_tests WHERE user_id=?", (kid_id,)).fetchall()]
+            conn.close()
+            return self._send_json({"profile": {
+                "name": kid["name"], "username": kid["username"], "ageYears": kid["age_years"],
+                "parentEmail": kid["parent_email"], "plan": kid["plan"], "tokens": _row_get(kid, "tokens", 0),
+                "consentStatus": _row_get(kid, "consent_status"), "consentMethod": _row_get(kid, "consent_method"),
+                "consentBy": _row_get(kid, "consent_by"), "consentAt": _row_get(kid, "consent_at"),
+                "createdAt": kid["created_at"]}, "lessonsCompleted": prog, "unitTests": tests})
 
         if path == "/api/admin/users":
             u = self._current_user()
@@ -771,7 +856,7 @@ class Handler(BaseHTTPRequestHandler):
         routes = {
             "/api/signup": lambda: self.api_signup(data),
             "/api/parent/signup": lambda: self.api_parent_signup(data),
-            "/api/login": lambda: self.api_login(data, allow=("kid", "parent", "admin", "super_admin")),
+            "/api/login": lambda: self.api_login(data, allow=("kid", "parent", "teacher", "admin", "super_admin")),
             "/api/admin/login": lambda: self.api_login(data, allow=ADMIN_ROLES),
             "/api/logout": lambda: self.api_logout(),
             "/api/progress": lambda: self.api_progress(data),
@@ -782,6 +867,10 @@ class Handler(BaseHTTPRequestHandler):
             "/api/request-upgrade": lambda: self.api_request_upgrade(data),
             "/api/parent/add-kid": lambda: self.api_parent_add_kid(data),
             "/api/parent/signout-kid": lambda: self.api_parent_signout_kid(data),
+            "/api/parent/delete-kid": lambda: self.api_parent_delete_kid(data),
+            "/api/teacher/signup": lambda: self.api_teacher_signup(data),
+            "/api/consent/start": lambda: self.api_consent_start(data),
+            "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
@@ -807,30 +896,47 @@ class Handler(BaseHTTPRequestHandler):
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
         email = (data.get("parentEmail") or "").strip()
-        age = (data.get("ageBand") or "").strip()
+        age_band = (data.get("ageBand") or "").strip()
+        try:
+            age_years = int(data.get("age")) if data.get("age") not in (None, "") else None
+        except (TypeError, ValueError):
+            age_years = None
         err = self._validate_credentials(name, username, password)
         if err:
             return self._send_json({"error": err}, 400)
+        # COPPA age gate: under 13 needs verifiable parental consent before the account is usable.
+        needs_consent = age_years is not None and age_years < COPPA_AGE
+        consent_token = secrets.token_urlsafe(10) if needs_consent else None
+        consent_status = "pending" if needs_consent else "not_required"
         trial_ends = (datetime.datetime.utcnow() + datetime.timedelta(days=TRIAL_DAYS)).replace(microsecond=0).isoformat() + "Z"
         resp = self._create_user(role="kid", name=name, username=username, password=password,
-                                 email=email, age=age, plan="trial", trial_ends=trial_ends, return_row=True)
+                                 email=email, age=age_band, age_years=age_years, plan="trial",
+                                 trial_ends=trial_ends, consent_status=consent_status,
+                                 consent_token=consent_token, return_row=True)
         if not isinstance(resp, tuple):
             return resp  # error already sent (e.g. username taken)
         uid, row = resp
         link_token = row["link_token"]
         invite_url = f"http://localhost:{PORT}/index.html?plink={link_token}"
-        # Simulate the parent invite email (no SMTP in this environment) by storing a message.
+        # Simulate emails (no SMTP here) by storing messages the parent sees in-app.
         if email:
-            email_body = (f"{name} just joined Coding4Kids! Tap “Sign My Kid and Myself Up” to create your "
-                          f"parent account and connect to {name}: {invite_url}")
             conn = db()
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
-                         (email, "parent_invite", email_body, uid, link_token, now_iso()))
+                         (email, "parent_invite",
+                          f"{name} just joined Coding4Kids! Tap “Sign My Kid and Myself Up” to create your "
+                          f"parent account and connect to {name}: {invite_url}", uid, link_token, now_iso()))
+            if needs_consent:
+                consent_url = f"http://localhost:{PORT}/index.html?consent={consent_token}"
+                conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
+                             (email, "consent_request",
+                              f"Parental consent needed: {name} (under 13) wants to use Coding4Kids. As required by "
+                              f"COPPA, please review and approve: {consent_url}", uid, consent_token, now_iso()))
             conn.commit()
             conn.close()
         token = create_session(uid)
         return self._send_json({"token": token, "user": public_user(row),
-                                "inviteToken": link_token, "inviteUrl": invite_url, "parentEmail": email})
+                                "inviteToken": link_token, "inviteUrl": invite_url, "parentEmail": email,
+                                "needsConsent": needs_consent, "consentToken": consent_token})
 
     def api_parent_signup(self, data):
         name = (data.get("name") or "").strip()
@@ -849,15 +955,19 @@ class Handler(BaseHTTPRequestHandler):
             linked = None
             conn = db()
             conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))
-            # If they came from a child's invite link, connect that child to this family + parent email
+            # If they came from a child's invite link, connect that child + grant parental consent.
+            linked_id = None
             if link_token:
-                kid = conn.execute("SELECT id,name FROM users WHERE link_token=? AND role='kid'", (link_token,)).fetchone()
+                kid = conn.execute("SELECT id,name,username FROM users WHERE link_token=? AND role='kid'", (link_token,)).fetchone()
                 if kid:
                     conn.execute("UPDATE users SET family_id=?, parent_email=? WHERE id=?", (uid, email, kid["id"]))
-                    linked = kid["name"]
+                    grant_consent(conn, kid["id"], "parent_account", email)  # a parent creating/linking = consent
+                    linked = kid["name"]; linked_id = kid["id"]; linked_username = kid["username"]
             conn.commit()
             row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
             conn.close()
+            if linked_id:
+                log_consent(linked_id, linked_username, "parent_account", email, "Parent linked the child's account")
             token = create_session(uid)
             return self._send_json({"token": token, "user": public_user(row), "linkedChild": linked})
         return resp  # error response already sent
@@ -872,7 +982,8 @@ class Handler(BaseHTTPRequestHandler):
         return None
 
     def _create_user(self, role, name, username, password, email, age, plan, trial_ends,
-                     family_id=None, return_row=False):
+                     family_id=None, return_row=False, age_years=None, consent_status="not_required",
+                     consent_method=None, consent_by=None, consent_token=None, school=None):
         pwhash, salt = hash_password(password)
         link_token = secrets.token_urlsafe(8)
         avatar = json.dumps(DEFAULT_AVATAR)
@@ -880,10 +991,12 @@ class Handler(BaseHTTPRequestHandler):
         conn = db()
         try:
             cur = conn.execute(
-                "INSERT INTO users (role,name,username,password_hash,salt,parent_email,age_band,plan,trial_ends,family_id,tokens,avatar,owned_items,link_token,created_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (role, name, username, pwhash, salt, email, age, plan, trial_ends, family_id,
-                 STARTER_TOKENS, avatar, owned, link_token, now_iso()),
+                "INSERT INTO users (role,name,username,password_hash,salt,parent_email,age_band,age_years,plan,trial_ends,family_id,"
+                "tokens,avatar,owned_items,link_token,consent_status,consent_method,consent_by,consent_token,school,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (role, name, username, pwhash, salt, email, age, age_years, plan, trial_ends, family_id,
+                 STARTER_TOKENS, avatar, owned, link_token, consent_status, consent_method, consent_by,
+                 consent_token, school, now_iso()),
             )
             conn.commit()
             uid = cur.lastrowid
@@ -914,6 +1027,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent must approve this account first.", "consentRequired": True}, 403)
         lesson_id = (data.get("lessonId") or "").strip()
         if not lesson_id:
             return self._send_json({"error": "lessonId required"}, 400)
@@ -941,6 +1056,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent must approve this account first.", "consentRequired": True}, 403)
         try:
             unit = int(data.get("unit"))
         except (TypeError, ValueError):
@@ -989,6 +1106,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "Log in to use the AI buddy.", "locked": True}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent must approve this account first.", "consentRequired": True, "locked": True}, 403)
         if not has_ai(u):
             return self._send_json({"error": "AI features are a Pro perk. Upgrade to unlock Byte!", "locked": True}, 403)
         limit = chats_per_day(u)
@@ -1069,8 +1188,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_parent_add_kid(self, data):
         u = self._current_user()
-        if not u or u["role"] != "parent":
-            return self._send_json({"error": "Only parents can add kids."}, 403)
+        if not u or u["role"] not in GUARDIAN_ROLES:
+            return self._send_json({"error": "Only a parent or teacher can add kids."}, 403)
         name = (data.get("name") or "").strip()
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
@@ -1078,10 +1197,42 @@ class Handler(BaseHTTPRequestHandler):
         err = self._validate_credentials(name, username, password)
         if err:
             return self._send_json({"error": err}, 400)
-        # Kids inherit the Family plan (and therefore Family AI)
-        return self._create_user(role="kid", name=name, username=username, password=password,
+        # A guardian creating the account *is* the consent: parent_account, or school consent for teachers.
+        is_teacher = u["role"] == "teacher"
+        method = "school" if is_teacher else "parent_account"
+        granted_by = (u["school"] + " (teacher: " + u["username"] + ")") if is_teacher else (u["parent_email"] or u["username"])
+        resp = self._create_user(role="kid", name=name, username=username, password=password,
                                  email=u["parent_email"], age=age, plan="family", trial_ends=None,
-                                 family_id=u["family_id"])
+                                 family_id=u["family_id"], consent_status="granted",
+                                 consent_method=method, consent_by=granted_by, return_row=True)
+        if not isinstance(resp, tuple):
+            return resp
+        uid, row = resp
+        log_consent(uid, username, method, granted_by,
+                    "School/classroom consent" if is_teacher else "Parent created the account")
+        return self._send_json({"token": None, "user": public_user(row)})
+
+    def api_teacher_signup(self, data):
+        name = (data.get("name") or "").strip()
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        school = (data.get("school") or "").strip() or "My Classroom"
+        email = (data.get("email") or "").strip()
+        err = self._validate_credentials(name, username, password)
+        if err:
+            return self._send_json({"error": err}, 400)
+        resp = self._create_user(role="teacher", name=name, username=username, password=password,
+                                 email=email, age="", plan="family", trial_ends=None, school=school, return_row=True)
+        if not isinstance(resp, tuple):
+            return resp
+        uid, row = resp
+        conn = db()
+        conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom = family group
+        conn.commit()
+        row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        conn.close()
+        token = create_session(uid)
+        return self._send_json({"token": token, "user": public_user(row)})
 
     def api_checkout(self, data):
         # NOTE: This does NOT process a real payment and never receives card data.
@@ -1119,22 +1270,73 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_parent_signout_kid(self, data):
         u = self._current_user()
-        if not u or u["role"] != "parent":
-            return self._send_json({"error": "Only a parent can do this."}, 403)
+        if not u or u["role"] not in GUARDIAN_ROLES or u["family_id"] is None:
+            return self._send_json({"error": "Only a parent or teacher can do this."}, 403)
         conn = db()
-        kid = conn.execute("SELECT id,name FROM users WHERE id=? AND role='kid'", (data.get("kidId"),)).fetchone()
-        if not kid or u["family_id"] is None or kid is None:
-            conn.close()
-            return self._send_json({"error": "Kid not found."}, 404)
-        # only your own family's kid
-        owns = conn.execute("SELECT 1 FROM users WHERE id=? AND family_id=?", (kid["id"], u["family_id"])).fetchone()
-        if not owns:
+        kid = conn.execute("SELECT id,name FROM users WHERE id=? AND role='kid' AND family_id=?",
+                           (data.get("kidId"), u["family_id"])).fetchone()
+        if not kid:
             conn.close()
             return self._send_json({"error": "That kid isn't in your family."}, 403)
         conn.execute("DELETE FROM sessions WHERE user_id=?", (kid["id"],))  # ends all their sessions
         conn.commit()
         conn.close()
         return self._send_json({"ok": True, "name": kid["name"]})
+
+    def api_parent_delete_kid(self, data):
+        u = self._current_user()
+        if not u or u["role"] not in GUARDIAN_ROLES or u["family_id"] is None:
+            return self._send_json({"error": "Only a parent or teacher can do this."}, 403)
+        conn = db()
+        kid = conn.execute("SELECT id,name FROM users WHERE id=? AND role='kid' AND family_id=?",
+                           (data.get("kidId"), u["family_id"])).fetchone()
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "That kid isn't in your family."}, 403)
+        kid_id = kid["id"]
+        # COPPA deletion right: erase the child and all their data.
+        for sql in ("DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
+                    "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
+                    "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"):
+            conn.execute(sql, (kid_id,))
+        conn.commit()
+        conn.close()
+        log_consent(kid_id, kid["name"], "deleted", u["username"], "Guardian deleted the child's account & data")
+        return self._send_json({"ok": True, "name": kid["name"]})
+
+    def api_consent_start(self, data):
+        # Email-plus step 1: parent confirms intent; we issue a second confirmation token.
+        tok = (data.get("token") or "").strip()
+        conn = db()
+        kid = conn.execute("SELECT id,name,parent_email FROM users WHERE consent_token=? AND role='kid'", (tok,)).fetchone()
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "Invalid or used consent link."}, 404)
+        confirm = secrets.token_urlsafe(10)
+        conn.execute("UPDATE users SET consent_confirm_token=? WHERE id=?", (confirm, kid["id"]))
+        if kid["parent_email"]:
+            conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
+                         (kid["parent_email"], "consent_confirm",
+                          f"Please confirm consent for {kid['name']} by clicking: "
+                          f"http://localhost:{PORT}/index.html?consentconfirm={confirm}", kid["id"], confirm, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "confirmToken": confirm, "childName": kid["name"]})
+
+    def api_consent_confirm(self, data):
+        # Email-plus step 2: the second confirmation actually grants consent.
+        tok = (data.get("token") or "").strip()
+        conn = db()
+        kid = conn.execute("SELECT id,name,username,parent_email FROM users WHERE consent_confirm_token=? AND role='kid'", (tok,)).fetchone()
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "Invalid or used confirmation link."}, 404)
+        grant_consent(conn, kid["id"], "email_plus", kid["parent_email"] or "parent")
+        conn.commit()
+        conn.close()
+        log_consent(kid["id"], kid["username"], "email_plus", kid["parent_email"] or "parent",
+                    "Parent gave verifiable consent (email-plus)")
+        return self._send_json({"ok": True, "childName": kid["name"]})
 
     def api_set_plan(self, data):
         admin = self._current_user()

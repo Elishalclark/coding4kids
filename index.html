@@ -472,19 +472,15 @@
         <input type="email" id="suEmail" placeholder="Parent's email address" required class="form-input" />
         <input type="text" id="suUsername" placeholder="Pick a username (3-20 letters/numbers)" required class="form-input" />
         <input type="password" id="suPassword" placeholder="Create a password (min 6 characters)" required class="form-input" />
-        <select class="form-input" id="suAge">
-          <option value="">Child's age</option>
-          <option>6–7 years old</option>
-          <option>8–10 years old</option>
-          <option>11–13 years old</option>
-          <option>14–16 years old</option>
-        </select>
+        <input type="number" id="suAgeYears" min="4" max="18" placeholder="Child's age (in years)" required class="form-input" />
         <button type="submit" class="btn btn-primary btn-lg">Create Free Account 🚀</button>
       </form>
+      <p class="signup-fine" style="margin-top:8px;">👨‍👩‍👧 Kids under 13: a parent will be asked to approve the account (it's the law — COPPA).</p>
       <p class="signup-fine">By signing up you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>. We never sell data or show ads.</p>
       <div id="signupSuccess" class="signup-success hidden"></div>
       <p class="signup-fine" style="margin-top:14px;">Already have an account? <a href="#" onclick="openLogin();return false;">Log in here</a></p>
       <p class="signup-fine" style="margin-top:6px;">👨‍👩‍👧 A parent? <a href="#" onclick="openParentSignup();return false;">Create a Family account</a> to manage your kids (Family plan, AI included).</p>
+      <p class="signup-fine" style="margin-top:6px;">🍎 A teacher? <a href="#" onclick="openTeacherSignup();return false;">Create a Classroom</a> — add students with school consent.</p>
     </div>
   </section>
 
@@ -562,6 +558,7 @@
       <div class="role-tabs">
         <button type="button" class="role-tab active" data-role="kid" onclick="setLoginRole('kid')">👦 Kid</button>
         <button type="button" class="role-tab" data-role="parent" onclick="setLoginRole('parent')">👨‍👩‍👧 Parent</button>
+        <button type="button" class="role-tab" data-role="teacher" onclick="setLoginRole('teacher')">🍎 Teacher</button>
         <button type="button" class="role-tab" data-role="admin" onclick="setLoginRole('admin')">🛠️ Admin</button>
         <button type="button" class="role-tab" data-role="super_admin" onclick="setLoginRole('super_admin')">👑 Super</button>
       </div>
@@ -598,6 +595,30 @@
     </div>
   </div>
 
+  <!-- TEACHER SIGNUP MODAL -->
+  <div class="modal-overlay hidden" id="teacherModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🍎</span>
+        <div style="flex:1;">
+          <div class="chat-name">Create a Classroom</div>
+          <div class="chat-status">Add students with school consent</div>
+        </div>
+        <button class="modal-close" onclick="closeTeacherSignup()">✕</button>
+      </div>
+      <form style="padding:16px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleTeacherSignup(event)">
+        <input type="text" id="tName" placeholder="Your name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="text" id="tSchool" placeholder="School / classroom name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="email" id="tEmail" placeholder="Your email (optional)" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="text" id="tUsername" placeholder="Choose a username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="password" id="tPassword" placeholder="Create a password (min 6 chars)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.8rem;color:var(--text-dim);">🍎 As the teacher/school, you provide consent for classroom use on parents' behalf (per FTC school guidance).</div>
+        <div id="teacherError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
+        <button type="submit" class="btn btn-primary btn-lg">Create Classroom 🍎</button>
+      </form>
+    </div>
+  </div>
+
   <!-- PARENT INVITE (after a kid signs up) -->
   <div class="modal-overlay hidden" id="inviteModal">
     <div class="modal" style="max-width:460px;">
@@ -615,6 +636,18 @@
         </div>
         <button class="btn btn-outline btn-full" onclick="finishInvite()">Continue to my dashboard →</button>
       </div>
+    </div>
+  </div>
+
+  <!-- PARENTAL CONSENT (COPPA) -->
+  <div class="modal-overlay hidden" id="consentModal">
+    <div class="modal" style="max-width:460px;">
+      <div class="chat-header">
+        <span class="chat-avatar">👨‍👩‍👧</span>
+        <div style="flex:1;"><div class="chat-name">Parental Consent</div><div class="chat-status">Required for kids under 13 (COPPA)</div></div>
+        <button class="modal-close" onclick="closeConsent()" aria-label="Close">✕</button>
+      </div>
+      <div style="padding:20px 24px 24px;" id="consentBody"></div>
     </div>
   </div>
 

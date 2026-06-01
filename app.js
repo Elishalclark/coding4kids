@@ -17,7 +17,7 @@ async function handleSignup(e) {
     parentEmail: document.getElementById('suEmail').value.trim(),
     username: document.getElementById('suUsername').value.trim(),
     password: document.getElementById('suPassword').value,
-    ageBand: document.getElementById('suAge').value
+    age: document.getElementById('suAgeYears').value
   };
   const { ok, data } = await C4K.signup(payload);
   success.classList.remove('hidden');
@@ -25,7 +25,7 @@ async function handleSignup(e) {
     success.style.background = 'rgba(255,255,255,0.2)';
     success.innerHTML = `🎉 Welcome, ${data.user.name}!`;
     document.getElementById('signupForm').reset();
-    showInvite(data, payload.parentEmail);   // QR + parent email invite, then dashboard
+    showInvite(data, payload.parentEmail);   // QR + parent email/consent invite, then dashboard
   } else {
     success.style.background = 'rgba(239,68,68,0.25)';
     success.textContent = '⚠️ ' + (data.error || 'Could not create account.');
@@ -38,6 +38,7 @@ let loginRole = 'kid';
 const LOGIN_ROLE_UI = {
   kid:         { icon: '🔐',  title: 'Kid Log In',         sub: 'Welcome back, coder!',      btn: 'Log In',                foot: true },
   parent:      { icon: '👨‍👩‍👧', title: 'Parent Log In',      sub: 'Manage your family',        btn: 'Log In as Parent',      foot: false },
+  teacher:     { icon: '🍎',  title: 'Teacher Log In',     sub: 'Manage your classroom',     btn: 'Log In as Teacher',     foot: false },
   admin:       { icon: '🛠️',  title: 'Admin Log In',       sub: 'Staff dashboard access',     btn: 'Log In as Admin',       foot: false },
   super_admin: { icon: '👑',  title: 'Super Admin Log In', sub: 'Full control panel access',  btn: 'Log In as Super Admin', foot: false }
 };
@@ -80,12 +81,59 @@ async function handleLogin(e) {
     return;
   }
   closeLogin();
-  if (loginRole === 'parent') window.location.href = 'parent.html';
+  if (loginRole === 'parent' || loginRole === 'teacher') window.location.href = 'parent.html';
   else if (isAdmin) window.location.href = 'admin.html';
   else window.location.href = 'dashboard.html';   // kid → personalized dashboard
 }
 
 // ── Parent signup ──
+// ── Parental consent (COPPA) ──
+function closeConsent() { document.getElementById('consentModal').classList.add('hidden'); location.hash = ''; }
+
+async function openConsent(token) {
+  const body = document.getElementById('consentBody');
+  document.getElementById('consentModal').classList.remove('hidden');
+  const { ok, data } = await C4K.api('/api/consent/' + token);
+  if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'This consent link is invalid or already used.'}</p>`; return; }
+  body.innerHTML = `
+    <p style="color:var(--text-dim);font-size:0.92rem;line-height:1.6;">
+      <strong>${data.childName}</strong> (age ${data.ageYears || 'under 13'}) wants to use Coding4Kids.
+      As a parent/guardian, please review and approve.</p>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0;font-size:0.85rem;color:var(--text-dim);">
+      We collect only: a first name, username, age, your email, and learning progress.
+      No ads, no selling data, no private messaging. You can review or delete this data anytime.</div>
+    <label style="display:flex;gap:10px;align-items:flex-start;font-size:0.9rem;font-weight:700;margin-bottom:14px;">
+      <input type="checkbox" id="consentAgree" onchange="document.getElementById('consentGo').disabled=!this.checked" style="margin-top:3px;">
+      I am ${data.childName}'s parent or legal guardian and I consent to the collection described above.</label>
+    <button class="btn btn-primary btn-lg btn-full" id="consentGo" disabled onclick="consentStep1('${token}')">Give consent</button>`;
+}
+
+async function consentStep1(token) {
+  const { ok, data } = await C4K.api('/api/consent/start', 'POST', { token });
+  const body = document.getElementById('consentBody');
+  if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'Could not start.'}</p>`; return; }
+  // "Email plus" — a second confirmation step (we surface the confirm link since email is simulated here).
+  body.innerHTML = `
+    <div style="text-align:center;">
+      <div style="font-size:2.4rem;">📧</div>
+      <h3 style="font-weight:900;margin:8px 0;">One more step</h3>
+      <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:16px;">For your security, we send a second confirmation
+        (a "verifiable consent" step). We've emailed it to you — or just confirm now:</p>
+      <button class="btn btn-primary btn-lg btn-full" onclick="consentConfirm('${data.confirmToken}')">Confirm consent for ${data.childName}</button>
+    </div>`;
+}
+
+async function consentConfirm(token) {
+  const { ok, data } = await C4K.api('/api/consent/confirm', 'POST', { token });
+  const body = document.getElementById('consentBody');
+  body.innerHTML = ok
+    ? `<div style="text-align:center;"><div style="font-size:2.6rem;">✅</div>
+         <h3 style="font-weight:900;margin:8px 0;">Consent confirmed!</h3>
+         <p style="color:var(--text-dim);">${data.childName} can now use Coding4Kids. Thank you! 🎉</p>
+         <button class="btn btn-primary" style="margin-top:14px;" onclick="closeConsent()">Done</button></div>`
+    : `<p style="color:#f87171;">${data.error || 'Could not confirm.'}</p>`;
+}
+
 // ── Pricing popup (the only place pricing appears) ──
 function openPricing() {
   const body = document.getElementById('pricingBody');
@@ -141,6 +189,30 @@ async function handleParentSignup(e) {
 }
 document.getElementById('parentModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'parentModal') closeParentSignup();
+});
+
+// ── Teacher (classroom) signup ──
+function openTeacherSignup() {
+  document.getElementById('teacherModal').classList.remove('hidden');
+  document.getElementById('teacherError').textContent = '';
+  document.getElementById('tName').focus();
+}
+function closeTeacherSignup() { document.getElementById('teacherModal').classList.add('hidden'); }
+async function handleTeacherSignup(e) {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById('tName').value.trim(),
+    school: document.getElementById('tSchool').value.trim(),
+    email: document.getElementById('tEmail').value.trim(),
+    username: document.getElementById('tUsername').value.trim(),
+    password: document.getElementById('tPassword').value
+  };
+  const { ok, data } = await C4K.teacherSignup(payload);
+  if (ok) { closeTeacherSignup(); window.location.href = 'parent.html'; }
+  else document.getElementById('teacherError').textContent = '❌ ' + (data.error || 'Could not create classroom.');
+}
+document.getElementById('teacherModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'teacherModal') closeTeacherSignup();
 });
 async function doLogout() { await C4K.logout(); refreshAuthUI(); }
 document.getElementById('loginModal')?.addEventListener('click', (e) => {
@@ -387,7 +459,13 @@ window.addEventListener('scroll', () => {
 (async () => {
   const params = new URLSearchParams(location.search);
   const plink = params.get('plink');
+  const consent = params.get('consent');
+  const cc = params.get('consentconfirm');
   await C4K.loadMe();
+
+  // Parental consent links (COPPA) — open the consent flow regardless of who's logged in.
+  if (consent) { refreshAuthUI(); openConsent(consent); return; }
+  if (cc) { refreshAuthUI(); document.getElementById('consentModal').classList.remove('hidden'); consentConfirm(cc); return; }
 
   // Parent invite link → open the parent signup connected to that child
   if (plink && !C4K.isLoggedIn()) {

@@ -48,6 +48,12 @@ const C4K = {
     return { ok, data };
   },
 
+  async teacherSignup(payload) {
+    const { ok, data } = await this.api('/api/teacher/signup', 'POST', payload);
+    if (ok) { this.setToken(data.token); this.user = data.user; }
+    return { ok, data };
+  },
+
   async adminLogin(username, password) {
     const { ok, data } = await this.api('/api/admin/login', 'POST', { username, password });
     if (ok) { this.setToken(data.token); this.user = data.user; }

@@ -69,7 +69,7 @@
       <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
     </div>
 
-    <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Your Kids</h2>
+    <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Your Kids</h2>
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
@@ -78,6 +78,10 @@
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
     function kidCard(k) {
+      const nm = (k.name||'').replace(/'/g,"\\'");
+      const consent = k.consentStatus === 'granted'
+        ? `<span class="plan-tag pro" title="Consent: ${k.consentMethod||''}">✅ approved</span>`
+        : (k.consentStatus === 'pending' ? `<span class="plan-tag trial">⏳ awaiting consent</span>` : '');
       return `<div class="kid-card">
         <div class="kid-top">
           <div class="kid-av">${(k.name||'?')[0].toUpperCase()}</div>
@@ -86,11 +90,29 @@
         <div class="kid-meta">
           <span class="plan-tag ${k.effectivePlan==='family'||k.effectivePlan==='pro'?'pro':k.effectivePlan}">${k.effectivePlan}</span>
           <span class="plan-tag ${k.hasAI?'pro':'free'}">${k.hasAI?'🤖 AI on':'no AI'}</span>
+          ${consent}
         </div>
-        <button class="btn btn-outline" style="margin-top:14px;width:100%;font-size:0.82rem;padding:8px;"
-          onclick="signOutKid(${k.id}, '${(k.name||'').replace(/'/g,"\\'")}')">🔒 Sign out ${k.name}</button>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+          <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;" onclick="signOutKid(${k.id}, '${nm}')">🔒 Sign out</button>
+          <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;" onclick="downloadKid(${k.id}, '${nm}')">⬇️ Download data</button>
+          <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteKid(${k.id}, '${nm}')">🗑️ Delete account &amp; data</button>
+        </div>
         <div class="signout-msg" id="so${k.id}" style="color:var(--green);font-weight:800;font-size:0.78rem;margin-top:6px;min-height:14px;"></div>
       </div>`;
+    }
+
+    async function downloadKid(id, name) {
+      const { ok, data } = await C4K.api('/api/parent/kid-data/' + id);
+      if (!ok) return alert(data.error || 'Could not get data.');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name.replace(/\s+/g,'_') + '-data.json'; a.click();
+    }
+
+    async function deleteKid(id, name) {
+      if (!confirm(`Permanently delete ${name}'s account and ALL their data? This cannot be undone.`)) return;
+      const { ok, data } = await C4K.api('/api/parent/delete-kid', 'POST', { kidId: id });
+      if (ok) load(); else alert(data.error || 'Could not delete.');
     }
 
     async function signOutKid(id, name) {
@@ -114,13 +136,20 @@
 
     async function load() {
       const me = await C4K.loadMe();
-      if (!me || me.role !== 'parent') { location.href = 'index.html'; return; }
+      if (!me || (me.role !== 'parent' && me.role !== 'teacher')) { location.href = 'index.html'; return; }
+      const isTeacher = me.role === 'teacher';
+      // Relabel the page for teachers (classroom) vs parents (family)
+      document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
+      document.getElementById('planName').textContent = isTeacher ? (me.school || 'My Classroom') : 'Family Plan';
+      document.getElementById('planDesc').textContent = isTeacher ? 'School consent · AI included for your students.' : 'AI included for everyone in your family.';
+      document.getElementById('planPill').textContent = isTeacher ? 'CLASSROOM' : 'FAMILY';
+      document.getElementById('kidsHeading').textContent = isTeacher ? 'Your Students' : 'Your Kids';
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
       const kids = (ok && data.kids) ? data.kids : [];
       grid.innerHTML = kids.map(kidCard).join('') + addKidCard();
       if (kids.length === 0) {
-        grid.insertAdjacentHTML('afterbegin', '<div class="empty">No kids yet — add your first one! They\'ll be on your Family plan with AI. 🎉</div>');
+        grid.insertAdjacentHTML('afterbegin', `<div class="empty">No ${isTeacher?'students':'kids'} yet — add your first one! 🎉</div>`);
       }
       // messages (e.g. a kid asked to upgrade)
       const mr = await C4K.api('/api/parent/messages');

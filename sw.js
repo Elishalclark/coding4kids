@@ -1,13 +1,9 @@
-// Coding4Kids service worker — makes the app installable and fast.
-const CACHE = 'c4k-v1';
-const SHELL = [
-  '/index.html', '/styles.css', '/auth.js', '/app.js',
-  '/lessons.html', '/lessons.js', '/dashboard.html',
-  '/favicon.svg', '/manifest.json', '/offline.html'
-];
+// Coding4Kids service worker — installable + offline, but always fresh when online.
+const CACHE = 'c4k-v2';
+const SHELL = ['/index.html', '/styles.css', '/auth.js', '/app.js', '/favicon.svg', '/manifest.json', '/offline.html'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -19,25 +15,17 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Never cache the API or anything non-GET — accounts/progress must always be live.
+  // Never touch the API or non-GET — accounts/progress must always be live.
   if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  if (url.origin !== self.location.origin) return;  // let cross-origin (fonts, QR) go straight to network
 
-  // Page loads: network-first (always fresh, dynamic), fall back to cache, then offline page.
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request).then(r => r || caches.match('/offline.html')))
-    );
-    return;
-  }
-
-  // Static assets (css/js/svg/img): serve from cache fast, refresh in the background.
+  // Network-first: always serve the freshest code/pages when online; cache is the offline fallback.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(res => {
-        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(e.request).then(res => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      return res;
+    }).catch(() =>
+      caches.match(e.request).then(r => r || (e.request.mode === 'navigate' ? caches.match('/offline.html') : undefined))
+    )
   );
 });
