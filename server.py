@@ -827,6 +827,23 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             return self._send_json({"totalKids": total, "proKids": pro, "trialKids": trial, "parents": parents, "lessonsCompleted": lessons_done})
 
+        if path == "/api/admin/consent":  # super admin: consent overview + audit log
+            u = self._current_user()
+            if not u or u["role"] != "super_admin":
+                return self._send_json({"error": "forbidden"}, 403)
+            conn = db()
+            kids = conn.execute(
+                "SELECT id,name,username,age_years,parent_email,consent_status,consent_method,consent_by,consent_at "
+                "FROM users WHERE role='kid' ORDER BY id DESC").fetchall()
+            log = conn.execute("SELECT child_username,method,granted_by,detail,created_at FROM consent_log ORDER BY id DESC LIMIT 100").fetchall()
+            conn.close()
+            return self._send_json({
+                "kids": [{"id": k["id"], "name": k["name"], "username": k["username"], "ageYears": k["age_years"],
+                          "parentEmail": k["parent_email"], "consentStatus": k["consent_status"] or "not_required",
+                          "consentMethod": k["consent_method"], "consentBy": k["consent_by"], "consentAt": k["consent_at"]} for k in kids],
+                "log": [{"child": r["child_username"], "method": r["method"], "by": r["granted_by"],
+                         "detail": r["detail"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in log]})
+
         if path == "/api/admin/settings":  # super admin only: plan settings + all lessons
             u = self._current_user()
             if not u or u["role"] != "super_admin":
@@ -873,6 +890,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
+            "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
             "/api/admin/settings": lambda: self.api_save_settings(data),
             "/api/admin/lesson": lambda: self.api_save_lesson(data),
@@ -1253,6 +1271,38 @@ class Handler(BaseHTTPRequestHandler):
         row = conn.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
         conn.close()
         return self._send_json({"ok": True, "plan": plan, "user": public_user(row)})
+
+    def api_admin_consent(self, data):
+        # Super admin records or revokes parental consent (e.g. for offline consent: phone, paper, in-person).
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        action = (data.get("action") or "").strip()
+        conn = db()
+        kid = conn.execute("SELECT id,username,parent_email FROM users WHERE id=? AND role='kid'", (data.get("kidId"),)).fetchone()
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "Kid not found."}, 404)
+        note = (data.get("note") or "").strip()
+        if action == "grant":
+            method = (data.get("method") or "admin_recorded").strip()
+            granted_by = note or kid["parent_email"] or f"super admin ({admin['username']})"
+            grant_consent(conn, kid["id"], method, granted_by)
+            conn.commit()
+            conn.close()
+            log_consent(kid["id"], kid["username"], method, granted_by,
+                        f"Recorded by super admin {admin['username']}" + (f": {note}" if note else ""))
+            return self._send_json({"ok": True})
+        elif action == "revoke":
+            new_token = secrets.token_urlsafe(10)
+            conn.execute("UPDATE users SET consent_status='pending', consent_method=NULL, consent_by=NULL, "
+                         "consent_at=NULL, consent_token=? WHERE id=?", (new_token, kid["id"]))
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (kid["id"],))  # also log them out
+            conn.commit()
+            conn.close()
+            log_consent(kid["id"], kid["username"], "revoked", f"super admin ({admin['username']})", note or "Consent revoked")
+            return self._send_json({"ok": True})
+        return self._send_json({"error": "action must be grant or revoke"}, 400)
 
     def api_impersonate(self, data):
         admin = self._current_user()

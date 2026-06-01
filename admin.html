@@ -168,6 +168,42 @@
         </div>
       </div>
 
+      <!-- Parental Consent (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="consentPanel" style="display:none;">
+        <h3>🛡️ Parental Consent (COPPA) <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Record verifiable parental consent for under-13 kids — including offline methods (phone call, signed form, in person). You can also revoke consent.</p>
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
+          <div style="font-weight:900;margin-bottom:12px;">📝 Record consent</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
+            <label class="le-lbl">Child
+              <select id="consentKid" class="le-in"></select></label>
+            <label class="le-lbl">Consent method
+              <select id="consentMethod" class="le-in">
+                <option value="signed_form">Signed consent form</option>
+                <option value="phone">Phone call</option>
+                <option value="in_person">In person</option>
+                <option value="government_id">Government ID check</option>
+                <option value="credit_card">Credit/debit card check</option>
+                <option value="email_plus">Email-plus</option>
+                <option value="admin_recorded">Other (recorded)</option>
+              </select></label>
+            <label class="le-lbl">Note / parent name
+              <input id="consentNote" class="le-in" placeholder="e.g. Mum verified by phone" /></label>
+            <button class="btn btn-primary" onclick="recordConsent()">Record consent ✓</button>
+          </div>
+          <div id="consentMsg" style="color:var(--green);font-weight:800;font-size:0.85rem;margin-top:10px;"></div>
+        </div>
+        <table class="admin-table">
+          <thead><tr><th>Child</th><th>Age</th><th>Status</th><th>Method</th><th>Action</th></tr></thead>
+          <tbody id="consentRows"></tbody>
+        </table>
+        <h4 style="font-size:0.95rem;font-weight:900;margin:20px 0 10px;">📜 Consent audit log</h4>
+        <table class="admin-table">
+          <thead><tr><th>When</th><th>Child</th><th>Method</th><th>By</th><th>Detail</th></tr></thead>
+          <tbody id="consentLog"></tbody>
+        </table>
+      </div>
+
       <!-- Lessons -->
       <div class="panel">
         <h3>📚 Lesson Manager <span id="lessonHint" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;"></span></h3>
@@ -301,10 +337,54 @@
         const s = (await C4K.api('/api/admin/settings')).data;
         renderPlans(s.planSettings || {}, s.passPercent);
         renderLessons(s.lessons || [], true);
+        loadConsent();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
       }
+    }
+
+    // ── Parental consent (super admin) ──
+    async function loadConsent() {
+      const { ok, data } = await C4K.api('/api/admin/consent');
+      if (!ok) return;
+      const kids = data.kids || [];
+      const badge = s => s === 'granted' ? '<span class="pill pro">✅ granted</span>'
+        : (s === 'pending' ? '<span class="pill trial">⏳ pending</span>' : '<span class="pill free">n/a (13+)</span>');
+      // dropdown of kids needing consent (pending first)
+      const sel = document.getElementById('consentKid');
+      sel.innerHTML = kids.map(k => `<option value="${k.id}">${k.name} (@${k.username}${k.ageYears?', age '+k.ageYears:''})</option>`).join('') || '<option>No kids yet</option>';
+      document.getElementById('consentRows').innerHTML = kids.length ? kids.map(k =>
+        `<tr>
+           <td><strong>${k.name}</strong> <span style="color:var(--text-faint);font-size:0.78rem;">@${k.username}</span></td>
+           <td>${k.ageYears || '—'}</td>
+           <td>${badge(k.consentStatus)}</td>
+           <td style="font-size:0.82rem;color:var(--text-dim);">${k.consentMethod || '—'}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+k.consentBy+'</span>' : ''}</td>
+           <td>${k.consentStatus === 'granted'
+              ? `<button class="mini-btn" style="color:#f87171;" onclick="revokeConsent(${k.id})">Revoke</button>`
+              : `<button class="mini-btn" onclick="document.getElementById('consentKid').value=${k.id};document.getElementById('consentNote').focus();">Record ↑</button>`}</td>
+         </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No kid accounts yet.</td></tr>';
+      document.getElementById('consentLog').innerHTML = (data.log || []).length ? data.log.map(l =>
+        `<tr><td style="color:var(--text-faint);font-size:0.78rem;">${l.at}</td><td>${l.child}</td><td>${l.method}</td><td style="font-size:0.8rem;">${l.by || ''}</td><td style="font-size:0.8rem;color:var(--text-dim);">${l.detail || ''}</td></tr>`
+      ).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No consent events yet.</td></tr>';
+    }
+
+    async function recordConsent() {
+      const kidId = +document.getElementById('consentKid').value;
+      const method = document.getElementById('consentMethod').value;
+      const note = document.getElementById('consentNote').value.trim();
+      const { ok, data } = await C4K.api('/api/admin/consent', 'POST', { kidId, action: 'grant', method, note });
+      const msg = document.getElementById('consentMsg');
+      msg.style.color = ok ? 'var(--green)' : '#f87171';
+      msg.textContent = ok ? '✅ Consent recorded.' : '⚠️ ' + (data.error || 'Failed.');
+      if (ok) { document.getElementById('consentNote').value = ''; loadConsent(); }
+    }
+
+    async function revokeConsent(kidId) {
+      const note = prompt("Revoke consent for this child? They'll be signed out and blocked until re-approved.\nOptional reason:");
+      if (note === null) return;
+      const { ok, data } = await C4K.api('/api/admin/consent', 'POST', { kidId, action: 'revoke', note });
+      if (ok) loadConsent(); else alert(data.error || 'Failed.');
     }
 
     function renderLessons(lessons, sup) {
