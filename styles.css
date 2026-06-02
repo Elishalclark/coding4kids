@@ -817,6 +817,8 @@ body {
 .social-links a { text-decoration: none; transition: transform 0.2s; display: inline-flex; }
 .social-links a:hover { transform: scale(1.18); }
 .social-links svg { width: 24px; height: 24px; display: block; }
+.footer-contact a { color: #a78bfa; text-decoration: none; transition: color 0.2s; }
+.footer-contact a:hover { color: #fff; }
 .footer-links { display: flex; gap: 40px; flex-wrap: wrap; }
 .footer-col { display: flex; flex-direction: column; gap: 10px; min-width: 120px; }
 .footer-col h4 { color: #fff; font-size: 0.85rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
