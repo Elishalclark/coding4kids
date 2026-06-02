@@ -113,11 +113,16 @@
 
   <script src="auth.js"></script>
   <script>
-    const PRICES = { pro: 9, family: 15 };
+    const PRICES = { pro: 9, family: 15, teacher: 18, school: 100 };
+    // Educator tiers aren't in the kid pricing list — describe them here.
+    const EDU = {
+      teacher: { name: 'Teacher Plan', features: ['Up to 150 students', 'Full curriculum (10 worlds)', 'AI buddy for students', 'Classroom dashboard & progress'] },
+      school:  { name: 'School Plan',  features: ['Up to 550 students', 'Everything in Teacher', 'School-wide management', 'Priority support'] },
+    };
     const params = new URLSearchParams(location.search);
     let plan = params.get('plan');
     if (!PRICES[plan]) plan = 'pro';
-    const planInfo = C4K.pricingPlans.find(p => p.id === plan);
+    const planInfo = EDU[plan] || C4K.pricingPlans.find(p => p.id === plan);
     const amount = PRICES[plan];
     const amtStr = '$' + amount.toFixed(2);
 
@@ -211,7 +216,7 @@
 
     function goHome() {
       const r = C4K.user && C4K.user.role;
-      if (r === 'parent') location.href = 'parent.html';
+      if (r === 'parent' || r === 'teacher') location.href = 'parent.html';
       else if (r === 'admin' || r === 'super_admin') location.href = 'admin.html';
       else location.href = 'dashboard.html';
     }

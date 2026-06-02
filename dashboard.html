@@ -279,9 +279,27 @@
       }
     }
 
+    async function showNotices() {
+      const { ok, data } = await C4K.api('/api/notices');
+      if (!ok || !data.notices || !data.notices.length) return;
+      const main = document.querySelector('.dash');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'max-width:1080px;margin:16px auto 0;padding:0 24px;display:flex;flex-direction:column;gap:10px;';
+      wrap.innerHTML = data.notices.map(n =>
+        `<div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+           <span style="font-size:1.2rem;">📨</span>
+           <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from Coding4Kids</div>
+             <div style="color:var(--text);font-size:0.9rem;line-height:1.5;">${n.body}</div>
+             <div style="color:var(--text-faint);font-size:0.72rem;margin-top:4px;">${n.at}</div></div>
+           <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>
+         </div>`).join('');
+      main.parentNode.insertBefore(wrap, main);
+    }
+
     async function load() {
       ME = await C4K.loadMe();
       if (!ME) { location.href = 'index.html'; return; }
+      showNotices();
       if (ME.role !== 'kid') {
         location.href = ME.role === 'parent' || ME.role === 'teacher' ? 'parent.html' : (ME.role === 'super_admin' || ME.role === 'admin' ? 'admin.html' : 'index.html');
         return;

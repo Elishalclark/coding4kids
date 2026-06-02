@@ -79,6 +79,14 @@ WORLDS = {
 }
 UNIT_NAMES = {u: f"{w['emoji']} {w['name']}" for u, w in WORLDS.items()}
 
+# Teacher / school subscription tiers (how many students an educator account can have).
+# No free tier — a teacher must subscribe to add students.
+TEACHER_PLANS = {
+    "teacher":   {"label": "Teacher Plan",   "price": 18,  "students": 150},
+    "school":    {"label": "School Plan",    "price": 100, "students": 550},
+}
+NO_TEACHER_PLAN = {"label": "No plan yet", "price": 0, "students": 0}
+
 TOKENS_PER_LESSON = 10   # coins earned per newly completed lesson
 STARTER_TOKENS = 40      # coins a new account starts with
 
@@ -295,6 +303,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS consent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             child_id INTEGER, child_username TEXT, method TEXT, granted_by TEXT, detail TEXT, created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS notices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL, kind TEXT, body TEXT, created_at TEXT
         );
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -521,6 +533,25 @@ def seed_admins():
     conn.close()
 
 
+def seed_demo_teacher():
+    """A ready-to-use demo teacher account (Teacher Plan, 150 students)."""
+    conn = db()
+    row = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()
+    if row:
+        conn.close()
+        return
+    pwhash, salt = hash_password("teachdemo123")
+    conn.execute(
+        "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,school,created_at) "
+        "VALUES ('teacher','Demo Teacher','teacherdemo',?,?,?,'teacher','Demo Elementary',?)",
+        (pwhash, salt, "demo@coding4kids.com", now_iso()))
+    uid = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()["id"]
+    conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom group = self
+    conn.commit()
+    conn.close()
+    print("  demo teacher -> teacherdemo / teachdemo123 (Teacher Plan)")
+
+
 # ────────────────────────────── user shaping ──────────────────────────────
 def trial_days_left(user):
     if user["plan"] != "trial" or not user["trial_ends"]:
@@ -571,6 +602,19 @@ def lessons_done_count(user_id):
     return row["c"]
 
 
+def teacher_plan_cfg(plan):
+    return TEACHER_PLANS.get(plan, NO_TEACHER_PLAN)
+
+
+def students_in_family(family_id):
+    if family_id is None:
+        return 0
+    conn = db()
+    row = conn.execute("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?", (family_id,)).fetchone()
+    conn.close()
+    return row["c"]
+
+
 def _row_get(row, key, default=None):
     try:
         v = row[key]
@@ -591,9 +635,15 @@ def public_user(user):
     except (ValueError, TypeError):
         owned = list(FREE_ITEMS)
     cstatus = _row_get(user, "consent_status", "not_required")
+    teacher = {}
+    if user["role"] == "teacher":
+        tp = teacher_plan_cfg(user["plan"])
+        teacher = {"teacherPlan": user["plan"] or "none", "teacherPlanLabel": tp["label"],
+                   "studentLimit": tp["students"], "studentsUsed": students_in_family(user["family_id"])}
     return {
         "id": user["id"], "role": user["role"], "name": user["name"], "username": user["username"],
         "plan": user["plan"], "effectivePlan": eff, "trialDaysLeft": trial_days_left(user),
+        **teacher,
         "hasAI": has_ai(user), "chatsPerDay": chats_per_day(user), "chatsUsedToday": chats_used_today(user["id"]),
         "lessonLimit": lesson_limit(user), "lessonsDone": lessons_done_count(user["id"]),
         "unitsPassed": up, "level": len(up) + 1,
@@ -677,6 +727,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/me":
             u = self._current_user()
             return self._send_json({"user": public_user(u)}) if u else self._send_json({"error": "not logged in"}, 401)
+
+        if path == "/api/notices":  # notices the super admin sent to this user
+            u = self._current_user()
+            if not u:
+                return self._send_json({"error": "not logged in"}, 401)
+            conn = db()
+            rows = conn.execute("SELECT id,kind,body,created_at FROM notices WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
+            conn.close()
+            return self._send_json({"notices": [{"id": r["id"], "kind": r["kind"], "body": r["body"],
+                                                  "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
 
         if path == "/api/shop":
             u = self._current_user()
@@ -891,6 +951,9 @@ class Handler(BaseHTTPRequestHandler):
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
             "/api/admin/consent": lambda: self.api_admin_consent(data),
+            "/api/admin/notice": lambda: self.api_admin_notice(data),
+            "/api/admin/delete-user": lambda: self.api_admin_delete_user(data),
+            "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
             "/api/admin/settings": lambda: self.api_save_settings(data),
             "/api/admin/lesson": lambda: self.api_save_lesson(data),
@@ -1217,6 +1280,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": err}, 400)
         # A guardian creating the account *is* the consent: parent_account, or school consent for teachers.
         is_teacher = u["role"] == "teacher"
+        if is_teacher:
+            cfg = teacher_plan_cfg(u["plan"])
+            if students_in_family(u["family_id"]) >= cfg["students"]:
+                msg = ("Choose a Teacher or School plan to add students."
+                       if cfg["students"] == 0 else
+                       f"Your {cfg['label']} allows {cfg['students']} students. Upgrade for more.")
+                return self._send_json({"error": msg, "limitReached": True}, 403)
         method = "school" if is_teacher else "parent_account"
         granted_by = (u["school"] + " (teacher: " + u["username"] + ")") if is_teacher else (u["parent_email"] or u["username"])
         resp = self._create_user(role="kid", name=name, username=username, password=password,
@@ -1240,7 +1310,7 @@ class Handler(BaseHTTPRequestHandler):
         if err:
             return self._send_json({"error": err}, 400)
         resp = self._create_user(role="teacher", name=name, username=username, password=password,
-                                 email=email, age="", plan="family", trial_ends=None, school=school, return_row=True)
+                                 email=email, age="", plan="none", trial_ends=None, school=school, return_row=True)
         if not isinstance(resp, tuple):
             return resp
         uid, row = resp
@@ -1260,11 +1330,16 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "Please log in to upgrade."}, 401)
-        if u["role"] not in ("kid", "parent", "super_admin"):
-            return self._send_json({"error": "This account type can't purchase a plan."}, 403)
         plan = (data.get("plan") or "").strip()
-        if plan not in ("pro", "family"):
-            return self._send_json({"error": "Choose a Pro or Family plan."}, 400)
+        # Teacher/school tiers for educators; Pro/Family for kids & parents.
+        if plan in ("teacher", "school"):
+            if u["role"] not in ("teacher", "super_admin"):
+                return self._send_json({"error": "Only a teacher account can buy this plan."}, 403)
+        elif plan in ("pro", "family"):
+            if u["role"] not in ("kid", "parent", "super_admin"):
+                return self._send_json({"error": "This account type can't purchase a kid plan."}, 403)
+        else:
+            return self._send_json({"error": "Unknown plan."}, 400)
         conn = db()
         conn.execute("UPDATE users SET plan=? WHERE id=?", (plan, u["id"]))
         conn.commit()
@@ -1303,6 +1378,65 @@ class Handler(BaseHTTPRequestHandler):
             log_consent(kid["id"], kid["username"], "revoked", f"super admin ({admin['username']})", note or "Consent revoked")
             return self._send_json({"ok": True})
         return self._send_json({"error": "action must be grant or revoke"}, 400)
+
+    def api_admin_notice(self, data):
+        # Super admin sends a notice (with a custom comment) to a user; they see it on their dashboard.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        msg = (data.get("message") or "").strip()
+        if not msg:
+            return self._send_json({"error": "Notice message is required."}, 400)
+        conn = db()
+        target = conn.execute("SELECT id FROM users WHERE id=?", (data.get("userId"),)).fetchone()
+        if not target:
+            conn.close()
+            return self._send_json({"error": "User not found."}, 404)
+        conn.execute("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
+                     (target["id"], (data.get("kind") or "notice"), msg, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_delete_user(self, data):
+        # Super admin deletes an account (kid/parent/teacher) and all its data, with a reason on record.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        reason = (data.get("reason") or "").strip()
+        conn = db()
+        target = conn.execute("SELECT * FROM users WHERE id=?", (data.get("userId"),)).fetchone()
+        if not target:
+            conn.close()
+            return self._send_json({"error": "User not found."}, 404)
+        if target["role"] in ("admin", "super_admin"):
+            conn.close()
+            return self._send_json({"error": "Admin accounts can't be deleted here."}, 403)
+        uid = target["id"]
+        # Keep a record of the deletion + reason (e.g. for the parent on file).
+        if target["parent_email"]:
+            body = (f"Notice: the Coding4Kids account '{target['name']}' (@{target['username']}) has been deleted by an administrator."
+                    + (f" Reason: {reason}" if reason else ""))
+            conn.execute("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)",
+                         (target["parent_email"], "account_deleted", body, uid, now_iso()))
+        for sql in ("DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
+                    "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
+                    "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"):
+            conn.execute(sql, (uid,))
+        conn.commit()
+        conn.close()
+        log_consent(uid, target["username"], "deleted", f"super admin ({admin['username']})", reason or "Account deleted")
+        return self._send_json({"ok": True, "name": target["name"]})
+
+    def api_dismiss_notice(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        conn = db()
+        conn.execute("DELETE FROM notices WHERE id=? AND user_id=?", (data.get("id"), u["id"]))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
 
     def api_impersonate(self, data):
         admin = self._current_user()
@@ -1533,6 +1667,7 @@ def main():
     seed_settings()
     seed_lessons()
     seed_admins()
+    seed_demo_teacher()
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"Coding4Kids backend running at http://localhost:{PORT}")
     try:

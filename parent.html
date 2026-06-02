@@ -64,6 +64,14 @@
       <span class="pill" id="planPill">FAMILY</span>
     </div>
 
+    <div id="teacherUpgrade" class="hidden" style="margin-bottom:28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;">
+      <span style="font-weight:800;" id="teacherPlanInfo"></span>
+      <span style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="checkout.html?plan=teacher" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Teacher · $18 / 150 students</a>
+        <a href="checkout.html?plan=school" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">School · $100 / 550 students</a>
+      </span>
+    </div>
+
     <div id="msgWrap" class="hidden" style="margin-bottom:28px;">
       <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:14px;">📬 Messages</h2>
       <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -141,9 +149,19 @@
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
       document.getElementById('planName').textContent = isTeacher ? (me.school || 'My Classroom') : 'Family Plan';
-      document.getElementById('planDesc').textContent = isTeacher ? 'School consent · AI included for your students.' : 'AI included for everyone in your family.';
-      document.getElementById('planPill').textContent = isTeacher ? 'CLASSROOM' : 'FAMILY';
+      document.getElementById('planDesc').textContent = isTeacher
+        ? `${me.teacherPlanLabel} · ${me.studentsUsed}/${me.studentLimit} students · school consent`
+        : 'AI included for everyone in your family.';
+      const hasPlan = me.teacherPlan === 'teacher' || me.teacherPlan === 'school';
+      document.getElementById('planPill').textContent = isTeacher ? (hasPlan ? me.teacherPlan.toUpperCase() : 'NO PLAN') : 'FAMILY';
       document.getElementById('kidsHeading').textContent = isTeacher ? 'Your Students' : 'Your Kids';
+      if (isTeacher) {
+        document.getElementById('teacherUpgrade').classList.remove('hidden');
+        document.getElementById('teacherPlanInfo').textContent =
+          me.teacherPlan === 'school' ? '🏫 You\'re on the School Plan (550 students).'
+          : (me.teacherPlan === 'teacher' ? `📈 Teacher Plan (${me.studentsUsed}/${me.studentLimit} students). Need more?`
+          : '📋 Choose a plan to start adding students:');
+      }
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
       const kids = (ok && data.kids) ? data.kids : [];
@@ -151,12 +169,22 @@
       if (kids.length === 0) {
         grid.insertAdjacentHTML('afterbegin', `<div class="empty">No ${isTeacher?'students':'kids'} yet — add your first one! 🎉</div>`);
       }
-      // messages (e.g. a kid asked to upgrade)
+      // messages: admin notices (sent to this account) + family messages (e.g. a kid asked to upgrade)
+      const nr = await C4K.api('/api/notices');
+      const notices = (nr.ok && nr.data.notices) ? nr.data.notices : [];
       const mr = await C4K.api('/api/parent/messages');
       const msgs = (mr.ok && mr.data.messages) ? mr.data.messages : [];
-      if (msgs.length) {
+      if (notices.length || msgs.length) {
         document.getElementById('msgWrap').classList.remove('hidden');
-        document.getElementById('msgList').innerHTML = msgs.map(m => {
+        const noticeHtml = notices.map(n =>
+          `<div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:16px 18px;display:flex;gap:12px;align-items:flex-start;">
+             <span style="font-size:1.2rem;">📨</span>
+             <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from Coding4Kids</div>
+               <p style="color:var(--text);font-size:0.9rem;line-height:1.5;">${n.body}</p>
+               <div style="color:var(--text-faint);font-size:0.72rem;">${n.at}</div></div>
+             <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>
+           </div>`).join('');
+        const msgHtml = msgs.map(m => {
           const upgrade = m.kind === 'upgrade_request';
           return `<div style="background:var(--surface);border:1px solid ${upgrade?'var(--border-bright)':'var(--border)'};border-radius:12px;padding:16px 18px;">
             <div style="font-weight:800;margin-bottom:4px;">${upgrade?'⬆️ Upgrade request':'📩 Notification'}</div>
@@ -164,6 +192,7 @@
             ${upgrade?'<a href="index.html#pricing" class="btn btn-primary" style="margin-top:10px;">View plans</a>':''}
           </div>`;
         }).join('');
+        document.getElementById('msgList').innerHTML = noticeHtml + msgHtml;
       }
     }
 
