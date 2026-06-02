@@ -28,7 +28,7 @@ async function handleSignup(e) {
     showInvite(data, payload.parentEmail);   // QR + parent email/consent invite, then dashboard
   } else {
     success.style.background = 'rgba(239,68,68,0.25)';
-    success.textContent = '⚠️ ' + (data.error || 'Could not create account.');
+    success.textContent = '⚠️ ' + (data.error || "Can't reach the server right now — please try again in a moment.");
   }
   success.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -70,7 +70,7 @@ async function handleLogin(e) {
   const isAdmin = loginRole === 'admin' || loginRole === 'super_admin';
   const { ok, data } = isAdmin ? await C4K.adminLogin(u, p) : await C4K.login(u, p);
   if (!ok) {
-    document.getElementById('loginError').textContent = '❌ ' + (data.error || 'Login failed.');
+    document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server — try again in a moment.");
     return;
   }
   // Make sure the account matches the tab the user picked
