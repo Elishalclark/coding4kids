@@ -1235,6 +1235,22 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             if linked_id:
                 log_consent(linked_id, linked_username, "parent_account", email, "Parent linked the child's account")
+            # Welcome email to the address the parent signed up with (from coding4kids.support@gmail.com).
+            if email:
+                first = (name.split(" ")[0] or "there")
+                link_line = (f" You're now connected to <strong>{clean_name(linked)}</strong>'s account."
+                             if linked else "")
+                welcome = (f"Hi {clean_name(first)}, welcome to Coding4Kids! 🎉 Your Family account is ready."
+                           f"{link_line} From your Family Dashboard you can add kids, see their progress, "
+                           f"approve accounts, and sign them in or out anytime. Happy coding!")
+                conn2 = db()
+                conn2.execute("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)",
+                              (email, "welcome", welcome, now_iso()))
+                conn2.commit()
+                conn2.close()
+                dash_url = f"http://localhost:{PORT}/parent.html"
+                send_email_async(email, "Welcome to Coding4Kids! 🎉",
+                                 f"{welcome}<br><br><a href=\"{dash_url}\">Open your Family Dashboard →</a>")
             token = create_session(uid)
             return self._send_json({"token": token, "user": public_user(row), "linkedChild": linked})
         return resp  # error response already sent
