@@ -329,6 +329,12 @@ def init_db():
             project_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
             author_name TEXT, body TEXT, reported INTEGER DEFAULT 0, created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS takedowns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL, requester_id INTEGER, requester_name TEXT,
+            reason TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT, resolved_at TEXT, resolved_by TEXT
+        );
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
@@ -1176,6 +1182,24 @@ class Handler(BaseHTTPRequestHandler):
                 "projectId": r["project_id"], "projectTitle": _row_get(r, "project_title") or "(deleted project)",
                 "reports": r["reported"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
 
+        if path == "/api/admin/takedowns":  # super admin: pending project takedown requests
+            u = self._current_user()
+            if not u or u["role"] != "super_admin":
+                return self._send_json({"error": "forbidden"}, 403)
+            conn = db()
+            rows = conn.execute(
+                "SELECT t.*, p.title AS project_title, p.author_name AS project_author, p.shared AS project_shared "
+                "FROM takedowns t LEFT JOIN projects p ON p.id=t.project_id "
+                "WHERE t.status='pending' ORDER BY t.id DESC").fetchall()
+            conn.close()
+            return self._send_json({"takedowns": [{
+                "id": r["id"], "projectId": r["project_id"],
+                "projectTitle": _row_get(r, "project_title") or "(deleted project)",
+                "projectAuthor": _row_get(r, "project_author"),
+                "projectShared": bool(_row_get(r, "project_shared", 0)),
+                "requester": r["requester_name"], "reason": r["reason"],
+                "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
         if path == "/api/projects/mine":  # the logged-in kid's own saved projects
             u = self._current_user()
             if not u:
@@ -1311,6 +1335,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/comments/delete": lambda: self.api_comment_delete(data),
             "/api/comments/report": lambda: self.api_comment_report(data),
             "/api/admin/comment-dismiss": lambda: self.api_admin_comment_dismiss(data),
+            "/api/projects/takedown": lambda: self.api_project_takedown(data),
+            "/api/admin/takedown-resolve": lambda: self.api_admin_takedown_resolve(data),
         }
         if path in routes:
             return routes[path]()
@@ -2268,6 +2294,71 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         return self._send_json({"ok": True})
+
+    def api_project_takedown(self, data):
+        """Any logged-in user asks for a shared project to be taken down; goes to the super admin."""
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
+        pid = data.get("projectId")
+        reason = clean_name(data.get("reason") or "")[:500]
+        conn = db()
+        proj = conn.execute("SELECT id,title,author_name,shared FROM projects WHERE id=?", (pid,)).fetchone()
+        if not proj or not proj["shared"]:
+            conn.close()
+            return self._send_json({"error": "Project not found"}, 404)
+        # one pending request per user per project (avoid spam)
+        dup = conn.execute("SELECT id FROM takedowns WHERE project_id=? AND requester_id=? AND status='pending'",
+                           (pid, u["id"])).fetchone()
+        if dup:
+            conn.close()
+            return self._send_json({"ok": True, "already": True})
+        requester = clean_name((u["name"] or u["username"] or "").split(" ")[0]) or "A user"
+        conn.execute("INSERT INTO takedowns (project_id,requester_id,requester_name,reason,status,created_at) "
+                     "VALUES (?,?,?,?,'pending',?)", (pid, u["id"], requester, reason, now_iso()))
+        conn.commit()
+        conn.close()
+        body = (f"<p>A takedown was requested for a gallery project and needs your decision.</p>"
+                f"<p><strong>Project:</strong> {html_lib.escape(proj['title'] or '')} "
+                f"(by {html_lib.escape(proj['author_name'] or '?')})</p>"
+                f"<p><strong>Requested by:</strong> {html_lib.escape(requester)} (@{html_lib.escape(u['username'] or '')})</p>"
+                f"<p><strong>Reason:</strong> {html_lib.escape(reason) or '(none given)'}</p>"
+                f"<p>Open the Super Admin dashboard → <strong>🛑 Takedown Requests</strong> to approve or deny.</p>")
+        send_email_async(get_super_admin_email(), f"Takedown requested: “{(proj['title'] or '')[:40]}”", body)
+        return self._send_json({"ok": True})
+
+    def api_admin_takedown_resolve(self, data):
+        """Super admin approves (removes the project from the gallery) or denies a takedown request."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        tid = data.get("id")
+        action = (data.get("action") or "").strip()  # 'approve' or 'deny'
+        if action not in ("approve", "deny"):
+            return self._send_json({"error": "bad action"}, 400)
+        conn = db()
+        t = conn.execute("SELECT * FROM takedowns WHERE id=?", (tid,)).fetchone()
+        if not t:
+            conn.close()
+            return self._send_json({"error": "Request not found"}, 404)
+        if t["status"] != "pending":
+            conn.close()
+            return self._send_json({"error": "Already resolved."}, 400)
+        status = "approved" if action == "approve" else "denied"
+        if action == "approve":
+            # take the project out of the public gallery (the owner keeps their private copy)
+            conn.execute("UPDATE projects SET shared=0 WHERE id=?", (t["project_id"],))
+            # any other pending requests for the same project are resolved too
+            conn.execute("UPDATE takedowns SET status='approved', resolved_at=?, resolved_by=? "
+                         "WHERE project_id=? AND status='pending'", (now_iso(), u["username"], t["project_id"]))
+        else:
+            conn.execute("UPDATE takedowns SET status='denied', resolved_at=?, resolved_by=? WHERE id=?",
+                         (now_iso(), u["username"], tid))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "status": status})
 
     def api_comment_report(self, data):
         u = self._current_user()

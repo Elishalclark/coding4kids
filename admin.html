@@ -214,6 +214,16 @@
         </table>
       </div>
 
+      <!-- Takedown Requests (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="takedownPanel" style="display:none;">
+        <h3>🛑 Takedown Requests <span id="takedownCount" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">Users asked for these gallery projects to be removed. Approve to take a project out of the gallery, or deny to keep it.</p>
+        <table class="admin-table">
+          <thead><tr><th>Project</th><th>Made by</th><th>Requested by</th><th>Reason</th><th>When</th><th>Decision</th></tr></thead>
+          <tbody id="takedownRows"></tbody>
+        </table>
+      </div>
+
       <!-- Lessons -->
       <div class="panel">
         <h3>📚 Lesson Manager <span id="lessonHint" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;"></span></h3>
@@ -387,6 +397,7 @@
         renderLessons(s.lessons || [], true);
         loadConsent();
         loadReports();
+        loadTakedowns();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -468,6 +479,36 @@
     async function dismissReport(id) {
       const { ok, data } = await C4K.api('/api/admin/comment-dismiss', 'POST', { id });
       if (ok) loadReports(); else alert(data.error || 'Could not dismiss.');
+    }
+
+    // ── Takedown requests (super admin) ──
+    async function loadTakedowns() {
+      const { ok, data } = await C4K.api('/api/admin/takedowns');
+      if (!ok) return;
+      const rows = data.takedowns || [];
+      document.getElementById('takedownCount').textContent = rows.length ? `· ${rows.length} pending` : '· none pending ✓';
+      document.getElementById('takedownRows').innerHTML = rows.length ? rows.map(t => `
+        <tr>
+          <td><strong>${C4K.esc(t.projectTitle)}</strong></td>
+          <td>${C4K.esc(t.projectAuthor || '?')}</td>
+          <td>${C4K.esc(t.requester || '?')}</td>
+          <td style="max-width:260px;"><div style="white-space:pre-wrap;word-break:break-word;color:var(--text-dim);">${t.reason ? C4K.esc(t.reason) : '<em>(none)</em>'}</div></td>
+          <td style="color:var(--text-dim);">${C4K.esc(t.at)}</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="resolveTakedown(${t.id},'approve')">✅ Approve (remove)</button>
+            <button class="mini-btn" style="color:#34d399;border-color:rgba(52,211,153,.4);" onclick="resolveTakedown(${t.id},'deny')">✋ Deny (keep)</button>
+          </div></td>
+        </tr>`).join('')
+        : '<tr><td colspan="6" style="color:var(--text-faint);">No takedown requests. 🎉</td></tr>';
+    }
+
+    async function resolveTakedown(id, action) {
+      const msg = action === 'approve'
+        ? 'Approve this takedown? The project will be removed from the gallery.'
+        : 'Deny this takedown? The project stays in the gallery.';
+      if (!confirm(msg)) return;
+      const { ok, data } = await C4K.api('/api/admin/takedown-resolve', 'POST', { id, action });
+      if (ok) loadTakedowns(); else alert(data.error || 'Could not resolve.');
     }
 
     function renderLessons(lessons, sup) {

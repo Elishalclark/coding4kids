@@ -115,6 +115,14 @@
       if (ok) card.remove();
     }
 
+    async function requestTakedown(id, title, btn) {
+      const reason = prompt('Ask an admin to review and take down “' + title + '”.\n\nWhy should it be removed? (optional)');
+      if (reason === null) return;  // cancelled
+      const { ok, data } = await C4K.api('/api/projects/takedown', 'POST', { projectId: id, reason });
+      if (ok) { btn.textContent = data.already ? '✓ Already requested' : '✓ Sent to admin'; btn.disabled = true; }
+      else alert(data.error || 'Could not send the request.');
+    }
+
     async function loadComments(pid, listEl) {
       const { ok, data } = await C4K.api('/api/comments/' + pid);
       if (!ok) { listEl.innerHTML = '<p style="color:var(--text-faint);font-size:0.8rem;">Could not load comments.</p>'; return; }
@@ -186,6 +194,7 @@
             <button class="gbtn" data-act="run">▶ Run</button>
             <button class="gbtn" data-act="cm">💬 Comments</button>
             <a class="gbtn" href="playground.html?project=${p.id}">✏️ Remix</a>
+            <button class="gbtn" data-act="td" title="Ask an admin to review and remove this project">🛑 Request takedown</button>
             ${canModerate ? '<button class="gbtn danger" data-act="rm">🗑️ Remove</button>' : ''}
           </div>
           <div class="cm-wrap">
@@ -199,6 +208,7 @@
         const outEl = card.querySelector('.proj-out');
         card.querySelector('.like-btn').onclick = e => like(p.id, e.currentTarget);
         card.querySelector('[data-act=run]').onclick = e => runProject(p.code, outEl, e.currentTarget);
+        card.querySelector('[data-act=td]').onclick = e => requestTakedown(p.id, p.title, e.currentTarget);
         const cmWrap = card.querySelector('.cm-wrap');
         let loaded = false;
         card.querySelector('[data-act=cm]').onclick = () => {
