@@ -355,6 +355,7 @@ def init_db():
         "age_years": "INTEGER", "consent_status": "TEXT DEFAULT 'not_required'",
         "consent_method": "TEXT", "consent_at": "TEXT", "consent_by": "TEXT",
         "consent_token": "TEXT", "consent_confirm_token": "TEXT", "school": "TEXT",
+        "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT",
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -871,6 +872,7 @@ def public_user(user):
         "consentStatus": cstatus, "consentMethod": _row_get(user, "consent_method"),
         "needsConsent": (user["role"] == "kid" and cstatus == "pending"),
         "school": _row_get(user, "school"),
+        "suspended": bool(_row_get(user, "suspended", 0)),
     }
 
 
@@ -1083,14 +1085,16 @@ class Handler(BaseHTTPRequestHandler):
             placeholders = ",".join("?" for _ in roles)
             conn = db()
             rows = conn.execute(
-                f"SELECT id,name,username,role,plan,parent_email,family_id,created_at "
+                f"SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason "
                 f"FROM users WHERE role IN ({placeholders}) ORDER BY id", roles
             ).fetchall()
             conn.close()
             return self._send_json({"accounts": [
                 {"id": r["id"], "name": r["name"], "username": r["username"], "role": r["role"],
                  "plan": r["plan"], "parentEmail": r["parent_email"], "familyId": r["family_id"],
-                 "joined": (r["created_at"] or "")[:10]} for r in rows]})
+                 "joined": (r["created_at"] or "")[:10],
+                 "suspended": bool(_row_get(r, "suspended", 0)), "suspendReason": _row_get(r, "suspend_reason")}
+                for r in rows]})
 
         if path == "/api/admin/stats":
             u = self._current_user()
@@ -1253,6 +1257,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/notice": lambda: self.api_admin_notice(data),
             "/api/admin/delete-user": lambda: self.api_admin_delete_user(data),
+            "/api/admin/suspend": lambda: self.api_admin_suspend(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
             "/api/admin/settings": lambda: self.api_save_settings(data),
@@ -1453,6 +1458,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Wrong username or password."}, 401)
         if row["role"] not in allow:
             return self._send_json({"error": "Those credentials can't be used here."}, 403)
+        if _row_get(row, "suspended", 0):
+            clear_login_fails(key)
+            reason = _row_get(row, "suspend_reason") or ""
+            msg = "This account has been suspended by an administrator."
+            if reason:
+                msg += f" Reason: {reason}"
+            msg += " Please contact coding4kids.support@gmail.com."
+            return self._send_json({"error": msg, "suspended": True}, 403)
         clear_login_fails(key)
         token = create_session(row["id"])
         return self._send_json({"token": token, "user": public_user(row)})
@@ -1790,6 +1803,50 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         log_consent(uid, target["username"], "deleted", f"super admin ({admin['username']})", reason or "Account deleted")
         return self._send_json({"ok": True, "name": target["name"]})
+
+    def api_admin_suspend(self, data):
+        # Super admin suspends (or restores) an account. Suspending logs them out and blocks future logins.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        target = conn.execute("SELECT * FROM users WHERE id=?", (data.get("userId"),)).fetchone()
+        if not target:
+            conn.close()
+            return self._send_json({"error": "User not found."}, 404)
+        if target["role"] in ("admin", "super_admin"):
+            conn.close()
+            return self._send_json({"error": "Admin accounts can't be suspended here."}, 403)
+        suspend = bool(data.get("suspended"))
+        reason = (data.get("reason") or "").strip()
+        uid = target["id"]
+        if suspend:
+            conn.execute("UPDATE users SET suspended=1, suspend_reason=? WHERE id=?", (reason, uid))
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (uid,))  # force-logout everywhere
+        else:
+            conn.execute("UPDATE users SET suspended=0, suspend_reason=NULL WHERE id=?", (uid,))
+        conn.commit()
+        conn.close()
+        # Notify the account / parent on file.
+        if target["parent_email"]:
+            if suspend:
+                body = (f"Notice: the Coding4Kids account '{target['name']}' (@{target['username']}) has been "
+                        f"suspended by an administrator." + (f" Reason: {reason}" if reason else "")
+                        + " Contact coding4kids.support@gmail.com with questions.")
+                subject = "Coding4Kids account suspended"
+            else:
+                body = (f"Good news: the Coding4Kids account '{target['name']}' (@{target['username']}) has been "
+                        f"reinstated and can be used again.")
+                subject = "Coding4Kids account reinstated"
+            conn2 = db()
+            conn2.execute("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)",
+                          (target["parent_email"], "account_suspended" if suspend else "account_reinstated", body, uid, now_iso()))
+            conn2.commit()
+            conn2.close()
+            send_email_async(target["parent_email"], subject, body)
+        log_consent(uid, target["username"], "suspended" if suspend else "reinstated",
+                    f"super admin ({admin['username']})", reason or "")
+        return self._send_json({"ok": True, "name": target["name"], "suspended": suspend})
 
     def api_dismiss_notice(self, data):
         u = self._current_user()
