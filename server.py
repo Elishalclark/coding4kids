@@ -28,6 +28,7 @@ import threading
 import urllib.request
 import smtplib
 import ssl
+import html as html_lib
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -2274,18 +2275,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "not logged in"}, 401)
         cid = data.get("id")
         conn = db()
-        c = conn.execute("SELECT id FROM comments WHERE id=?", (cid,)).fetchone()
+        c = conn.execute(
+            "SELECT c.*, p.title AS project_title, us.username AS author_username "
+            "FROM comments c LEFT JOIN projects p ON p.id=c.project_id "
+            "LEFT JOIN users us ON us.id=c.user_id WHERE c.id=?", (cid,)).fetchone()
         if not c:
             conn.close()
             return self._send_json({"error": "Comment not found"}, 404)
         conn.execute("UPDATE comments SET reported=reported+1 WHERE id=?", (cid,))
         conn.commit()
         conn.close()
-        # let the super admin know there's something to review (in-app + email if configured)
-        send_email_async(get_super_admin_email(),
-                         "A comment was reported on Coding4Kids",
-                         f"<p>Comment #{cid} was reported by user '{clean_name(u['username'] or '')}'. "
-                         f"Review it in the Gallery (reported comments are highlighted) and remove it or delete the account if needed.</p>")
+        # let the super admin know there's something to review — show the actual reported message.
+        author = clean_name(c["author_name"] or "") or "?"
+        author_un = clean_name(_row_get(c, "author_username") or "")
+        project = clean_name(_row_get(c, "project_title") or "(unknown project)")
+        reporter = clean_name(u["username"] or "")
+        body_html = (
+            f"<p>A comment was reported on Coding4Kids and needs review.</p>"
+            f"<p><strong>Reported message:</strong></p>"
+            f"<blockquote style=\"border-left:3px solid #f59e0b;margin:0;padding:8px 14px;background:#faf6ec;color:#333;\">"
+            f"{html_lib.escape(c['body'] or '')}</blockquote>"
+            f"<p style=\"color:#555;font-size:0.9em;\">By <strong>{author}</strong> (@{author_un}) · on project “{project}” · reported by @{reporter}</p>"
+            f"<p>Open the Super Admin dashboard → <strong>🚩 Reported Comments</strong> to remove it, dismiss the report, or suspend the author.</p>")
+        send_email_async(get_super_admin_email(), f"Reported comment: “{(c['body'] or '')[:40]}”", body_html)
         return self._send_json({"ok": True})
 
     # ---- static files ----
