@@ -249,6 +249,8 @@ for i in range(1, 4):
     // ───────────── boot ─────────────
     (async () => {
       const me = await C4K.loadMe();
+      // COPPA: lock the whole playground for under-13 kids until a parent approves.
+      if (C4K.consentLock(me)) return;
       if (me) {
         if (me.role === 'kid') $('dashLink').style.display = '';
         $('saveBar').style.display = '';

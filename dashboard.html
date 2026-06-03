@@ -306,18 +306,8 @@
         location.href = ME.role === 'parent' || ME.role === 'teacher' ? 'parent.html' : (ME.role === 'super_admin' || ME.role === 'admin' ? 'admin.html' : 'index.html');
         return;
       }
-      // COPPA: under-13 accounts wait for a grown-up to approve before they can do anything.
-      if (ME.needsConsent) {
-        document.querySelector('.dash').innerHTML =
-          `<div style="max-width:520px;margin:60px auto;text-align:center;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:40px 30px;">
-             <div style="font-size:3rem;">⏳</div>
-             <h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;">Hi ${ME.name}! Almost ready…</h1>
-             <p style="color:var(--text-dim);line-height:1.6;">A parent or guardian needs to approve your account before you can start.
-                We've sent them a message${ME.parentEmail ? ' at <strong>' + ME.parentEmail + '</strong>' : ''} with an approval link. 🚀</p>
-             <p style="color:var(--text-faint);font-size:0.82rem;margin-top:16px;">Already approved? Refresh this page.</p>
-           </div>`;
-        return;
-      }
+      // COPPA: under-13 accounts are fully locked until a grown-up approves — nothing works.
+      if (C4K.consentLock(ME)) return;
       document.getElementById('dAv').innerHTML = C4K.renderAvatar(ME.avatar, 70);
       document.getElementById('avPreview').innerHTML = C4K.renderAvatar(ME.avatar, 80);
       document.getElementById('dHi').textContent = `Hey ${ME.name}! 👋`;

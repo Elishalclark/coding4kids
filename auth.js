@@ -90,6 +90,57 @@ const C4K = {
     window.location.href = 'admin.html';
   },
 
+  // ── COPPA: fully lock a kid's account until a parent approves it ──
+  // Returns true (and shows a blocking full-screen overlay) when the account is waiting for consent.
+  consentLock(me) {
+    me = me || this.user;
+    if (!me || me.role !== 'kid' || !me.needsConsent) return false;
+    if (document.getElementById('c4kLock')) return true;
+    const ov = document.createElement('div');
+    ov.id = 'c4kLock';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:rgba(8,6,18,0.97);' +
+      'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;' +
+      "font-family:'Nunito',system-ui,sans-serif;");
+    const email = me.parentEmail || '';
+    ov.innerHTML =
+      '<div style="max-width:540px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
+        '<div style="font-size:3.4rem;">🔒</div>' +
+        '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Hi ' + this.esc(me.name) + '! Your account is locked</h1>' +
+        '<p style="color:#bdb6d6;line-height:1.6;">A parent or guardian has to <strong>approve your account</strong> before you can play, ' +
+        'do lessons, use the playground, or anything else. Nothing works until then — to keep you safe! 🛡️</p>' +
+        '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
+          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Parent / guardian email</label>' +
+          '<input id="c4kLockEmail" type="email" value="' + this.esc(email) + '" placeholder="grownup@email.com" ' +
+            'style="width:100%;margin-top:6px;padding:11px 13px;border-radius:10px;border:1px solid #3a2f63;' +
+            'background:#08060f;color:#fff;font-family:inherit;font-weight:700;box-sizing:border-box;" />' +
+          '<button id="c4kLockSend" style="width:100%;margin-top:10px;padding:12px;border:none;border-radius:10px;' +
+            'background:linear-gradient(135deg,#7c5cff,#b14cff);color:#fff;font-weight:900;font-size:0.95rem;cursor:pointer;">' +
+            '📨 Send approval email to my parent</button>' +
+          '<p id="c4kLockMsg" style="font-size:0.82rem;margin:8px 0 0;color:#7ee0a0;min-height:1em;"></p>' +
+        '</div>' +
+        '<button id="c4kLockRefresh" style="background:none;border:1px solid #3a2f63;color:#bdb6d6;font-weight:800;' +
+          'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved — check again</button>' +
+        '<p style="color:#6f6890;font-size:0.78rem;margin-top:16px;">Need help? Email ' +
+          '<a href="mailto:coding4kids.support@gmail.com" style="color:#9b8cff;">coding4kids.support@gmail.com</a></p>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    const msg = ov.querySelector('#c4kLockMsg');
+    ov.querySelector('#c4kLockSend').onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      const pe = ov.querySelector('#c4kLockEmail').value.trim();
+      const { ok, data } = await this.api('/api/consent/resend', 'POST', { parentEmail: pe });
+      msg.style.color = ok ? '#7ee0a0' : '#ff8a8a';
+      msg.textContent = ok ? ('Sent! We emailed ' + (data.parentEmail || 'your parent') + '. Ask them to tap the approval link.')
+                           : (data.error || 'Could not send. Check the email address.');
+      btn.disabled = false;
+    };
+    ov.querySelector('#c4kLockRefresh').onclick = () => location.reload();
+    return true;
+  },
+
   // ── Avatar catalog (mirrors the server shop) for rendering anywhere ──
   SHOP: [
     { id:'face_kid',name:'Classic',cat:'face',emoji:'🧒',price:0 },

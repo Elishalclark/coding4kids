@@ -1247,6 +1247,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/teacher/signup": lambda: self.api_teacher_signup(data),
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
+            "/api/consent/resend": lambda: self.api_consent_resend(data),
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
             "/api/admin/consent": lambda: self.api_admin_consent(data),
@@ -1565,6 +1566,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
         item_id = (data.get("itemId") or "").strip()
         item = SHOP_BY_ID.get(item_id)
         if not item:
@@ -1586,6 +1589,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u:
             return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
         av = data.get("avatar") or {}
         pu = public_user(u)
         owned = set(pu["ownedItems"])
@@ -1607,6 +1612,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u or u["role"] != "kid":
             return self._send_json({"error": "Only a kid can ask a parent to upgrade."}, 403)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
         parent_email = u["parent_email"]
         body = ("Your kid wants to upgrade. If you would like to upgrade their account, go to "
                 "http://localhost:3000/index.html#pricing. If this is a mistake, please ignore "
@@ -1843,6 +1850,40 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         log_consent(kid_id, kid["name"], "deleted", u["username"], "Guardian deleted the child's account & data")
         return self._send_json({"ok": True, "name": kid["name"]})
+
+    def api_consent_resend(self, data):
+        """A locked kid (or first-time setup) sends/re-sends the approval email to their parent."""
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "forbidden"}, 403)
+        if consent_ok(u):
+            return self._send_json({"error": "This account is already approved."}, 400)
+        new_email = (data.get("parentEmail") or "").strip()
+        conn = db()
+        # update the parent's email if they provided/corrected one
+        if new_email:
+            conn.execute("UPDATE users SET parent_email=? WHERE id=?", (new_email, u["id"]))
+        # make sure there's a consent token to put in the link
+        tok = _row_get(u, "consent_token")
+        if not tok:
+            tok = secrets.token_urlsafe(10)
+            conn.execute("UPDATE users SET consent_token=? WHERE id=?", (tok, u["id"]))
+        conn.commit()
+        kid = conn.execute("SELECT name, parent_email FROM users WHERE id=?", (u["id"],)).fetchone()
+        parent_email = kid["parent_email"]
+        if not parent_email:
+            conn.close()
+            return self._send_json({"error": "Please enter a parent's email address."}, 400)
+        consent_url = f"http://localhost:{PORT}/index.html?consent={tok}"
+        body = (f"Parental consent needed: {kid['name']} (under 13) wants to use Coding4Kids. As required by "
+                f"COPPA, please review and approve: {consent_url}")
+        conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
+                     (parent_email, "consent_request", body, u["id"], tok, now_iso()))
+        conn.commit()
+        conn.close()
+        send_email_async(parent_email, f"Approve {kid['name']}'s Coding4Kids account",
+                         f'{body} <a href="{consent_url}">Review &amp; approve →</a>')
+        return self._send_json({"ok": True, "parentEmail": parent_email})
 
     def api_consent_start(self, data):
         # Email-plus step 1: parent confirms intent; we issue a second confirmation token.

@@ -50,16 +50,8 @@ function totalXp() { return LESSONS.filter(l => completed.has(l.id)).reduce((s, 
 
 // ───────────────────────── render units ─────────────────────────
 function render() {
-  // COPPA: under-13 kids awaiting a parent's approval can't start lessons yet.
-  if (ME && ME.needsConsent) {
-    document.getElementById('unitsWrap').innerHTML =
-      `<div style="max-width:520px;margin:30px auto;text-align:center;background:var(--surface);border:1px solid var(--border-bright);border-radius:16px;padding:36px 28px;">
-         <div style="font-size:2.6rem;">⏳</div>
-         <h2 style="font-size:1.3rem;font-weight:900;margin:10px 0;">Waiting for a grown-up</h2>
-         <p style="color:var(--text-dim);line-height:1.6;">A parent needs to approve your account before lessons unlock. We sent them an approval link. 🚀</p>
-       </div>`;
-    return;
-  }
+  // COPPA: under-13 kids awaiting a parent's approval are fully locked out.
+  if (C4K.consentLock(ME)) return;
   // banner
   const level = unitsPassed.size + 1;
   document.getElementById('pbLevel').textContent = level;

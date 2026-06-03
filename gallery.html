@@ -219,6 +219,8 @@
     (async () => {
       const me = await C4K.loadMe();
       if (!me) { location.href = 'index.html'; return; }
+      // COPPA: lock the gallery for under-13 kids until a parent approves.
+      if (C4K.consentLock(me)) return;
       if (me.role === 'kid') $('dashLink').style.display = '';
       const { ok, data } = await C4K.api('/api/gallery');
       if (!ok) { $('content').innerHTML = '<p style="color:#f87171;">Could not load the gallery.</p>'; return; }
