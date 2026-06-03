@@ -21,6 +21,14 @@ services:
         sync: false
       - key: ADMIN_PASS
         sync: false
+      # Email sending (Gmail). Set these in the Render dashboard to send real
+      # emails (parent welcome+consent, approval links, moderation alerts).
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
     disk:
       name: c4k-data
       mountPath: /data     # data.db + admin_config.json persist here across deploys
