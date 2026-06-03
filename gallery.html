@@ -31,6 +31,26 @@
     .gbtn.danger:hover { color:#f87171; border-color:#f8717155; }
     .empty { text-align:center; color:var(--text-dim); padding:60px 20px; }
     .empty .big { font-size:3rem; }
+    /* comments */
+    .cm-wrap { border-top:1px solid var(--border); padding:12px 16px; display:none; }
+    .cm-wrap.show { display:block; }
+    .cm-list { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+    .cm { background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px 11px; font-size:0.85rem; }
+    .cm.reported { border-color:#f8717155; }
+    .cm .cm-head { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+    .cm .cm-author { font-weight:900; font-size:0.78rem; }
+    .cm .cm-at { font-size:0.68rem; color:var(--text-faint); }
+    .cm .cm-flag { font-size:0.66rem; font-weight:900; color:#f87171; }
+    .cm .cm-body { word-break:break-word; white-space:pre-wrap; line-height:1.45; }
+    .cm .cm-tools { display:flex; gap:10px; margin-top:5px; }
+    .cm .cm-tools button { background:none; border:none; color:var(--text-faint); font-size:0.72rem; font-weight:800; cursor:pointer; padding:0; }
+    .cm .cm-tools button:hover { color:var(--purple); }
+    .cm .cm-tools button.rm:hover { color:#f87171; }
+    .cm-form { display:flex; gap:8px; }
+    .cm-form input { flex:1; background:#06040f; border:1px solid var(--border); color:var(--text); border-radius:50px; padding:8px 14px; font-family:inherit; font-size:0.85rem; }
+    .cm-form button { font-size:0.8rem; font-weight:800; }
+    .cm-rules { font-size:0.7rem; color:var(--text-faint); margin-top:7px; }
+    .cm-rules a { color:var(--text-dim); }
   </style>
 </head>
 <body>
@@ -95,6 +115,54 @@
       if (ok) card.remove();
     }
 
+    async function loadComments(pid, listEl) {
+      const { ok, data } = await C4K.api('/api/comments/' + pid);
+      if (!ok) { listEl.innerHTML = '<p style="color:var(--text-faint);font-size:0.8rem;">Could not load comments.</p>'; return; }
+      renderComments(pid, data.comments, listEl);
+    }
+
+    function renderComments(pid, comments, listEl) {
+      listEl.innerHTML = '';
+      if (!comments.length) {
+        listEl.innerHTML = '<p style="color:var(--text-faint);font-size:0.8rem;">No comments yet — be the first to say something nice!</p>';
+        return;
+      }
+      comments.forEach(c => {
+        const el = document.createElement('div');
+        el.className = 'cm' + (c.reported ? ' reported' : '');
+        el.innerHTML = `
+          <div class="cm-head">
+            <span class="cm-author">${C4K.esc(c.author || 'a coder')}</span>
+            <span class="cm-at">${C4K.esc(c.at)}</span>
+            ${c.reported ? '<span class="cm-flag">⚑ reported</span>' : ''}
+          </div>
+          <div class="cm-body">${C4K.esc(c.body)}</div>
+          <div class="cm-tools">
+            ${c.canDelete ? '<button class="rm" data-act="del">🗑️ Remove</button>' : '<button data-act="rep">⚑ Report</button>'}
+          </div>`;
+        const del = el.querySelector('[data-act=del]');
+        if (del) del.onclick = async () => {
+          if (!confirm('Remove this comment?')) return;
+          const { ok } = await C4K.api('/api/comments/delete', 'POST', { id: c.id });
+          if (ok) loadComments(pid, listEl);
+        };
+        const rep = el.querySelector('[data-act=rep]');
+        if (rep) rep.onclick = async () => {
+          const { ok } = await C4K.api('/api/comments/report', 'POST', { id: c.id });
+          if (ok) { rep.textContent = '✓ Reported'; rep.disabled = true; }
+        };
+        listEl.appendChild(el);
+      });
+    }
+
+    async function addComment(pid, inp, listEl) {
+      const body = inp.value.trim();
+      if (!body) return;
+      const { ok, data } = await C4K.api('/api/comments/add', 'POST', { projectId: pid, body });
+      if (ok) { inp.value = ''; loadComments(pid, listEl); }
+      else alert(data.error || 'Could not post comment.');
+    }
+
     function render(projects) {
       const c = $('content');
       if (!projects.length) {
@@ -116,12 +184,32 @@
           <div class="proj-actions">
             <button class="like-btn ${p.liked ? 'liked' : ''}">${p.liked ? '❤️ ' : '🤍 '}${p.likes}</button>
             <button class="gbtn" data-act="run">▶ Run</button>
+            <button class="gbtn" data-act="cm">💬 Comments</button>
             <a class="gbtn" href="playground.html?project=${p.id}">✏️ Remix</a>
             ${canModerate ? '<button class="gbtn danger" data-act="rm">🗑️ Remove</button>' : ''}
+          </div>
+          <div class="cm-wrap">
+            <div class="cm-list"></div>
+            <form class="cm-form">
+              <input type="text" maxlength="500" placeholder="Add a kind comment…" />
+              <button class="btn btn-primary" type="submit">Post</button>
+            </form>
+            <div class="cm-rules">Be kind! Mean or rude comments are removed and can get an account suspended. <a href="terms.html" target="_blank">Community rules</a></div>
           </div>`;
         const outEl = card.querySelector('.proj-out');
         card.querySelector('.like-btn').onclick = e => like(p.id, e.currentTarget);
         card.querySelector('[data-act=run]').onclick = e => runProject(p.code, outEl, e.currentTarget);
+        const cmWrap = card.querySelector('.cm-wrap');
+        let loaded = false;
+        card.querySelector('[data-act=cm]').onclick = () => {
+          cmWrap.classList.toggle('show');
+          if (cmWrap.classList.contains('show') && !loaded) { loaded = true; loadComments(p.id, cmWrap.querySelector('.cm-list')); }
+        };
+        card.querySelector('.cm-form').onsubmit = async e => {
+          e.preventDefault();
+          const inp = e.target.querySelector('input');
+          await addComment(p.id, inp, cmWrap.querySelector('.cm-list'));
+        };
         if (canModerate) card.querySelector('[data-act=rm]').onclick = () => remove(p.id, p.title, card);
         grid.appendChild(card);
       });

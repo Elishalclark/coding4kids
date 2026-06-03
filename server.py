@@ -320,6 +320,11 @@ def init_db():
             user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
             PRIMARY KEY (user_id, project_id)
         );
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+            author_name TEXT, body TEXT, reported INTEGER DEFAULT 0, created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
@@ -506,9 +511,37 @@ def send_email_async(to, subject, html):
     threading.Thread(target=send_email, args=(to, subject, html), daemon=True).start()
 
 
+def get_super_admin_email():
+    """Where moderation alerts go. Set SUPER_ADMIN_EMAIL to override."""
+    return os.environ.get("SUPER_ADMIN_EMAIL", "admin@coding4kids.com")
+
+
 def clean_name(name):
     """Strip angle brackets so a display name can't inject HTML (defense against stored XSS)."""
     return (name or "").replace("<", "").replace(">", "").strip()
+
+
+# A lightweight first line of defence for kid-posted comments. Manual moderation
+# (super admin can remove any comment or delete the account) is the real backstop.
+BAD_WORDS = {
+    "fuck", "shit", "bitch", "asshole", "bastard", "dick", "piss", "cunt", "slut",
+    "whore", "fag", "faggot", "nigger", "nigga", "retard", "rape", "kill yourself",
+    "kys", "stupid idiot", "loser", "hate you", "dumbass", "douche", "crap",
+    "penis", "vagina", "sex", "porn", "nude",
+}
+
+
+def contains_bad_words(text):
+    """True if the text contains a blocked word (case-insensitive, ignores symbols/spacing tricks)."""
+    low = (text or "").lower()
+    # collapse common letter-substitutions and spacing so "f u c k" / "sh!t" still match
+    squashed = re.sub(r"[^a-z]", "", low.replace("@", "a").replace("$", "s").replace("!", "i")
+                      .replace("0", "o").replace("1", "i").replace("3", "e").replace("4", "a"))
+    for w in BAD_WORDS:
+        ww = w.replace(" ", "")
+        if ww in squashed or w in low:
+            return True
+    return False
 
 
 # ────────────────────────────── COPPA consent ──────────────────────────────
@@ -1021,6 +1054,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json({"error": "This project is private."}, 403)
             return self._send_json({"project": self._project_public(r, with_code=True)})
 
+        if path.startswith("/api/comments/"):  # comments on a shared project
+            u = self._current_user()
+            if not u:
+                return self._send_json({"error": "not logged in"}, 401)
+            try:
+                pid = int(path.rsplit("/", 1)[1])
+            except ValueError:
+                return self._send_json({"error": "bad id"}, 400)
+            conn = db()
+            proj = conn.execute("SELECT user_id, shared FROM projects WHERE id=?", (pid,)).fetchone()
+            if not proj or (not proj["shared"] and proj["user_id"] != u["id"] and u["role"] != "super_admin"):
+                conn.close()
+                return self._send_json({"error": "Project not found"}, 404)
+            rows = conn.execute("SELECT * FROM comments WHERE project_id=? ORDER BY id", (pid,)).fetchall()
+            conn.close()
+            is_mod = u["role"] == "super_admin"
+            owns_project = proj["user_id"] == u["id"]
+            return self._send_json({"comments": [{
+                "id": c["id"], "author": c["author_name"], "body": c["body"],
+                "at": (c["created_at"] or "")[:16].replace("T", " "),
+                "reported": bool(c["reported"]) if is_mod else False,
+                # who is allowed to take this comment down from the UI
+                "canDelete": is_mod or owns_project or c["user_id"] == u["id"],
+            } for c in rows]})
+
         return self._send_json({"error": "not found"}, 404)
 
     def _project_public(self, r, with_code=False, liked=None):
@@ -1079,6 +1137,9 @@ class Handler(BaseHTTPRequestHandler):
             "/api/projects/share": lambda: self.api_project_share(data),
             "/api/projects/delete": lambda: self.api_project_delete(data),
             "/api/projects/like": lambda: self.api_project_like(data),
+            "/api/comments/add": lambda: self.api_comment_add(data),
+            "/api/comments/delete": lambda: self.api_comment_delete(data),
+            "/api/comments/report": lambda: self.api_comment_report(data),
         }
         if path in routes:
             return routes[path]()
@@ -1833,6 +1894,72 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         return self._send_json({"ok": True, "liked": liked, "likes": likes})
+
+    COMMENT_MAX = 500
+
+    def api_comment_add(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
+        pid = data.get("projectId")
+        body = clean_name(data.get("body") or "")[:self.COMMENT_MAX]
+        if not body:
+            return self._send_json({"error": "Write something first!"}, 400)
+        if contains_bad_words(body):
+            return self._send_json({"error": "Please keep comments kind and clean. That message wasn't posted."}, 400)
+        conn = db()
+        proj = conn.execute("SELECT shared FROM projects WHERE id=?", (pid,)).fetchone()
+        if not proj or not proj["shared"]:
+            conn.close()
+            return self._send_json({"error": "Project not found"}, 404)
+        author = clean_name((u["name"] or u["username"] or "").split(" ")[0]) or "A coder"
+        conn.execute("INSERT INTO comments (project_id,user_id,author_name,body,reported,created_at) VALUES (?,?,?,?,0,?)",
+                     (pid, u["id"], author, body, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_comment_delete(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        cid = data.get("id")
+        conn = db()
+        c = conn.execute("SELECT c.*, p.user_id AS owner FROM comments c "
+                         "JOIN projects p ON p.id=c.project_id WHERE c.id=?", (cid,)).fetchone()
+        if not c:
+            conn.close()
+            return self._send_json({"error": "Comment not found"}, 404)
+        # who can take a comment down: the comment's author, the project owner, or the super admin
+        if not (u["role"] == "super_admin" or c["user_id"] == u["id"] or c["owner"] == u["id"]):
+            conn.close()
+            return self._send_json({"error": "forbidden"}, 403)
+        conn.execute("DELETE FROM comments WHERE id=?", (cid,))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_comment_report(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        cid = data.get("id")
+        conn = db()
+        c = conn.execute("SELECT id FROM comments WHERE id=?", (cid,)).fetchone()
+        if not c:
+            conn.close()
+            return self._send_json({"error": "Comment not found"}, 404)
+        conn.execute("UPDATE comments SET reported=reported+1 WHERE id=?", (cid,))
+        conn.commit()
+        conn.close()
+        # let the super admin know there's something to review (in-app + email if configured)
+        send_email_async(get_super_admin_email(),
+                         "A comment was reported on Coding4Kids",
+                         f"<p>Comment #{cid} was reported by user '{clean_name(u['username'] or '')}'. "
+                         f"Review it in the Gallery (reported comments are highlighted) and remove it or delete the account if needed.</p>")
+        return self._send_json({"ok": True})
 
     # ---- static files ----
     def _security_headers(self):
