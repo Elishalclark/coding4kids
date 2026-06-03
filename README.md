@@ -32,10 +32,16 @@ Notes:
 - `DATA_DIR` controls where `data.db` + `admin_config.json` are stored (set to `/data` by the blueprint).
 - `admin_config.json` and `data.db` are git-ignored and never committed.
 
+### Email (real sending via Resend)
+- Set env var **`RESEND_API_KEY`** (from [resend.com](https://resend.com), free tier) to actually send parent invites, consent links, upgrade requests, deletion notices, and admin notices. Optionally set **`EMAIL_FROM`** (default `Coding4Kids <support@coding4kids.com>`; the domain must be verified in Resend).
+- Without the key, those messages are still stored/shown in-app (nothing breaks) — they just don't email out.
+
+### Code Playground
+- `playground.html` runs real Python in the browser via **Skulpt** (CDN). No server execution, so it's safe.
+
 ### Before real users (especially children)
 - Payments are **simulated** — wire up Stripe before charging.
-- Email (parent invites, contact) is **simulated** — connect a mail provider.
-- Add **login rate-limiting** and have your COPPA/privacy practices legally reviewed.
+- Login is **rate-limited** (8 fails / 10 min → temporary 429) and display names are **HTML-sanitized** (anti-XSS). Still get your COPPA/privacy practices legally reviewed.
 
 ## Accounts & roles
 

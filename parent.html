@@ -92,8 +92,8 @@
         : (k.consentStatus === 'pending' ? `<span class="plan-tag trial">⏳ awaiting consent</span>` : '');
       return `<div class="kid-card">
         <div class="kid-top">
-          <div class="kid-av">${(k.name||'?')[0].toUpperCase()}</div>
-          <div><h3>${k.name}</h3><div class="uname">@${k.username}</div></div>
+          <div class="kid-av">${C4K.esc((k.name||'?')[0].toUpperCase())}</div>
+          <div><h3>${C4K.esc(k.name)}</h3><div class="uname">@${C4K.esc(k.username)}</div></div>
         </div>
         <div class="kid-meta">
           <span class="plan-tag ${k.effectivePlan==='family'||k.effectivePlan==='pro'?'pro':k.effectivePlan}">${k.effectivePlan}</span>

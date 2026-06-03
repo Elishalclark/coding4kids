@@ -69,6 +69,13 @@ const C4K = {
   hasAI() { return !!(this.user && this.user.hasAI); },
   isLoggedIn() { return !!this.user; },
 
+  // Escape text before putting it in innerHTML (prevents stored XSS via names, etc.)
+  esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
   // ── Super-admin impersonation ("log in as") ──
   SUPER_BACKUP: 'c4k_super_token',
   startImpersonation(targetToken) {

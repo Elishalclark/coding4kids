@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Playground — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Skulpt: runs real Python in the browser -->
+  <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
+  <style>
+    .pg { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
+    .pg-head { display: flex; align-items: center; gap: 14px; margin: 10px 0 18px; flex-wrap: wrap; }
+    .pg-head h1 { font-size: 1.6rem; font-weight: 900; }
+    .pg-head p { color: var(--text-dim); font-size: 0.95rem; }
+    .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .ex-btn { font-size: 0.8rem; font-weight: 800; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); padding: 7px 14px; border-radius: 50px; cursor: pointer; }
+    .ex-btn:hover { color: var(--purple); border-color: var(--border-bright); }
+    .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 800px) { .pg-grid { grid-template-columns: 1fr; } }
+    .pg-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+    .pg-bar { background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 10px 16px; font-weight: 800; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
+    #code { width: 100%; min-height: 340px; border: none; outline: none; resize: vertical; background: #06040f; color: #d6e7ff; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95rem; line-height: 1.6; padding: 16px; tab-size: 4; }
+    #out { min-height: 340px; background: #02030a; color: #9be7a0; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95rem; line-height: 1.6; padding: 16px; white-space: pre-wrap; overflow-y: auto; margin: 0; }
+    #out .err { color: #f87171; }
+    .pg-actions { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+    .run-spin { display:none; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+        <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
+        <a href="dashboard.html" class="btn btn-ghost" id="dashLink" style="display:none;">📊 Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pg">
+    <div class="pg-head">
+      <span style="font-size:2rem;">🛝</span>
+      <div><h1>Code Playground</h1><p>Write real Python and run it right here — no setup needed!</p></div>
+    </div>
+
+    <div class="examples" id="examples"></div>
+
+    <div class="pg-grid">
+      <div class="pg-panel">
+        <div class="pg-bar">🐍 Your Python code</div>
+        <textarea id="code" spellcheck="false"># Welcome to the Coding4Kids playground! 🚀
+# Write Python and press Run.
+
+name = "coder"
+print("Hello, " + name + "!")
+
+for i in range(1, 4):
+    print("Star", i, "⭐")
+</textarea>
+      </div>
+      <div class="pg-panel">
+        <div class="pg-bar">▶️ Output</div>
+        <pre id="out">Press “Run ▶” to see your code come to life!</pre>
+      </div>
+    </div>
+
+    <div class="pg-actions">
+      <button class="btn btn-primary btn-lg" id="runBtn" onclick="runCode()">Run ▶</button>
+      <button class="btn btn-outline" onclick="clearOut()">Clear output</button>
+      <span style="color:var(--text-faint);font-size:0.82rem;align-self:center;">Tip: use <code>input()</code> to ask questions, <code>print()</code> to show things.</span>
+    </div>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    const EXAMPLES = {
+      '👋 Hello': `print("Hello, World!")\nprint("I am learning to code!")`,
+      '🔁 Loop': `for i in range(5):\n    print("Count:", i)`,
+      '🎲 Dice': `import random\nroll = random.randint(1, 6)\nprint("You rolled a", roll, "🎲")`,
+      '🤔 Quiz': `answer = input("What is 2 + 2? ")\nif answer == "4":\n    print("Correct! 🎉")\nelse:\n    print("Try again!")`,
+      '🧮 Times table': `n = 3\nfor i in range(1, 6):\n    print(n, "x", i, "=", n * i)`,
+    };
+    const exWrap = document.getElementById('examples');
+    Object.keys(EXAMPLES).forEach(k => {
+      const b = document.createElement('button'); b.className = 'ex-btn'; b.textContent = k;
+      b.onclick = () => { document.getElementById('code').value = EXAMPLES[k]; };
+      exWrap.appendChild(b);
+    });
+
+    let outText = '';
+    function outf(text) { outText += text; }
+    function builtinRead(x) {
+      if (Sk.builtinFiles === undefined || Sk.builtinFiles['files'][x] === undefined)
+        throw "File not found: '" + x + "'";
+      return Sk.builtinFiles['files'][x];
+    }
+    function show(text, isErr) {
+      const out = document.getElementById('out');
+      out.innerHTML = isErr ? `<span class="err">${C4K.esc(text)}</span>` : C4K.esc(text);
+    }
+    function clearOut() { document.getElementById('out').textContent = 'Press “Run ▶” to see your code come to life!'; }
+
+    function runCode() {
+      if (typeof Sk === 'undefined') { show('Still loading the Python engine — try again in a second.', true); return; }
+      const prog = document.getElementById('code').value;
+      outText = '';
+      const btn = document.getElementById('runBtn'); btn.disabled = true; btn.textContent = 'Running…';
+      Sk.configure({
+        output: outf,
+        read: builtinRead,
+        __future__: Sk.python3,
+        inputfun: function (promptTxt) { return window.prompt(promptTxt || '') || ''; },
+        inputfunTakesPrompt: true,
+      });
+      Sk.misceval.asyncToPromise(function () {
+        return Sk.importMainWithBody('<stdin>', false, prog, true);
+      }).then(function () {
+        show(outText || '✅ Done! (no output)');
+        btn.disabled = false; btn.textContent = 'Run ▶';
+      }, function (err) {
+        show((outText ? outText + '\n' : '') + '⚠️ ' + err.toString(), true);
+        btn.disabled = false; btn.textContent = 'Run ▶';
+      });
+    }
+
+    // Allow Ctrl/Cmd+Enter to run
+    document.getElementById('code').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runCode();
+    });
+
+    // Show the dashboard link only for logged-in kids
+    (async () => { const me = await C4K.loadMe(); if (me && me.role === 'kid') document.getElementById('dashLink').style.display = ''; })();
+  </script>
+</body>
+</html>

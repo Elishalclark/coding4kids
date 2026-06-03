@@ -297,7 +297,7 @@
       document.querySelector('#userRows').closest('table').querySelector('thead th:last-child').textContent = sup ? 'Change Plan' : 'Plan Control';
       document.getElementById('userRows').innerHTML = users.length ? users.map(u =>
         `<tr>
-           <td><strong>${u.name}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${u.username}</span></td>
+           <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span></td>
            <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
            <td>${u.hasAI ? '🤖 yes' : '— no'}</td>
            <td>${sup ? `
@@ -320,11 +320,11 @@
       const roleTag = r => r === 'parent' ? '👨‍👩‍👧 parent' : (r === 'admin' ? '🛠️ admin' : '👦 kid');
       document.getElementById('acctActionHead').textContent = sup ? 'Actions' : '';
       document.getElementById('acctRows').innerHTML = accts.length ? accts.map((a, i) => {
-        const nm = (a.name||'').replace(/'/g,"\\'");
+        const nm = (a.name||'').replace(/'/g,"\\'").replace(/</g,'').replace(/>/g,'');
         return `<tr>
            <td>${i + 1}</td>
-           <td><strong>${a.name}</strong></td>
-           <td><span style="color:var(--text-dim);">@${a.username}</span></td>
+           <td><strong>${C4K.esc(a.name)}</strong></td>
+           <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span></td>
            <td>${roleTag(a.role)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
            <td style="color:var(--text-dim);">${a.joined || '—'}</td>
@@ -361,7 +361,7 @@
       sel.innerHTML = kids.map(k => `<option value="${k.id}">${k.name} (@${k.username}${k.ageYears?', age '+k.ageYears:''})</option>`).join('') || '<option>No kids yet</option>';
       document.getElementById('consentRows').innerHTML = kids.length ? kids.map(k =>
         `<tr>
-           <td><strong>${k.name}</strong> <span style="color:var(--text-faint);font-size:0.78rem;">@${k.username}</span></td>
+           <td><strong>${C4K.esc(k.name)}</strong> <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(k.username)}</span></td>
            <td>${k.ageYears || '—'}</td>
            <td>${badge(k.consentStatus)}</td>
            <td style="font-size:0.82rem;color:var(--text-dim);">${k.consentMethod || '—'}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+k.consentBy+'</span>' : ''}</td>

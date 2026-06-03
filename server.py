@@ -23,6 +23,9 @@ import sqlite3
 import hashlib
 import secrets
 import datetime
+import time
+import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -448,6 +451,55 @@ def now_iso():
 
 def today_str():
     return datetime.date.today().isoformat()
+
+
+# ────────────────────────────── login rate limiting ──────────────────────────────
+_login_fails = {}              # key -> list of attempt timestamps
+_login_lock = threading.Lock()
+LOGIN_MAX_FAILS = 8            # lock out after this many
+LOGIN_WINDOW = 600            # ...within this many seconds (10 min)
+
+def too_many_logins(key):
+    now = time.time()
+    with _login_lock:
+        arr = [t for t in _login_fails.get(key, []) if now - t < LOGIN_WINDOW]
+        _login_fails[key] = arr
+        return len(arr) >= LOGIN_MAX_FAILS
+
+def record_login_fail(key):
+    with _login_lock:
+        _login_fails.setdefault(key, []).append(time.time())
+
+def clear_login_fails(key):
+    with _login_lock:
+        _login_fails.pop(key, None)
+
+
+# ────────────────────────────── email (Resend) ──────────────────────────────
+def send_email(to, subject, html):
+    """Send a real email via Resend if RESEND_API_KEY is set; otherwise a no-op (we still store the in-app message)."""
+    key = os.environ.get("RESEND_API_KEY")
+    if not key or not to:
+        return False
+    frm = os.environ.get("EMAIL_FROM", "Coding4Kids <support@coding4kids.com>")
+    body = json.dumps({"from": frm, "to": [to], "subject": subject,
+                       "html": f'<div style="font-family:Arial,sans-serif;line-height:1.6">{html}</div>'}).encode()
+    req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
+                                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except Exception as e:
+        print("email send failed:", e)
+        return False
+
+def send_email_async(to, subject, html):
+    threading.Thread(target=send_email, args=(to, subject, html), daemon=True).start()
+
+
+def clean_name(name):
+    """Strip angle brackets so a display name can't inject HTML (defense against stored XSS)."""
+    return (name or "").replace("<", "").replace(">", "").strip()
 
 
 # ────────────────────────────── COPPA consent ──────────────────────────────
@@ -1001,17 +1053,21 @@ class Handler(BaseHTTPRequestHandler):
         invite_url = f"http://localhost:{PORT}/index.html?plink={link_token}"
         # Simulate emails (no SMTP here) by storing messages the parent sees in-app.
         if email:
+            invite_body = (f"{name} just joined Coding4Kids! Tap “Sign My Kid and Myself Up” to create your "
+                           f"parent account and connect to {name}: {invite_url}")
             conn = db()
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
-                         (email, "parent_invite",
-                          f"{name} just joined Coding4Kids! Tap “Sign My Kid and Myself Up” to create your "
-                          f"parent account and connect to {name}: {invite_url}", uid, link_token, now_iso()))
+                         (email, "parent_invite", invite_body, uid, link_token, now_iso()))
+            send_email_async(email, f"Connect to {name} on Coding4Kids",
+                             f'{invite_body} <a href="{invite_url}">Sign My Kid and Myself Up →</a>')
             if needs_consent:
                 consent_url = f"http://localhost:{PORT}/index.html?consent={consent_token}"
+                consent_body = (f"Parental consent needed: {name} (under 13) wants to use Coding4Kids. As required by "
+                                f"COPPA, please review and approve: {consent_url}")
                 conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
-                             (email, "consent_request",
-                              f"Parental consent needed: {name} (under 13) wants to use Coding4Kids. As required by "
-                              f"COPPA, please review and approve: {consent_url}", uid, consent_token, now_iso()))
+                             (email, "consent_request", consent_body, uid, consent_token, now_iso()))
+                send_email_async(email, f"Approve {name}'s Coding4Kids account",
+                                 f'{consent_body} <a href="{consent_url}">Review &amp; approve →</a>')
             conn.commit()
             conn.close()
         token = create_session(uid)
@@ -1065,6 +1121,8 @@ class Handler(BaseHTTPRequestHandler):
     def _create_user(self, role, name, username, password, email, age, plan, trial_ends,
                      family_id=None, return_row=False, age_years=None, consent_status="not_required",
                      consent_method=None, consent_by=None, consent_token=None, school=None):
+        name = clean_name(name)          # strip HTML-injection characters from display name
+        school = clean_name(school) if school else school
         pwhash, salt = hash_password(password)
         link_token = secrets.token_urlsafe(8)
         avatar = json.dumps(DEFAULT_AVATAR)
@@ -1094,13 +1152,18 @@ class Handler(BaseHTTPRequestHandler):
     def api_login(self, data, allow):
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
+        key = username.lower()
+        if too_many_logins(key):
+            return self._send_json({"error": "Too many login attempts. Please wait a few minutes and try again."}, 429)
         conn = db()
         row = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
         conn.close()
         if not row or not verify_password(password, row["salt"], row["password_hash"]):
+            record_login_fail(key)
             return self._send_json({"error": "Wrong username or password."}, 401)
         if row["role"] not in allow:
             return self._send_json({"error": "Those credentials can't be used here."}, 403)
+        clear_login_fails(key)
         token = create_session(row["id"])
         return self._send_json({"token": token, "user": public_user(row)})
 
@@ -1265,6 +1328,7 @@ class Handler(BaseHTTPRequestHandler):
                          (parent_email, "upgrade_request", body, u["id"], now_iso()))
             conn.commit()
             conn.close()
+            send_email_async(parent_email, "Your kid wants to upgrade Coding4Kids", body)
         return self._send_json({"ok": True, "parentEmail": parent_email, "message": body})
 
     def api_parent_add_kid(self, data):
@@ -1388,7 +1452,7 @@ class Handler(BaseHTTPRequestHandler):
         if not msg:
             return self._send_json({"error": "Notice message is required."}, 400)
         conn = db()
-        target = conn.execute("SELECT id FROM users WHERE id=?", (data.get("userId"),)).fetchone()
+        target = conn.execute("SELECT id,parent_email FROM users WHERE id=?", (data.get("userId"),)).fetchone()
         if not target:
             conn.close()
             return self._send_json({"error": "User not found."}, 404)
@@ -1396,6 +1460,8 @@ class Handler(BaseHTTPRequestHandler):
                      (target["id"], (data.get("kind") or "notice"), msg, now_iso()))
         conn.commit()
         conn.close()
+        if target["parent_email"]:
+            send_email_async(target["parent_email"], "A message from Coding4Kids", msg)
         return self._send_json({"ok": True})
 
     def api_admin_delete_user(self, data):
@@ -1419,6 +1485,7 @@ class Handler(BaseHTTPRequestHandler):
                     + (f" Reason: {reason}" if reason else ""))
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)",
                          (target["parent_email"], "account_deleted", body, uid, now_iso()))
+            send_email_async(target["parent_email"], "Coding4Kids account deleted", body)
         for sql in ("DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
                     "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
                     "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"):
@@ -1499,10 +1566,12 @@ class Handler(BaseHTTPRequestHandler):
         confirm = secrets.token_urlsafe(10)
         conn.execute("UPDATE users SET consent_confirm_token=? WHERE id=?", (confirm, kid["id"]))
         if kid["parent_email"]:
+            confirm_url = f"http://localhost:{PORT}/index.html?consentconfirm={confirm}"
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
                          (kid["parent_email"], "consent_confirm",
-                          f"Please confirm consent for {kid['name']} by clicking: "
-                          f"http://localhost:{PORT}/index.html?consentconfirm={confirm}", kid["id"], confirm, now_iso()))
+                          f"Please confirm consent for {kid['name']} by clicking: {confirm_url}", kid["id"], confirm, now_iso()))
+            send_email_async(kid["parent_email"], f"Confirm consent for {kid['name']}",
+                             f'One more step to approve {kid["name"]}. <a href="{confirm_url}">Confirm consent →</a>')
         conn.commit()
         conn.close()
         return self._send_json({"ok": True, "confirmToken": confirm, "childName": kid["name"]})
