@@ -495,7 +495,7 @@ def send_email(to, subject, html):
     key = os.environ.get("RESEND_API_KEY")
     if not key or not to:
         return False
-    frm = os.environ.get("EMAIL_FROM", "Coding4Kids <support@coding4kids.com>")
+    frm = os.environ.get("EMAIL_FROM", "Coding4Kids <coding4kids.support@gmail.com>")
     body = json.dumps({"from": frm, "to": [to], "subject": subject,
                        "html": f'<div style="font-family:Arial,sans-serif;line-height:1.6">{html}</div>'}).encode()
     req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
@@ -513,7 +513,7 @@ def send_email_async(to, subject, html):
 
 def get_super_admin_email():
     """Where moderation alerts go. Set SUPER_ADMIN_EMAIL to override."""
-    return os.environ.get("SUPER_ADMIN_EMAIL", "admin@coding4kids.com")
+    return os.environ.get("SUPER_ADMIN_EMAIL", "coding4kids.support@gmail.com")
 
 
 def clean_name(name):
@@ -638,7 +638,7 @@ def seed_demo_teacher():
     conn.execute(
         "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,school,created_at) "
         "VALUES ('teacher','Demo Teacher','teacherdemo',?,?,?,'teacher','Demo Elementary',?)",
-        (pwhash, salt, "demo@coding4kids.com", now_iso()))
+        (pwhash, salt, "coding4kids.support@gmail.com", now_iso()))
     uid = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()["id"]
     conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom group = self
     conn.commit()
