@@ -26,6 +26,9 @@ import datetime
 import time
 import threading
 import urllib.request
+import smtplib
+import ssl
+from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -489,22 +492,62 @@ def clear_login_fails(key):
         _login_fails.pop(key, None)
 
 
-# ────────────────────────────── email (Resend) ──────────────────────────────
-def send_email(to, subject, html):
-    """Send a real email via Resend if RESEND_API_KEY is set; otherwise a no-op (we still store the in-app message)."""
-    key = os.environ.get("RESEND_API_KEY")
-    if not key or not to:
+# ────────────────────────────── email ──────────────────────────────
+# Two ways to send a real email (otherwise it's a no-op and we just store the in-app message):
+#   1. Gmail SMTP  — set GMAIL_APP_PASSWORD (and GMAIL_USER, default coding4kids.support@gmail.com).
+#                    This sends straight FROM the Gmail address. Best for a Gmail account.
+#   2. Resend API  — set RESEND_API_KEY (needs a verified custom domain for the "from").
+EMAIL_FROM_DEFAULT = "Coding4Kids <coding4kids.support@gmail.com>"
+
+
+def _wrap_html(html):
+    return f'<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222">{html}</div>'
+
+
+def send_email_gmail(to, subject, html):
+    user = os.environ.get("GMAIL_USER", "coding4kids.support@gmail.com")
+    pw = os.environ.get("GMAIL_APP_PASSWORD")
+    if not pw:
         return False
-    frm = os.environ.get("EMAIL_FROM", "Coding4Kids <coding4kids.support@gmail.com>")
-    body = json.dumps({"from": frm, "to": [to], "subject": subject,
-                       "html": f'<div style="font-family:Arial,sans-serif;line-height:1.6">{html}</div>'}).encode()
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = os.environ.get("EMAIL_FROM", f"Coding4Kids <{user}>")
+    msg["To"] = to
+    msg.set_content("This email needs an HTML-capable mail app to view.")
+    msg.add_alternative(_wrap_html(html), subtype="html")
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ctx, timeout=20) as s:
+        s.login(user, pw)
+        s.send_message(msg)
+    return True
+
+
+def send_email_resend(to, subject, html):
+    key = os.environ.get("RESEND_API_KEY")
+    if not key:
+        return False
+    frm = os.environ.get("EMAIL_FROM", EMAIL_FROM_DEFAULT)
+    body = json.dumps({"from": frm, "to": [to], "subject": subject, "html": _wrap_html(html)}).encode()
     req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
                                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=15)
+    return True
+
+
+def send_email(to, subject, html):
+    """Send a real email via Gmail SMTP or Resend if configured; otherwise a no-op."""
+    if not to:
+        return False
     try:
-        urllib.request.urlopen(req, timeout=10)
-        return True
+        if send_email_gmail(to, subject, html):
+            print(f"email sent (gmail) -> {to}: {subject}")
+            return True
+        if send_email_resend(to, subject, html):
+            print(f"email sent (resend) -> {to}: {subject}")
+            return True
+        return False  # no provider configured
     except Exception as e:
-        print("email send failed:", e)
+        print("email send failed:", repr(e))
         return False
 
 def send_email_async(to, subject, html):
