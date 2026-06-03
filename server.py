@@ -1243,14 +1243,33 @@ class Handler(BaseHTTPRequestHandler):
                 welcome = (f"Hi {clean_name(first)}, welcome to Coding4Kids! 🎉 Your Family account is ready."
                            f"{link_line} From your Family Dashboard you can add kids, see their progress, "
                            f"approve accounts, and sign them in or out anytime. Happy coding!")
+                # COPPA: include the parental-consent notice + a written record of consent in the email.
+                consent_note = (
+                    "Parental Consent (COPPA): As the parent or legal guardian, by creating this Family account "
+                    "and adding or linking a child, you give verifiable parental consent for your child(ren) under 13 "
+                    "to use Coding4Kids. We collect only what's needed to run the learning service (a first name, "
+                    "username, age range, learning progress, and your contact email) — never more than necessary, "
+                    "and we never sell it. There is no private messaging; shared projects and comments are moderated. "
+                    "You can review or download your child's data, withdraw consent, or delete the account at any time "
+                    "from your Family Dashboard or by emailing coding4kids.support@gmail.com.")
+                consent_record = ""
+                if linked:
+                    consent_record = (f"<br><br>Consent recorded: {now_iso()} — you approved {clean_name(linked)}'s account "
+                                      f"(method: parent account, granted by {clean_name(email)}).")
+                full_body = welcome + "<br><br><strong>Parental Consent (COPPA):</strong> " + \
+                    consent_note[len("Parental Consent (COPPA): "):] + consent_record
                 conn2 = db()
                 conn2.execute("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)",
-                              (email, "welcome", welcome, now_iso()))
+                              (email, "welcome", full_body, now_iso()))
                 conn2.commit()
                 conn2.close()
                 dash_url = f"http://localhost:{PORT}/parent.html"
-                send_email_async(email, "Welcome to Coding4Kids! 🎉",
-                                 f"{welcome}<br><br><a href=\"{dash_url}\">Open your Family Dashboard →</a>")
+                consent_html = (f'<hr><p style="font-size:0.9em;color:#555"><strong>Parental Consent (COPPA):</strong> '
+                                + consent_note[len("Parental Consent (COPPA): "):] + "</p>")
+                if consent_record:
+                    consent_html += f'<p style="font-size:0.9em;color:#555">{consent_record.strip()}</p>'
+                send_email_async(email, "Welcome to Coding4Kids — your account & parental consent 🎉",
+                                 f"{welcome}<br><br><a href=\"{dash_url}\">Open your Family Dashboard →</a>{consent_html}")
             token = create_session(uid)
             return self._send_json({"token": token, "user": public_user(row), "linkedChild": linked})
         return resp  # error response already sent
