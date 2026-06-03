@@ -1136,6 +1136,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"planSettings": get_plan_settings(), "passPercent": get_pass_percent(),
                                     "unitNames": UNIT_NAMES, "worlds": WORLDS, "lessons": [self._lesson_public(r) for r in rows]})
 
+        if path == "/api/admin/reported-comments":  # super admin: comments users have flagged
+            u = self._current_user()
+            if not u or u["role"] != "super_admin":
+                return self._send_json({"error": "forbidden"}, 403)
+            conn = db()
+            rows = conn.execute(
+                "SELECT c.*, p.title AS project_title, p.shared AS project_shared, "
+                "us.username AS author_username, us.id AS author_id "
+                "FROM comments c "
+                "LEFT JOIN projects p ON p.id=c.project_id "
+                "LEFT JOIN users us ON us.id=c.user_id "
+                "WHERE c.reported > 0 ORDER BY c.reported DESC, c.id DESC").fetchall()
+            conn.close()
+            return self._send_json({"comments": [{
+                "id": r["id"], "body": r["body"], "author": r["author_name"],
+                "authorUsername": _row_get(r, "author_username"), "authorId": _row_get(r, "author_id"),
+                "projectId": r["project_id"], "projectTitle": _row_get(r, "project_title") or "(deleted project)",
+                "reports": r["reported"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
         if path == "/api/projects/mine":  # the logged-in kid's own saved projects
             u = self._current_user()
             if not u:
@@ -1270,6 +1289,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/comments/add": lambda: self.api_comment_add(data),
             "/api/comments/delete": lambda: self.api_comment_delete(data),
             "/api/comments/report": lambda: self.api_comment_report(data),
+            "/api/admin/comment-dismiss": lambda: self.api_admin_comment_dismiss(data),
         }
         if path in routes:
             return routes[path]()
@@ -2194,6 +2214,21 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             return self._send_json({"error": "forbidden"}, 403)
         conn.execute("DELETE FROM comments WHERE id=?", (cid,))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_comment_dismiss(self, data):
+        """Super admin clears a comment's report flag (keeps the comment)."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        c = conn.execute("SELECT id FROM comments WHERE id=?", (data.get("id"),)).fetchone()
+        if not c:
+            conn.close()
+            return self._send_json({"error": "Comment not found"}, 404)
+        conn.execute("UPDATE comments SET reported=0 WHERE id=?", (data.get("id"),))
         conn.commit()
         conn.close()
         return self._send_json({"ok": True})

@@ -204,6 +204,16 @@
         </table>
       </div>
 
+      <!-- Reported Comments (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="reportsPanel" style="display:none;">
+        <h3>🚩 Reported Comments <span id="reportsCount" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">Comments other kids flagged in the gallery. Remove a bad one, dismiss a false report, or suspend the author.</p>
+        <table class="admin-table">
+          <thead><tr><th>Comment</th><th>By</th><th>On project</th><th>Flags</th><th>When</th><th>Actions</th></tr></thead>
+          <tbody id="reportRows"></tbody>
+        </table>
+      </div>
+
       <!-- Lessons -->
       <div class="panel">
         <h3>📚 Lesson Manager <span id="lessonHint" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;"></span></h3>
@@ -347,6 +357,7 @@
         renderPlans(s.planSettings || {}, s.passPercent);
         renderLessons(s.lessons || [], true);
         loadConsent();
+        loadReports();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -394,6 +405,40 @@
       if (note === null) return;
       const { ok, data } = await C4K.api('/api/admin/consent', 'POST', { kidId, action: 'revoke', note });
       if (ok) loadConsent(); else alert(data.error || 'Failed.');
+    }
+
+    // ── Reported comments (super admin) ──
+    async function loadReports() {
+      const { ok, data } = await C4K.api('/api/admin/reported-comments');
+      if (!ok) return;
+      const rows = data.comments || [];
+      document.getElementById('reportsCount').textContent = rows.length ? `· ${rows.length} to review` : '· all clear ✓';
+      document.getElementById('reportRows').innerHTML = rows.length ? rows.map(c => {
+        const nm = (c.authorUsername || c.author || '').replace(/'/g,"\\'").replace(/[<>]/g,'');
+        return `<tr>
+          <td style="max-width:280px;"><div style="white-space:pre-wrap;word-break:break-word;">${C4K.esc(c.body)}</div></td>
+          <td>${C4K.esc(c.author || '?')}<br><span style="color:var(--text-faint);font-size:0.75rem;">@${C4K.esc(c.authorUsername || '')}</span></td>
+          <td><a href="gallery.html" style="color:var(--purple);">${C4K.esc(c.projectTitle)}</a></td>
+          <td><span style="font-weight:900;color:#f59e0b;">⚑ ${c.reports}</span></td>
+          <td style="color:var(--text-dim);">${C4K.esc(c.at)}</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="removeReportedComment(${c.id})">🗑️ Remove</button>
+            <button class="mini-btn" onclick="dismissReport(${c.id})">✓ Dismiss</button>
+            ${c.authorId ? `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="suspendUser(${c.authorId},'${nm}',true)">⏸️ Suspend author</button>` : ''}
+          </div></td>
+        </tr>`; }).join('')
+        : '<tr><td colspan="6" style="color:var(--text-faint);">No reported comments. 🎉</td></tr>';
+    }
+
+    async function removeReportedComment(id) {
+      if (!confirm('Remove this comment from the gallery? This cannot be undone.')) return;
+      const { ok, data } = await C4K.api('/api/comments/delete', 'POST', { id });
+      if (ok) loadReports(); else alert(data.error || 'Could not remove.');
+    }
+
+    async function dismissReport(id) {
+      const { ok, data } = await C4K.api('/api/admin/comment-dismiss', 'POST', { id });
+      if (ok) loadReports(); else alert(data.error || 'Could not dismiss.');
     }
 
     function renderLessons(lessons, sup) {
