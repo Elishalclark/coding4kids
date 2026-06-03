@@ -36,8 +36,11 @@ Notes:
 - Set env var **`RESEND_API_KEY`** (from [resend.com](https://resend.com), free tier) to actually send parent invites, consent links, upgrade requests, deletion notices, and admin notices. Optionally set **`EMAIL_FROM`** (default `Coding4Kids <support@coding4kids.com>`; the domain must be verified in Resend).
 - Without the key, those messages are still stored/shown in-app (nothing breaks) — they just don't email out.
 
-### Code Playground
+### Code Playground & Project Gallery
 - `playground.html` runs real Python in the browser via **Skulpt** (CDN). No server execution, so it's safe.
+- Logged-in kids can **💾 Save** projects to their account (up to 50) and **📤 Share to gallery**.
+- `gallery.html` lists every shared project — kids can **Run** them in-browser, **❤️ Like** favorites, and **✏️ Remix** (opens the code in the Playground to save their own copy).
+- **Safe by design:** no free-text comments (likes only), display names show **first name only**, titles/code are sanitized, and the **super admin can remove any project** (a 🗑️ Remove button appears in the gallery for them). Saving/sharing requires the COPPA consent gate to be cleared.
 
 ### Before real users (especially children)
 - Payments are **simulated** — wire up Stripe before charging.

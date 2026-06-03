@@ -311,6 +311,15 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL, kind TEXT, body TEXT, created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL, author_name TEXT, title TEXT, code TEXT,
+            shared INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS project_likes (
+            user_id INTEGER NOT NULL, project_id INTEGER NOT NULL,
+            PRIMARY KEY (user_id, project_id)
+        );
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
@@ -966,7 +975,63 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"planSettings": get_plan_settings(), "passPercent": get_pass_percent(),
                                     "unitNames": UNIT_NAMES, "worlds": WORLDS, "lessons": [self._lesson_public(r) for r in rows]})
 
+        if path == "/api/projects/mine":  # the logged-in kid's own saved projects
+            u = self._current_user()
+            if not u:
+                return self._send_json({"error": "not logged in"}, 401)
+            conn = db()
+            rows = conn.execute(
+                "SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes "
+                "FROM projects p WHERE p.user_id=? ORDER BY p.updated_at DESC", (u["id"],)).fetchall()
+            conn.close()
+            return self._send_json({"projects": [self._project_public(r) for r in rows]})
+
+        if path == "/api/gallery":  # public-to-logged-in: everyone's shared projects
+            u = self._current_user()
+            if not u:
+                return self._send_json({"error": "not logged in"}, 401)
+            conn = db()
+            rows = conn.execute(
+                "SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes, "
+                "(SELECT COUNT(*) FROM project_likes WHERE project_id=p.id AND user_id=?) mine "
+                "FROM projects p WHERE p.shared=1 ORDER BY likes DESC, p.updated_at DESC LIMIT 200",
+                (u["id"],)).fetchall()
+            conn.close()
+            return self._send_json({
+                "canModerate": u["role"] == "super_admin",
+                "projects": [self._project_public(r, with_code=True, liked=bool(r["mine"])) for r in rows]})
+
+        if path.startswith("/api/project/"):  # load one project into the playground
+            u = self._current_user()
+            if not u:
+                return self._send_json({"error": "not logged in"}, 401)
+            try:
+                pid = int(path.rsplit("/", 1)[1])
+            except ValueError:
+                return self._send_json({"error": "bad id"}, 400)
+            conn = db()
+            r = conn.execute(
+                "SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes "
+                "FROM projects p WHERE p.id=?", (pid,)).fetchone()
+            conn.close()
+            if not r:
+                return self._send_json({"error": "Project not found"}, 404)
+            # you can open your own project, or any shared one (or super admin can open anything)
+            if not r["shared"] and r["user_id"] != u["id"] and u["role"] != "super_admin":
+                return self._send_json({"error": "This project is private."}, 403)
+            return self._send_json({"project": self._project_public(r, with_code=True)})
+
         return self._send_json({"error": "not found"}, 404)
+
+    def _project_public(self, r, with_code=False, liked=None):
+        out = {"id": r["id"], "title": r["title"], "author": r["author_name"],
+               "shared": bool(r["shared"]), "likes": _row_get(r, "likes", 0),
+               "updatedAt": (r["updated_at"] or "")[:16].replace("T", " ")}
+        if with_code:
+            out["code"] = r["code"]
+        if liked is not None:
+            out["liked"] = liked
+        return out
 
     def _lesson_public(self, r):
         quiz = json.loads(r["quiz"] or "{}")
@@ -1010,6 +1075,10 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/settings": lambda: self.api_save_settings(data),
             "/api/admin/lesson": lambda: self.api_save_lesson(data),
             "/api/admin/lesson/delete": lambda: self.api_delete_lesson(data),
+            "/api/projects/save": lambda: self.api_project_save(data),
+            "/api/projects/share": lambda: self.api_project_share(data),
+            "/api/projects/delete": lambda: self.api_project_delete(data),
+            "/api/projects/like": lambda: self.api_project_like(data),
         }
         if path in routes:
             return routes[path]()
@@ -1669,6 +1738,101 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         return self._send_json({"ok": True})
+
+    # ---- code playground projects / gallery ----
+    PROJECT_MAX = 50          # how many a single kid can keep
+    CODE_MAX = 20000          # chars of code per project
+    TITLE_MAX = 60
+
+    def api_project_save(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
+        title = clean_name(data.get("title") or "")[:self.TITLE_MAX] or "Untitled project"
+        code = (data.get("code") or "")[:self.CODE_MAX]
+        pid = data.get("id")
+        author = clean_name((u["name"] or u["username"] or "").split(" ")[0]) or "A coder"
+        conn = db()
+        if pid:  # update an existing project the user owns
+            row = conn.execute("SELECT * FROM projects WHERE id=? AND user_id=?", (pid, u["id"])).fetchone()
+            if not row:
+                conn.close()
+                return self._send_json({"error": "Project not found"}, 404)
+            conn.execute("UPDATE projects SET title=?, code=?, updated_at=? WHERE id=?",
+                         (title, code, now_iso(), pid))
+        else:  # create new (enforce per-kid cap)
+            count = conn.execute("SELECT COUNT(*) c FROM projects WHERE user_id=?", (u["id"],)).fetchone()["c"]
+            if count >= self.PROJECT_MAX:
+                conn.close()
+                return self._send_json({"error": f"You can keep up to {self.PROJECT_MAX} projects. Delete one to save a new one."}, 400)
+            cur = conn.execute(
+                "INSERT INTO projects (user_id,author_name,title,code,shared,created_at,updated_at) "
+                "VALUES (?,?,?,?,0,?,?)", (u["id"], author, title, code, now_iso(), now_iso()))
+            pid = cur.lastrowid
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "id": pid})
+
+    def api_project_share(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent needs to approve this account first."}, 403)
+        pid = data.get("id")
+        shared = 1 if data.get("shared") else 0
+        conn = db()
+        row = conn.execute("SELECT * FROM projects WHERE id=? AND user_id=?", (pid, u["id"])).fetchone()
+        if not row:
+            conn.close()
+            return self._send_json({"error": "Project not found"}, 404)
+        conn.execute("UPDATE projects SET shared=?, updated_at=? WHERE id=?", (shared, now_iso(), pid))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "shared": bool(shared)})
+
+    def api_project_delete(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        pid = data.get("id")
+        conn = db()
+        if u["role"] == "super_admin":  # moderation: can remove any project
+            row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM projects WHERE id=? AND user_id=?", (pid, u["id"])).fetchone()
+        if not row:
+            conn.close()
+            return self._send_json({"error": "Project not found"}, 404)
+        conn.execute("DELETE FROM projects WHERE id=?", (pid,))
+        conn.execute("DELETE FROM project_likes WHERE project_id=?", (pid,))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_project_like(self, data):
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        pid = data.get("id")
+        conn = db()
+        proj = conn.execute("SELECT shared FROM projects WHERE id=?", (pid,)).fetchone()
+        if not proj or not proj["shared"]:
+            conn.close()
+            return self._send_json({"error": "Project not found"}, 404)
+        existing = conn.execute("SELECT 1 FROM project_likes WHERE user_id=? AND project_id=?", (u["id"], pid)).fetchone()
+        if existing:  # toggle off
+            conn.execute("DELETE FROM project_likes WHERE user_id=? AND project_id=?", (u["id"], pid))
+            liked = False
+        else:
+            conn.execute("INSERT INTO project_likes (user_id,project_id) VALUES (?,?)", (u["id"], pid))
+            liked = True
+        likes = conn.execute("SELECT COUNT(*) c FROM project_likes WHERE project_id=?", (pid,)).fetchone()["c"]
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "liked": liked, "likes": likes})
 
     # ---- static files ----
     def _security_headers(self):

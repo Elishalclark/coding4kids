@@ -27,6 +27,23 @@
     #out .err { color: #f87171; }
     .pg-actions { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
     .run-spin { display:none; }
+    /* save / share bar */
+    .save-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:14px; }
+    .save-bar input[type=text] { flex:1; min-width:160px; background:#06040f; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:9px 12px; font-family:inherit; font-weight:700; }
+    .save-bar label { display:flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:800; color:var(--text-dim); cursor:pointer; }
+    #saveMsg { font-size:0.82rem; font-weight:800; color:var(--green, #5ad17e); }
+    .mine-wrap { margin-top:22px; }
+    .mine-wrap h2 { font-size:1.05rem; font-weight:900; margin-bottom:10px; }
+    .mine-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+    .mine-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:13px 14px; }
+    .mine-card h3 { font-size:0.95rem; font-weight:800; margin-bottom:6px; word-break:break-word; }
+    .mine-card .meta { font-size:0.75rem; color:var(--text-faint); margin-bottom:10px; }
+    .mine-card .row { display:flex; gap:6px; flex-wrap:wrap; }
+    .mini-btn { font-size:0.74rem; font-weight:800; border:1px solid var(--border); background:var(--surface-2); color:var(--text-dim); padding:5px 10px; border-radius:8px; cursor:pointer; }
+    .mini-btn:hover { color:var(--purple); border-color:var(--border-bright); }
+    .shared-tag { font-size:0.68rem; font-weight:900; color:var(--green,#5ad17e); }
+    .login-note { background:var(--surface); border:1px dashed var(--border); border-radius:14px; padding:14px 16px; color:var(--text-dim); font-size:0.9rem; }
+    .login-note a { color:var(--purple); font-weight:800; }
   </style>
 </head>
 <body>
@@ -34,6 +51,7 @@
     <div class="nav-inner">
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+        <a href="gallery.html" class="btn btn-outline">🎨 Gallery</a>
         <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
         <a href="dashboard.html" class="btn btn-ghost" id="dashLink" style="display:none;">📊 Dashboard</a>
       </div>
@@ -47,6 +65,19 @@
     </div>
 
     <div class="examples" id="examples"></div>
+
+    <!-- Save / share bar (only for logged-in coders) -->
+    <div class="save-bar" id="saveBar" style="display:none;">
+      <input type="text" id="projTitle" placeholder="Name your project…" maxlength="60" />
+      <button class="btn btn-primary" id="saveBtn" onclick="saveProject()">💾 Save</button>
+      <label title="Let other kids see and run your project in the gallery">
+        <input type="checkbox" id="shareChk" onchange="toggleShare()" /> 📤 Share to gallery
+      </label>
+      <span id="saveMsg"></span>
+    </div>
+    <div class="login-note" id="loginNote" style="display:none;">
+      💡 <a href="index.html">Log in</a> to save your projects and share them in the gallery.
+    </div>
 
     <div class="pg-grid">
       <div class="pg-panel">
@@ -71,6 +102,12 @@ for i in range(1, 4):
       <button class="btn btn-primary btn-lg" id="runBtn" onclick="runCode()">Run ▶</button>
       <button class="btn btn-outline" onclick="clearOut()">Clear output</button>
       <span style="color:var(--text-faint);font-size:0.82rem;align-self:center;">Tip: use <code>input()</code> to ask questions, <code>print()</code> to show things.</span>
+    </div>
+
+    <!-- My saved projects -->
+    <div class="mine-wrap" id="mineWrap" style="display:none;">
+      <h2>💾 My projects</h2>
+      <div class="mine-list" id="mineList"></div>
     </div>
   </main>
 
@@ -131,8 +168,106 @@ for i in range(1, 4):
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runCode();
     });
 
-    // Show the dashboard link only for logged-in kids
-    (async () => { const me = await C4K.loadMe(); if (me && me.role === 'kid') document.getElementById('dashLink').style.display = ''; })();
+    // ───────────── save / share / my projects ─────────────
+    let currentId = null;        // id of the project currently being edited (null = new)
+    let currentShared = false;
+    const $ = id => document.getElementById(id);
+
+    function flash(msg, isErr) {
+      const m = $('saveMsg'); m.textContent = msg;
+      m.style.color = isErr ? '#f87171' : 'var(--green,#5ad17e)';
+      if (msg) setTimeout(() => { if (m.textContent === msg) m.textContent = ''; }, 3000);
+    }
+
+    async function saveProject() {
+      const title = $('projTitle').value.trim() || 'Untitled project';
+      const code = $('code').value;
+      const btn = $('saveBtn'); btn.disabled = true;
+      const { ok, data } = await C4K.api('/api/projects/save', 'POST', { id: currentId, title, code });
+      btn.disabled = false;
+      if (ok) { currentId = data.id; flash('Saved! ✅'); loadMine(); }
+      else flash(data.error || 'Could not save.', true);
+    }
+
+    async function toggleShare() {
+      if (!currentId) {  // must save first
+        $('shareChk').checked = false;
+        flash('Save your project first, then share it.', true);
+        return;
+      }
+      const shared = $('shareChk').checked;
+      const { ok, data } = await C4K.api('/api/projects/share', 'POST', { id: currentId, shared });
+      if (ok) { currentShared = data.shared; flash(data.shared ? 'Shared to the gallery! 🎨' : 'Removed from gallery.'); loadMine(); }
+      else { $('shareChk').checked = currentShared; flash(data.error || 'Could not change sharing.', true); }
+    }
+
+    function openProject(p) {
+      currentId = p.id; currentShared = p.shared;
+      $('projTitle').value = p.title;
+      $('code').value = p.code;
+      $('shareChk').checked = !!p.shared;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      flash('Loaded “' + p.title + '”.');
+    }
+
+    function newProject() {
+      currentId = null; currentShared = false;
+      $('projTitle').value = ''; $('shareChk').checked = false;
+    }
+
+    async function deleteProject(id, title) {
+      if (!confirm('Delete “' + title + '”? This cannot be undone.')) return;
+      const { ok } = await C4K.api('/api/projects/delete', 'POST', { id });
+      if (ok) { if (currentId === id) newProject(); loadMine(); flash('Deleted.'); }
+    }
+
+    async function loadMine() {
+      const { ok, data } = await C4K.api('/api/projects/mine');
+      if (!ok) return;
+      const list = $('mineList'); list.innerHTML = '';
+      if (!data.projects.length) {
+        $('mineWrap').style.display = '';
+        list.innerHTML = '<p style="color:var(--text-faint);font-size:0.88rem;">No saved projects yet — write something and press 💾 Save!</p>';
+        return;
+      }
+      $('mineWrap').style.display = '';
+      data.projects.forEach(p => {
+        const card = document.createElement('div'); card.className = 'mine-card';
+        card.innerHTML = `
+          <h3>${C4K.esc(p.title)} ${p.shared ? '<span class="shared-tag">● shared</span>' : ''}</h3>
+          <div class="meta">❤️ ${p.likes} · ${C4K.esc(p.updatedAt)}</div>
+          <div class="row">
+            <button class="mini-btn" data-act="open">✏️ Open</button>
+            <button class="mini-btn" data-act="del">🗑️ Delete</button>
+          </div>`;
+        card.querySelector('[data-act=open]').onclick = () => openProject(p);
+        card.querySelector('[data-act=del]').onclick = () => deleteProject(p.id, p.title);
+        list.appendChild(card);
+      });
+    }
+
+    // ───────────── boot ─────────────
+    (async () => {
+      const me = await C4K.loadMe();
+      if (me) {
+        if (me.role === 'kid') $('dashLink').style.display = '';
+        $('saveBar').style.display = '';
+        loadMine();
+        // Deep link: ?project=<id> loads a project (yours or a shared one) to view/remix
+        const wantId = new URLSearchParams(location.search).get('project');
+        if (wantId) {
+          const { ok, data } = await C4K.api('/api/project/' + encodeURIComponent(wantId));
+          if (ok) {
+            $('code').value = data.project.code;
+            $('projTitle').value = (data.project.author && data.project.author + "'s ") + data.project.title;
+            // If it's not mine I keep currentId null so "Save" creates my own copy (remix)
+            flash('Loaded “' + data.project.title + '” — press Save to keep your own copy!');
+          }
+        }
+      } else {
+        $('loginNote').style.display = '';
+      }
+    })();
   </script>
 </body>
 </html>
