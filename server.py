@@ -689,6 +689,87 @@ def seed_demo_teacher():
     print("  demo teacher -> teacherdemo / teachdemo123 (Teacher Plan)")
 
 
+SAMPLE_PROJECTS = [
+    ("Maya", "Rainbow Stars 🌈", (
+        "colors = [\"red\", \"orange\", \"yellow\", \"green\", \"blue\", \"purple\"]\n"
+        "for c in colors:\n"
+        "    print(c.upper() + \" \" + \"\\u2b50\" * 3)\n"
+        "print(\"Have a colorful day!\")\n")),
+    ("Leo", "Dice Roller 🎲", (
+        "import random\n"
+        "print(\"Rolling two dice...\")\n"
+        "a = random.randint(1, 6)\n"
+        "b = random.randint(1, 6)\n"
+        "print(\"You rolled\", a, \"and\", b)\n"
+        "print(\"Total:\", a + b)\n"
+        "if a == b:\n"
+        "    print(\"Doubles! \\U0001f389\")\n")),
+    ("Aria", "Times Table 🧮", (
+        "number = 7\n"
+        "print(\"The\", number, \"times table:\")\n"
+        "for i in range(1, 11):\n"
+        "    print(number, \"x\", i, \"=\", number * i)\n")),
+    ("Sam", "Countdown to Blastoff 🚀", (
+        "for n in range(10, 0, -1):\n"
+        "    print(n, \"...\")\n"
+        "print(\"BLASTOFF! \\U0001f680\")\n")),
+    ("Zoe", "FizzBuzz", (
+        "for i in range(1, 21):\n"
+        "    if i % 15 == 0:\n"
+        "        print(\"FizzBuzz\")\n"
+        "    elif i % 3 == 0:\n"
+        "        print(\"Fizz\")\n"
+        "    elif i % 5 == 0:\n"
+        "        print(\"Buzz\")\n"
+        "    else:\n"
+        "        print(i)\n")),
+    ("Noah", "Story Maker ✨", (
+        "hero = \"a brave robot\"\n"
+        "place = \"the candy mountains\"\n"
+        "item = \"a glowing key\"\n"
+        "print(\"Once upon a time, \" + hero + \" traveled to \" + place + \".\")\n"
+        "print(\"There it found \" + item + \" and saved the day!\")\n"
+        "print(\"The End. \\U0001f4d6\")\n")),
+    ("Ivy", "Even or Odd Checker", (
+        "for number in [4, 7, 10, 15, 22]:\n"
+        "    if number % 2 == 0:\n"
+        "        print(number, \"is even\")\n"
+        "    else:\n"
+        "        print(number, \"is odd\")\n")),
+    ("Max", "ASCII Cat 🐱", (
+        "print(\" /\\\\_/\\\\\")\n"
+        "print(\"( o.o )\")\n"
+        "print(\" > ^ <\")\n"
+        "print(\"Meow! I am a cat made of code.\")\n")),
+]
+
+
+def seed_sample_projects():
+    """Put a handful of ready-made shared projects in the gallery (once)."""
+    if get_setting("samples_seeded", "") == "1":
+        return
+    conn = db()
+    # a showcase account that owns the samples (kid role so they look kid-made)
+    row = conn.execute("SELECT id FROM users WHERE username='c4k_showcase'").fetchone()
+    if row:
+        uid = row["id"]
+    else:
+        pwhash, salt = hash_password(secrets.token_urlsafe(12))
+        conn.execute(
+            "INSERT INTO users (role,name,username,password_hash,salt,plan,consent_status,tokens,created_at) "
+            "VALUES ('kid','Coding4Kids','c4k_showcase',?,?,'pro','not_required',0,?)",
+            (pwhash, salt, now_iso()))
+        uid = conn.execute("SELECT id FROM users WHERE username='c4k_showcase'").fetchone()["id"]
+    for author, title, code in SAMPLE_PROJECTS:
+        conn.execute(
+            "INSERT INTO projects (user_id,author_name,title,code,shared,created_at,updated_at) "
+            "VALUES (?,?,?,?,1,?,?)", (uid, author, title, code, now_iso(), now_iso()))
+    conn.commit()
+    conn.close()
+    set_setting("samples_seeded", "1")
+    print(f"  seeded {len(SAMPLE_PROJECTS)} sample gallery projects")
+
+
 # ────────────────────────────── user shaping ──────────────────────────────
 def trial_days_left(user):
     if user["plan"] != "trial" or not user["trial_ends"]:
@@ -2106,6 +2187,7 @@ def main():
     seed_lessons()
     seed_admins()
     seed_demo_teacher()
+    seed_sample_projects()
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"Coding4Kids backend running at http://localhost:{PORT}")
     try:
