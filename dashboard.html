@@ -140,6 +140,11 @@
           <h3>🏅 Badges</h3>
           <div class="badges" id="badges"></div>
         </div>
+
+        <div class="card">
+          <h3>🏆 Certificates</h3>
+          <div id="certs" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -330,6 +335,23 @@
       renderWorlds();
       renderByte();
       renderBadges();
+      renderCerts();
+    }
+
+    function renderCerts() {
+      const passed = [...new Set((ME && ME.unitsPassed) || [])].sort((a, b) => a - b);
+      const wrap = document.getElementById('certs');
+      if (!passed.length) {
+        wrap.innerHTML = '<p style="color:var(--text-faint);font-size:0.88rem;">Beat a world’s boss battle to earn your first certificate! 🏆</p>';
+        return;
+      }
+      wrap.innerHTML = passed.map(u => {
+        const w = WORLDS[u] || { name: 'World ' + u, emoji: '🗺️' };
+        return `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;">
+          <span style="font-weight:800;">${w.emoji || '🏆'} ${C4K.esc(w.name || ('World ' + u))}</span>
+          <a class="btn btn-outline" style="padding:6px 12px;font-size:0.8rem;" href="certificate.html?unit=${u}" target="_blank">🏆 View / Print</a>
+        </div>`;
+      }).join('');
     }
 
     let WORLDS = {};

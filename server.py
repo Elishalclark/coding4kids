@@ -363,6 +363,7 @@ def init_db():
         "consent_method": "TEXT", "consent_at": "TEXT", "consent_by": "TEXT",
         "consent_token": "TEXT", "consent_confirm_token": "TEXT", "school": "TEXT",
         "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT", "suspend_until": "TEXT",
+        "reset_token": "TEXT", "reset_expires": "TEXT",
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -498,6 +499,23 @@ def record_login_fail(key):
 def clear_login_fails(key):
     with _login_lock:
         _login_fails.pop(key, None)
+
+
+# Generic anti-spam: limit how often a user can do an action (e.g. post comments).
+_action_log = {}               # key -> list of timestamps
+_action_lock = threading.Lock()
+
+def rate_limited(key, max_actions, window_seconds):
+    """True if `key` has already done `max_actions` within `window_seconds`. Records the attempt otherwise."""
+    now = time.time()
+    with _action_lock:
+        arr = [t for t in _action_log.get(key, []) if now - t < window_seconds]
+        if len(arr) >= max_actions:
+            _action_log[key] = arr
+            return True
+        arr.append(now)
+        _action_log[key] = arr
+        return False
 
 
 # ────────────────────────────── email ──────────────────────────────
@@ -1303,6 +1321,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/login": lambda: self.api_login(data, allow=("kid", "parent", "teacher", "admin", "super_admin")),
             "/api/admin/login": lambda: self.api_login(data, allow=ADMIN_ROLES),
             "/api/logout": lambda: self.api_logout(),
+            "/api/forgot-password": lambda: self.api_forgot_password(data),
+            "/api/reset-password": lambda: self.api_reset_password(data),
             "/api/progress": lambda: self.api_progress(data),
             "/api/test/submit": lambda: self.api_test_submit(data),
             "/api/ai": lambda: self.api_ai(data),
@@ -1349,6 +1369,56 @@ class Handler(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM sessions WHERE token=?", (tok,))
             conn.commit()
             conn.close()
+        return self._send_json({"ok": True})
+
+    def api_forgot_password(self, data):
+        """Parent/teacher requests a password-reset link by username or email. Kids reset via their parent."""
+        who = (data.get("usernameOrEmail") or "").strip()
+        # Always answer the same way so we never reveal which accounts exist.
+        generic = {"ok": True, "message": "If an account matches, we've emailed a reset link."}
+        if not who or rate_limited(f"forgot:{who.lower()}", 3, 600):
+            return self._send_json(generic)
+        conn = db()
+        row = conn.execute(
+            "SELECT * FROM users WHERE (username=? OR parent_email=?) AND role IN ('parent','teacher') LIMIT 1",
+            (who, who)).fetchone()
+        if row and row["parent_email"]:
+            token = secrets.token_urlsafe(24)
+            expires = (datetime.datetime.utcnow() + datetime.timedelta(hours=2)).replace(microsecond=0).isoformat() + "Z"
+            conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (token, expires, row["id"]))
+            conn.commit()
+            url = f"http://localhost:{PORT}/reset.html?token={token}"
+            send_email_async(row["parent_email"], "Reset your Coding4Kids password",
+                             f"<p>Hi {clean_name(row['name'] or '')}, we got a request to reset your Coding4Kids password.</p>"
+                             f"<p><a href=\"{url}\">Click here to choose a new password</a> (link expires in 2 hours).</p>"
+                             f"<p style=\"color:#777;font-size:0.9em\">If you didn't ask for this, you can ignore this email — your password won't change.</p>")
+        conn.close()
+        return self._send_json(generic)
+
+    def api_reset_password(self, data):
+        token = (data.get("token") or "").strip()
+        password = data.get("password") or ""
+        if len(password) < 6:
+            return self._send_json({"error": "Password must be at least 6 characters."}, 400)
+        conn = db()
+        row = conn.execute("SELECT * FROM users WHERE reset_token=?", (token,)).fetchone()
+        if not row:
+            conn.close()
+            return self._send_json({"error": "This reset link is invalid or already used."}, 400)
+        exp = _row_get(row, "reset_expires")
+        try:
+            if not exp or datetime.datetime.utcnow() >= datetime.datetime.fromisoformat(exp.replace("Z", "")):
+                conn.close()
+                return self._send_json({"error": "This reset link has expired. Please request a new one."}, 400)
+        except ValueError:
+            conn.close()
+            return self._send_json({"error": "This reset link is invalid."}, 400)
+        pwhash, salt = hash_password(password)
+        conn.execute("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?",
+                     (pwhash, salt, row["id"]))
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (row["id"],))  # log out old sessions
+        conn.commit()
+        conn.close()
         return self._send_json({"ok": True})
 
     def api_signup(self, data):
@@ -2242,6 +2312,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "not logged in"}, 401)
         if not consent_ok(u):
             return self._send_json({"error": "A parent needs to approve this account first."}, 403)
+        # anti-spam: at most 6 comments per 60s per user
+        if rate_limited(f"comment:{u['id']}", 6, 60):
+            return self._send_json({"error": "Whoa, slow down a sec! Try again in a moment. 🙂"}, 429)
         pid = data.get("projectId")
         body = clean_name(data.get("body") or "")[:self.COMMENT_MAX]
         if not body:

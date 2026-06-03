@@ -574,8 +574,17 @@
         <input type="password" id="loginPassword" placeholder="Password" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <div id="loginError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
         <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In</button>
+        <p class="signup-fine" id="forgotLine" style="text-align:center;"><a href="#" onclick="openForgot();return false;" style="color:var(--text-dim);">Forgot password?</a></p>
         <p class="signup-fine" id="loginFootnote" style="color:var(--text-dim);text-align:center;">New here? <a href="#signup" onclick="closeLogin()">Create an account</a></p>
       </form>
+      <!-- Forgot-password mini-form (parents & teachers) -->
+      <div id="forgotBox" style="display:none;padding:8px 24px 24px;">
+        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:12px;">Enter your username or email. If it's a parent or teacher account, we'll email a reset link. <em>(Kids: ask a parent to reset for you.)</em></p>
+        <input type="text" id="forgotWho" placeholder="Username or email" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);width:100%;box-sizing:border-box;margin-bottom:12px;" />
+        <button type="button" class="btn btn-primary btn-lg" style="width:100%;" id="forgotBtn" onclick="submitForgot()">Send reset link</button>
+        <p id="forgotMsg" style="color:var(--text-dim);font-weight:700;font-size:0.86rem;margin-top:10px;min-height:1em;"></p>
+        <p class="signup-fine" style="text-align:center;"><a href="#" onclick="closeForgot();return false;" style="color:var(--text-dim);">← Back to log in</a></p>
+      </div>
     </div>
   </div>
 

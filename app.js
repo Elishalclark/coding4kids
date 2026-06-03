@@ -61,7 +61,34 @@ function openLogin() {
   setLoginRole('kid');
   document.getElementById('loginUsername').focus();
 }
-function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); }
+function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); closeForgot(); }
+
+// ── Forgot password (parents & teachers) ──
+function openForgot() {
+  document.querySelector('#loginModal form').style.display = 'none';
+  document.getElementById('forgotLine').style.display = 'none';
+  document.getElementById('loginFootnote').style.display = 'none';
+  document.getElementById('forgotBox').style.display = '';
+  document.getElementById('forgotMsg').textContent = '';
+  document.getElementById('forgotWho').focus();
+}
+function closeForgot() {
+  const box = document.getElementById('forgotBox'); if (!box) return;
+  box.style.display = 'none';
+  document.querySelector('#loginModal form').style.display = '';
+  document.getElementById('forgotLine').style.display = '';
+  document.getElementById('loginFootnote').style.display = '';
+}
+async function submitForgot() {
+  const who = document.getElementById('forgotWho').value.trim();
+  const msg = document.getElementById('forgotMsg');
+  if (!who) { msg.style.color = '#f87171'; msg.textContent = 'Enter your username or email.'; return; }
+  document.getElementById('forgotBtn').disabled = true;
+  const { data } = await C4K.api('/api/forgot-password', 'POST', { usernameOrEmail: who });
+  msg.style.color = 'var(--green, #5ad17e)';
+  msg.textContent = (data && data.message) || "If an account matches, we've emailed a reset link. Check your inbox (and spam).";
+  document.getElementById('forgotBtn').disabled = false;
+}
 
 async function handleLogin(e) {
   e.preventDefault();

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background:#0d0a18; }
+    .cert-page { max-width:880px; margin:0 auto; padding:24px 18px 70px; }
+    .toolbar { display:flex; gap:10px; justify-content:center; margin-bottom:22px; flex-wrap:wrap; }
+    .cert {
+      background:linear-gradient(135deg,#fffdf7,#fff6e6); color:#2a2150; border-radius:18px;
+      border:10px solid #b78a2e; box-shadow:0 18px 50px rgba(0,0,0,.45); padding:46px 40px; text-align:center;
+      position:relative; overflow:hidden;
+    }
+    .cert::before { content:""; position:absolute; inset:14px; border:2px solid #d8b65c; border-radius:8px; pointer-events:none; }
+    .cert .seal { font-size:3.2rem; }
+    .cert .kicker { letter-spacing:3px; text-transform:uppercase; font-weight:800; color:#a8772a; font-size:0.85rem; margin-top:6px; }
+    .cert h1 { font-size:2.1rem; font-weight:900; margin:8px 0 4px; color:#1c1640; }
+    .cert .awarded { color:#5b5480; margin:14px 0 4px; font-size:0.95rem; }
+    .cert .name { font-size:2.4rem; font-weight:900; color:#7c3aed; margin:4px 0 8px; border-bottom:2px dashed #cdbce8; display:inline-block; padding:0 18px 6px; }
+    .cert .world { font-size:1.25rem; font-weight:800; margin:14px 0 2px; }
+    .cert .score { color:#5b5480; font-weight:700; }
+    .cert .footer { display:flex; justify-content:space-between; align-items:flex-end; margin-top:34px; gap:20px; }
+    .cert .footer .blk { flex:1; }
+    .cert .footer .line { border-top:2px solid #b9a9da; margin-top:30px; padding-top:6px; font-size:0.82rem; color:#5b5480; font-weight:700; }
+    .cert .sig { font-size:1.2rem; font-weight:900; color:#1c1640; }
+    .msg { text-align:center; color:var(--text-dim); padding:60px 20px; }
+    @media print {
+      .nav, .toolbar { display:none !important; }
+      body, .cert-page { background:#fff !important; padding:0; margin:0; }
+      .cert { box-shadow:none; border-color:#b78a2e; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <div style="margin-left:auto;"><a href="dashboard.html" class="btn btn-ghost">← Back to dashboard</a></div>
+    </div>
+  </nav>
+
+  <main class="cert-page">
+    <div id="content"><p class="msg">Loading your certificate…</p></div>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    (async () => {
+      const unit = parseInt(new URLSearchParams(location.search).get('unit'), 10);
+      const me = await C4K.loadMe();
+      if (!me) { location.href = 'index.html'; return; }
+      if (C4K.consentLock && C4K.consentLock(me)) return;
+      const content = document.getElementById('content');
+      if (!unit) { content.innerHTML = '<p class="msg">No certificate selected.</p>'; return; }
+
+      const pr = await C4K.api('/api/progress');
+      const passed = (pr.ok && pr.data.unitsPassed) ? pr.data.unitsPassed : [];
+      if (!passed.includes(unit)) {
+        content.innerHTML = '<p class="msg">🔒 You haven’t defeated this world’s boss yet — beat it to earn this certificate!</p>';
+        return;
+      }
+      const best = (pr.data.unitTests && pr.data.unitTests[unit]) ? pr.data.unitTests[unit].bestScore : null;
+      const ld = await (await fetch('/api/lessons')).json();
+      const world = (ld.worlds && ld.worlds[unit]) || {};
+      const worldName = world.name || ('World ' + unit);
+      const boss = world.boss ? (world.boss.emoji + ' ' + world.boss.name) : 'the Boss';
+      const today = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+
+      content.innerHTML = `
+        <div class="toolbar">
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+          <a class="btn btn-outline" href="dashboard.html">Back to dashboard</a>
+        </div>
+        <div class="cert">
+          <div class="seal">🏆</div>
+          <div class="kicker">Certificate of Achievement</div>
+          <h1>Coding4Kids</h1>
+          <div class="awarded">This certifies that</div>
+          <div class="name">${C4K.esc(me.name)}</div>
+          <div class="world">conquered ${C4K.esc(worldName)}</div>
+          <div class="score">by defeating ${C4K.esc(boss)}${best != null ? ' with a score of ' + best + '%' : ''} 🎉</div>
+          <div class="footer">
+            <div class="blk"><div class="line">${C4K.esc(today)}</div><div style="font-size:0.75rem;color:#8a82ad;">Date earned</div></div>
+            <div class="blk"><div class="sig">Byte the Robot 🤖</div><div class="line">Chief Coding Buddy</div></div>
+          </div>
+        </div>`;
+    })();
+  </script>
+</body>
+</html>

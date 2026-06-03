@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset Password — Coding4Kids</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+    </div>
+  </nav>
+  <main style="max-width:440px;margin:60px auto;padding:0 20px;">
+    <div class="card" style="padding:32px 28px;">
+      <h1 style="font-size:1.5rem;font-weight:900;margin-bottom:6px;">🔑 Choose a new password</h1>
+      <p style="color:var(--text-dim);margin-bottom:18px;font-size:0.92rem;">Pick a new password for your Coding4Kids account.</p>
+      <div id="form">
+        <input id="pw1" type="password" placeholder="New password (6+ characters)"
+          style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <input id="pw2" type="password" placeholder="Confirm new password"
+          style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <button class="btn btn-primary btn-lg" style="width:100%;" id="go" onclick="submitReset()">Update password</button>
+        <p id="msg" style="margin-top:12px;font-weight:800;font-size:0.88rem;min-height:1em;"></p>
+      </div>
+    </div>
+  </main>
+  <script src="auth.js"></script>
+  <script>
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const msg = document.getElementById('msg');
+    if (!token) { document.getElementById('form').innerHTML = '<p style="color:#f87171;font-weight:800;">This reset link is missing its token. Please use the link from your email.</p>'; }
+
+    async function submitReset() {
+      const p1 = document.getElementById('pw1').value, p2 = document.getElementById('pw2').value;
+      msg.style.color = '#f87171';
+      if (p1.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; return; }
+      if (p1 !== p2) { msg.textContent = 'Those passwords don’t match.'; return; }
+      document.getElementById('go').disabled = true;
+      const { ok, data } = await C4K.api('/api/reset-password', 'POST', { token, password: p1 });
+      if (ok) {
+        document.getElementById('form').innerHTML =
+          '<p style="color:var(--green,#5ad17e);font-weight:800;">✅ Password updated! You can now log in with your new password.</p>' +
+          '<a class="btn btn-primary btn-lg" style="width:100%;margin-top:12px;" href="index.html">Go to log in</a>';
+      } else {
+        msg.textContent = data.error || 'Could not reset password.';
+        document.getElementById('go').disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
