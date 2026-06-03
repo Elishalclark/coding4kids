@@ -355,7 +355,7 @@ def init_db():
         "age_years": "INTEGER", "consent_status": "TEXT DEFAULT 'not_required'",
         "consent_method": "TEXT", "consent_at": "TEXT", "consent_by": "TEXT",
         "consent_token": "TEXT", "consent_confirm_token": "TEXT", "school": "TEXT",
-        "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT",
+        "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT", "suspend_until": "TEXT",
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -563,6 +563,25 @@ def get_super_admin_email():
 def clean_name(name):
     """Strip angle brackets so a display name can't inject HTML (defense against stored XSS)."""
     return (name or "").replace("<", "").replace(">", "").strip()
+
+
+def suspension_status(row):
+    """Return (active, until_iso). A timed suspension that has passed counts as expired (not active)."""
+    if not _row_get(row, "suspended", 0):
+        return (False, None)
+    until = _row_get(row, "suspend_until")
+    if until:
+        try:
+            ends = datetime.datetime.fromisoformat(until.replace("Z", ""))
+            if datetime.datetime.utcnow() >= ends:
+                return (False, until)  # time served — expired
+        except ValueError:
+            pass
+    return (True, until)
+
+
+def clear_suspension(conn, uid):
+    conn.execute("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?", (uid,))
 
 
 # A lightweight first line of defence for kid-posted comments. Manual moderation
@@ -1085,7 +1104,7 @@ class Handler(BaseHTTPRequestHandler):
             placeholders = ",".join("?" for _ in roles)
             conn = db()
             rows = conn.execute(
-                f"SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason "
+                f"SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason,suspend_until "
                 f"FROM users WHERE role IN ({placeholders}) ORDER BY id", roles
             ).fetchall()
             conn.close()
@@ -1093,7 +1112,8 @@ class Handler(BaseHTTPRequestHandler):
                 {"id": r["id"], "name": r["name"], "username": r["username"], "role": r["role"],
                  "plan": r["plan"], "parentEmail": r["parent_email"], "familyId": r["family_id"],
                  "joined": (r["created_at"] or "")[:10],
-                 "suspended": bool(_row_get(r, "suspended", 0)), "suspendReason": _row_get(r, "suspend_reason")}
+                 "suspended": suspension_status(r)[0], "suspendReason": _row_get(r, "suspend_reason"),
+                 "suspendUntil": _row_get(r, "suspend_until")}
                 for r in rows]})
 
         if path == "/api/admin/stats":
@@ -1478,13 +1498,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Wrong username or password."}, 401)
         if row["role"] not in allow:
             return self._send_json({"error": "Those credentials can't be used here."}, 403)
-        if _row_get(row, "suspended", 0):
+        active, until = suspension_status(row)
+        if not active and _row_get(row, "suspended", 0):
+            # timed suspension elapsed → auto-reinstate, then let them in
+            conn2 = db(); clear_suspension(conn2, row["id"]); conn2.commit(); conn2.close()
+        elif active:
             clear_login_fails(key)
             reason = _row_get(row, "suspend_reason") or ""
             msg = "This account has been suspended by an administrator."
             if reason:
                 msg += f" Reason: {reason}"
-            msg += " Please contact coding4kids.support@gmail.com."
+            if until:
+                msg += f" It will be reinstated on {until[:16].replace('T', ' ')} UTC."
+            else:
+                msg += " Please contact coding4kids.support@gmail.com."
             return self._send_json({"error": msg, "suspended": True}, 403)
         clear_login_fails(key)
         token = create_session(row["id"])
@@ -1840,18 +1867,26 @@ class Handler(BaseHTTPRequestHandler):
         suspend = bool(data.get("suspended"))
         reason = (data.get("reason") or "").strip()
         uid = target["id"]
+        until = None
         if suspend:
-            conn.execute("UPDATE users SET suspended=1, suspend_reason=? WHERE id=?", (reason, uid))
+            try:
+                days = float(data.get("days") or 0)
+            except (TypeError, ValueError):
+                days = 0
+            if days and days > 0:
+                until = (datetime.datetime.utcnow() + datetime.timedelta(days=days)).replace(microsecond=0).isoformat() + "Z"
+            conn.execute("UPDATE users SET suspended=1, suspend_reason=?, suspend_until=? WHERE id=?", (reason, until, uid))
             conn.execute("DELETE FROM sessions WHERE user_id=?", (uid,))  # force-logout everywhere
         else:
-            conn.execute("UPDATE users SET suspended=0, suspend_reason=NULL WHERE id=?", (uid,))
+            clear_suspension(conn, uid)
         conn.commit()
         conn.close()
+        until_phrase = (f" until {until[:16].replace('T', ' ')} UTC" if until else " indefinitely")
         # Notify the account / parent on file.
         if target["parent_email"]:
             if suspend:
                 body = (f"Notice: the Coding4Kids account '{target['name']}' (@{target['username']}) has been "
-                        f"suspended by an administrator." + (f" Reason: {reason}" if reason else "")
+                        f"suspended by an administrator{until_phrase}." + (f" Reason: {reason}" if reason else "")
                         + " Contact coding4kids.support@gmail.com with questions.")
                 subject = "Coding4Kids account suspended"
             else:
@@ -1865,8 +1900,8 @@ class Handler(BaseHTTPRequestHandler):
             conn2.close()
             send_email_async(target["parent_email"], subject, body)
         log_consent(uid, target["username"], "suspended" if suspend else "reinstated",
-                    f"super admin ({admin['username']})", reason or "")
-        return self._send_json({"ok": True, "name": target["name"], "suspended": suspend})
+                    f"super admin ({admin['username']})", (reason + until_phrase) if suspend else "")
+        return self._send_json({"ok": True, "name": target["name"], "suspended": suspend, "until": until})
 
     def api_dismiss_notice(self, data):
         u = self._current_user()

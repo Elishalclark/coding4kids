@@ -253,6 +253,34 @@
     </div>
   </div>
 
+  <!-- Suspend account modal -->
+  <div class="modal-overlay hidden" id="suspendModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">⏸️</span>
+        <div style="flex:1;"><div class="chat-name">Suspend account</div><div class="chat-status" id="suspWho">—</div></div>
+        <button class="modal-close" onclick="closeSuspend()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" id="suspId" />
+        <label class="le-lbl">How long?
+          <select id="suspDays" class="le-in">
+            <option value="1">1 day</option>
+            <option value="3">3 days</option>
+            <option value="7" selected>7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+            <option value="0">Permanent (until I unsuspend)</option>
+          </select>
+        </label>
+        <label class="le-lbl">Reason (kept on record &amp; emailed to the account)
+          <input id="suspReason" class="le-in" placeholder="e.g. Repeated rule-breaking in comments" /></label>
+        <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">They'll be logged out immediately and can't sign in for the chosen period. Timed suspensions lift automatically.</p>
+        <button class="btn btn-primary btn-lg" style="background:#f59e0b;border-color:#f59e0b;" onclick="confirmSuspend()">⏸️ Suspend account</button>
+      </div>
+    </div>
+  </div>
+
   <script src="auth.js"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
@@ -331,7 +359,8 @@
       document.getElementById('acctActionHead').textContent = sup ? 'Actions' : '';
       document.getElementById('acctRows').innerHTML = accts.length ? accts.map((a, i) => {
         const nm = (a.name||'').replace(/'/g,"\\'").replace(/</g,'').replace(/>/g,'');
-        const suspBadge = a.suspended ? ' <span style="font-size:0.66rem;font-weight:900;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:50px;padding:1px 7px;">⏸️ SUSPENDED</span>' : '';
+        const suspTip = a.suspended ? (a.suspendUntil ? ('til ' + a.suspendUntil.slice(0,10)) : 'permanent') : '';
+        const suspBadge = a.suspended ? ` <span title="${a.suspendReason ? C4K.esc(a.suspendReason) : ''}" style="font-size:0.66rem;font-weight:900;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:50px;padding:1px 7px;">⏸️ SUSPENDED (${suspTip})</span>` : '';
         return `<tr${a.suspended ? ' style="opacity:.6;"' : ''}>
            <td>${i + 1}</td>
            <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}</td>
@@ -514,17 +543,38 @@
     }
 
     async function suspendUser(userId, name, suspend) {
-      let reason = '';
-      if (suspend) {
-        reason = prompt(`Suspend ${name}? They'll be logged out and can't sign in until you unsuspend them.\n\nReason (kept on record / emailed to the account):`);
-        if (reason === null) return;  // cancelled
-      } else {
-        if (!confirm(`Reinstate ${name}'s account so they can log in again?`)) return;
+      if (suspend) {  // open the modal so the super admin picks a duration
+        document.getElementById('suspId').value = userId;
+        document.getElementById('suspWho').textContent = name;
+        document.getElementById('suspReason').value = '';
+        document.getElementById('suspDays').value = '7';
+        document.getElementById('suspendModal').classList.remove('hidden');
+        return;
       }
-      const { ok, data } = await C4K.api('/api/admin/suspend', 'POST', { userId, suspended: suspend, reason });
-      if (ok) { alert(suspend ? `⏸️ ${name} suspended.` : `▶️ ${name} reinstated.`); loadData(); }
+      if (!confirm(`Reinstate ${name}'s account so they can log in again?`)) return;
+      const { ok, data } = await C4K.api('/api/admin/suspend', 'POST', { userId, suspended: false });
+      if (ok) { alert(`▶️ ${name} reinstated.`); loadData(); }
       else alert(data.error || 'Could not update.');
     }
+
+    function closeSuspend() { document.getElementById('suspendModal').classList.add('hidden'); }
+
+    async function confirmSuspend() {
+      const userId = +document.getElementById('suspId').value;
+      const name = document.getElementById('suspWho').textContent;
+      const days = +document.getElementById('suspDays').value;
+      const reason = document.getElementById('suspReason').value.trim();
+      const { ok, data } = await C4K.api('/api/admin/suspend', 'POST', { userId, suspended: true, days, reason });
+      if (ok) {
+        closeSuspend();
+        const when = data.until ? ('until ' + data.until.slice(0,16).replace('T',' ') + ' UTC') : 'permanently';
+        alert(`⏸️ ${name} suspended ${when}.`);
+        loadData();
+      } else alert(data.error || 'Could not suspend.');
+    }
+    document.getElementById('suspendModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'suspendModal') closeSuspend();
+    });
 
     // ── Lesson editor ──
     function openLessonEditor(lesson) {
