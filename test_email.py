@@ -15,12 +15,12 @@ from server import send_email
 to = sys.argv[1] if len(sys.argv) > 1 else "elishalclark@icloud.com"
 html = (
     "<h2>✅ It works!</h2>"
-    "<p>This is a <strong>practice email</strong> from Coding4Kids.</p>"
+    "<p>This is a <strong>practice email</strong> from KidVibers.</p>"
     "<p>If you're reading this in your inbox, real email sending is set up correctly — "
     "parent welcome emails, consent notices, and moderation alerts will now go out.</p>"
     "<p style='color:#777;font-size:0.9em'>Sent from coding4kids.support@gmail.com</p>"
 )
-ok = send_email(to, "Coding4Kids — practice email 🎉", html)
+ok = send_email(to, "KidVibers — practice email 🎉", html)
 if ok:
     print(f"\n✅ Sent a practice email to {to}. Check the inbox (and spam folder).")
 else:

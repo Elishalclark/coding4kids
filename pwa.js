@@ -21,7 +21,7 @@
   addMeta('theme-color', '#0c0a18');
   addMeta('apple-mobile-web-app-capable', 'yes');
   addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
-  addMeta('apple-mobile-web-app-title', 'Coding4Kids');
+  addMeta('apple-mobile-web-app-title', 'KidVibers');
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

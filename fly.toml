@@ -1,7 +1,6 @@
-# Fly.io config for Coding4Kids — deploys straight from this folder (no GitHub).
-# If "coding4kids" is already taken, change the app name below to something unique
-# (e.g. "coding4kids-ec") before deploying.
-app = "coding4kids"
+# Fly.io config for KidVibers — deploys straight from this folder (no GitHub).
+# If "kidvibers" is already taken on Fly, change the app name below to something unique.
+app = "kidvibers"
 primary_region = "iad"   # Virginia. Change to a region near you if you like (e.g. "lax", "sea").
 
 [build]

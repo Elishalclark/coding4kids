@@ -1,4 +1,4 @@
-# Render Blueprint — deploys Coding4Kids as a web service with a persistent disk.
+# Render Blueprint — deploys KidVibers as a web service with a persistent disk.
 # In Render: New → Blueprint → connect this repo. It reads this file automatically.
 services:
   - type: web

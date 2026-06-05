@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout — Coding4Kids</title>
+  <title>Checkout — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
@@ -44,7 +44,7 @@
 <body>
   <nav class="nav">
     <div class="legal-nav">
-      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <span style="margin-left:auto;color:var(--text-faint);font-weight:800;font-size:0.85rem;">🔒 Secure Checkout</span>
     </div>
   </nav>
@@ -107,7 +107,7 @@
   <div id="coSuccess" class="co-success hidden">
     <div class="big">🎉</div>
     <h1 id="successTitle">You're on Pro!</h1>
-    <p id="successMsg">Your account has been upgraded. Enjoy everything Coding4Kids has to offer!</p>
+    <p id="successMsg">Your account has been upgraded. Enjoy everything KidVibers has to offer!</p>
     <button class="btn btn-primary btn-lg" id="successBtn" onclick="goHome()">Go to my dashboard →</button>
   </div>
 
@@ -210,7 +210,7 @@
       const s = document.getElementById('coSuccess');
       document.getElementById('successTitle').textContent = `You're on ${planInfo.name}! 🎉`;
       document.getElementById('successMsg').textContent =
-        `Your account is now ${planInfo.name}${plan === 'pro' || plan === 'family' ? ' with AI unlocked' : ''}. Enjoy Coding4Kids!`;
+        `Your account is now ${planInfo.name}${plan === 'pro' || plan === 'family' ? ' with AI unlocked' : ''}. Enjoy KidVibers!`;
       s.classList.remove('hidden');
     }
 

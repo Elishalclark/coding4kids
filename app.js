@@ -124,7 +124,7 @@ async function openConsent(token) {
   if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'This consent link is invalid or already used.'}</p>`; return; }
   body.innerHTML = `
     <p style="color:var(--text-dim);font-size:0.92rem;line-height:1.6;">
-      <strong>${data.childName}</strong> (age ${data.ageYears || 'under 13'}) wants to use Coding4Kids.
+      <strong>${data.childName}</strong> (age ${data.ageYears || 'under 13'}) wants to use KidVibers.
       As a parent/guardian, please review and approve.</p>
     <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0;font-size:0.85rem;color:var(--text-dim);">
       We collect only: a first name, username, age, your email, and learning progress.
@@ -156,7 +156,7 @@ async function consentConfirm(token) {
   body.innerHTML = ok
     ? `<div style="text-align:center;"><div style="font-size:2.6rem;">✅</div>
          <h3 style="font-weight:900;margin:8px 0;">Consent confirmed!</h3>
-         <p style="color:var(--text-dim);">${data.childName} can now use Coding4Kids. Thank you! 🎉</p>
+         <p style="color:var(--text-dim);">${data.childName} can now use KidVibers. Thank you! 🎉</p>
          <button class="btn btn-primary" style="margin-top:14px;" onclick="closeConsent()">Done</button></div>`
     : `<p style="color:#f87171;">${data.error || 'Could not confirm.'}</p>`;
 }

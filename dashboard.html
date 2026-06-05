@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Dashboard — Coding4Kids</title>
+  <title>My Dashboard — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
@@ -61,7 +61,7 @@
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Coding<strong>4Kids</strong></span></a>
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
         <a href="playground.html" class="btn btn-ghost">🛝 Playground</a>
         <a href="gallery.html" class="btn btn-ghost">🎨 Gallery</a>
@@ -295,7 +295,7 @@
       wrap.innerHTML = data.notices.map(n =>
         `<div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
            <span style="font-size:1.2rem;">📨</span>
-           <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from Coding4Kids</div>
+           <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from KidVibers</div>
              <div style="color:var(--text);font-size:0.9rem;line-height:1.5;">${n.body}</div>
              <div style="color:var(--text-faint);font-size:0.72rem;margin-top:4px;">${n.at}</div></div>
            <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>

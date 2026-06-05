@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Coding4Kids backend — pure Python standard library (no pip installs needed).
+KidVibers backend — pure Python standard library (no pip installs needed).
 
 Roles:
   kid          - signs up, does lessons, AI if their plan allows
@@ -523,7 +523,7 @@ def rate_limited(key, max_actions, window_seconds):
 #   1. Gmail SMTP  — set GMAIL_APP_PASSWORD (and GMAIL_USER, default coding4kids.support@gmail.com).
 #                    This sends straight FROM the Gmail address. Best for a Gmail account.
 #   2. Resend API  — set RESEND_API_KEY (needs a verified custom domain for the "from").
-EMAIL_FROM_DEFAULT = "Coding4Kids <coding4kids.support@gmail.com>"
+EMAIL_FROM_DEFAULT = "KidVibers <coding4kids.support@gmail.com>"
 
 
 def _wrap_html(html):
@@ -537,7 +537,7 @@ def send_email_gmail(to, subject, html):
         return False
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = os.environ.get("EMAIL_FROM", f"Coding4Kids <{user}>")
+    msg["From"] = os.environ.get("EMAIL_FROM", f"KidVibers <{user}>")
     msg["To"] = to
     msg.set_content("This email needs an HTML-capable mail app to view.")
     msg.add_alternative(_wrap_html(html), subtype="html")
@@ -802,7 +802,7 @@ def seed_sample_projects():
         pwhash, salt = hash_password(secrets.token_urlsafe(12))
         conn.execute(
             "INSERT INTO users (role,name,username,password_hash,salt,plan,consent_status,tokens,created_at) "
-            "VALUES ('kid','Coding4Kids','c4k_showcase',?,?,'pro','not_required',0,?)",
+            "VALUES ('kid','KidVibers','c4k_showcase',?,?,'pro','not_required',0,?)",
             (pwhash, salt, now_iso()))
         uid = conn.execute("SELECT id FROM users WHERE username='c4k_showcase'").fetchone()["id"]
     for author, title, code in SAMPLE_PROJECTS:
@@ -944,7 +944,7 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,20}$")
 
 # ────────────────────────────── HTTP handler ──────────────────────────────
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Coding4Kids/2.0"
+    server_version = "KidVibers/2.0"
 
     def _send_json(self, obj, status=200):
         body = json.dumps(obj).encode()
@@ -1388,8 +1388,8 @@ class Handler(BaseHTTPRequestHandler):
             conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (token, expires, row["id"]))
             conn.commit()
             url = f"http://localhost:{PORT}/reset.html?token={token}"
-            send_email_async(row["parent_email"], "Reset your Coding4Kids password",
-                             f"<p>Hi {clean_name(row['name'] or '')}, we got a request to reset your Coding4Kids password.</p>"
+            send_email_async(row["parent_email"], "Reset your KidVibers password",
+                             f"<p>Hi {clean_name(row['name'] or '')}, we got a request to reset your KidVibers password.</p>"
                              f"<p><a href=\"{url}\">Click here to choose a new password</a> (link expires in 2 hours).</p>"
                              f"<p style=\"color:#777;font-size:0.9em\">If you didn't ask for this, you can ignore this email — your password won't change.</p>")
         conn.close()
@@ -1450,20 +1450,20 @@ class Handler(BaseHTTPRequestHandler):
         invite_url = f"http://localhost:{PORT}/index.html?plink={link_token}"
         # Simulate emails (no SMTP here) by storing messages the parent sees in-app.
         if email:
-            invite_body = (f"{name} just joined Coding4Kids! Tap “Sign My Kid and Myself Up” to create your "
+            invite_body = (f"{name} just joined KidVibers! Tap “Sign My Kid and Myself Up” to create your "
                            f"parent account and connect to {name}: {invite_url}")
             conn = db()
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
                          (email, "parent_invite", invite_body, uid, link_token, now_iso()))
-            send_email_async(email, f"Connect to {name} on Coding4Kids",
+            send_email_async(email, f"Connect to {name} on KidVibers",
                              f'{invite_body} <a href="{invite_url}">Sign My Kid and Myself Up →</a>')
             if needs_consent:
                 consent_url = f"http://localhost:{PORT}/index.html?consent={consent_token}"
-                consent_body = (f"Parental consent needed: {name} (under 13) wants to use Coding4Kids. As required by "
+                consent_body = (f"Parental consent needed: {name} (under 13) wants to use KidVibers. As required by "
                                 f"COPPA, please review and approve: {consent_url}")
                 conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
                              (email, "consent_request", consent_body, uid, consent_token, now_iso()))
-                send_email_async(email, f"Approve {name}'s Coding4Kids account",
+                send_email_async(email, f"Approve {name}'s KidVibers account",
                                  f'{consent_body} <a href="{consent_url}">Review &amp; approve →</a>')
             conn.commit()
             conn.close()
@@ -1507,14 +1507,14 @@ class Handler(BaseHTTPRequestHandler):
                 first = (name.split(" ")[0] or "there")
                 link_line = (f" You're now connected to <strong>{clean_name(linked)}</strong>'s account."
                              if linked else "")
-                welcome = (f"Hi {clean_name(first)}, welcome to Coding4Kids! 🎉 Your Family account is ready."
+                welcome = (f"Hi {clean_name(first)}, welcome to KidVibers! 🎉 Your Family account is ready."
                            f"{link_line} From your Family Dashboard you can add kids, see their progress, "
                            f"approve accounts, and sign them in or out anytime. Happy coding!")
                 # COPPA: include the parental-consent notice + a written record of consent in the email.
                 consent_note = (
                     "Parental Consent (COPPA): As the parent or legal guardian, by creating this Family account "
                     "and adding or linking a child, you give verifiable parental consent for your child(ren) under 13 "
-                    "to use Coding4Kids. We collect only what's needed to run the learning service (a first name, "
+                    "to use KidVibers. We collect only what's needed to run the learning service (a first name, "
                     "username, age range, learning progress, and your contact email) — never more than necessary, "
                     "and we never sell it. There is no private messaging; shared projects and comments are moderated. "
                     "You can review or download your child's data, withdraw consent, or delete the account at any time "
@@ -1535,7 +1535,7 @@ class Handler(BaseHTTPRequestHandler):
                                 + consent_note[len("Parental Consent (COPPA): "):] + "</p>")
                 if consent_record:
                     consent_html += f'<p style="font-size:0.9em;color:#555">{consent_record.strip()}</p>'
-                send_email_async(email, "Welcome to Coding4Kids — your account & parental consent 🎉",
+                send_email_async(email, "Welcome to KidVibers — your account & parental consent 🎉",
                                  f"{welcome}<br><br><a href=\"{dash_url}\">Open your Family Dashboard →</a>{consent_html}")
             token = create_session(uid)
             return self._send_json({"token": token, "user": public_user(row), "linkedChild": linked})
@@ -1781,7 +1781,7 @@ class Handler(BaseHTTPRequestHandler):
                          (parent_email, "upgrade_request", body, u["id"], now_iso()))
             conn.commit()
             conn.close()
-            send_email_async(parent_email, "Your kid wants to upgrade Coding4Kids", body)
+            send_email_async(parent_email, "Your kid wants to upgrade KidVibers", body)
         return self._send_json({"ok": True, "parentEmail": parent_email, "message": body})
 
     def api_parent_add_kid(self, data):
@@ -1914,7 +1914,7 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         if target["parent_email"]:
-            send_email_async(target["parent_email"], "A message from Coding4Kids", msg)
+            send_email_async(target["parent_email"], "A message from KidVibers", msg)
         return self._send_json({"ok": True})
 
     def api_admin_delete_user(self, data):
@@ -1934,11 +1934,11 @@ class Handler(BaseHTTPRequestHandler):
         uid = target["id"]
         # Keep a record of the deletion + reason (e.g. for the parent on file).
         if target["parent_email"]:
-            body = (f"Notice: the Coding4Kids account '{target['name']}' (@{target['username']}) has been deleted by an administrator."
+            body = (f"Notice: the KidVibers account '{target['name']}' (@{target['username']}) has been deleted by an administrator."
                     + (f" Reason: {reason}" if reason else ""))
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)",
                          (target["parent_email"], "account_deleted", body, uid, now_iso()))
-            send_email_async(target["parent_email"], "Coding4Kids account deleted", body)
+            send_email_async(target["parent_email"], "KidVibers account deleted", body)
         for sql in ("DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
                     "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
                     "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"):
@@ -1982,14 +1982,14 @@ class Handler(BaseHTTPRequestHandler):
         # Notify the account / parent on file.
         if target["parent_email"]:
             if suspend:
-                body = (f"Notice: the Coding4Kids account '{target['name']}' (@{target['username']}) has been "
+                body = (f"Notice: the KidVibers account '{target['name']}' (@{target['username']}) has been "
                         f"suspended by an administrator{until_phrase}." + (f" Reason: {reason}" if reason else "")
                         + " Contact coding4kids.support@gmail.com with questions.")
-                subject = "Coding4Kids account suspended"
+                subject = "KidVibers account suspended"
             else:
-                body = (f"Good news: the Coding4Kids account '{target['name']}' (@{target['username']}) has been "
+                body = (f"Good news: the KidVibers account '{target['name']}' (@{target['username']}) has been "
                         f"reinstated and can be used again.")
-                subject = "Coding4Kids account reinstated"
+                subject = "KidVibers account reinstated"
             conn2 = db()
             conn2.execute("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)",
                           (target["parent_email"], "account_suspended" if suspend else "account_reinstated", body, uid, now_iso()))
@@ -2084,13 +2084,13 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             return self._send_json({"error": "Please enter a parent's email address."}, 400)
         consent_url = f"http://localhost:{PORT}/index.html?consent={tok}"
-        body = (f"Parental consent needed: {kid['name']} (under 13) wants to use Coding4Kids. As required by "
+        body = (f"Parental consent needed: {kid['name']} (under 13) wants to use KidVibers. As required by "
                 f"COPPA, please review and approve: {consent_url}")
         conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
                      (parent_email, "consent_request", body, u["id"], tok, now_iso()))
         conn.commit()
         conn.close()
-        send_email_async(parent_email, f"Approve {kid['name']}'s Coding4Kids account",
+        send_email_async(parent_email, f"Approve {kid['name']}'s KidVibers account",
                          f'{body} <a href="{consent_url}">Review &amp; approve →</a>')
         return self._send_json({"ok": True, "parentEmail": parent_email})
 
@@ -2455,7 +2455,7 @@ class Handler(BaseHTTPRequestHandler):
         project = clean_name(_row_get(c, "project_title") or "(unknown project)")
         reporter = clean_name(u["username"] or "")
         body_html = (
-            f"<p>A comment was reported on Coding4Kids and needs review.</p>"
+            f"<p>A comment was reported on KidVibers and needs review.</p>"
             f"<p><strong>Reported message:</strong></p>"
             f"<blockquote style=\"border-left:3px solid #f59e0b;margin:0;padding:8px 14px;background:#faf6ec;color:#333;\">"
             f"{html_lib.escape(c['body'] or '')}</blockquote>"
@@ -2517,7 +2517,7 @@ def byte_reply(q):
     if re.search(r"error|bug|broken|not work", q):
         return "Every coder gets errors! 🐛 Read the last line, check for a missing <code>:</code> or <code>)</code>, and try again. You've got this!"
     if re.search(r"python|javascript|language", q):
-        return "Great question! 🐍 Python is super beginner-friendly. You start with blocks, then move to real Python on Coding4Kids!"
+        return "Great question! 🐍 Python is super beginner-friendly. You start with blocks, then move to real Python on KidVibers!"
     if re.search(r"\b(hi|hello|hey)\b", q):
         return "Hey there, coder! 👋 What do you want to learn today? Loops, variables, functions — just ask!"
     if re.search(r"thank", q):
@@ -2533,7 +2533,7 @@ def main():
     seed_demo_teacher()
     seed_sample_projects()
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"Coding4Kids backend running at http://localhost:{PORT}")
+    print(f"KidVibers backend running at http://localhost:{PORT}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

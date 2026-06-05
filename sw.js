@@ -1,4 +1,4 @@
-// Coding4Kids service worker — installable + offline, but always fresh when online.
+// KidVibers service worker — installable + offline, but always fresh when online.
 const CACHE = 'c4k-v2';
 const SHELL = ['/index.html', '/styles.css', '/auth.js', '/app.js', '/favicon.svg', '/manifest.json', '/offline.html'];
 
