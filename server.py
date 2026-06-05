@@ -742,25 +742,6 @@ def seed_admins():
     conn.close()
 
 
-def seed_demo_teacher():
-    """A ready-to-use demo teacher account (Teacher Plan, 150 students)."""
-    conn = db()
-    row = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()
-    if row:
-        conn.close()
-        return
-    pwhash, salt = hash_password("teachdemo123")
-    conn.execute(
-        "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,school,created_at) "
-        "VALUES ('teacher','Demo Teacher','teacherdemo',?,?,?,'teacher','Demo Elementary',?)",
-        (pwhash, salt, "kidvibers.help@outlook.com", now_iso()))
-    uid = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()["id"]
-    conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom group = self
-    conn.commit()
-    conn.close()
-    print("  demo teacher -> teacherdemo / teachdemo123 (Teacher Plan)")
-
-
 SAMPLE_PROJECTS = [
     ("Maya", "Rainbow Stars 🌈", (
         "colors = [\"red\", \"orange\", \"yellow\", \"green\", \"blue\", \"purple\"]\n"
@@ -2557,8 +2538,7 @@ def main():
     seed_settings()
     seed_lessons()
     seed_admins()
-    seed_demo_teacher()
-    seed_sample_projects()
+    seed_sample_projects()   # gallery sample projects (kept)
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"KidVibers backend running at http://localhost:{PORT}")
     try:
