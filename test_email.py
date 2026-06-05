@@ -4,7 +4,7 @@
 Usage:
     GMAIL_APP_PASSWORD='your16charapppassword' python3 test_email.py [recipient]
 
-GMAIL_USER defaults to coding4kids.support@gmail.com.
+GMAIL_USER defaults to kidvibers.help@outlook.com.
 Get an App Password at: https://myaccount.google.com/apppasswords
 (2-Step Verification must be ON for that Google account first.)
 """
@@ -18,7 +18,7 @@ html = (
     "<p>This is a <strong>practice email</strong> from KidVibers.</p>"
     "<p>If you're reading this in your inbox, real email sending is set up correctly — "
     "parent welcome emails, consent notices, and moderation alerts will now go out.</p>"
-    "<p style='color:#777;font-size:0.9em'>Sent from coding4kids.support@gmail.com</p>"
+    "<p style='color:#777;font-size:0.9em'>Sent from kidvibers.help@outlook.com</p>"
 )
 ok = send_email(to, "KidVibers — practice email 🎉", html)
 if ok:

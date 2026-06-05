@@ -519,25 +519,49 @@ def rate_limited(key, max_actions, window_seconds):
 
 
 # ────────────────────────────── email ──────────────────────────────
-# Two ways to send a real email (otherwise it's a no-op and we just store the in-app message):
-#   1. Gmail SMTP  — set GMAIL_APP_PASSWORD (and GMAIL_USER, default coding4kids.support@gmail.com).
-#                    This sends straight FROM the Gmail address. Best for a Gmail account.
-#   2. Resend API  — set RESEND_API_KEY (needs a verified custom domain for the "from").
-EMAIL_FROM_DEFAULT = "KidVibers <coding4kids.support@gmail.com>"
+# Ways to send a real email (otherwise it's a no-op and we just store the in-app message):
+#   1. Outlook SMTP — set OUTLOOK_APP_PASSWORD (and OUTLOOK_USER, default kidvibers.help@outlook.com).
+#                     Sends straight FROM the Outlook address. Preferred for the KidVibers mailbox.
+#   2. Gmail SMTP   — set GMAIL_APP_PASSWORD (+ GMAIL_USER). Fallback; sends FROM the Gmail address.
+#   3. Resend API   — set RESEND_API_KEY (needs a verified custom domain for the "from").
+EMAIL_FROM_DEFAULT = "KidVibers <kidvibers.help@outlook.com>"
 
 
 def _wrap_html(html):
     return f'<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222">{html}</div>'
 
 
-def send_email_gmail(to, subject, html):
-    user = os.environ.get("GMAIL_USER", "coding4kids.support@gmail.com")
-    pw = os.environ.get("GMAIL_APP_PASSWORD")
+def send_email_outlook(to, subject, html):
+    user = os.environ.get("OUTLOOK_USER", "kidvibers.help@outlook.com")
+    pw = os.environ.get("OUTLOOK_APP_PASSWORD")
     if not pw:
         return False
+    frm = os.environ.get("EMAIL_FROM", f"KidVibers <{user}>")
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = os.environ.get("EMAIL_FROM", f"KidVibers <{user}>")
+    msg["From"] = frm
+    msg["To"] = to
+    msg.set_content("This email needs an HTML-capable mail app to view.")
+    msg.add_alternative(_wrap_html(html), subtype="html")
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP("smtp-mail.outlook.com", 587, timeout=20) as s:
+        s.starttls(context=ctx)
+        s.login(user, pw)
+        s.send_message(msg)
+    return True
+
+
+def send_email_gmail(to, subject, html):
+    user = os.environ.get("GMAIL_USER")
+    pw = os.environ.get("GMAIL_APP_PASSWORD")
+    if not pw or not user:
+        return False
+    # Gmail rewrites/rejects a "From" that isn't the authenticated account, so send AS the Gmail
+    # address but set Reply-To to the public KidVibers mailbox.
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"KidVibers <{user}>"
+    msg["Reply-To"] = "kidvibers.help@outlook.com"
     msg["To"] = to
     msg.set_content("This email needs an HTML-capable mail app to view.")
     msg.add_alternative(_wrap_html(html), subtype="html")
@@ -561,10 +585,13 @@ def send_email_resend(to, subject, html):
 
 
 def send_email(to, subject, html):
-    """Send a real email via Gmail SMTP or Resend if configured; otherwise a no-op."""
+    """Send a real email via Outlook → Gmail → Resend (whichever is configured); otherwise a no-op."""
     if not to:
         return False
     try:
+        if send_email_outlook(to, subject, html):
+            print(f"email sent (outlook) -> {to}: {subject}")
+            return True
         if send_email_gmail(to, subject, html):
             print(f"email sent (gmail) -> {to}: {subject}")
             return True
@@ -582,7 +609,7 @@ def send_email_async(to, subject, html):
 
 def get_super_admin_email():
     """Where moderation alerts go. Set SUPER_ADMIN_EMAIL to override."""
-    return os.environ.get("SUPER_ADMIN_EMAIL", "coding4kids.support@gmail.com")
+    return os.environ.get("SUPER_ADMIN_EMAIL", "kidvibers.help@outlook.com")
 
 
 def clean_name(name):
@@ -726,7 +753,7 @@ def seed_demo_teacher():
     conn.execute(
         "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,school,created_at) "
         "VALUES ('teacher','Demo Teacher','teacherdemo',?,?,?,'teacher','Demo Elementary',?)",
-        (pwhash, salt, "coding4kids.support@gmail.com", now_iso()))
+        (pwhash, salt, "kidvibers.help@outlook.com", now_iso()))
     uid = conn.execute("SELECT id FROM users WHERE username='teacherdemo'").fetchone()["id"]
     conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom group = self
     conn.commit()
@@ -1502,7 +1529,7 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             if linked_id:
                 log_consent(linked_id, linked_username, "parent_account", email, "Parent linked the child's account")
-            # Welcome email to the address the parent signed up with (from coding4kids.support@gmail.com).
+            # Welcome email to the address the parent signed up with (from kidvibers.help@outlook.com).
             if email:
                 first = (name.split(" ")[0] or "there")
                 link_line = (f" You're now connected to <strong>{clean_name(linked)}</strong>'s account."
@@ -1518,7 +1545,7 @@ class Handler(BaseHTTPRequestHandler):
                     "username, age range, learning progress, and your contact email) — never more than necessary, "
                     "and we never sell it. There is no private messaging; shared projects and comments are moderated. "
                     "You can review or download your child's data, withdraw consent, or delete the account at any time "
-                    "from your Family Dashboard or by emailing coding4kids.support@gmail.com.")
+                    "from your Family Dashboard or by emailing kidvibers.help@outlook.com.")
                 consent_record = ""
                 if linked:
                     consent_record = (f"<br><br>Consent recorded: {now_iso()} — you approved {clean_name(linked)}'s account "
@@ -1608,7 +1635,7 @@ class Handler(BaseHTTPRequestHandler):
             if until:
                 msg += f" It will be reinstated on {until[:16].replace('T', ' ')} UTC."
             else:
-                msg += " Please contact coding4kids.support@gmail.com."
+                msg += " Please contact kidvibers.help@outlook.com."
             return self._send_json({"error": msg, "suspended": True}, 403)
         clear_login_fails(key)
         token = create_session(row["id"])
@@ -1984,7 +2011,7 @@ class Handler(BaseHTTPRequestHandler):
             if suspend:
                 body = (f"Notice: the KidVibers account '{target['name']}' (@{target['username']}) has been "
                         f"suspended by an administrator{until_phrase}." + (f" Reason: {reason}" if reason else "")
-                        + " Contact coding4kids.support@gmail.com with questions.")
+                        + " Contact kidvibers.help@outlook.com with questions.")
                 subject = "KidVibers account suspended"
             else:
                 body = (f"Good news: the KidVibers account '{target['name']}' (@{target['username']}) has been "

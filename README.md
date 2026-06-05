@@ -33,7 +33,7 @@ Notes:
 - `admin_config.json` and `data.db` are git-ignored and never committed.
 
 ### Email (real sending via Resend)
-- Set env var **`RESEND_API_KEY`** (from [resend.com](https://resend.com), free tier) to actually send parent invites, consent links, upgrade requests, deletion notices, and admin notices. Optionally set **`EMAIL_FROM`** (default `KidVibers <coding4kids.support@gmail.com>`). Note: Resend requires a **verified sending domain**, so a plain Gmail address won't pass as the `from` for outbound mail — set `EMAIL_FROM` to an address on a domain you've verified in Resend if/when you enable real sending. The single public **contact** address shown across the site is `coding4kids.support@gmail.com`.
+- Set env var **`RESEND_API_KEY`** (from [resend.com](https://resend.com), free tier) to actually send parent invites, consent links, upgrade requests, deletion notices, and admin notices. Optionally set **`EMAIL_FROM`** (default `KidVibers <kidvibers.help@outlook.com>`). Note: Resend requires a **verified sending domain**, so a plain Gmail address won't pass as the `from` for outbound mail — set `EMAIL_FROM` to an address on a domain you've verified in Resend if/when you enable real sending. The single public **contact** address shown across the site is `kidvibers.help@outlook.com`.
 - Without the key, those messages are still stored/shown in-app (nothing breaks) — they just don't email out.
 
 ### Code Playground & Project Gallery

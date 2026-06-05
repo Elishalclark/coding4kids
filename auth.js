@@ -122,7 +122,7 @@ const C4K = {
         '<button id="c4kLockRefresh" style="background:none;border:1px solid #3a2f63;color:#bdb6d6;font-weight:800;' +
           'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved — check again</button>' +
         '<p style="color:#6f6890;font-size:0.78rem;margin-top:16px;">Need help? Email ' +
-          '<a href="mailto:coding4kids.support@gmail.com" style="color:#9b8cff;">coding4kids.support@gmail.com</a></p>' +
+          '<a href="mailto:kidvibers.help@outlook.com" style="color:#9b8cff;">kidvibers.help@outlook.com</a></p>' +
       '</div>';
     document.body.appendChild(ov);
     document.documentElement.style.overflow = 'hidden';
