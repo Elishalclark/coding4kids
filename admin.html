@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -298,7 +298,28 @@
     </div>
   </div>
 
-  <script src="auth.js?v=3"></script>
+  <!-- Set username / password modal -->
+  <div class="modal-overlay hidden" id="credsModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🔑</span>
+        <div style="flex:1;"><div class="chat-name">Set login</div><div class="chat-status" id="credsWho">—</div></div>
+        <button class="modal-close" onclick="closeCreds()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" id="credsId" />
+        <label class="le-lbl">New username <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
+          <input id="credsUser" class="le-in" autocomplete="off" placeholder="3–20 letters, numbers or _" /></label>
+        <label class="le-lbl">New password <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
+          <input id="credsPass" class="le-in" autocomplete="new-password" placeholder="at least 6 characters" /></label>
+        <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">Changing the password signs that account out of its current sessions. Tell the person their new login.</p>
+        <div id="credsErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;"></div>
+        <button class="btn btn-primary btn-lg" onclick="confirmCreds()">Save login</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=4"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -387,11 +408,12 @@
            <td style="color:var(--text-dim);">${a.joined || '—'}</td>
            <td>${sup ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
              <button class="mini-btn" onclick="impersonate(${a.id},'${a.role}')">Log in as</button>
+             <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);" onclick="setCreds(${a.id},'${nm}','${a.username}')">🔑 Login</button>
              <button class="mini-btn" onclick="sendNotice(${a.id},'${nm}')">📨 Notice</button>
-             ${a.role === 'admin' ? '' : (a.suspended
+             ${(a.role === 'admin' || a.role === 'super_admin') ? '' : (a.suspended
                ? `<button class="mini-btn" style="color:#34d399;border-color:rgba(52,211,153,.4);" onclick="suspendUser(${a.id},'${nm}',false)">▶️ Unsuspend</button>`
                : `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="suspendUser(${a.id},'${nm}',true)">⏸️ Suspend</button>`)}
-             ${a.role === 'admin' ? '' : `<button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteUser(${a.id},'${nm}')">🗑️ Delete</button>`}
+             ${(a.role === 'admin' || a.role === 'super_admin') ? '' : `<button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteUser(${a.id},'${nm}')">🗑️ Delete</button>`}
            </div>` : ''}</td>
          </tr>`; }).join('')
         : '<tr><td colspan="7" style="color:var(--text-faint);">No accounts registered yet.</td></tr>';
@@ -590,6 +612,31 @@
       if (ok) { alert(`🗑️ ${name} deleted.`); loadData(); } else alert(data.error || 'Could not delete.');
     }
 
+    // ── Set username / password (any account) ──
+    function setCreds(userId, name, username) {
+      document.getElementById('credsId').value = userId;
+      document.getElementById('credsWho').textContent = name + ' (@' + username + ')';
+      document.getElementById('credsUser').value = '';
+      document.getElementById('credsPass').value = '';
+      document.getElementById('credsErr').textContent = '';
+      document.getElementById('credsModal').classList.remove('hidden');
+    }
+    function closeCreds() { document.getElementById('credsModal').classList.add('hidden'); }
+    async function confirmCreds() {
+      const userId = +document.getElementById('credsId').value;
+      const username = document.getElementById('credsUser').value.trim();
+      const password = document.getElementById('credsPass').value;
+      const err = document.getElementById('credsErr');
+      if (!username && !password) { err.textContent = 'Enter a new username and/or password.'; return; }
+      const { ok, data } = await C4K.api('/api/admin/set-credentials', 'POST', { userId, username, password });
+      if (ok) {
+        closeCreds();
+        alert('✅ Login updated' + (data.changed && data.changed.length ? ' (' + data.changed.join(' + ') + ')' : '') + '.');
+        loadData();
+      } else err.textContent = data.error || 'Could not update.';
+    }
+    document.getElementById('credsModal')?.addEventListener('click', e => { if (e.target.id === 'credsModal') closeCreds(); });
+
     async function suspendUser(userId, name, suspend) {
       if (suspend) {  // open the modal so the super admin picks a duration
         document.getElementById('suspId').value = userId;
@@ -670,6 +717,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=3" defer></script>
+  <script src="pwa.js?v=4" defer></script>
 </body>
 </html>

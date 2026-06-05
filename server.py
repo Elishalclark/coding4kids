@@ -721,16 +721,35 @@ def ensure_admin_config():
     return cfg
 
 
+def update_admin_config(role, username=None, password=None):
+    """Persist admin / super-admin credential changes to admin_config.json so they survive restarts."""
+    try:
+        cfg = {}
+        if os.path.exists(ADMIN_CONFIG):
+            with open(ADMIN_CONFIG) as f:
+                cfg = json.load(f)
+        prefix = "super_admin" if role == "super_admin" else "admin"
+        if username:
+            cfg[f"{prefix}_username"] = username
+        if password:
+            cfg[f"{prefix}_password"] = password
+        with open(ADMIN_CONFIG, "w") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print("could not update admin_config.json:", e)
+
+
 def _seed_one(conn, role, username, password, name):
-    pwhash, salt = hash_password(password)
+    # Create the admin/super-admin only if it doesn't exist yet. We do NOT overwrite an
+    # existing account on every boot, so credential changes made in the dashboard persist.
     row = conn.execute("SELECT id FROM users WHERE role=? LIMIT 1", (role,)).fetchone()
     if row:
-        conn.execute("UPDATE users SET username=?, password_hash=?, salt=? WHERE id=?", (username, pwhash, salt, row["id"]))
-    else:
-        conn.execute(
-            "INSERT INTO users (role,name,username,password_hash,salt,plan,created_at) VALUES (?,?,?,?,?,'pro',?)",
-            (role, name, username, pwhash, salt, now_iso()),
-        )
+        return
+    pwhash, salt = hash_password(password)
+    conn.execute(
+        "INSERT INTO users (role,name,username,password_hash,salt,plan,created_at) VALUES (?,?,?,?,?,'pro',?)",
+        (role, name, username, pwhash, salt, now_iso()),
+    )
 
 
 def seed_admins():
@@ -1133,7 +1152,7 @@ class Handler(BaseHTTPRequestHandler):
             if not u or u["role"] not in ADMIN_ROLES:
                 return self._send_json({"error": "forbidden"}, 403)
             # super admin also sees the regular admin account (so they can log in as it)
-            roles = ("kid", "parent", "admin") if u["role"] == "super_admin" else ("kid", "parent")
+            roles = ("kid", "parent", "teacher", "admin", "super_admin") if u["role"] == "super_admin" else ("kid", "parent", "teacher")
             placeholders = ",".join("?" for _ in roles)
             conn = db()
             rows = conn.execute(
@@ -1350,6 +1369,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/notice": lambda: self.api_admin_notice(data),
             "/api/admin/delete-user": lambda: self.api_admin_delete_user(data),
             "/api/admin/suspend": lambda: self.api_admin_suspend(data),
+            "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
             "/api/admin/settings": lambda: self.api_save_settings(data),
@@ -2007,6 +2027,52 @@ class Handler(BaseHTTPRequestHandler):
         log_consent(uid, target["username"], "suspended" if suspend else "reinstated",
                     f"super admin ({admin['username']})", (reason + until_phrase) if suspend else "")
         return self._send_json({"ok": True, "name": target["name"], "suspended": suspend, "until": until})
+
+    def api_admin_set_credentials(self, data):
+        """Super admin sets a new username and/or password for any account (kid/parent/teacher/admin)."""
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        target = conn.execute("SELECT * FROM users WHERE id=?", (data.get("userId"),)).fetchone()
+        if not target:
+            conn.close()
+            return self._send_json({"error": "Account not found."}, 404)
+        new_user = (data.get("username") or "").strip()
+        new_pass = data.get("password") or ""
+        if not new_user and not new_pass:
+            conn.close()
+            return self._send_json({"error": "Enter a new username and/or password."}, 400)
+
+        changed = []
+        if new_user and new_user != target["username"]:
+            if not USERNAME_RE.match(new_user):
+                conn.close()
+                return self._send_json({"error": "Username must be 3-20 letters, numbers or underscores."}, 400)
+            dup = conn.execute("SELECT 1 FROM users WHERE username=? AND id<>?", (new_user, target["id"])).fetchone()
+            if dup:
+                conn.close()
+                return self._send_json({"error": "That username is already taken."}, 409)
+            conn.execute("UPDATE users SET username=? WHERE id=?", (new_user, target["id"]))
+            changed.append("username")
+        if new_pass:
+            if len(new_pass) < 6:
+                conn.close()
+                return self._send_json({"error": "Password must be at least 6 characters."}, 400)
+            pwhash, salt = hash_password(new_pass)
+            conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (pwhash, salt, target["id"]))
+            # changing a password logs that account out of existing sessions
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (target["id"],))
+            changed.append("password")
+        conn.commit()
+        conn.close()
+        # keep admin_config.json in sync so admin/super-admin changes persist across restarts
+        if target["role"] in ("admin", "super_admin"):
+            update_admin_config(target["role"],
+                                username=new_user if "username" in changed else None,
+                                password=new_pass if "password" in changed else None)
+        return self._send_json({"ok": True, "changed": changed,
+                                "username": new_user if "username" in changed else target["username"]})
 
     def api_dismiss_notice(self, data):
         u = self._current_user()
