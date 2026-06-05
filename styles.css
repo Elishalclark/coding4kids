@@ -137,11 +137,20 @@ body {
   min-height: 90vh;
   display: flex;
   align-items: center;
-  gap: 60px;
-  max-width: 1320px;
-  margin: 0 auto;
+  justify-content: center;
   padding: 80px 20px 60px;
-  overflow: hidden;
+  overflow: hidden;            /* full-width background; content centered via .hero-inner */
+  /* full-width glow so the sides are never flat black, at any screen size */
+  background: radial-gradient(125% 95% at 50% 0%, rgba(76,29,149,0.55) 0%, rgba(45,17,85,0.35) 38%, rgba(12,10,24,1) 78%);
+}
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1320px;
+  display: flex;
+  align-items: center;
+  gap: 60px;
 }
 .hero-bg-blobs { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .blob {
@@ -830,7 +839,8 @@ body {
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
-  .hero { flex-direction: column; min-height: auto; padding: 60px 20px 40px; text-align: center; }
+  .hero { min-height: auto; padding: 60px 20px 40px; text-align: center; }
+  .hero-inner { flex-direction: column; gap: 36px; }
   .hero-sub { margin: 0 auto 32px; }
   .hero-btns { justify-content: center; }
   .hero-stats { justify-content: center; }
