@@ -140,8 +140,8 @@ body {
   justify-content: center;
   padding: 80px 20px 60px;
   overflow: hidden;            /* full-width background; content centered via .hero-inner */
-  /* full-width glow so the sides are never flat black, at any screen size */
-  background: radial-gradient(125% 95% at 50% 0%, rgba(76,29,149,0.55) 0%, rgba(45,17,85,0.35) 38%, rgba(12,10,24,1) 78%);
+  /* rich purple, edge to edge, fading into the page at the bottom */
+  background: linear-gradient(150deg, #2e1457 0%, #4c1d95 42%, #6d28d9 70%, #3a1a6e 100%);
 }
 .hero-inner {
   position: relative;
