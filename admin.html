@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -141,6 +141,43 @@
             <tbody id="botRows"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- Create a new account -->
+      <div class="panel">
+        <h3>➕ Create Account <span id="createHint" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;">
+          <label class="le-lbl">Account type
+            <select id="caRole" class="le-in" onchange="caRoleChanged()">
+              <option value="kid">👦 Kid</option>
+              <option value="parent">👨‍👩‍👧 Parent</option>
+              <option value="teacher">🍎 Teacher</option>
+              <option value="admin">🛠️ Admin</option>
+            </select></label>
+          <label class="le-lbl">Name <input id="caName" class="le-in" placeholder="Full name" /></label>
+          <label class="le-lbl">Username <input id="caUser" class="le-in" autocomplete="off" placeholder="3–20 chars" /></label>
+          <label class="le-lbl">Password <input id="caPass" class="le-in" autocomplete="new-password" placeholder="6+ chars" /></label>
+          <label class="le-lbl">Email <span style="color:var(--text-faint);font-weight:600;">(optional)</span><input id="caEmail" class="le-in" placeholder="email@example.com" /></label>
+          <label class="le-lbl" id="caPlanWrap">Plan
+            <select id="caPlan" class="le-in">
+              <option value="trial">Trial</option>
+              <option value="free">Free</option>
+              <option value="pro">Pro</option>
+              <option value="family">Family</option>
+            </select></label>
+        </div>
+        <div id="caMsg" style="font-weight:700;font-size:0.86rem;margin-top:10px;min-height:1em;"></div>
+        <button class="btn btn-primary" style="margin-top:8px;" onclick="createAccount()">Create account</button>
+      </div>
+
+      <!-- Account requests from admins (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="acctReqPanel" style="display:none;">
+        <h3>📥 Account Requests <span id="acctReqCount" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">New accounts an admin asked to create. Approve to create them, or decline.</p>
+        <table class="admin-table">
+          <thead><tr><th>Type</th><th>Name</th><th>Username</th><th>Email</th><th>Requested by</th><th>When</th><th>Decision</th></tr></thead>
+          <tbody id="acctReqRows"></tbody>
+        </table>
       </div>
 
       <!-- All registered accounts (kept forever) -->
@@ -319,7 +356,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=4"></script>
+  <script src="auth.js?v=5"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -361,6 +398,8 @@
       document.querySelectorAll('.super-only').forEach(el => el.style.display = sup ? '' : 'none');
       document.querySelectorAll('.super-only-col').forEach(el => el.style.display = sup ? '' : 'none');
       document.getElementById('lessonHint').textContent = sup ? 'edit, publish, add or delete' : '(view only)';
+      document.getElementById('createHint').textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
+      caRoleChanged();
 
       const stats = (await C4K.api('/api/admin/stats')).data;
       document.getElementById('statKids').textContent = stats.totalKids ?? '—';
@@ -427,10 +466,64 @@
         loadConsent();
         loadReports();
         loadTakedowns();
+        loadAccountRequests();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
       }
+    }
+
+    // ── Create account (super admin: instant; admin: request) ──
+    function caRoleChanged() {
+      const role = document.getElementById('caRole').value;
+      document.getElementById('caPlanWrap').style.display = (role === 'kid') ? '' : 'none';
+    }
+    async function createAccount() {
+      const role = document.getElementById('caRole').value;
+      const name = document.getElementById('caName').value.trim();
+      const username = document.getElementById('caUser').value.trim();
+      const password = document.getElementById('caPass').value;
+      const email = document.getElementById('caEmail').value.trim();
+      const plan = role === 'kid' ? document.getElementById('caPlan').value : '';
+      const msg = document.getElementById('caMsg');
+      if (!name || !username || !password) { msg.style.color = '#f87171'; msg.textContent = 'Name, username and password are required.'; return; }
+      const { ok, data } = await C4K.api('/api/admin/create-account', 'POST', { role, name, username, password, email, plan });
+      if (ok) {
+        msg.style.color = 'var(--green, #5ad17e)';
+        msg.textContent = data.created
+          ? `✅ Created ${data.role} account @${data.username}.`
+          : `📨 Request sent — the super admin will approve @${data.username}.`;
+        ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
+        loadData();
+      } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not create account.'; }
+    }
+
+    // ── Account requests (super admin) ──
+    async function loadAccountRequests() {
+      const { ok, data } = await C4K.api('/api/admin/account-requests');
+      if (!ok) return;
+      const rows = data.requests || [];
+      document.getElementById('acctReqCount').textContent = rows.length ? `· ${rows.length} pending` : '· none pending ✓';
+      document.getElementById('acctReqRows').innerHTML = rows.length ? rows.map(r => `
+        <tr>
+          <td>${C4K.esc(r.role)}</td>
+          <td><strong>${C4K.esc(r.name)}</strong></td>
+          <td>@${C4K.esc(r.username)}</td>
+          <td style="color:var(--text-dim);">${C4K.esc(r.email || '—')}</td>
+          <td>${C4K.esc(r.requestedBy || '?')}</td>
+          <td style="color:var(--text-dim);">${C4K.esc(r.at)}</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="mini-btn" style="color:#34d399;border-color:rgba(52,211,153,.4);" onclick="resolveRequest(${r.id},'approve')">✅ Approve</button>
+            <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="resolveRequest(${r.id},'decline')">✋ Decline</button>
+          </div></td>
+        </tr>`).join('')
+        : '<tr><td colspan="7" style="color:var(--text-faint);">No account requests. 🎉</td></tr>';
+    }
+    async function resolveRequest(id, action) {
+      if (!confirm(action === 'approve' ? 'Approve and create this account?' : 'Decline this request?')) return;
+      const { ok, data } = await C4K.api('/api/admin/account-requests/resolve', 'POST', { id, action });
+      if (ok) { alert(action === 'approve' ? `✅ Created @${data.username}.` : 'Request declined.'); loadData(); }
+      else alert(data.error || 'Could not resolve.');
     }
 
     // ── Parental consent (super admin) ──
@@ -717,6 +810,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=4" defer></script>
+  <script src="pwa.js?v=5" defer></script>
 </body>
 </html>

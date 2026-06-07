@@ -393,6 +393,12 @@ def init_db():
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
             link_token TEXT, created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS account_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role TEXT, name TEXT, username TEXT, password_hash TEXT, salt TEXT,
+            email TEXT, plan TEXT, requested_by TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT, resolved_at TEXT, resolved_by TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -526,6 +532,36 @@ def verify_password(password, salt, expected_hash):
 
 def now_iso():
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+DEFAULT_PLAN_BY_ROLE = {"teacher": "teacher", "parent": "family", "admin": "pro", "super_admin": "pro"}
+
+
+def provision_account(role, name, username, pwhash, salt, email="", plan=None):
+    """Create a real user row from already-hashed credentials. Returns uid, or None if username taken."""
+    name = clean_name(name)
+    if not plan:
+        plan = DEFAULT_PLAN_BY_ROLE.get(role, "trial")
+    link_token = secrets.token_urlsafe(8)
+    avatar = json.dumps(DEFAULT_AVATAR)
+    owned = json.dumps(list(FREE_ITEMS))
+    conn = db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,tokens,avatar,"
+            "owned_items,link_token,consent_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (role, name, username, pwhash, salt, email, plan, STARTER_TOKENS, avatar, owned,
+             link_token, "not_required", now_iso()))
+        conn.commit()
+        uid = cur.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+    if role in ("parent", "teacher"):   # adults manage their own family group
+        conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))
+        conn.commit()
+    conn.close()
+    return uid
 
 
 def today_str():
@@ -1295,6 +1331,19 @@ class Handler(BaseHTTPRequestHandler):
                 "requester": r["requester_name"], "reason": r["reason"],
                 "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
 
+        if path == "/api/admin/account-requests":  # super admin: pending account-creation requests from admins
+            u = self._current_user()
+            if not u or u["role"] != "super_admin":
+                return self._send_json({"error": "forbidden"}, 403)
+            conn = db()
+            rows = conn.execute("SELECT id,role,name,username,email,plan,requested_by,created_at "
+                                "FROM account_requests WHERE status='pending' ORDER BY id DESC").fetchall()
+            conn.close()
+            return self._send_json({"requests": [{
+                "id": r["id"], "role": r["role"], "name": r["name"], "username": r["username"],
+                "email": r["email"], "plan": r["plan"], "requestedBy": r["requested_by"],
+                "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
         if path == "/api/projects/mine":  # the logged-in kid's own saved projects
             u = self._current_user()
             if not u:
@@ -1420,6 +1469,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/delete-user": lambda: self.api_admin_delete_user(data),
             "/api/admin/suspend": lambda: self.api_admin_suspend(data),
             "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
+            "/api/admin/create-account": lambda: self.api_admin_create_account(data),
+            "/api/admin/account-requests/resolve": lambda: self.api_admin_resolve_request(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
             "/api/admin/settings": lambda: self.api_save_settings(data),
@@ -2123,6 +2174,91 @@ class Handler(BaseHTTPRequestHandler):
                                 password=new_pass if "password" in changed else None)
         return self._send_json({"ok": True, "changed": changed,
                                 "username": new_user if "username" in changed else target["username"]})
+
+    def api_admin_create_account(self, data):
+        """Super admin creates an account directly; a regular admin's submission becomes a pending request."""
+        u = self._current_user()
+        if not u or u["role"] not in ADMIN_ROLES:
+            return self._send_json({"error": "forbidden"}, 403)
+        role = (data.get("role") or "").strip()
+        name = (data.get("name") or "").strip()
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        email = (data.get("email") or "").strip()
+        plan = (data.get("plan") or "").strip() or None
+        if role not in ("kid", "parent", "teacher", "admin"):
+            return self._send_json({"error": "Pick a valid account type."}, 400)
+        err = self._validate_credentials(name, username, password)
+        if err:
+            return self._send_json({"error": err}, 400)
+        # username must be free in users AND not already requested
+        conn = db()
+        taken = conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone() or \
+                conn.execute("SELECT 1 FROM account_requests WHERE username=? AND status='pending'", (username,)).fetchone()
+        conn.close()
+        if taken:
+            return self._send_json({"error": "That username is already taken or pending."}, 409)
+        pwhash, salt = hash_password(password)
+        name = clean_name(name)
+
+        if u["role"] == "super_admin":
+            uid = provision_account(role, name, username, pwhash, salt, email, plan)
+            if not uid:
+                return self._send_json({"error": "That username is already taken."}, 409)
+            return self._send_json({"ok": True, "created": True, "role": role, "username": username})
+
+        # regular admin → queue a request for the super admin to approve
+        conn = db()
+        conn.execute("INSERT INTO account_requests (role,name,username,password_hash,salt,email,plan,requested_by,status,created_at) "
+                     "VALUES (?,?,?,?,?,?,?,?,'pending',?)",
+                     (role, name, username, pwhash, salt, email, plan, u["username"], now_iso()))
+        conn.commit()
+        conn.close()
+        send_email_async(get_super_admin_email(), "New account request on KidVibers",
+                         f"<p>Admin <strong>{clean_name(u['username'])}</strong> requested a new "
+                         f"<strong>{role}</strong> account: {clean_name(name)} (@{clean_name(username)}).</p>"
+                         f"<p>Approve or decline it in the Super Admin dashboard → Account Requests.</p>")
+        return self._send_json({"ok": True, "pending": True, "role": role, "username": username})
+
+    def api_admin_resolve_request(self, data):
+        """Super admin approves (creates the account) or declines an admin's account request."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        action = (data.get("action") or "").strip()
+        if action not in ("approve", "decline"):
+            return self._send_json({"error": "bad action"}, 400)
+        conn = db()
+        r = conn.execute("SELECT * FROM account_requests WHERE id=?", (data.get("id"),)).fetchone()
+        if not r or r["status"] != "pending":
+            conn.close()
+            return self._send_json({"error": "Request not found or already handled."}, 404)
+        conn.close()
+        if action == "approve":
+            # username may have been taken since the request was made
+            conn = db()
+            taken = conn.execute("SELECT 1 FROM users WHERE username=?", (r["username"],)).fetchone()
+            conn.close()
+            if taken:
+                self._set_request_status(r["id"], "declined", u["username"])
+                return self._send_json({"error": "Username is now taken; request declined."}, 409)
+            uid = provision_account(r["role"], r["name"], r["username"], r["password_hash"], r["salt"],
+                                    r["email"] or "", r["plan"])
+            if not uid:
+                self._set_request_status(r["id"], "declined", u["username"])
+                return self._send_json({"error": "Could not create (username taken). Request declined."}, 409)
+            self._set_request_status(r["id"], "approved", u["username"])
+            return self._send_json({"ok": True, "status": "approved", "username": r["username"]})
+        else:
+            self._set_request_status(r["id"], "declined", u["username"])
+            return self._send_json({"ok": True, "status": "declined"})
+
+    def _set_request_status(self, req_id, status, by):
+        conn = db()
+        conn.execute("UPDATE account_requests SET status=?, resolved_at=?, resolved_by=? WHERE id=?",
+                     (status, now_iso(), by, req_id))
+        conn.commit()
+        conn.close()
 
     def api_dismiss_notice(self, data):
         u = self._current_user()
