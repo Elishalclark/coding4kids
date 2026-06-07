@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -115,6 +115,8 @@
     <div class="admin-main">
       <h2>Dashboard</h2>
       <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
+
+      <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
 
       <div class="stat-grid">
         <div class="stat-box"><div class="big" id="statKids">—</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
@@ -369,7 +371,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=9"></script>
+  <script src="auth.js?v=10"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -413,6 +415,7 @@
       document.getElementById('lessonHint').textContent = sup ? 'edit, publish, add or delete' : '(view only)';
       document.getElementById('createHint').textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
       caRoleChanged();
+      loadAdminNotices();
 
       const stats = (await C4K.api('/api/admin/stats')).data;
       document.getElementById('statKids').textContent = stats.totalKids ?? '—';
@@ -510,6 +513,25 @@
         ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
         loadData();
       } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not create account.'; }
+    }
+
+    // ── Notices sent to THIS admin/super-admin account ──
+    async function loadAdminNotices() {
+      const { ok, data } = await C4K.api('/api/notices');
+      const wrap = document.getElementById('adminNotices');
+      if (!ok || !data.notices || !data.notices.length) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = data.notices.map(n => `
+        <div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+          <span style="font-size:1.2rem;">📨</span>
+          <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from KidVibers</div>
+            <div style="color:var(--text);font-size:0.9rem;line-height:1.5;">${C4K.esc(n.body)}</div>
+            <div style="color:var(--text-faint);font-size:0.72rem;margin-top:4px;">${C4K.esc(n.at)}</div></div>
+          <button onclick="dismissAdminNotice(${n.id}, this)" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>
+        </div>`).join('');
+    }
+    async function dismissAdminNotice(id, btn) {
+      btn.closest('div[style]').remove();
+      await C4K.api('/api/notices/dismiss', 'POST', { id });
     }
 
     // ── Site announcement (super admin) ──
@@ -845,6 +867,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=9" defer></script>
+  <script src="pwa.js?v=10" defer></script>
 </body>
 </html>
