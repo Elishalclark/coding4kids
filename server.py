@@ -1996,7 +1996,15 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         row = conn.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
         conn.close()
-        return self._send_json({"ok": True, "plan": plan, "user": public_user(row)})
+        # We're not charging real cards yet — be upfront that no money was taken.
+        if u["parent_email"]:
+            send_email_async(u["parent_email"], "About your KidVibers plan",
+                             "<p>Thanks for your interest in upgrading! <strong>You have not been charged.</strong></p>"
+                             "<p>We're currently not accepting new paid plans yet — we'll have that solved soon. "
+                             "We'll let you know the moment billing is ready.</p>"
+                             "<p>Thanks for your patience! 💜<br>— The KidVibers Team</p>")
+        return self._send_json({"ok": True, "plan": plan, "user": public_user(row),
+                                "notCharged": True})
 
     def api_admin_consent(self, data):
         # Super admin records or revokes parental consent (e.g. for offline consent: phone, paper, in-person).
