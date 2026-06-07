@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -371,7 +371,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=10"></script>
+  <script src="auth.js?v=11"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -465,10 +465,10 @@
              <button class="mini-btn" onclick="impersonate(${a.id},'${a.role}')">Log in as</button>
              <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);" onclick="setCreds(${a.id},'${nm}','${a.username}')">🔑 Login</button>
              <button class="mini-btn" onclick="sendNotice(${a.id},'${nm}')">📨 Notice</button>
-             ${(a.role === 'admin' || a.role === 'super_admin') ? '' : (a.suspended
+             ${(a.role === 'super_admin') ? '' : (a.suspended
                ? `<button class="mini-btn" style="color:#34d399;border-color:rgba(52,211,153,.4);" onclick="suspendUser(${a.id},'${nm}',false)">▶️ Unsuspend</button>`
                : `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="suspendUser(${a.id},'${nm}',true)">⏸️ Suspend</button>`)}
-             ${(a.role === 'admin' || a.role === 'super_admin') ? '' : `<button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteUser(${a.id},'${nm}')">🗑️ Delete</button>`}
+             ${(a.role === 'super_admin') ? '' : `<button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteUser(${a.id},'${nm}')">🗑️ Delete</button>`}
            </div>` : ''}</td>
          </tr>`; }).join('')
         : '<tr><td colspan="7" style="color:var(--text-faint);">No accounts registered yet.</td></tr>';
@@ -867,6 +867,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=10" defer></script>
+  <script src="pwa.js?v=11" defer></script>
 </body>
 </html>

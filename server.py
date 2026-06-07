@@ -2078,9 +2078,9 @@ class Handler(BaseHTTPRequestHandler):
         if not target:
             conn.close()
             return self._send_json({"error": "User not found."}, 404)
-        if target["role"] in ("admin", "super_admin"):
+        if target["role"] == "super_admin":
             conn.close()
-            return self._send_json({"error": "Admin accounts can't be deleted here."}, 403)
+            return self._send_json({"error": "The super-admin account can't be deleted."}, 403)
         uid = target["id"]
         # Keep a record of the deletion + reason (e.g. for the parent on file).
         if target["parent_email"]:
@@ -2108,9 +2108,9 @@ class Handler(BaseHTTPRequestHandler):
         if not target:
             conn.close()
             return self._send_json({"error": "User not found."}, 404)
-        if target["role"] in ("admin", "super_admin"):
+        if target["role"] == "super_admin":
             conn.close()
-            return self._send_json({"error": "Admin accounts can't be suspended here."}, 403)
+            return self._send_json({"error": "The super-admin account can't be suspended."}, 403)
         suspend = bool(data.get("suspended"))
         reason = (data.get("reason") or "").strip()
         uid = target["id"]
