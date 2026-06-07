@@ -6,7 +6,7 @@
   <title>Privacy Policy — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <nav class="nav">
@@ -18,7 +18,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <div class="updated">Last updated: May 31, 2026</div>
+    <div class="updated">Last updated: June 7, 2026</div>
     <p class="intro">KidVibers.com is built for children, so protecting privacy is at the heart of what we do. This policy explains what information we collect, how we use it, and the rights parents have. We follow the spirit of children's privacy laws like <strong>COPPA</strong> (the U.S. Children's Online Privacy Protection Act).</p>
 
     <div class="legal-card">
@@ -44,17 +44,21 @@
         <li>A password (stored only as a secure, hashed value — never in plain text);</li>
         <li>An age range (e.g. 8–10);</li>
         <li>A parent's email address (to connect a parent and send account messages);</li>
-        <li>Learning data: lessons completed, quiz/boss-battle results, level, streak, tokens, and avatar choices.</li>
+        <li>Learning data: lessons completed, quiz/boss-battle results, level, streak, tokens, and avatar choices;</li>
+        <li>Content the child creates: code projects they save in the Playground, and any projects or comments they choose to share in the community Gallery;</li>
+        <li>Limited technical data: a login token (kept in your browser) and, for security and anti-abuse only, the IP address of requests (handled by our network provider). We do not build advertising profiles.</li>
       </ul>
-      <p>For a <strong>parent account</strong>, we collect a name, username, password (hashed), and email address.</p>
+      <p>For a <strong>parent, teacher, or school account</strong>, we collect a name, username, password (hashed), an email address, and (for teachers/schools) a school or classroom name.</p>
 
       <h2 id="use">2. How We Use Information</h2>
       <ul>
         <li>To run the learning experience and save progress so kids can continue where they left off;</li>
         <li>To award tokens and let kids customize their avatar;</li>
-        <li>To connect a parent to their child's account and send account-related messages (for example, when a child asks a parent to upgrade);</li>
-        <li>To keep the platform safe and working properly.</li>
+        <li>To power the community Gallery — letting kids share, run, like, and comment on projects;</li>
+        <li>To connect a parent to their child's account and send account emails (parental-consent links, a welcome message, password resets, upgrade requests a child sends a parent, and notices from an administrator);</li>
+        <li>To keep the platform safe — moderation, anti-abuse/rate-limiting, and security.</li>
       </ul>
+      <div class="callout">🎨 <strong>About the Gallery:</strong> projects and comments a child chooses to share are <strong>visible to other signed-in users</strong> and show only a first name. Sharing is optional, requires the parental-consent gate to be cleared, and everything is moderated — comments are filtered automatically and the team can remove any content or suspend an account. There is still <strong>no private messaging</strong>.</div>
 
       <h2 id="never">3. What We Never Do</h2>
       <div class="callout">🚫 We do <strong>not</strong> show ads, we do <strong>not</strong> sell or rent personal information, and we do <strong>not</strong> use children's data for behavioral advertising. There is no private messaging between users.</div>
@@ -72,16 +76,27 @@
       </ul>
 
       <h2 id="sharing">6. How Information Is Shared</h2>
-      <p>We don't sell personal information. We only share it with trusted service providers that help us run the platform (for example, hosting), and only as needed to provide the service, or when required by law to keep someone safe.</p>
+      <p>We <strong>don't sell or rent</strong> personal information. We share it only with a small number of trusted service providers that help us operate KidVibers, and only as needed to provide the service — or when required by law or to keep someone safe:</p>
+      <ul>
+        <li><strong>Network &amp; delivery (Cloudflare):</strong> routes traffic, provides HTTPS, and helps block abuse;</li>
+        <li><strong>Email delivery (Resend / Amazon SES):</strong> sends account emails such as parental-consent links, welcome messages, password resets, and notices;</li>
+        <li><strong>Payment processing:</strong> if and when paid plans go live, card payments will be handled entirely by a PCI-compliant processor (e.g. Stripe) — we never see or store card numbers. (Paid plans are not currently being charged.)</li>
+      </ul>
 
       <h2 id="cookies">7. Cookies &amp; Local Storage</h2>
       <p>We use your device's <strong>local storage</strong> to keep you signed in (a login token) and to remember small things like your daily streak. We do not use third-party advertising or tracking cookies.</p>
 
       <h2 id="thirdparty">8. Third-Party Services</h2>
-      <p>To show a parent-invite QR code, we generate a QR image using a third-party image service. The data placed in the QR code is the parent-signup link for your child's invite. We don't share other personal details with that service.</p>
+      <p>KidVibers uses a few third-party services, chosen to keep data collection minimal:</p>
+      <ul>
+        <li><strong>Cloudflare</strong> — network, HTTPS, and abuse protection;</li>
+        <li><strong>Resend (Amazon SES)</strong> — delivers our account emails;</li>
+        <li><strong>QR image service</strong> — generates the parent-invite QR code; the only data sent is the invite link;</li>
+        <li><strong>jsDelivr (CDN)</strong> — serves the in-browser Python engine (Skulpt) for the Playground; code kids write runs locally in their browser and is not sent to a server.</li>
+      </ul>
 
       <h2 id="security">9. How We Protect Information</h2>
-      <p>Passwords are stored using strong one-way hashing (PBKDF2 with a unique salt) — we can't see them. Access to assessment answer keys is kept on the server and never sent to the browser. Login sessions are token-based and can be revoked (for example, when a parent signs a kid out).</p>
+      <p>Passwords are stored using strong one-way hashing (PBKDF2 with a unique salt) — we can't see them. Traffic is served over <strong>HTTPS</strong>, and we send strict security headers (Content-Security-Policy, HSTS, anti-clickjacking) on every response. Logins are <strong>rate-limited</strong>, sign-ups are throttled to prevent abuse, and display names/comments are sanitized to prevent code injection. Assessment answer keys stay on the server and are never sent to the browser. Login sessions are token-based and can be revoked (for example, when a parent signs a kid out, or an account is suspended).</p>
 
       <h2 id="retention">10. Keeping &amp; Deleting Data</h2>
       <p>We keep account information and progress so kids don't lose their work — registered accounts are retained until deletion is requested. To delete an account and its associated data, a parent or account owner can contact us at the address below.</p>
@@ -97,6 +112,6 @@
   </main>
 
   <footer class="footer"><div class="footer-bottom" style="padding-top:30px;"><p>© 2026 KidVibers.com — Made by a kid, for kids ❤️</p></div></footer>
-  <script src="pwa.js?v=11" defer></script>
+  <script src="pwa.js?v=12" defer></script>
 </body>
 </html>
