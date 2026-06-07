@@ -1073,8 +1073,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def _client_ip(self):
+        # Behind Cloudflare the real visitor IP is in CF-Connecting-IP (the socket is the tunnel).
+        return (self.headers.get("CF-Connecting-IP")
+                or self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                or (self.client_address[0] if self.client_address else "?"))
 
     def _read_json(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -1096,16 +1103,30 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        path = urlparse(self.path).path
-        if path.startswith("/api/"):
-            return self.handle_api_get(path)
-        return self.serve_static(path)
+        try:
+            path = urlparse(self.path).path
+            if path.startswith("/api/"):
+                return self.handle_api_get(path)
+            return self.serve_static(path)
+        except Exception as e:
+            self._safe_500(e)
 
     def do_POST(self):
-        path = urlparse(self.path).path
-        if path.startswith("/api/"):
-            return self.handle_api_post(path)
-        self._send_json({"error": "not found"}, 404)
+        try:
+            path = urlparse(self.path).path
+            if path.startswith("/api/"):
+                return self.handle_api_post(path)
+            return self._send_json({"error": "not found"}, 404)
+        except Exception as e:
+            self._safe_500(e)
+
+    def _safe_500(self, e):
+        # Never leak a stack trace to the client; log it server-side and return a generic error.
+        print("request error:", repr(e))
+        try:
+            self._send_json({"error": "Something went wrong. Please try again."}, 500)
+        except Exception:
+            pass
 
     # ---- GET API ----
     def handle_api_get(self, path):
@@ -1564,6 +1585,9 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"ok": True})
 
     def api_signup(self, data):
+        # Anti-abuse: cap new accounts per IP (real visitor IP via Cloudflare).
+        if rate_limited(f"signup:{self._client_ip()}", 8, 3600):
+            return self._send_json({"error": "Too many sign-ups from this network. Please try again later."}, 429)
         name = (data.get("name") or "").strip()
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
@@ -1686,10 +1710,14 @@ class Handler(BaseHTTPRequestHandler):
     def _validate_credentials(self, name, username, password):
         if not name or not username or not password:
             return "Name, username and password are required."
+        if len(name) > 60:
+            return "Name is too long (max 60 characters)."
         if not USERNAME_RE.match(username):
             return "Username must be 3-20 letters, numbers or underscores."
         if len(password) < 6:
             return "Password must be at least 6 characters."
+        if len(password) > 200:
+            return "Password is too long."
         return None
 
     def _create_user(self, role, name, username, password, email, age, plan, trial_ends,
@@ -2758,8 +2786,20 @@ class Handler(BaseHTTPRequestHandler):
     # ---- static files ----
     def _security_headers(self):
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        # Restrict where scripts/styles/images/fonts may load from. 'unsafe-inline' is needed
+        # for the site's inline handlers/styles and 'unsafe-eval' for Skulpt (in-browser Python).
+        self.send_header("Content-Security-Policy",
+                         "default-src 'self'; "
+                         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                         "font-src 'self' https://fonts.gstatic.com; "
+                         "img-src 'self' data: https://api.dicebear.com https://api.qrserver.com; "
+                         "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
+                         "object-src 'none'; form-action 'self'")
 
     def serve_static(self, path):
         if path in ("/", ""):
