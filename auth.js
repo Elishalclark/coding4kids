@@ -232,3 +232,26 @@ const C4K = {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
 })();
+
+// Site-wide announcement banner — shown to everyone when the super admin sets one.
+(function () {
+  async function mount() {
+    if (document.getElementById('c4kSiteBanner')) return;
+    let data;
+    try { const r = await fetch('/api/site-message'); data = await r.json(); } catch { return; }
+    if (!data || !data.active || !data.text) return;
+    const dismissedKey = 'c4k_sitemsg_' + btoa(unescape(encodeURIComponent(data.text))).slice(0, 24);
+    if (sessionStorage.getItem(dismissedKey)) return;   // don't nag after dismiss this session
+    const bar = document.createElement('div');
+    bar.id = 'c4kSiteBanner';
+    bar.style.cssText = 'position:relative;z-index:120;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;' +
+      'font-family:Nunito,sans-serif;font-weight:800;font-size:0.92rem;padding:11px 44px 11px 16px;text-align:center;line-height:1.4;';
+    bar.innerHTML = '📢 ' + C4K.esc(data.text) +
+      '<button aria-label="Dismiss" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.25);' +
+      'border:none;color:#fff;width:26px;height:26px;border-radius:50%;font-weight:900;cursor:pointer;font-family:Nunito,sans-serif;">✕</button>';
+    bar.querySelector('button').onclick = () => { bar.remove(); sessionStorage.setItem(dismissedKey, '1'); };
+    document.body.insertBefore(bar, document.body.firstChild);   // top of the page, above the nav
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+  else mount();
+})();

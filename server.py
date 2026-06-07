@@ -1133,7 +1133,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/parent/messages":
             u = self._current_user()
-            if not u or u["role"] not in GUARDIAN_ROLES:
+            if not u or u["role"] not in ("parent", "teacher", "super_admin"):
                 return self._send_json({"error": "forbidden"}, 403)
             conn = db()
             rows = conn.execute("SELECT * FROM messages WHERE to_email=? ORDER BY id DESC LIMIT 50", (u["parent_email"] or "",)).fetchall()
@@ -1146,6 +1146,10 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             return self._send_json({"lessons": [self._lesson_public(r) for r in rows],
                                     "unitNames": UNIT_NAMES, "worlds": WORLDS, "passPercent": get_pass_percent()})
+
+        if path == "/api/site-message":  # public: the super admin's site-wide announcement
+            m = get_setting("site_message", {})
+            return self._send_json({"text": m.get("text", ""), "active": bool(m.get("active"))})
 
         if path == "/api/progress":
             u = self._current_user()
@@ -1185,7 +1189,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/parent/family":
             u = self._current_user()
-            if not u or u["role"] not in GUARDIAN_ROLES:
+            if not u or u["role"] not in ("parent", "teacher", "super_admin"):
                 return self._send_json({"error": "forbidden"}, 403)
             conn = db()
             kids = conn.execute("SELECT * FROM users WHERE role='kid' AND family_id=? ORDER BY id", (u["family_id"],)).fetchall()
@@ -1470,6 +1474,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/suspend": lambda: self.api_admin_suspend(data),
             "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
             "/api/admin/create-account": lambda: self.api_admin_create_account(data),
+            "/api/admin/site-message": lambda: self.api_admin_site_message(data),
             "/api/admin/account-requests/resolve": lambda: self.api_admin_resolve_request(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
@@ -2174,6 +2179,16 @@ class Handler(BaseHTTPRequestHandler):
                                 password=new_pass if "password" in changed else None)
         return self._send_json({"ok": True, "changed": changed,
                                 "username": new_user if "username" in changed else target["username"]})
+
+    def api_admin_site_message(self, data):
+        """Super admin sets (or clears) the site-wide announcement banner shown to everyone."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        text = clean_name(data.get("text") or "")[:300]
+        active = bool(data.get("active")) and bool(text)
+        set_setting("site_message", {"text": text, "active": active})
+        return self._send_json({"ok": True, "active": active})
 
     def api_admin_create_account(self, data):
         """Super admin creates an account directly; a regular admin's submission becomes a pending request."""

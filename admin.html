@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -178,6 +178,19 @@
           <thead><tr><th>Type</th><th>Name</th><th>Username</th><th>Email</th><th>Requested by</th><th>When</th><th>Decision</th></tr></thead>
           <tbody id="acctReqRows"></tbody>
         </table>
+      </div>
+
+      <!-- Site-wide announcement (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="siteMsgPanel" style="display:none;">
+        <h3>📢 Site Announcement <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">shown to everyone on the site</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">A banner that appears at the top of every page for all visitors. Great for news, maintenance notices, or a welcome message.</p>
+        <textarea id="siteMsgText" class="le-in" maxlength="300" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;" placeholder="e.g. 🎉 New advanced lessons just dropped — check out the Pro Coder Peak world!"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:0.88rem;margin:10px 0;">
+          <input type="checkbox" id="siteMsgActive" /> Show this banner on the website
+        </label>
+        <div id="siteMsgMsg" style="font-weight:700;font-size:0.85rem;min-height:1em;color:var(--green,#5ad17e);"></div>
+        <button class="btn btn-primary" onclick="saveSiteMessage()">Save announcement</button>
+        <button class="btn btn-outline" onclick="clearSiteMessage()">Clear</button>
       </div>
 
       <!-- All registered accounts (kept forever) -->
@@ -356,7 +369,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=5"></script>
+  <script src="auth.js?v=6"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -467,6 +480,7 @@
         loadReports();
         loadTakedowns();
         loadAccountRequests();
+        loadSiteMessage();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -496,6 +510,27 @@
         ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
         loadData();
       } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not create account.'; }
+    }
+
+    // ── Site announcement (super admin) ──
+    async function loadSiteMessage() {
+      const { ok, data } = await C4K.api('/api/site-message');
+      if (!ok) return;
+      document.getElementById('siteMsgText').value = data.text || '';
+      document.getElementById('siteMsgActive').checked = !!data.active;
+    }
+    async function saveSiteMessage() {
+      const text = document.getElementById('siteMsgText').value.trim();
+      const active = document.getElementById('siteMsgActive').checked;
+      const { ok, data } = await C4K.api('/api/admin/site-message', 'POST', { text, active });
+      const m = document.getElementById('siteMsgMsg');
+      m.style.color = ok ? 'var(--green,#5ad17e)' : '#f87171';
+      m.textContent = ok ? (data.active ? '✅ Saved — the banner is live on the site.' : '✅ Saved (banner is hidden).') : (data.error || 'Could not save.');
+    }
+    async function clearSiteMessage() {
+      document.getElementById('siteMsgText').value = '';
+      document.getElementById('siteMsgActive').checked = false;
+      await saveSiteMessage();
     }
 
     // ── Account requests (super admin) ──
@@ -810,6 +845,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=5" defer></script>
+  <script src="pwa.js?v=6" defer></script>
 </body>
 </html>

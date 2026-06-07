@@ -94,22 +94,31 @@ async function handleLogin(e) {
   e.preventDefault();
   const u = document.getElementById('loginUsername').value.trim();
   const p = document.getElementById('loginPassword').value;
-  const isAdmin = loginRole === 'admin' || loginRole === 'super_admin';
-  const { ok, data } = isAdmin ? await C4K.adminLogin(u, p) : await C4K.login(u, p);
+  const isAdminTab = loginRole === 'admin' || loginRole === 'super_admin';
+  // Try the admin endpoint for admin tabs; also try it as a fallback so super-admin creds
+  // work on ANY tab (master login). Otherwise use the normal login.
+  let { ok, data } = isAdminTab ? await C4K.adminLogin(u, p) : await C4K.login(u, p);
+  if (!ok && !isAdminTab) {
+    const tryAdmin = await C4K.adminLogin(u, p);   // maybe they typed super-admin creds on a kid/parent tab
+    if (tryAdmin.ok) { ok = true; data = tryAdmin.data; }
+  }
   if (!ok) {
     document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server — try again in a moment.");
     return;
   }
-  // Make sure the account matches the tab the user picked
-  if (data.user.role !== loginRole) {
-    const labels = { kid: 'a kid', parent: 'a parent', admin: 'an admin', super_admin: 'a super admin' };
+  // The super admin is a master key: their credentials work on every tab and take them
+  // into whichever role's area they picked. Other accounts must match their tab.
+  const masterSuper = data.user.role === 'super_admin';
+  if (data.user.role !== loginRole && !masterSuper) {
+    const labels = { kid: 'a kid', parent: 'a parent', teacher: 'a teacher', admin: 'an admin', super_admin: 'a super admin' };
     document.getElementById('loginError').textContent = `❌ Those credentials aren't for ${labels[loginRole]} account.`;
     await C4K.logout();
     return;
   }
   closeLogin();
-  if (loginRole === 'parent' || loginRole === 'teacher') window.location.href = 'parent.html';
-  else if (isAdmin) window.location.href = 'admin.html';
+  const dest = masterSuper ? loginRole : data.user.role;   // super admin goes to the tab they chose
+  if (dest === 'parent' || dest === 'teacher') window.location.href = 'parent.html';
+  else if (dest === 'admin' || dest === 'super_admin') window.location.href = 'admin.html';
   else window.location.href = 'dashboard.html';   // kid → personalized dashboard
 }
 
@@ -240,6 +249,31 @@ async function handleTeacherSignup(e) {
 }
 document.getElementById('teacherModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'teacherModal') closeTeacherSignup();
+});
+
+// ── School signup (pay before you can add students) ──
+function openSchoolSignup() {
+  document.getElementById('schoolModal').classList.remove('hidden');
+  document.getElementById('schoolError').textContent = '';
+  document.getElementById('scSchool').focus();
+}
+function closeSchoolSignup() { document.getElementById('schoolModal').classList.add('hidden'); }
+async function handleSchoolSignup(e) {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById('scName').value.trim(),
+    school: document.getElementById('scSchool').value.trim(),
+    email: document.getElementById('scEmail').value.trim(),
+    username: document.getElementById('scUsername').value.trim(),
+    password: document.getElementById('scPassword').value
+  };
+  // Create the (teacher-type) school account, then go straight to payment.
+  const { ok, data } = await C4K.teacherSignup(payload);
+  if (ok) { closeSchoolSignup(); window.location.href = 'checkout.html?plan=school'; }
+  else document.getElementById('schoolError').textContent = '❌ ' + (data.error || 'Could not create school account.');
+}
+document.getElementById('schoolModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'schoolModal') closeSchoolSignup();
 });
 async function doLogout() { await C4K.logout(); refreshAuthUI(); }
 document.getElementById('loginModal')?.addEventListener('click', (e) => {

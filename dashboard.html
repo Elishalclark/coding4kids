@@ -6,7 +6,7 @@
   <title>My Dashboard — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -168,7 +168,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=5"></script>
+  <script src="auth.js?v=6"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -307,8 +307,9 @@
       ME = await C4K.loadMe();
       if (!ME) { location.href = 'index.html'; return; }
       showNotices();
-      if (ME.role !== 'kid') {
-        location.href = ME.role === 'parent' || ME.role === 'teacher' ? 'parent.html' : (ME.role === 'super_admin' || ME.role === 'admin' ? 'admin.html' : 'index.html');
+      // Super admin can preview the kid dashboard (master login). Others go to their own area.
+      if (ME.role !== 'kid' && ME.role !== 'super_admin') {
+        location.href = (ME.role === 'parent' || ME.role === 'teacher') ? 'parent.html' : (ME.role === 'admin' ? 'admin.html' : 'index.html');
         return;
       }
       // COPPA: under-13 accounts are fully locked until a grown-up approves — nothing works.
@@ -435,6 +436,6 @@
 
     load();
   </script>
-  <script src="pwa.js?v=5" defer></script>
+  <script src="pwa.js?v=6" defer></script>
 </body>
 </html>

@@ -29,7 +29,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
 
@@ -45,7 +45,7 @@
         <li><a href="playground.html">Playground</a></li>
         <li><a href="gallery.html">Gallery</a></li>
         <li><a href="#botlab">AI Chatbots</a></li>
-        <li><a href="#build">Build Things</a></li>
+        <li><a href="#schools">Schools</a></li>
         <li><a href="#how">How It Works</a></li>
       </ul>
       <div class="nav-cta" id="navCta">
@@ -59,7 +59,7 @@
       <a href="playground.html">Playground</a>
       <a href="gallery.html">Gallery</a>
       <a href="#botlab">AI Chatbots</a>
-      <a href="#build">Build Things</a>
+      <a href="#schools">Schools</a>
       <a href="#how">How It Works</a>
       <a href="#" onclick="openLogin();return false;">Log In</a>
       <a href="#signup" class="btn btn-primary" style="margin-top:8px;">Start Free</a>
@@ -431,6 +431,30 @@
        when a kid runs out of lessons, or via the #pricing link (see #pricingModal). -->
 
   <!-- SIGNUP CTA -->
+  <!-- FOR SCHOOLS -->
+  <section class="section" id="schools" style="background:var(--bg-alt);">
+    <div class="section-inner" style="text-align:center;">
+      <div class="section-tag">🏫 For Schools</div>
+      <h2 class="section-title">Bring KidVibers to Your School</h2>
+      <p class="section-sub" style="margin:0 auto 8px;">Give every student a safe, ad-free coding adventure. One school account manages all your students.</p>
+      <div style="max-width:520px;margin:28px auto 0;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:30px;">
+        <div style="font-size:2.4rem;">🏫</div>
+        <h3 style="font-size:1.4rem;font-weight:900;margin:6px 0;">School Plan</h3>
+        <div style="font-size:2.4rem;font-weight:900;color:var(--purple);">$100<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
+        <ul style="list-style:none;text-align:left;max-width:300px;margin:16px auto;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.92rem;">
+          <li>✅ Up to <strong>550 students</strong></li>
+          <li>✅ Full curriculum — 14 worlds, 136 lessons</li>
+          <li>✅ AI buddy for every student</li>
+          <li>✅ Classroom dashboard &amp; progress</li>
+          <li>✅ School-wide consent &amp; management</li>
+        </ul>
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;">💳 You subscribe first — your school account activates and you can add students right after payment.</div>
+        <button class="btn btn-primary btn-lg btn-full" onclick="openSchoolSignup()">Create a School Account →</button>
+      </div>
+      <p class="signup-fine" style="margin-top:14px;">Just one classroom? <a href="#" onclick="openTeacherSignup();return false;">Create a Teacher account</a> instead ($18/mo, up to 150 students).</p>
+    </div>
+  </section>
+
   <section class="signup section" id="signup">
     <div class="signup-inner">
       <div class="section-tag light">Get Started Today</div>
@@ -472,7 +496,7 @@
           <a href="#features">Features</a>
           <a href="page.html?p=curriculum">Curriculum</a>
           <a href="#" onclick="openPricing();return false;">Pricing</a>
-          <a href="page.html?p=schools">For Schools</a>
+          <a href="#schools">For Schools</a>
         </div>
         <div class="footer-col">
           <h4>Learn</h4>
@@ -586,6 +610,30 @@
     </div>
   </div>
 
+  <!-- SCHOOL SIGNUP MODAL (pay before activating) -->
+  <div class="modal-overlay hidden" id="schoolModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🏫</span>
+        <div style="flex:1;">
+          <div class="chat-name">Create a School Account</div>
+          <div class="chat-status">School Plan · up to 550 students</div>
+        </div>
+        <button class="modal-close" onclick="closeSchoolSignup()">✕</button>
+      </div>
+      <form style="padding:16px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleSchoolSignup(event)">
+        <input type="text" id="scSchool" placeholder="School name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="text" id="scName" placeholder="Your name (administrator)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="email" id="scEmail" placeholder="Your email" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="text" id="scUsername" placeholder="Choose a username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="password" id="scPassword" placeholder="Create a password (min 6 chars)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);">💳 Next step is payment — your School Plan ($100/mo) activates after checkout, then you can add students.</div>
+        <div id="schoolError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
+        <button type="submit" class="btn btn-primary btn-lg">Continue to Payment →</button>
+      </form>
+    </div>
+  </div>
+
   <!-- PARENT INVITE (after a kid signs up) -->
   <div class="modal-overlay hidden" id="inviteModal">
     <div class="modal" style="max-width:460px;">
@@ -631,8 +679,8 @@
     </div>
   </div>
 
-  <script src="auth.js?v=5"></script>
-  <script src="app.js?v=5"></script>
-  <script src="pwa.js?v=5" defer></script>
+  <script src="auth.js?v=6"></script>
+  <script src="app.js?v=6"></script>
+  <script src="pwa.js?v=6" defer></script>
 </body>
 </html>
