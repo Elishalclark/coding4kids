@@ -496,6 +496,11 @@ def set_setting(key, value):
     conn.close()
 
 
+def auth_enabled(kind):
+    """kind = 'signups' or 'logins'. Default ON. Super admin can toggle these."""
+    return bool(get_setting(kind + "_enabled", True))
+
+
 def get_pass_percent():
     try:
         return int(get_setting("pass_percent", PASS_PERCENT))
@@ -1180,6 +1185,10 @@ class Handler(BaseHTTPRequestHandler):
             m = get_setting("site_message", {})
             return self._send_json({"text": m.get("text", ""), "active": bool(m.get("active"))})
 
+        if path == "/api/site-config":  # public: whether sign-ups / logins are currently enabled
+            return self._send_json({"signupsEnabled": auth_enabled("signups"),
+                                    "loginsEnabled": auth_enabled("logins")})
+
         if path == "/api/progress":
             u = self._current_user()
             if not u:
@@ -1504,6 +1513,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
             "/api/admin/create-account": lambda: self.api_admin_create_account(data),
             "/api/admin/site-message": lambda: self.api_admin_site_message(data),
+            "/api/admin/toggles": lambda: self.api_admin_toggles(data),
             "/api/admin/account-requests/resolve": lambda: self.api_admin_resolve_request(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
             "/api/admin/impersonate": lambda: self.api_impersonate(data),
@@ -1585,6 +1595,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"ok": True})
 
     def api_signup(self, data):
+        if not auth_enabled("signups"):
+            return self._send_json({"error": "Sign-ups are temporarily disabled. Please check back soon."}, 403)
         # Anti-abuse: cap new accounts per IP (real visitor IP via Cloudflare).
         if rate_limited(f"signup:{self._client_ip()}", 8, 3600):
             return self._send_json({"error": "Too many sign-ups from this network. Please try again later."}, 429)
@@ -1639,6 +1651,8 @@ class Handler(BaseHTTPRequestHandler):
                                 "needsConsent": needs_consent, "consentToken": consent_token})
 
     def api_parent_signup(self, data):
+        if not auth_enabled("signups"):
+            return self._send_json({"error": "Sign-ups are temporarily disabled. Please check back soon."}, 403)
         name = (data.get("name") or "").strip()
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
@@ -1765,6 +1779,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Wrong username or password."}, 401)
         if row["role"] not in allow:
             return self._send_json({"error": "Those credentials can't be used here."}, 403)
+        # Super admin can turn off logins for everyone except admins (so they can still get in).
+        if not auth_enabled("logins") and row["role"] not in ADMIN_ROLES:
+            return self._send_json({"error": "Logins are temporarily disabled. Please check back soon."}, 403)
         active, until = suspension_status(row)
         if not active and _row_get(row, "suspended", 0):
             # timed suspension elapsed → auto-reinstate, then let them in
@@ -1988,6 +2005,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"token": None, "user": public_user(row)})
 
     def api_teacher_signup(self, data):
+        if not auth_enabled("signups"):
+            return self._send_json({"error": "Sign-ups are temporarily disabled. Please check back soon."}, 403)
         name = (data.get("name") or "").strip()
         username = (data.get("username") or "").strip()
         password = data.get("password") or ""
@@ -2223,6 +2242,18 @@ class Handler(BaseHTTPRequestHandler):
                                 password=new_pass if "password" in changed else None)
         return self._send_json({"ok": True, "changed": changed,
                                 "username": new_user if "username" in changed else target["username"]})
+
+    def api_admin_toggles(self, data):
+        """Super admin enables/disables public sign-ups and logins (admin login always works)."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        if "signups" in data:
+            set_setting("signups_enabled", bool(data.get("signups")))
+        if "logins" in data:
+            set_setting("logins_enabled", bool(data.get("logins")))
+        return self._send_json({"ok": True, "signupsEnabled": auth_enabled("signups"),
+                                "loginsEnabled": auth_enabled("logins")})
 
     def api_admin_site_message(self, data):
         """Super admin sets (or clears) the site-wide announcement banner shown to everyone."""

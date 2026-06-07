@@ -59,6 +59,9 @@ function setLoginRole(role) {
 function openLogin() {
   document.getElementById('loginModal').classList.remove('hidden');
   setLoginRole('kid');
+  if (window.__siteConfig && window.__siteConfig.loginsEnabled === false) {
+    document.getElementById('loginError').textContent = '⏸️ Logins are temporarily paused — please check back soon. (Admins can still sign in.)';
+  }
   document.getElementById('loginUsername').focus();
 }
 function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); closeForgot(); }
@@ -546,4 +549,22 @@ window.addEventListener('scroll', () => {
   refreshAuthUI();
   // The #pricing link (e.g. from a parent's upgrade message) opens the pricing popup.
   if (location.hash === '#pricing') openPricing();
+})();
+
+// Reflect the super admin's login/sign-up switches on the home page.
+window.__siteConfig = { signupsEnabled: true, loginsEnabled: true };
+(async function siteConfigInit() {
+  try { const { data } = await C4K.api('/api/site-config'); if (data) window.__siteConfig = data; } catch {}
+  if (window.__siteConfig.signupsEnabled === false) {
+    const form = document.getElementById('signupForm');
+    if (form && !document.getElementById('signupPausedNote')) {
+      const btn = form.querySelector('button[type=submit]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sign-ups paused ⏸️'; }
+      const n = document.createElement('p');
+      n.id = 'signupPausedNote'; n.className = 'signup-fine';
+      n.style.cssText = 'color:#fbbf24;font-weight:800;';
+      n.textContent = '⏸️ New sign-ups are temporarily paused — please check back soon!';
+      form.parentNode.insertBefore(n, form);
+    }
+  }
 })();

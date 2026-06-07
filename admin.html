@@ -6,7 +6,7 @@
   <title>Admin — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -195,6 +195,21 @@
         <button class="btn btn-outline" onclick="clearSiteMessage()">Clear</button>
       </div>
 
+      <!-- Login & sign-up controls (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="togglePanel" style="display:none;">
+        <h3>🔧 Login &amp; Sign-up Controls <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">site-wide</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">Turn public sign-ups or logins on/off for the whole site. Admin &amp; super-admin logins always work, so you can never lock yourself out.</p>
+        <label style="display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:12px;">
+          <input type="checkbox" id="tgSignups" onchange="saveToggles()" /> Allow new sign-ups
+          <span id="tgSignupsState" style="font-size:0.8rem;font-weight:700;"></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;font-weight:800;">
+          <input type="checkbox" id="tgLogins" onchange="saveToggles()" /> Allow logins (kids/parents/teachers)
+          <span id="tgLoginsState" style="font-size:0.8rem;font-weight:700;"></span>
+        </label>
+        <div id="tgMsg" style="font-weight:700;font-size:0.85rem;margin-top:10px;min-height:1em;color:var(--green,#5ad17e);"></div>
+      </div>
+
       <!-- All registered accounts (kept forever) -->
       <div class="panel">
         <h3>📋 All Registered Accounts <span id="acctCount" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
@@ -371,7 +386,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=14"></script>
+  <script src="auth.js?v=15"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -484,6 +499,7 @@
         loadTakedowns();
         loadAccountRequests();
         loadSiteMessage();
+        loadToggles();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -532,6 +548,29 @@
     async function dismissAdminNotice(id, btn) {
       btn.closest('div[style]').remove();
       await C4K.api('/api/notices/dismiss', 'POST', { id });
+    }
+
+    // ── Login & sign-up toggles (super admin) ──
+    function tgLabel(on) { return on ? '🟢 ON' : '🔴 OFF'; }
+    async function loadToggles() {
+      const { ok, data } = await C4K.api('/api/site-config');
+      if (!ok) return;
+      document.getElementById('tgSignups').checked = !!data.signupsEnabled;
+      document.getElementById('tgLogins').checked = !!data.loginsEnabled;
+      document.getElementById('tgSignupsState').textContent = tgLabel(data.signupsEnabled);
+      document.getElementById('tgLoginsState').textContent = tgLabel(data.loginsEnabled);
+    }
+    async function saveToggles() {
+      const signups = document.getElementById('tgSignups').checked;
+      const logins = document.getElementById('tgLogins').checked;
+      const { ok, data } = await C4K.api('/api/admin/toggles', 'POST', { signups, logins });
+      const m = document.getElementById('tgMsg');
+      if (ok) {
+        document.getElementById('tgSignupsState').textContent = tgLabel(data.signupsEnabled);
+        document.getElementById('tgLoginsState').textContent = tgLabel(data.loginsEnabled);
+        m.style.color = 'var(--green,#5ad17e)'; m.textContent = '✅ Saved.';
+        setTimeout(() => { if (m.textContent === '✅ Saved.') m.textContent = ''; }, 2500);
+      } else { m.style.color = '#f87171'; m.textContent = data.error || 'Could not save.'; }
     }
 
     // ── Site announcement (super admin) ──
@@ -867,6 +906,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=14" defer></script>
+  <script src="pwa.js?v=15" defer></script>
 </body>
 </html>
