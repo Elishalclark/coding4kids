@@ -577,7 +577,9 @@ def send_email_resend(to, subject, html):
     if not key:
         return False
     frm = os.environ.get("EMAIL_FROM", EMAIL_FROM_DEFAULT)
-    body = json.dumps({"from": frm, "to": [to], "subject": subject, "html": _wrap_html(html)}).encode()
+    payload = {"from": frm, "to": [to], "subject": subject, "html": _wrap_html(html),
+               "reply_to": os.environ.get("REPLY_TO", "kidvibers.help@outlook.com")}
+    body = json.dumps(payload).encode()
     req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
                                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=15)
@@ -585,23 +587,18 @@ def send_email_resend(to, subject, html):
 
 
 def send_email(to, subject, html):
-    """Send a real email via Outlook → Gmail → Resend (whichever is configured); otherwise a no-op."""
+    """Try each configured provider in turn (Resend → Outlook → Gmail). A failure in one
+    falls through to the next, so a dead credential never blocks a working provider."""
     if not to:
         return False
-    try:
-        if send_email_outlook(to, subject, html):
-            print(f"email sent (outlook) -> {to}: {subject}")
-            return True
-        if send_email_gmail(to, subject, html):
-            print(f"email sent (gmail) -> {to}: {subject}")
-            return True
-        if send_email_resend(to, subject, html):
-            print(f"email sent (resend) -> {to}: {subject}")
-            return True
-        return False  # no provider configured
-    except Exception as e:
-        print("email send failed:", repr(e))
-        return False
+    for name, fn in (("resend", send_email_resend), ("outlook", send_email_outlook), ("gmail", send_email_gmail)):
+        try:
+            if fn(to, subject, html):
+                print(f"email sent ({name}) -> {to}: {subject}")
+                return True
+        except Exception as e:
+            print(f"email via {name} failed:", repr(e))
+    return False
 
 def send_email_async(to, subject, html):
     threading.Thread(target=send_email, args=(to, subject, html), daemon=True).start()
