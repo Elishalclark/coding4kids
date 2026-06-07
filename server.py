@@ -669,10 +669,18 @@ def send_email_resend(to, subject, html):
     payload = {"from": frm, "to": [to], "subject": subject, "html": _wrap_html(html),
                "reply_to": os.environ.get("REPLY_TO", "kidvibers.help@outlook.com")}
     body = json.dumps(payload).encode()
-    req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
-                                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
-    urllib.request.urlopen(req, timeout=15)
-    return True
+    # Resend/SES occasionally returns a transient 403/429 — retry a few times before giving up.
+    last = None
+    for attempt in range(4):
+        req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
+                                     headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=15)
+            return True
+        except Exception as e:
+            last = e
+            time.sleep(2 * (attempt + 1))   # 2s, 4s, 6s backoff
+    raise last
 
 
 def send_email(to, subject, html):
