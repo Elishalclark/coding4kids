@@ -568,3 +568,14 @@ window.__siteConfig = { signupsEnabled: true, loginsEnabled: true };
     }
   }
 })();
+
+// Share KidVibers — native share sheet on phones, copy-link fallback on desktop.
+async function shareSite() {
+  const url = 'https://kidvibers.com';
+  const shareData = { title: 'KidVibers', text: 'Learn to code like a game — made by a kid, for kids! 🚀', url };
+  if (navigator.share) {
+    try { await navigator.share(shareData); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); alert('🔗 Link copied! Share kidvibers.com with your friends.'); }
+  catch { window.prompt('Copy this link to share KidVibers:', url); }
+}

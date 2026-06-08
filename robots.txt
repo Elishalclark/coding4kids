@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+# Private / app pages — no need to index these
+Disallow: /admin.html
+Disallow: /dashboard.html
+Disallow: /parent.html
+Disallow: /checkout.html
+Disallow: /reset.html
+Disallow: /certificate.html
+Disallow: /api/
+
+Sitemap: https://kidvibers.com/sitemap.xml
