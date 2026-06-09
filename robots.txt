@@ -4,6 +4,7 @@ Allow: /
 Disallow: /admin.html
 Disallow: /dashboard.html
 Disallow: /parent.html
+Disallow: /district.html
 Disallow: /checkout.html
 Disallow: /reset.html
 Disallow: /certificate.html

@@ -6,7 +6,7 @@
   <title>Family Dashboard — KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -67,8 +67,9 @@
     <div id="teacherUpgrade" class="hidden" style="margin-bottom:28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;">
       <span style="font-weight:800;" id="teacherPlanInfo"></span>
       <span style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
-        <a href="checkout.html?plan=teacher" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Teacher · $18 / 150 students</a>
-        <a href="checkout.html?plan=school" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">School · $100 / 550 students</a>
+        <a href="checkout.html?plan=teacher" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Teacher · $24 / 100 students</a>
+        <a href="checkout.html?plan=school" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">School · $136 / 550 students</a>
+        <a href="checkout.html?plan=district" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">District · $150 / unlimited</a>
       </span>
     </div>
 
@@ -81,7 +82,7 @@
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
-  <script src="auth.js?v=16"></script>
+  <script src="auth.js?v=17"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -146,6 +147,8 @@
       const me = await C4K.loadMe();
       // Super admin can preview this dashboard (master login); parents & teachers see their own.
       if (!me || (me.role !== 'parent' && me.role !== 'teacher' && me.role !== 'super_admin')) { location.href = 'index.html'; return; }
+      // School & District accounts have their own management dashboard.
+      if (me.role === 'teacher' && me.isDistrict) { location.href = 'district.html'; return; }
       const isTeacher = me.role === 'teacher';
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
@@ -211,6 +214,6 @@
 
     load();
   </script>
-  <script src="pwa.js?v=16" defer></script>
+  <script src="pwa.js?v=17" defer></script>
 </body>
 </html>

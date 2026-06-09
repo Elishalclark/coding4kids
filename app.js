@@ -119,10 +119,13 @@ async function handleLogin(e) {
     return;
   }
   closeLogin();
-  const dest = masterSuper ? loginRole : data.user.role;   // super admin goes to the tab they chose
-  if (dest === 'parent' || dest === 'teacher') window.location.href = 'parent.html';
-  else if (dest === 'admin' || dest === 'super_admin') window.location.href = 'admin.html';
-  else window.location.href = 'dashboard.html';   // kid → personalized dashboard
+  if (masterSuper && loginRole !== 'super_admin') {
+    // super admin chose a different tab — send them to that role's area
+    const map = { kid: 'dashboard.html', parent: 'parent.html', teacher: 'parent.html', admin: 'admin.html' };
+    window.location.href = map[loginRole] || 'admin.html';
+  } else {
+    window.location.href = C4K.homeFor(data.user);   // teacher on School/District → district.html
+  }
 }
 
 // ── Parent signup ──
@@ -255,14 +258,33 @@ document.getElementById('teacherModal')?.addEventListener('click', (e) => {
 });
 
 // ── School signup (pay before you can add students) ──
-function openSchoolSignup() {
+const SCHOOL_PLAN_INFO = {
+  school:   { label: 'School Plan',   price: '$136/mo', cap: 'up to 550 students' },
+  district: { label: 'District Plan', price: '$150/mo', cap: 'unlimited students' },
+};
+function setSchoolPlan(plan) {
+  if (!SCHOOL_PLAN_INFO[plan]) plan = 'school';
+  document.getElementById('scPlan').value = plan;
+  document.querySelectorAll('#schoolModal .plan-pick').forEach(b => {
+    const on = b.dataset.plan === plan;
+    b.classList.toggle('active', on);
+    b.style.borderColor = on ? 'var(--purple, #7c3aed)' : 'var(--border)';
+    b.style.boxShadow = on ? '0 0 0 2px var(--purple, #7c3aed) inset' : 'none';
+  });
+  const info = SCHOOL_PLAN_INFO[plan];
+  const note = document.getElementById('schoolPlanNote');
+  if (note) note.innerHTML = `💳 Next step is payment — your <strong>${info.label}</strong> (${info.price}, ${info.cap}) activates after checkout, then you can manage students.`;
+}
+function openSchoolSignup(plan) {
   document.getElementById('schoolModal').classList.remove('hidden');
   document.getElementById('schoolError').textContent = '';
+  setSchoolPlan(plan || 'school');
   document.getElementById('scSchool').focus();
 }
 function closeSchoolSignup() { document.getElementById('schoolModal').classList.add('hidden'); }
 async function handleSchoolSignup(e) {
   e.preventDefault();
+  const plan = document.getElementById('scPlan').value || 'school';
   const payload = {
     name: document.getElementById('scName').value.trim(),
     school: document.getElementById('scSchool').value.trim(),
@@ -270,9 +292,9 @@ async function handleSchoolSignup(e) {
     username: document.getElementById('scUsername').value.trim(),
     password: document.getElementById('scPassword').value
   };
-  // Create the (teacher-type) school account, then go straight to payment.
+  // Create the (teacher-type) school account, then go straight to payment for the chosen plan.
   const { ok, data } = await C4K.teacherSignup(payload);
-  if (ok) { closeSchoolSignup(); window.location.href = 'checkout.html?plan=school'; }
+  if (ok) { closeSchoolSignup(); window.location.href = 'checkout.html?plan=' + plan; }
   else document.getElementById('schoolError').textContent = '❌ ' + (data.error || 'Could not create school account.');
 }
 document.getElementById('schoolModal')?.addEventListener('click', (e) => {
@@ -541,10 +563,10 @@ window.addEventListener('scroll', () => {
   // Already logged in? Send them straight to their own space — but NOT if they
   // followed a deep link (e.g. #pricing for an upgrade) which they need to see.
   if (C4K.isLoggedIn() && !location.hash) {
-    const r = C4K.user.role;
-    if (r === 'kid') { location.href = 'dashboard.html'; return; }
-    if (r === 'parent') { location.href = 'parent.html'; return; }
-    if (r === 'admin' || r === 'super_admin') { location.href = 'admin.html'; return; }
+    if (C4K.user.role !== 'admin' && C4K.user.role !== 'super_admin') {
+      location.href = C4K.homeFor(C4K.user); return;
+    }
+    location.href = 'admin.html'; return;
   }
   refreshAuthUI();
   // The #pricing link (e.g. from a parent's upgrade message) opens the pricing popup.

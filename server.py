@@ -99,10 +99,14 @@ UNIT_NAMES = {u: f"{w['emoji']} {w['name']}" for u, w in WORLDS.items()}
 # Teacher / school subscription tiers (how many students an educator account can have).
 # No free tier — a teacher must subscribe to add students.
 TEACHER_PLANS = {
-    "teacher":   {"label": "Teacher Plan",   "price": 18,  "students": 150},
-    "school":    {"label": "School Plan",    "price": 100, "students": 550},
+    "teacher":   {"label": "Teacher Plan",   "price": 24,  "students": 100},
+    "school":    {"label": "School Plan",    "price": 136, "students": 550},
+    "district":  {"label": "District Plan",  "price": 150, "students": -1},   # -1 = unlimited
 }
 NO_TEACHER_PLAN = {"label": "No plan yet", "price": 0, "students": 0}
+# Educator plans that unlock the District / Library management dashboard
+# (custom branding + suspend / change credentials / delete students).
+DISTRICT_PLANS = ("school", "district")
 
 TOKENS_PER_LESSON = 10   # coins earned per newly completed lesson
 STARTER_TOKENS = 40      # coins a new account starts with
@@ -424,6 +428,7 @@ def init_db():
         "consent_token": "TEXT", "consent_confirm_token": "TEXT", "school": "TEXT",
         "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT", "suspend_until": "TEXT",
         "reset_token": "TEXT", "reset_expires": "TEXT",
+        "brand_name": "TEXT", "brand_logo": "TEXT",   # school/district custom branding
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -1005,6 +1010,18 @@ def students_in_family(family_id):
     return row["c"]
 
 
+def family_branding(family_id):
+    """Custom school/district branding (set by the family's owner) — applied to that family's kids."""
+    if family_id is None:
+        return {"brandName": None, "brandLogo": None}
+    conn = db()
+    row = conn.execute("SELECT brand_name, brand_logo FROM users WHERE id=?", (family_id,)).fetchone()
+    conn.close()
+    if not row:
+        return {"brandName": None, "brandLogo": None}
+    return {"brandName": _row_get(row, "brand_name"), "brandLogo": _row_get(row, "brand_logo")}
+
+
 def _row_get(row, key, default=None):
     try:
         v = row[key]
@@ -1029,7 +1046,11 @@ def public_user(user):
     if user["role"] == "teacher":
         tp = teacher_plan_cfg(user["plan"])
         teacher = {"teacherPlan": user["plan"] or "none", "teacherPlanLabel": tp["label"],
-                   "studentLimit": tp["students"], "studentsUsed": students_in_family(user["family_id"])}
+                   "studentLimit": tp["students"], "studentsUsed": students_in_family(user["family_id"]),
+                   "isDistrict": (user["plan"] in DISTRICT_PLANS),
+                   "brandName": _row_get(user, "brand_name"), "brandLogo": _row_get(user, "brand_logo")}
+    # Kids inherit their school/district's branding (shown on their dashboard).
+    kid_brand = family_branding(user["family_id"]) if user["role"] == "kid" else {}
     return {
         "id": user["id"], "role": user["role"], "name": user["name"], "username": user["username"],
         "plan": user["plan"], "effectivePlan": eff, "trialDaysLeft": trial_days_left(user),
@@ -1044,6 +1065,7 @@ def public_user(user):
         "needsConsent": (user["role"] == "kid" and cstatus == "pending"),
         "school": _row_get(user, "school"),
         "suspended": bool(_row_get(user, "suspended", 0)),
+        **kid_brand,
     }
 
 
@@ -1502,6 +1524,9 @@ class Handler(BaseHTTPRequestHandler):
             "/api/parent/signout-kid": lambda: self.api_parent_signout_kid(data),
             "/api/parent/delete-kid": lambda: self.api_parent_delete_kid(data),
             "/api/teacher/signup": lambda: self.api_teacher_signup(data),
+            "/api/school/branding": lambda: self.api_school_branding(data),
+            "/api/school/student/suspend": lambda: self.api_school_student_suspend(data),
+            "/api/school/student/credentials": lambda: self.api_school_student_credentials(data),
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
@@ -1987,10 +2012,11 @@ class Handler(BaseHTTPRequestHandler):
         is_teacher = u["role"] == "teacher"
         if is_teacher:
             cfg = teacher_plan_cfg(u["plan"])
-            if students_in_family(u["family_id"]) >= cfg["students"]:
-                msg = ("Choose a Teacher or School plan to add students."
-                       if cfg["students"] == 0 else
-                       f"Your {cfg['label']} allows {cfg['students']} students. Upgrade for more.")
+            limit = cfg["students"]   # -1 = unlimited
+            if limit != -1 and students_in_family(u["family_id"]) >= limit:
+                msg = ("Choose a Teacher, School or District plan to add students."
+                       if limit == 0 else
+                       f"Your {cfg['label']} allows {limit} students. Upgrade for more.")
                 return self._send_json({"error": msg, "limitReached": True}, 403)
         method = "school" if is_teacher else "parent_account"
         granted_by = (u["school"] + " (teacher: " + u["username"] + ")") if is_teacher else (u["parent_email"] or u["username"])
@@ -2038,8 +2064,8 @@ class Handler(BaseHTTPRequestHandler):
         if not u:
             return self._send_json({"error": "Please log in to upgrade."}, 401)
         plan = (data.get("plan") or "").strip()
-        # Teacher/school tiers for educators; Pro/Family for kids & parents.
-        if plan in ("teacher", "school"):
+        # Teacher/school/district tiers for educators; Pro/Family for kids & parents.
+        if plan in ("teacher", "school", "district"):
             if u["role"] not in ("teacher", "super_admin"):
                 return self._send_json({"error": "Only a teacher account can buy this plan."}, 403)
         elif plan in ("pro", "family"):
@@ -2410,6 +2436,107 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         log_consent(kid_id, kid["name"], "deleted", u["username"], "Guardian deleted the child's account & data")
         return self._send_json({"ok": True, "name": kid["name"]})
+
+    # ───────────── District / Library dashboard (school & district plans) ─────────────
+    def _district_owner(self):
+        """Returns the current user if they're a teacher account on a School/District plan, else None."""
+        u = self._current_user()
+        if not u or u["role"] != "teacher" or u["family_id"] is None:
+            return None
+        if u["plan"] not in DISTRICT_PLANS:
+            return None
+        return u
+
+    def _district_student(self, conn, owner, kid_id):
+        """Fetch a kid row that belongs to this owner's school/district, or None."""
+        return conn.execute("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?",
+                            (kid_id, owner["family_id"])).fetchone()
+
+    def api_school_branding(self, data):
+        """School/district owner sets their org name + logo, shown to their students."""
+        owner = self._district_owner()
+        if not owner:
+            return self._send_json({"error": "Only a School or District account can change branding."}, 403)
+        brand_name = (data.get("brandName") or "").strip()[:80]
+        brand_logo = (data.get("brandLogo") or "").strip()[:500]
+        if brand_logo and not re.match(r"^https://", brand_logo):
+            return self._send_json({"error": "Logo must be a secure https:// image link."}, 400)
+        conn = db()
+        conn.execute("UPDATE users SET brand_name=?, brand_logo=? WHERE id=?",
+                     (brand_name or None, brand_logo or None, owner["id"]))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "brandName": brand_name or None, "brandLogo": brand_logo or None})
+
+    def api_school_student_suspend(self, data):
+        """School/district owner suspends (or restores) one of their own students."""
+        owner = self._district_owner()
+        if not owner:
+            return self._send_json({"error": "Only a School or District account can do this."}, 403)
+        conn = db()
+        kid = self._district_student(conn, owner, data.get("kidId"))
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "That student isn't in your school."}, 403)
+        suspend = bool(data.get("suspended"))
+        reason = (data.get("reason") or "").strip()[:200]
+        until = None
+        if suspend:
+            try:
+                days = float(data.get("days") or 0)
+            except (TypeError, ValueError):
+                days = 0
+            if days and days > 0:
+                until = (datetime.datetime.utcnow() + datetime.timedelta(days=days)).replace(microsecond=0).isoformat() + "Z"
+            conn.execute("UPDATE users SET suspended=1, suspend_reason=?, suspend_until=? WHERE id=?",
+                         (reason or f"Suspended by {owner['school'] or 'your school'}", until, kid["id"]))
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (kid["id"],))
+        else:
+            clear_suspension(conn, kid["id"])
+        conn.commit()
+        conn.close()
+        log_consent(kid["id"], kid["username"], "suspended" if suspend else "reinstated",
+                    f"school owner ({owner['username']})", reason)
+        return self._send_json({"ok": True, "name": kid["name"], "suspended": suspend, "until": until})
+
+    def api_school_student_credentials(self, data):
+        """School/district owner changes a student's username and/or password."""
+        owner = self._district_owner()
+        if not owner:
+            return self._send_json({"error": "Only a School or District account can do this."}, 403)
+        conn = db()
+        kid = self._district_student(conn, owner, data.get("kidId"))
+        if not kid:
+            conn.close()
+            return self._send_json({"error": "That student isn't in your school."}, 403)
+        new_user = (data.get("username") or "").strip()
+        new_pass = data.get("password") or ""
+        if not new_user and not new_pass:
+            conn.close()
+            return self._send_json({"error": "Enter a new username and/or password."}, 400)
+        changed = []
+        if new_user and new_user != kid["username"]:
+            if not USERNAME_RE.match(new_user):
+                conn.close()
+                return self._send_json({"error": "Username must be 3-20 letters, numbers or underscores."}, 400)
+            dup = conn.execute("SELECT 1 FROM users WHERE username=? AND id<>?", (new_user, kid["id"])).fetchone()
+            if dup:
+                conn.close()
+                return self._send_json({"error": "That username is already taken."}, 409)
+            conn.execute("UPDATE users SET username=? WHERE id=?", (new_user, kid["id"]))
+            changed.append("username")
+        if new_pass:
+            if len(new_pass) < 6:
+                conn.close()
+                return self._send_json({"error": "Password must be at least 6 characters."}, 400)
+            pwhash, salt = hash_password(new_pass)
+            conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (pwhash, salt, kid["id"]))
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (kid["id"],))
+            changed.append("password")
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "changed": changed,
+                                "username": new_user if "username" in changed else kid["username"]})
 
     def api_consent_resend(self, data):
         """A locked kid (or first-time setup) sends/re-sends the approval email to their parent."""

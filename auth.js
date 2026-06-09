@@ -69,6 +69,15 @@ const C4K = {
   hasAI() { return !!(this.user && this.user.hasAI); },
   isLoggedIn() { return !!this.user; },
 
+  // Where a given user's "home" dashboard lives.
+  homeFor(user) {
+    user = user || this.user || {};
+    if (user.role === 'admin' || user.role === 'super_admin') return 'admin.html';
+    if (user.role === 'teacher') return user.isDistrict ? 'district.html' : 'parent.html';
+    if (user.role === 'parent') return 'parent.html';
+    return 'dashboard.html';
+  },
+
   // Escape text before putting it in innerHTML (prevents stored XSS via names, etc.)
   esc(s) {
     return String(s == null ? '' : s)

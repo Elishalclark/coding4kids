@@ -29,7 +29,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
 </head>
 <body>
 
@@ -436,22 +436,40 @@
     <div class="section-inner" style="text-align:center;">
       <div class="section-tag">🏫 For Schools</div>
       <h2 class="section-title">Bring KidVibers to Your School</h2>
-      <p class="section-sub" style="margin:0 auto 8px;">Give every student a safe, ad-free coding adventure. One school account manages all your students.</p>
-      <div style="max-width:520px;margin:28px auto 0;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:30px;">
-        <div style="font-size:2.4rem;">🏫</div>
-        <h3 style="font-size:1.4rem;font-weight:900;margin:6px 0;">School Plan</h3>
-        <div style="font-size:2.4rem;font-weight:900;color:var(--purple);">$100<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
-        <ul style="list-style:none;text-align:left;max-width:300px;margin:16px auto;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.92rem;">
-          <li>✅ Up to <strong>550 students</strong></li>
-          <li>✅ Full curriculum — 14 worlds, 136 lessons</li>
-          <li>✅ AI buddy for every student</li>
-          <li>✅ Classroom dashboard &amp; progress</li>
-          <li>✅ School-wide consent &amp; management</li>
-        </ul>
-        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;">💳 You subscribe first — your school account activates and you can add students right after payment.</div>
-        <button class="btn btn-primary btn-lg btn-full" onclick="openSchoolSignup()">Create a School Account →</button>
+      <p class="section-sub" style="margin:0 auto 8px;">Give every student a safe, ad-free coding adventure. One account manages all your students — with custom branding and a full management dashboard.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:760px;margin:28px auto 0;">
+        <!-- School Plan -->
+        <div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:28px;text-align:left;display:flex;flex-direction:column;">
+          <div style="font-size:2.2rem;">🏫</div>
+          <h3 style="font-size:1.3rem;font-weight:900;margin:6px 0;">School Plan</h3>
+          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">$136<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
+          <ul style="list-style:none;margin:14px 0;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.9rem;flex:1;">
+            <li>✅ Up to <strong>550 students</strong></li>
+            <li>✅ Full curriculum — 14 worlds, 136 lessons</li>
+            <li>✅ AI buddy for every student</li>
+            <li>✅ District dashboard — branding &amp; management</li>
+            <li>✅ School-wide consent</li>
+          </ul>
+          <button class="btn btn-primary btn-lg btn-full" onclick="openSchoolSignup('school')">Choose School →</button>
+        </div>
+        <!-- District Plan -->
+        <div style="background:var(--surface);border:2px solid var(--purple);border-radius:var(--radius);padding:28px;text-align:left;display:flex;flex-direction:column;position:relative;">
+          <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple-mid,#7c3aed),var(--pink,#db2777));color:#fff;font-size:0.66rem;font-weight:900;padding:4px 12px;border-radius:50px;white-space:nowrap;">BEST FOR DISTRICTS &amp; LIBRARIES</div>
+          <div style="font-size:2.2rem;">🏛️</div>
+          <h3 style="font-size:1.3rem;font-weight:900;margin:6px 0;">District Plan</h3>
+          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">$150<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
+          <ul style="list-style:none;margin:14px 0;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.9rem;flex:1;">
+            <li>✅ <strong>Unlimited students</strong></li>
+            <li>✅ Everything in School</li>
+            <li>✅ Custom branding (your name &amp; logo)</li>
+            <li>✅ Suspend, edit logins, or remove students</li>
+            <li>✅ Priority support</li>
+          </ul>
+          <button class="btn btn-primary btn-lg btn-full" onclick="openSchoolSignup('district')">Choose District →</button>
+        </div>
       </div>
-      <p class="signup-fine" style="margin-top:14px;">Just one classroom? <a href="#" onclick="openTeacherSignup();return false;">Create a Teacher account</a> instead ($18/mo, up to 150 students).</p>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);max-width:760px;margin:16px auto 0;">💳 You subscribe first — your account activates and you can add &amp; manage students right after payment.</div>
+      <p class="signup-fine" style="margin-top:14px;">Just one classroom? <a href="#" onclick="openTeacherSignup();return false;">Create a Teacher account</a> instead ($24/mo, up to 100 students).</p>
     </div>
   </section>
 
@@ -623,17 +641,28 @@
         <span class="chat-avatar">🏫</span>
         <div style="flex:1;">
           <div class="chat-name">Create a School Account</div>
-          <div class="chat-status">School Plan · up to 550 students</div>
+          <div class="chat-status">Pick a plan, then add students</div>
         </div>
         <button class="modal-close" onclick="closeSchoolSignup()">✕</button>
       </div>
       <form style="padding:16px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleSchoolSignup(event)">
-        <input type="text" id="scSchool" placeholder="School name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        <input type="hidden" id="scPlan" value="school" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <button type="button" class="plan-pick" data-plan="school" onclick="setSchoolPlan('school')"
+            style="border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:12px;padding:12px;cursor:pointer;font-family:inherit;font-weight:800;text-align:left;">
+            🏫 School<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">$136/mo · 550 students</span>
+          </button>
+          <button type="button" class="plan-pick" data-plan="district" onclick="setSchoolPlan('district')"
+            style="border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:12px;padding:12px;cursor:pointer;font-family:inherit;font-weight:800;text-align:left;">
+            🏛️ District<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">$150/mo · unlimited</span>
+          </button>
+        </div>
+        <input type="text" id="scSchool" placeholder="School / district / library name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="text" id="scName" placeholder="Your name (administrator)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="email" id="scEmail" placeholder="Your email" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="text" id="scUsername" placeholder="Choose a username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="password" id="scPassword" placeholder="Create a password (min 6 chars)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);">💳 Next step is payment — your School Plan ($100/mo) activates after checkout, then you can add students.</div>
+        <div id="schoolPlanNote" style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);">💳 Next step is payment — your <strong>School Plan</strong> ($136/mo, up to 550 students) activates after checkout, then you can manage students.</div>
         <div id="schoolError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
         <button type="submit" class="btn btn-primary btn-lg">Continue to Payment →</button>
       </form>
@@ -685,8 +714,8 @@
     </div>
   </div>
 
-  <script src="auth.js?v=16"></script>
-  <script src="app.js?v=16"></script>
-  <script src="pwa.js?v=16" defer></script>
+  <script src="auth.js?v=17"></script>
+  <script src="app.js?v=17"></script>
+  <script src="pwa.js?v=17" defer></script>
 </body>
 </html>

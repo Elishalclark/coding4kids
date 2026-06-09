@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>District Dashboard — KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=17" />
+  <style>
+    .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
+    .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
+    .dd-head img { height:52px; width:auto; max-width:160px; border-radius:8px; background:#fff; padding:4px; }
+    .dd-head .org { font-size:1.5rem; font-weight:900; color:#fff; line-height:1.1; }
+    .dd-head .sub { color:#e6dcff; font-size:0.9rem; margin-top:2px; }
+    .dd-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    @media (max-width:740px){ .dd-grid { grid-template-columns:1fr; } }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:22px; margin-bottom:18px; }
+    .card h2 { font-size:1.05rem; font-weight:900; margin-bottom:4px; }
+    .card .hint { color:var(--text-dim); font-size:0.85rem; margin-bottom:14px; }
+    .field { margin-bottom:12px; }
+    .field label { display:block; font-size:0.78rem; font-weight:800; color:var(--text-dim); margin-bottom:5px; }
+    .field input { width:100%; box-sizing:border-box; padding:11px 13px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:inherit; font-weight:700; }
+    .field input:focus { border-color:var(--border-bright); outline:none; }
+    .msg { font-size:0.83rem; font-weight:700; min-height:18px; margin-top:6px; }
+    .seatbar { height:12px; border-radius:8px; background:var(--surface-2); overflow:hidden; margin:8px 0 6px; }
+    .seatbar > div { height:100%; background:linear-gradient(90deg,#7c3aed,#db2777); }
+    table.roster { width:100%; border-collapse:collapse; }
+    .roster th, .roster td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); font-size:0.9rem; }
+    .roster th { color:var(--text-dim); font-size:0.74rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .pill { display:inline-block; font-size:0.7rem; font-weight:900; padding:2px 8px; border-radius:50px; }
+    .pill.ok { background:rgba(34,197,94,0.18); color:#4ade80; }
+    .pill.susp { background:rgba(239,68,68,0.18); color:#f87171; }
+    .rowbtns { display:flex; flex-wrap:wrap; gap:6px; }
+    .mini { font-size:0.74rem; font-weight:800; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); cursor:pointer; font-family:inherit; }
+    .mini:hover { border-color:var(--border-bright); }
+    .mini.danger { color:#f87171; border-color:rgba(239,68,68,0.4); }
+    .gate { max-width:520px; margin:80px auto; text-align:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:40px 28px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="index.html" class="btn btn-ghost">Home</a>
+        <button class="btn btn-outline" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="dd" id="ddMain" style="display:none;">
+    <div class="dd-head">
+      <div id="ddLogoWrap"></div>
+      <div>
+        <div class="org" id="ddOrg">Your School</div>
+        <div class="sub" id="ddSub">District &amp; Library Dashboard</div>
+      </div>
+    </div>
+
+    <div class="dd-grid">
+      <!-- Branding -->
+      <div class="card">
+        <h2>🎨 Branding</h2>
+        <p class="hint">Your organization name and logo appear on your students' dashboards.</p>
+        <div class="field">
+          <label>Organization name</label>
+          <input id="brName" maxlength="80" placeholder="e.g. Arlington Public Library" />
+        </div>
+        <div class="field">
+          <label>Logo image URL (https://…)</label>
+          <input id="brLogo" maxlength="500" placeholder="https://example.org/logo.png" />
+        </div>
+        <button class="btn btn-primary" onclick="saveBranding()">Save branding</button>
+        <div class="msg" id="brMsg"></div>
+      </div>
+
+      <!-- Seats + add student -->
+      <div class="card">
+        <h2>👩‍🎓 Students</h2>
+        <p class="hint" id="seatHint">—</p>
+        <div class="seatbar"><div id="seatFill" style="width:0%"></div></div>
+        <form onsubmit="addStudent(event)" style="margin-top:14px;">
+          <div class="field"><label>Student name</label><input id="stName" required placeholder="First name" /></div>
+          <div class="field"><label>Username</label><input id="stUser" required placeholder="3–20 letters/numbers" /></div>
+          <div class="field"><label>Password</label><input id="stPass" required type="text" placeholder="min 6 characters" /></div>
+          <button class="btn btn-primary" id="addBtn" type="submit">➕ Add student</button>
+          <div class="msg" id="addMsg"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Roster -->
+    <div class="card">
+      <h2>📋 Manage students</h2>
+      <p class="hint">Suspend, change a login, or remove any student in your organization.</p>
+      <div style="overflow-x:auto;">
+        <table class="roster">
+          <thead><tr><th>Student</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="rosterBody"></tbody>
+        </table>
+      </div>
+      <p id="rosterEmpty" class="hint" style="display:none;margin-top:14px;">No students yet — add your first one above. 👆</p>
+    </div>
+  </main>
+
+  <!-- Gate (wrong account / not logged in) -->
+  <div class="gate" id="ddGate" style="display:none;">
+    <div style="font-size:3rem;">🏛️</div>
+    <h1 style="font-size:1.4rem;font-weight:900;margin:10px 0;" id="gateTitle">District Dashboard</h1>
+    <p style="color:var(--text-dim);margin-bottom:18px;" id="gateMsg">This area is for School &amp; District accounts.</p>
+    <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
+  </div>
+
+  <script src="auth.js?v=17"></script>
+  <script>
+    let ME = null;
+
+    function showGate(title, msg, btnText, btnHref) {
+      document.getElementById('ddMain').style.display = 'none';
+      const g = document.getElementById('ddGate');
+      g.style.display = '';
+      document.getElementById('gateTitle').textContent = title;
+      document.getElementById('gateMsg').textContent = msg;
+      const b = document.getElementById('gateBtn');
+      b.textContent = btnText; b.href = btnHref;
+    }
+
+    (async () => {
+      ME = await C4K.loadMe();
+      if (!ME) return showGate('Please log in', 'Log in with your School or District account to manage students.', 'Go to log in', 'index.html');
+      if (ME.role === 'admin' || ME.role === 'super_admin') return location.href = 'admin.html';
+      if (ME.role !== 'teacher' || !ME.isDistrict) {
+        return showGate('No District plan yet',
+          'The District Dashboard (branding + student management) is included with the School ($136/mo) and District ($150/mo) plans.',
+          'See school plans', 'index.html#schools');
+      }
+      document.getElementById('ddMain').style.display = '';
+      paintHeader();
+      document.getElementById('brName').value = ME.brandName || '';
+      document.getElementById('brLogo').value = ME.brandLogo || '';
+      loadRoster();
+    })();
+
+    function paintHeader() {
+      const org = ME.brandName || ME.school || ME.name || 'Your School';
+      document.getElementById('ddOrg').textContent = org;
+      document.getElementById('ddSub').textContent =
+        (ME.teacherPlanLabel || 'School Plan') + ' · District & Library Dashboard';
+      const wrap = document.getElementById('ddLogoWrap');
+      wrap.innerHTML = ME.brandLogo
+        ? '<img src="' + C4K.esc(ME.brandLogo) + '" alt="logo" onerror="this.remove()" />'
+        : '<div style="font-size:2.6rem;">🏛️</div>';
+    }
+
+    async function saveBranding() {
+      const msg = document.getElementById('brMsg');
+      const body = {
+        brandName: document.getElementById('brName').value.trim(),
+        brandLogo: document.getElementById('brLogo').value.trim()
+      };
+      const { ok, data } = await C4K.api('/api/school/branding', 'POST', body);
+      msg.style.color = ok ? 'var(--green,#4ade80)' : '#f87171';
+      msg.textContent = ok ? '✅ Saved! Your students will see this.' : '❌ ' + (data.error || 'Could not save.');
+      if (ok) { ME.brandName = data.brandName; ME.brandLogo = data.brandLogo; paintHeader(); }
+    }
+
+    function seats(used, limit) {
+      if (limit === -1) return { txt: used + ' students · unlimited', pct: Math.min(100, used ? 12 : 0) };
+      return { txt: used + ' of ' + limit + ' students used', pct: limit ? Math.round(used / limit * 100) : 0 };
+    }
+
+    async function loadRoster() {
+      const { ok, data } = await C4K.api('/api/parent/family');
+      if (!ok) return;
+      const kids = data.kids || [];
+      const limit = (data.parent && data.parent.studentLimit);
+      const s = seats(kids.length, limit);
+      document.getElementById('seatHint').textContent = s.txt;
+      document.getElementById('seatFill').style.width = s.pct + '%';
+
+      const body = document.getElementById('rosterBody');
+      document.getElementById('rosterEmpty').style.display = kids.length ? 'none' : '';
+      body.innerHTML = kids.map(k => {
+        const susp = k.suspended;
+        return '<tr>' +
+          '<td>' + C4K.esc(k.name) + '</td>' +
+          '<td>@' + C4K.esc(k.username) + '</td>' +
+          '<td>' + (susp ? '<span class="pill susp">Suspended</span>' : '<span class="pill ok">Active</span>') + '</td>' +
+          '<td><div class="rowbtns">' +
+            (susp
+              ? '<button class="mini" onclick="setSuspend(' + k.id + ',false)">Restore</button>'
+              : '<button class="mini" onclick="setSuspend(' + k.id + ',true)">Suspend</button>') +
+            '<button class="mini" onclick="editLogin(' + k.id + ',\'' + C4K.esc(k.username) + '\')">Edit login</button>' +
+            '<button class="mini danger" onclick="removeStudent(' + k.id + ',\'' + C4K.esc(k.name) + '\')">Delete</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    async function addStudent(ev) {
+      ev.preventDefault();
+      const msg = document.getElementById('addMsg');
+      const btn = document.getElementById('addBtn');
+      btn.disabled = true;
+      const body = {
+        name: document.getElementById('stName').value.trim(),
+        username: document.getElementById('stUser').value.trim(),
+        password: document.getElementById('stPass').value,
+        ageBand: '11-13'
+      };
+      const { ok, data } = await C4K.api('/api/parent/add-kid', 'POST', body);
+      msg.style.color = ok ? 'var(--green,#4ade80)' : '#f87171';
+      msg.textContent = ok ? '✅ Added ' + body.name + '!' : '❌ ' + (data.error || 'Could not add student.');
+      if (ok) { ev.target.reset(); loadRoster(); }
+      btn.disabled = false;
+    }
+
+    async function setSuspend(kidId, on) {
+      let days = 0, reason = '';
+      if (on) {
+        const d = prompt('Suspend for how many days? (0 or blank = until you restore)', '7');
+        if (d === null) return;
+        days = parseFloat(d) || 0;
+        reason = prompt('Reason (optional, shown in records):', '') || '';
+      } else if (!confirm('Restore this student so they can log in again?')) { return; }
+      const { ok, data } = await C4K.api('/api/school/student/suspend', 'POST', { kidId, suspended: on, days, reason });
+      if (!ok) alert('❌ ' + (data.error || 'Could not update.'));
+      loadRoster();
+    }
+
+    async function editLogin(kidId, current) {
+      const username = prompt('New username (leave blank to keep "' + current + '"):', current) || '';
+      const password = prompt('New password (leave blank to keep current):', '') || '';
+      const u = username.trim() === current ? '' : username.trim();
+      if (!u && !password) return;
+      const { ok, data } = await C4K.api('/api/school/student/credentials', 'POST', { kidId, username: u, password });
+      if (ok) alert('✅ Updated: ' + (data.changed && data.changed.length ? data.changed.join(' & ') : 'no change'));
+      else alert('❌ ' + (data.error || 'Could not update login.'));
+      loadRoster();
+    }
+
+    async function removeStudent(kidId, name) {
+      if (!confirm('Delete ' + name + '? This erases their account and all their progress. This cannot be undone.')) return;
+      const { ok, data } = await C4K.api('/api/parent/delete-kid', 'POST', { kidId });
+      if (!ok) alert('❌ ' + (data.error || 'Could not delete.'));
+      loadRoster();
+    }
+  </script>
+  <script src="pwa.js?v=17" defer></script>
+</body>
+</html>
