@@ -8,6 +8,7 @@ Disallow: /district.html
 Disallow: /checkout.html
 Disallow: /reset.html
 Disallow: /certificate.html
+Disallow: /marketing/
 Disallow: /api/
 
 Sitemap: https://kidvibers.com/sitemap.xml
