@@ -128,6 +128,17 @@ const C4K = {
             '📨 Send approval email to my parent</button>' +
           '<p id="c4kLockMsg" style="font-size:0.82rem;margin:8px 0 0;color:#7ee0a0;min-height:1em;"></p>' +
         '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;color:#6f6890;font-size:0.74rem;font-weight:800;margin:6px 0 14px;">' +
+          '<span style="flex:1;height:1px;background:#2c2450;"></span>OR<span style="flex:1;height:1px;background:#2c2450;"></span></div>' +
+        '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin-bottom:18px;text-align:left;">' +
+          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">🏫 Have a class code from your teacher?</label>' +
+          '<div style="display:flex;gap:8px;margin-top:6px;">' +
+            '<input id="c4kLockCode" maxlength="8" placeholder="CODE" ' +
+              'style="flex:1;text-transform:uppercase;letter-spacing:2px;font-weight:900;padding:11px 13px;border-radius:10px;border:1px solid #3a2f63;background:#08060f;color:#fff;font-family:inherit;box-sizing:border-box;" />' +
+            '<button id="c4kLockJoin" style="padding:11px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,#7c5cff,#b14cff);color:#fff;font-weight:900;cursor:pointer;">Join</button>' +
+          '</div>' +
+          '<p id="c4kLockCodeMsg" style="font-size:0.82rem;margin:8px 0 0;color:#7ee0a0;min-height:1em;"></p>' +
+        '</div>' +
         '<button id="c4kLockRefresh" style="background:none;border:1px solid #3a2f63;color:#bdb6d6;font-weight:800;' +
           'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved - check again</button>' +
         '<p style="color:#6f6890;font-size:0.78rem;margin-top:16px;">Need help? Email ' +
@@ -145,6 +156,23 @@ const C4K = {
       msg.textContent = ok ? ('Sent! We emailed ' + (data.parentEmail || 'your parent') + '. Ask them to tap the approval link.')
                            : (data.error || 'Could not send. Check the email address.');
       btn.disabled = false;
+    };
+    // A teacher code joins the kid to a classroom, which grants school consent and unlocks them.
+    const codeMsg = ov.querySelector('#c4kLockCodeMsg');
+    ov.querySelector('#c4kLockJoin').onclick = async (e) => {
+      const btn = e.currentTarget;
+      const code = (ov.querySelector('#c4kLockCode').value || '').trim().toUpperCase();
+      if (!code) { codeMsg.style.color = '#ff8a8a'; codeMsg.textContent = 'Enter your class code.'; return; }
+      btn.disabled = true;
+      const { ok, data } = await this.api('/api/class/join', 'POST', { code });
+      codeMsg.style.color = ok ? '#7ee0a0' : '#ff8a8a';
+      if (ok) {
+        codeMsg.textContent = '✅ Joined ' + (data.groupName || 'the classroom') + '! Unlocking...';
+        setTimeout(() => location.reload(), 900);
+      } else {
+        codeMsg.textContent = data.error || 'Could not join. Check the code.';
+        btn.disabled = false;
+      }
     };
     ov.querySelector('#c4kLockRefresh').onclick = () => location.reload();
     return true;
