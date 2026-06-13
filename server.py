@@ -360,6 +360,18 @@ def db():
     return conn
 
 
+# Class/teacher join codes: unambiguous characters only (no O/0/I/1).
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def gen_class_code(conn):
+    """A unique 6-character classroom code kids type to join a teacher/district group."""
+    while True:
+        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+        if not conn.execute("SELECT 1 FROM users WHERE class_code=?", (code,)).fetchone():
+            return code
+
+
 def init_db():
     conn = db()
     conn.executescript(
@@ -456,10 +468,14 @@ def init_db():
         "brand_name": "TEXT", "brand_logo": "TEXT",   # school/district custom branding
         "quiz_done": "INTEGER DEFAULT 0", "quiz_level": "TEXT",   # placement quiz result
         "quiz_plan": "TEXT", "start_unit": "INTEGER",
+        "class_code": "TEXT",   # teacher/district join code kids enter to join the group
     }
     for col, decl in add_cols.items():
         if col not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+    # Every educator (teacher) account gets a unique class code; backfill any that are missing.
+    for r in conn.execute("SELECT id FROM users WHERE role='teacher' AND (class_code IS NULL OR class_code='')").fetchall():
+        conn.execute("UPDATE users SET class_code=? WHERE id=?", (gen_class_code(conn), r["id"]))
     conn.commit()
     conn.close()
 
@@ -597,6 +613,8 @@ def provision_account(role, name, username, pwhash, salt, email="", plan=None):
         return None
     if role in ("parent", "teacher"):   # adults manage their own family group
         conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))
+        if role == "teacher":
+            conn.execute("UPDATE users SET class_code=? WHERE id=?", (gen_class_code(conn), uid))
         conn.commit()
     conn.close()
     return uid
@@ -1103,6 +1121,21 @@ def family_branding(family_id):
     return {"brandName": _row_get(row, "brand_name"), "brandLogo": _row_get(row, "brand_logo")}
 
 
+def family_group(family_id):
+    """If a kid belongs to an educator group, returns the label (District/School/Classroom) + name."""
+    if family_id is None:
+        return {}
+    conn = db()
+    row = conn.execute("SELECT role, plan, school, brand_name FROM users WHERE id=?", (family_id,)).fetchone()
+    conn.close()
+    if not row or row["role"] != "teacher":
+        return {}   # regular parent-managed family - keep the normal plan label
+    plan = row["plan"]
+    label = "District" if plan == "district" else ("School" if plan == "school" else "Classroom")
+    name = _row_get(row, "brand_name") or _row_get(row, "school") or label
+    return {"groupLabel": label, "groupName": name}
+
+
 def _row_get(row, key, default=None):
     try:
         v = row[key]
@@ -1129,9 +1162,11 @@ def public_user(user):
         teacher = {"teacherPlan": user["plan"] or "none", "teacherPlanLabel": tp["label"],
                    "studentLimit": tp["students"], "studentsUsed": students_in_family(user["family_id"]),
                    "isDistrict": (user["plan"] in DISTRICT_PLANS),
+                   "classCode": _row_get(user, "class_code"),
                    "brandName": _row_get(user, "brand_name"), "brandLogo": _row_get(user, "brand_logo")}
-    # Kids inherit their school/district's branding (shown on their dashboard).
+    # Kids inherit their school/district's branding + group label (shown on their dashboard).
     kid_brand = family_branding(user["family_id"]) if user["role"] == "kid" else {}
+    kid_group = family_group(user["family_id"]) if user["role"] == "kid" else {}
     return {
         "id": user["id"], "role": user["role"], "name": user["name"], "username": user["username"],
         "plan": user["plan"], "effectivePlan": eff, "trialDaysLeft": trial_days_left(user),
@@ -1151,6 +1186,7 @@ def public_user(user):
         "recommendedPlan": _row_get(user, "quiz_plan"),
         "startUnit": _row_get(user, "start_unit"),
         **kid_brand,
+        **kid_group,
     }
 
 
@@ -1613,6 +1649,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/school/student/suspend": lambda: self.api_school_student_suspend(data),
             "/api/school/student/credentials": lambda: self.api_school_student_credentials(data),
             "/api/quiz/submit": lambda: self.api_quiz_submit(data),
+            "/api/class/join": lambda: self.api_class_join(data),
+            "/api/teacher/new-code": lambda: self.api_teacher_new_code(data),
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
@@ -2134,7 +2172,8 @@ class Handler(BaseHTTPRequestHandler):
             return resp
         uid, row = resp
         conn = db()
-        conn.execute("UPDATE users SET family_id=? WHERE id=?", (uid, uid))  # classroom = family group
+        conn.execute("UPDATE users SET family_id=?, class_code=? WHERE id=?",
+                     (uid, gen_class_code(conn), uid))  # classroom = family group + a join code
         conn.commit()
         row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
         conn.close()
@@ -2623,6 +2662,52 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         return self._send_json({"ok": True, "changed": changed,
                                 "username": new_user if "username" in changed else kid["username"]})
+
+    def api_class_join(self, data):
+        """A kid types a teacher/district class code to join that classroom group."""
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "Only a kid account can join a classroom."}, 403)
+        code = (data.get("code") or "").strip().upper().replace(" ", "")
+        if not code:
+            return self._send_json({"error": "Enter your class code."}, 400)
+        conn = db()
+        teacher = conn.execute("SELECT * FROM users WHERE role='teacher' AND class_code=?", (code,)).fetchone()
+        if not teacher:
+            conn.close()
+            return self._send_json({"error": "That class code wasn't found. Double-check it with your teacher."}, 404)
+        cfg = teacher_plan_cfg(teacher["plan"])
+        limit = cfg["students"]   # -1 = unlimited
+        used = conn.execute("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?",
+                            (teacher["family_id"],)).fetchone()["c"]
+        if limit != -1 and used >= limit:
+            conn.close()
+            return self._send_json({"error": "That classroom is full. Ask your teacher for help."}, 403)
+        granted_by = (teacher["school"] or teacher["username"]) + f" (code {code})"
+        # Joining a class moves the kid into that group, with school/classroom consent.
+        conn.execute("UPDATE users SET family_id=?, plan='family', consent_status='granted', "
+                     "consent_method='class_code', consent_by=?, consent_at=? WHERE id=?",
+                     (teacher["family_id"], granted_by, now_iso(), u["id"]))
+        conn.commit()
+        row = conn.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
+        conn.close()
+        log_consent(u["id"], u["username"], "class_join", granted_by, f"Joined classroom via code {code}")
+        grp = family_group(teacher["family_id"])
+        return self._send_json({"ok": True, "user": public_user(row),
+                                "groupName": grp.get("groupName") or (teacher["school"] or "the classroom"),
+                                "groupLabel": grp.get("groupLabel") or "Classroom"})
+
+    def api_teacher_new_code(self, data):
+        """A teacher/district owner regenerates their class join code."""
+        u = self._current_user()
+        if not u or u["role"] != "teacher":
+            return self._send_json({"error": "Only a teacher account has a class code."}, 403)
+        conn = db()
+        code = gen_class_code(conn)
+        conn.execute("UPDATE users SET class_code=? WHERE id=?", (code, u["id"]))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "classCode": code})
 
     def api_quiz_submit(self, data):
         """A kid completes the placement quiz; we store + return a plan + starting-world recommendation."""

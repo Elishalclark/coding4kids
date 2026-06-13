@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=19" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -56,6 +56,20 @@
       <div>
         <div class="org" id="ddOrg">Your School</div>
         <div class="sub" id="ddSub">District &amp; Library Dashboard</div>
+      </div>
+    </div>
+
+    <!-- Class join code -->
+    <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="font-size:1.8rem;">🔑</div>
+      <div style="flex:1;min-width:200px;">
+        <h2 style="margin-bottom:2px;">Class join code</h2>
+        <p class="hint" style="margin:0;">Share this code. Students log in, open their dashboard, and enter it to join your group.</p>
+      </div>
+      <div style="font-size:1.8rem;font-weight:900;letter-spacing:4px;color:var(--purple);background:var(--bg);border:1px dashed var(--border-bright);border-radius:12px;padding:10px 18px;" id="ddCode">------</div>
+      <div style="display:flex;gap:8px;">
+        <button class="mini" onclick="copyCode()">📋 Copy</button>
+        <button class="mini" onclick="regenCode()">🔄 New code</button>
       </div>
     </div>
 
@@ -113,7 +127,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=18"></script>
+  <script src="auth.js?v=19"></script>
   <script>
     let ME = null;
 
@@ -138,6 +152,7 @@
       }
       document.getElementById('ddMain').style.display = '';
       paintHeader();
+      document.getElementById('ddCode').textContent = ME.classCode || '------';
       document.getElementById('brName').value = ME.brandName || '';
       document.getElementById('brLogo').value = ME.brandLogo || '';
       loadRoster();
@@ -152,6 +167,20 @@
       wrap.innerHTML = ME.brandLogo
         ? '<img src="' + C4K.esc(ME.brandLogo) + '" alt="logo" onerror="this.remove()" />'
         : '<div style="font-size:2.6rem;">🏛️</div>';
+    }
+
+    function copyCode() {
+      const code = document.getElementById('ddCode').textContent.trim();
+      navigator.clipboard?.writeText(code);
+      const b = event.target; const t = b.textContent; b.textContent = '✅ Copied';
+      setTimeout(() => b.textContent = t, 1200);
+    }
+
+    async function regenCode() {
+      if (!confirm('Make a new code? The old code will stop working for new students.')) return;
+      const { ok, data } = await C4K.api('/api/teacher/new-code', 'POST', {});
+      if (ok) { ME.classCode = data.classCode; document.getElementById('ddCode').textContent = data.classCode; }
+      else alert('❌ ' + (data.error || 'Could not make a new code.'));
     }
 
     async function saveBranding() {
@@ -248,6 +277,6 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=18" defer></script>
+  <script src="pwa.js?v=19" defer></script>
 </body>
 </html>

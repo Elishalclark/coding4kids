@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=19" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -73,6 +73,16 @@
       </span>
     </div>
 
+    <div id="teacherCode" class="hidden" style="margin-bottom:28px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;">
+      <span style="font-size:1.5rem;">🔑</span>
+      <div style="flex:1;min-width:160px;">
+        <strong>Class join code</strong>
+        <div style="color:var(--text-dim);font-size:0.85rem;">Students enter this on their dashboard to join your classroom.</div>
+      </div>
+      <span id="tcCode" style="font-size:1.4rem;font-weight:900;letter-spacing:3px;color:var(--purple);background:var(--bg);border:1px dashed var(--border-bright);border-radius:10px;padding:8px 16px;">------</span>
+      <button class="btn btn-outline" style="font-size:0.82rem;padding:8px 14px;" onclick="copyTeacherCode()">📋 Copy</button>
+    </div>
+
     <div id="msgWrap" class="hidden" style="margin-bottom:28px;">
       <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:14px;">📬 Messages</h2>
       <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -82,7 +92,7 @@
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
-  <script src="auth.js?v=18"></script>
+  <script src="auth.js?v=19"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -143,6 +153,13 @@
       </div>`;
     }
 
+    function copyTeacherCode() {
+      const code = document.getElementById('tcCode').textContent.trim();
+      navigator.clipboard?.writeText(code);
+      const b = event.target; const t = b.textContent; b.textContent = '✅ Copied';
+      setTimeout(() => b.textContent = t, 1200);
+    }
+
     async function load() {
       const me = await C4K.loadMe();
       // Super admin can preview this dashboard (master login); parents & teachers see their own.
@@ -165,6 +182,10 @@
           me.teacherPlan === 'school' ? '🏫 You\'re on the School Plan (550 students).'
           : (me.teacherPlan === 'teacher' ? `📈 Teacher Plan (${me.studentsUsed}/${me.studentLimit} students). Need more?`
           : '📋 Choose a plan to start adding students:');
+        if (me.classCode) {
+          document.getElementById('tcCode').textContent = me.classCode;
+          document.getElementById('teacherCode').classList.remove('hidden');
+        }
       }
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
@@ -214,6 +235,6 @@
 
     load();
   </script>
-  <script src="pwa.js?v=18" defer></script>
+  <script src="pwa.js?v=19" defer></script>
 </body>
 </html>
