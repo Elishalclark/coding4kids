@@ -37,6 +37,14 @@
     .mini:hover { border-color:var(--border-bright); }
     .mini.danger { color:#f87171; border-color:rgba(239,68,68,0.4); }
     .gate { max-width:520px; margin:80px auto; text-align:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:40px 28px; }
+    /* On phones, turn the roster table into stacked cards so action buttons never get cut off. */
+    @media (max-width:640px){
+      table.roster thead { display:none; }
+      table.roster, table.roster tbody, table.roster tr, table.roster td { display:block; width:100%; }
+      table.roster tr { border:1px solid var(--border); border-radius:12px; margin-bottom:12px; padding:10px 12px; }
+      table.roster td { border:none; padding:3px 0; }
+      table.roster td .rowbtns { margin-top:8px; }
+    }
   </style>
 </head>
 <body>
