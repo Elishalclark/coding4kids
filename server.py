@@ -21,11 +21,14 @@ import os
 import re
 import sqlite3
 import hashlib
+import hmac
 import secrets
 import datetime
 import time
 import threading
 import urllib.request
+import urllib.parse
+import urllib.error
 import smtplib
 import ssl
 import html as html_lib
@@ -40,6 +43,20 @@ os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "data.db")
 ADMIN_CONFIG = os.path.join(DATA_DIR, "admin_config.json")
 PORT = int(os.environ.get("PORT", "3000"))
+
+# ── Stripe (real checkout). When STRIPE_SECRET_KEY is unset, checkout stays simulated
+# ("you have not been charged") so nothing breaks until you add keys. ──
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+SITE_URL = os.environ.get("SITE_URL", "https://kidvibers.com").rstrip("/")
+# Each plan maps to a Stripe Price ID (price_...), provided via env once you create them.
+STRIPE_PRICES = {
+    "pro":      os.environ.get("STRIPE_PRICE_PRO", ""),
+    "family":   os.environ.get("STRIPE_PRICE_FAMILY", ""),
+    "teacher":  os.environ.get("STRIPE_PRICE_TEACHER", ""),
+    "school":   os.environ.get("STRIPE_PRICE_SCHOOL", ""),
+    "district": os.environ.get("STRIPE_PRICE_DISTRICT", ""),
+}
 
 TRIAL_DAYS = 3
 ADMIN_ROLES = ("admin", "super_admin")
@@ -469,6 +486,7 @@ def init_db():
         "quiz_done": "INTEGER DEFAULT 0", "quiz_level": "TEXT",   # placement quiz result
         "quiz_plan": "TEXT", "start_unit": "INTEGER",
         "class_code": "TEXT",   # teacher/district join code kids enter to join the group
+        "stripe_customer_id": "TEXT", "stripe_subscription_id": "TEXT",   # real billing
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -1042,6 +1060,55 @@ def lessons_done_count(user_id):
     return row["c"]
 
 
+# ────────────────────────────── Stripe ──────────────────────────────
+def stripe_enabled():
+    return bool(STRIPE_SECRET_KEY)
+
+
+def stripe_request(path, params):
+    """POST to the Stripe API with the secret key. Returns parsed JSON (raises on hard errors)."""
+    data = urllib.parse.urlencode(params, doseq=True).encode()
+    req = urllib.request.Request("https://api.stripe.com/v1" + path, data=data, method="POST")
+    req.add_header("Authorization", "Bearer " + STRIPE_SECRET_KEY)
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        try:
+            msg = json.loads(body).get("error", {}).get("message", body)
+        except (ValueError, TypeError):
+            msg = body
+        raise RuntimeError(f"Stripe error: {msg}")
+
+
+def stripe_plan_role_ok(plan, role):
+    if plan in ("teacher", "school", "district"):
+        return role in ("teacher", "super_admin")
+    if plan in ("pro", "family"):
+        return role in ("kid", "parent", "super_admin")
+    return False
+
+
+def stripe_verify_signature(payload_bytes, sig_header):
+    """Verify a Stripe webhook signature (no SDK needed). Returns True/False."""
+    if not STRIPE_WEBHOOK_SECRET or not sig_header:
+        return False
+    parts = dict(p.split("=", 1) for p in sig_header.split(",") if "=" in p)
+    t, v1 = parts.get("t"), parts.get("v1")
+    if not t or not v1:
+        return False
+    signed = t.encode() + b"." + payload_bytes
+    expected = hmac.new(STRIPE_WEBHOOK_SECRET.encode(), signed, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, v1):
+        return False
+    try:                                  # reject events older than 5 minutes (replay protection)
+        return abs(time.time() - int(t)) < 300
+    except (TypeError, ValueError):
+        return False
+
+
 def teacher_plan_cfg(plan):
     return TEACHER_PLANS.get(plan, NO_TEACHER_PLAN)
 
@@ -1181,6 +1248,7 @@ def public_user(user):
         "needsConsent": (user["role"] == "kid" and cstatus == "pending"),
         "school": _row_get(user, "school"),
         "suspended": bool(_row_get(user, "suspended", 0)),
+        "hasBilling": bool(_row_get(user, "stripe_customer_id")),
         "quizDone": bool(_row_get(user, "quiz_done", 0)),
         "quizLevel": _row_get(user, "quiz_level"),
         "recommendedPlan": _row_get(user, "quiz_plan"),
@@ -1263,6 +1331,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlparse(self.path).path
+            if path == "/api/stripe/webhook":
+                # Stripe webhook: verify against the RAW body, so read it here.
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                raw = self.rfile.read(length) if length else b""
+                return self.api_stripe_webhook(raw, self.headers.get("Stripe-Signature", ""))
             if path.startswith("/api/"):
                 return self.handle_api_post(path)
             return self._send_json({"error": "not found"}, 404)
@@ -1331,7 +1404,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/site-config":  # public: whether sign-ups / logins are currently enabled
             return self._send_json({"signupsEnabled": auth_enabled("signups"),
-                                    "loginsEnabled": auth_enabled("logins")})
+                                    "loginsEnabled": auth_enabled("logins"),
+                                    "stripeEnabled": stripe_enabled()})
 
         if path == "/api/progress":
             u = self._current_user()
@@ -1655,6 +1729,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
             "/api/checkout": lambda: self.api_checkout(data),
+            "/api/checkout/session": lambda: self.api_checkout_session(data),
+            "/api/billing/portal": lambda: self.api_billing_portal(data),
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
             "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/notice": lambda: self.api_admin_notice(data),
@@ -2212,6 +2288,95 @@ class Handler(BaseHTTPRequestHandler):
                              "<p>Thanks for your patience! 💜<br>- The KidVibers Team</p>")
         return self._send_json({"ok": True, "plan": plan, "user": public_user(row),
                                 "notCharged": True})
+
+    def api_checkout_session(self, data):
+        """Create a real Stripe Checkout Session (hosted payment page). Falls back to
+        simulated mode when Stripe isn't configured."""
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "Please log in to upgrade."}, 401)
+        plan = (data.get("plan") or "").strip()
+        if plan not in ("pro", "family", "teacher", "school", "district"):
+            return self._send_json({"error": "Unknown plan."}, 400)
+        if not stripe_plan_role_ok(plan, u["role"]):
+            return self._send_json({"error": "This account type can't purchase that plan."}, 403)
+        price = STRIPE_PRICES.get(plan)
+        if not stripe_enabled() or not price:
+            # Stripe not set up yet -> tell the front-end to use the simulated flow.
+            return self._send_json({"simulated": True})
+        params = {
+            "mode": "subscription",
+            "line_items[0][price]": price,
+            "line_items[0][quantity]": 1,
+            "success_url": f"{SITE_URL}/checkout.html?status=success&plan={plan}",
+            "cancel_url": f"{SITE_URL}/checkout.html?plan={plan}&status=cancel",
+            "client_reference_id": str(u["id"]),
+            "metadata[user_id]": str(u["id"]),
+            "metadata[plan]": plan,
+            "allow_promotion_codes": "true",
+        }
+        if u["parent_email"]:
+            params["customer_email"] = u["parent_email"]
+        try:
+            session = stripe_request("/checkout/sessions", params)
+        except RuntimeError as e:
+            print("stripe session error:", e)
+            return self._send_json({"error": "Could not start checkout. Please try again."}, 502)
+        return self._send_json({"url": session.get("url")})
+
+    def api_stripe_webhook(self, raw_body, sig_header):
+        """Stripe calls this after a payment. We verify the signature, then upgrade the plan."""
+        if not stripe_verify_signature(raw_body, sig_header):
+            return self._send_json({"error": "bad signature"}, 400)
+        try:
+            event = json.loads(raw_body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._send_json({"error": "bad payload"}, 400)
+        etype = event.get("type")
+        obj = event.get("data", {}).get("object", {})
+        if etype == "checkout.session.completed":
+            uid = obj.get("client_reference_id") or obj.get("metadata", {}).get("user_id")
+            plan = obj.get("metadata", {}).get("plan")
+            if uid and plan:
+                conn = db()
+                row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+                if row:
+                    conn.execute("UPDATE users SET plan=?, stripe_customer_id=?, stripe_subscription_id=? WHERE id=?",
+                                 (plan, obj.get("customer"), obj.get("subscription"), uid))
+                    conn.commit()
+                    if row["parent_email"]:
+                        send_email_async(row["parent_email"], "Your KidVibers plan is active 🎉",
+                                         f"<p>Thanks for subscribing! Your <strong>{plan.title()}</strong> plan is now active.</p>"
+                                         "<p>You can manage or cancel anytime from your dashboard.</p>"
+                                         "<p>- The KidVibers Team 💜</p>")
+                conn.close()
+        elif etype in ("customer.subscription.deleted",):
+            # Subscription ended/canceled -> drop kid plans back to free.
+            sub_id = obj.get("id")
+            if sub_id:
+                conn = db()
+                row = conn.execute("SELECT * FROM users WHERE stripe_subscription_id=?", (sub_id,)).fetchone()
+                if row:
+                    downgrade = "free" if row["role"] in ("kid", "parent") else "none"
+                    conn.execute("UPDATE users SET plan=?, stripe_subscription_id=NULL WHERE id=?", (downgrade, row["id"]))
+                    conn.commit()
+                conn.close()
+        return self._send_json({"received": True})
+
+    def api_billing_portal(self, data):
+        """Open the Stripe customer portal so a subscriber can update or cancel billing."""
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "Please log in."}, 401)
+        if not stripe_enabled() or not _row_get(u, "stripe_customer_id"):
+            return self._send_json({"error": "No billing account to manage yet."}, 400)
+        try:
+            session = stripe_request("/billing_portal/sessions",
+                                     {"customer": u["stripe_customer_id"], "return_url": f"{SITE_URL}/dashboard.html"})
+        except RuntimeError as e:
+            print("stripe portal error:", e)
+            return self._send_json({"error": "Could not open billing. Please try again."}, 502)
+        return self._send_json({"url": session.get("url")})
 
     def api_admin_consent(self, data):
         # Super admin records or revokes parental consent (e.g. for offline consent: phone, paper, in-person).

@@ -66,6 +66,16 @@
     <div class="co-card">
       <h2>Payment</h2>
 
+      <!-- Real payment via Stripe (shown when billing is live) -->
+      <div id="payStripe" class="hidden">
+        <p style="color:var(--text-dim);font-size:0.92rem;margin-bottom:16px;">You'll be taken to Stripe's secure checkout to finish. Cancel anytime.</p>
+        <button class="btn btn-primary btn-lg btn-full" id="stripeBtn" onclick="startStripeCheckout()">Pay securely with Stripe →</button>
+        <div class="err" id="e-stripe" style="text-align:center;margin-top:10px;"></div>
+        <div class="secure-note">🔒 Payments are processed by Stripe. KidVibers never sees your card number.</div>
+      </div>
+
+      <!-- Simulated payment (shown until Stripe keys are added) -->
+      <div id="paySim">
       <button class="applepay-btn" id="applePayBtn" onclick="payWithApple()" aria-label="Pay with Apple Pay">&#xF8FF; Apple&nbsp;Pay</button>
       <div class="or-divider">or pay with card</div>
 
@@ -101,6 +111,7 @@
         <button type="submit" class="btn btn-primary btn-lg btn-full" id="payBtn">Pay <span id="payAmt">$9.00</span></button>
         <div class="secure-note">🔒 Your card details stay on your device for this demo and are never stored. Cancel anytime.</div>
       </form>
+      </div><!-- /#paySim -->
     </div>
   </main>
 
@@ -139,7 +150,7 @@
     document.getElementById('planFeatures').innerHTML = planInfo.features
       .filter(f => !f.startsWith('-')).map(f => `<li>✓ ${f}</li>`).join('');
 
-    // Must be logged in to buy
+    // Must be logged in to buy; then choose the real (Stripe) or simulated payment UI.
     (async () => {
       const me = await C4K.loadMe();
       if (!me) {
@@ -147,8 +158,46 @@
           '<div class="co-card" style="grid-column:1/-1;text-align:center;"><h2>Please log in first</h2>' +
           '<p style="color:var(--text-dim);margin-bottom:16px;">You need to be logged in to upgrade an account.</p>' +
           '<a href="index.html" class="btn btn-primary">Go to log in</a></div>';
+        return;
+      }
+      // Returning from Stripe?
+      const status = params.get('status');
+      if (status === 'success') { showSuccess(true); return; }
+      if (status === 'cancel') { document.getElementById('e-stripe').textContent = 'Payment canceled - you have not been charged.'; }
+      // Pick the payment UI based on whether real billing is live.
+      let cfg = {};
+      try { cfg = await (await fetch('/api/site-config')).json(); } catch {}
+      if (cfg.stripeEnabled) {
+        document.getElementById('paySim').classList.add('hidden');
+        document.getElementById('payStripe').classList.remove('hidden');
       }
     })();
+
+    async function startStripeCheckout() {
+      const btn = document.getElementById('stripeBtn');
+      btn.disabled = true; btn.textContent = 'Starting secure checkout…';
+      const { ok, data } = await C4K.api('/api/checkout/session', 'POST', { plan });
+      if (ok && data.url) { window.location.href = data.url; return; }   // off to Stripe
+      if (ok && data.simulated) {   // keys not set up -> use the simulated flow instead
+        document.getElementById('payStripe').classList.add('hidden');
+        document.getElementById('paySim').classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Pay securely with Stripe →';
+        return;
+      }
+      document.getElementById('e-stripe').textContent = '⚠️ ' + ((data && data.error) || 'Could not start checkout.');
+      btn.disabled = false; btn.textContent = 'Pay securely with Stripe →';
+    }
+
+    function showSuccess(real) {
+      document.getElementById('coMain').classList.add('hidden');
+      const s = document.getElementById('coSuccess');
+      if (real) {
+        document.getElementById('successTitle').textContent = "You're all set! 🎉";
+        document.getElementById('successMsg').textContent =
+          'Your subscription is active. It can take a few seconds to show up - thanks for supporting KidVibers!';
+      }
+      s.classList.remove('hidden');
+    }
 
     // Input niceties
     const num = document.getElementById('ccNum');
