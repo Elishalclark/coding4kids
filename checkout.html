@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout — KidVibers</title>
+  <title>Checkout - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     .co-wrap { max-width: 860px; margin: 0 auto; padding: 30px 20px 80px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; }
     @media (max-width: 760px) { .co-wrap { grid-template-columns: 1fr; } }
@@ -111,13 +111,13 @@
     <button class="btn btn-primary btn-lg" id="successBtn" onclick="goHome()">Go to my dashboard →</button>
   </div>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     const PRICES = { pro: 9, family: 15, teacher: 24, school: 136, district: 150 };
-    // Educator tiers aren't in the kid pricing list — describe them here.
+    // Educator tiers aren't in the kid pricing list - describe them here.
     const EDU = {
       teacher:  { name: 'Teacher Plan',  features: ['Up to 100 students', 'Full curriculum (14 worlds)', 'AI buddy for students', 'Classroom dashboard & progress'] },
-      school:   { name: 'School Plan',   features: ['Up to 550 students', 'Everything in Teacher', 'District dashboard — branding & management', 'School-wide consent'] },
+      school:   { name: 'School Plan',   features: ['Up to 550 students', 'Everything in Teacher', 'District dashboard - branding & management', 'School-wide consent'] },
       district: { name: 'District Plan', features: ['Unlimited students', 'Everything in School', 'Custom branding (name & logo)', 'Suspend / edit logins / remove students', 'Priority support'] },
     };
     // Plans that land in the District/Library dashboard after checkout.
@@ -137,7 +137,7 @@
     document.getElementById('payAmt').textContent = amtStr;
     document.getElementById('applePayBtn').innerHTML = '\uF8FF Apple Pay \u00b7 ' + amtStr;
     document.getElementById('planFeatures').innerHTML = planInfo.features
-      .filter(f => !f.startsWith('—')).map(f => `<li>✓ ${f}</li>`).join('');
+      .filter(f => !f.startsWith('-')).map(f => `<li>✓ ${f}</li>`).join('');
 
     // Must be logged in to buy
     (async () => {
@@ -179,7 +179,7 @@
       let expOk = /^\d{2}\/\d{2}$/.test(e);
       if (expOk) { const m = +e.slice(0, 2); expOk = m >= 1 && m <= 12; }
       ok = setErr('exp', expOk ? '' : 'MM/YY') && ok;
-      ok = setErr('cvc', /^\d{3,4}$/.test(document.getElementById('ccCvc').value) ? '' : '3–4 digits') && ok;
+      ok = setErr('cvc', /^\d{3,4}$/.test(document.getElementById('ccCvc').value) ? '' : '3-4 digits') && ok;
       ok = setErr('zip', document.getElementById('ccZip').value.length >= 3 ? '' : 'ZIP') && ok;
       return ok;
     }
@@ -213,7 +213,7 @@
       const s = document.getElementById('coSuccess');
       document.getElementById('successTitle').textContent = `You have not been charged ✅`;
       document.getElementById('successMsg').textContent =
-        `We're currently not accepting new paid plans yet — we'll have that solved soon. No payment was taken. We've emailed you a confirmation.`;
+        `We're currently not accepting new paid plans yet - we'll have that solved soon. No payment was taken. We've emailed you a confirmation.`;
       s.classList.remove('hidden');
     }
 
@@ -223,6 +223,6 @@
       location.href = C4K.homeFor(C4K.user);
     }
   </script>
-  <script src="pwa.js?v=17" defer></script>
+  <script src="pwa.js?v=18" defer></script>
 </body>
 </html>

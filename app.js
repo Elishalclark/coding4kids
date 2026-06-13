@@ -25,10 +25,10 @@ async function handleSignup(e) {
     success.style.background = 'rgba(255,255,255,0.2)';
     success.innerHTML = `🎉 Welcome, ${data.user.name}!`;
     document.getElementById('signupForm').reset();
-    showInvite(data, payload.parentEmail);   // QR + parent email/consent invite, then dashboard
+    startQuiz(data, payload.parentEmail);   // placement quiz -> then QR + parent invite -> dashboard
   } else {
     success.style.background = 'rgba(239,68,68,0.25)';
-    success.textContent = '⚠️ ' + (data.error || "Can't reach the server right now — please try again in a moment.");
+    success.textContent = '⚠️ ' + (data.error || "Can't reach the server right now - please try again in a moment.");
   }
   success.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -60,7 +60,7 @@ function openLogin() {
   document.getElementById('loginModal').classList.remove('hidden');
   setLoginRole('kid');
   if (window.__siteConfig && window.__siteConfig.loginsEnabled === false) {
-    document.getElementById('loginError').textContent = '⏸️ Logins are temporarily paused — please check back soon. (Admins can still sign in.)';
+    document.getElementById('loginError').textContent = '⏸️ Logins are temporarily paused - please check back soon. (Admins can still sign in.)';
   }
   document.getElementById('loginUsername').focus();
 }
@@ -106,7 +106,7 @@ async function handleLogin(e) {
     if (tryAdmin.ok) { ok = true; data = tryAdmin.data; }
   }
   if (!ok) {
-    document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server — try again in a moment.");
+    document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server - try again in a moment.");
     return;
   }
   // The super admin is a master key: their credentials work on every tab and take them
@@ -120,7 +120,7 @@ async function handleLogin(e) {
   }
   closeLogin();
   if (masterSuper && loginRole !== 'super_admin') {
-    // super admin chose a different tab — send them to that role's area
+    // super admin chose a different tab - send them to that role's area
     const map = { kid: 'dashboard.html', parent: 'parent.html', teacher: 'parent.html', admin: 'admin.html' };
     window.location.href = map[loginRole] || 'admin.html';
   } else {
@@ -154,13 +154,13 @@ async function consentStep1(token) {
   const { ok, data } = await C4K.api('/api/consent/start', 'POST', { token });
   const body = document.getElementById('consentBody');
   if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'Could not start.'}</p>`; return; }
-  // "Email plus" — a second confirmation step (we surface the confirm link since email is simulated here).
+  // "Email plus" - a second confirmation step (we surface the confirm link since email is simulated here).
   body.innerHTML = `
     <div style="text-align:center;">
       <div style="font-size:2.4rem;">📧</div>
       <h3 style="font-weight:900;margin:8px 0;">One more step</h3>
       <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:16px;">For your security, we send a second confirmation
-        (a "verifiable consent" step). We've emailed it to you — or just confirm now:</p>
+        (a "verifiable consent" step). We've emailed it to you - or just confirm now:</p>
       <button class="btn btn-primary btn-lg btn-full" onclick="consentConfirm('${data.confirmToken}')">Confirm consent for ${data.childName}</button>
     </div>`;
 }
@@ -186,6 +186,84 @@ function closePricing() { document.getElementById('pricingModal').classList.add(
 document.getElementById('pricingModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'pricingModal') closePricing();
 });
+
+// ── Placement quiz (after a kid signs up) ──
+// IMPORTANT: option order must match recommend_from_quiz() in server.py.
+const QUIZ_QUESTIONS = [
+  { q: '🎂 How old are you?', opts: ['6 to 8', '9 to 11', '12 to 14', '15 or older'] },
+  { q: '💡 Have you coded before?', opts: ['Never tried it', 'A little (Scratch/blocks)', 'Some Python or similar', 'Yes, I build things'] },
+  { q: '🚀 What do you most want to make?', opts: ['🎮 Games', '🌐 Websites', '🎨 Art & stories', '🤖 Smart AI stuff'] },
+  { q: '⏰ How much will you practice?', opts: ['Here and there', 'About 15 min most days', 'I want to go deep daily'] },
+  { q: '🤝 Want an AI buddy to explain things & give hints?', opts: ['Yes please!', 'Maybe later', 'I like figuring it out myself'] },
+  { q: '👨‍👩‍👧 Is it just you, or will siblings learn too?', opts: ['Just me', 'Me + my brothers/sisters'] },
+];
+let quizState = null;
+
+function startQuiz(data, parentEmail) {
+  quizState = { data, parentEmail, i: 0, answers: [] };
+  document.getElementById('quizModal').classList.remove('hidden');
+  renderQuiz();
+}
+
+function renderQuiz() {
+  const total = QUIZ_QUESTIONS.length;
+  const i = quizState.i;
+  document.getElementById('quizBar').style.width = Math.round((i / total) * 100) + '%';
+  const Q = QUIZ_QUESTIONS[i];
+  const body = document.getElementById('quizBody');
+  body.innerHTML =
+    `<div style="font-size:0.78rem;font-weight:800;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Question ${i + 1} of ${total}</div>` +
+    `<h3 style="font-size:1.15rem;font-weight:900;margin-bottom:16px;">${C4K.esc(Q.q)}</h3>` +
+    `<div style="display:flex;flex-direction:column;gap:10px;">` +
+    Q.opts.map((o, idx) =>
+      `<button class="btn btn-outline" style="justify-content:flex-start;text-align:left;font-weight:800;padding:13px 16px;" onclick="answerQuiz(${idx})">${C4K.esc(o)}</button>`
+    ).join('') + `</div>`;
+}
+
+async function answerQuiz(idx) {
+  quizState.answers.push(idx);
+  quizState.i++;
+  if (quizState.i < QUIZ_QUESTIONS.length) { renderQuiz(); return; }
+  // Finished - score it on the server (also saves the result to the account).
+  document.getElementById('quizBar').style.width = '100%';
+  document.getElementById('quizBody').innerHTML =
+    '<div style="text-align:center;padding:24px 0;"><div style="font-size:2.4rem;">🧮</div>' +
+    '<p style="color:var(--text-dim);margin-top:8px;">Finding your perfect path...</p></div>';
+  const { ok, data } = await C4K.api('/api/quiz/submit', 'POST', { answers: quizState.answers });
+  if (!ok) { skipQuiz(); return; }   // never block signup if scoring hiccups
+  showQuizResult(data.recommendation);
+}
+
+function showQuizResult(rec) {
+  const body = document.getElementById('quizBody');
+  body.innerHTML =
+    `<div style="text-align:center;">` +
+      `<div style="font-size:2.8rem;">🎉</div>` +
+      `<h3 style="font-size:1.35rem;font-weight:900;margin:6px 0;">${C4K.esc(rec.title)}</h3>` +
+      `<p style="color:var(--text-dim);line-height:1.55;margin-bottom:14px;">${C4K.esc(rec.blurb)}</p>` +
+      `<div style="background:var(--surface-2);border:1px solid var(--border-bright);border-radius:14px;padding:16px;text-align:left;margin-bottom:8px;">` +
+        `<div style="font-size:0.72rem;font-weight:800;color:var(--text-faint);text-transform:uppercase;">Best plan for you</div>` +
+        `<div style="font-size:1.3rem;font-weight:900;color:var(--purple);margin:2px 0 6px;">${C4K.esc(rec.planLabel)} Plan</div>` +
+        `<p style="font-size:0.86rem;color:var(--text-dim);line-height:1.5;">${C4K.esc(rec.planBlurb)}</p>` +
+      `</div>` +
+      `<div style="font-size:0.85rem;color:var(--text-dim);margin:10px 0 16px;">🧭 Starting world: <strong>${C4K.esc(rec.startWorld)}</strong>` +
+        (rec.bonusWorld ? `<br>🎁 Bonus track: <strong>${C4K.esc(rec.bonusWorld)}</strong>` : '') + `</div>` +
+      `<div style="display:flex;flex-direction:column;gap:8px;">` +
+        (rec.plan !== 'free'
+          ? `<button class="btn btn-primary btn-full" onclick="quizSeePlans()">See the ${C4K.esc(rec.planLabel)} plan</button>`
+          : '') +
+        `<button class="btn ${rec.plan === 'free' ? 'btn-primary' : 'btn-outline'} btn-full" onclick="finishQuiz()">Start learning free →</button>` +
+      `</div>` +
+    `</div>`;
+}
+
+function quizSeePlans() { finishQuiz(); setTimeout(openPricing, 350); }
+function skipQuiz() { showQuizResult({ title: "You're all set!", blurb: 'We saved your spot - jump in whenever you like.', planLabel: 'Free', planBlurb: PLAN_FALLBACK, plan: 'free', startWorld: 'Greenwood Basics', bonusWorld: '' }); }
+const PLAN_FALLBACK = 'Start free with starter lessons, badges and the avatar shop. Upgrade any time.';
+function finishQuiz() {
+  document.getElementById('quizModal').classList.add('hidden');
+  showInvite(quizState.data, quizState.parentEmail);   // continue to the parent-consent invite
+}
 
 // ── Parent invite (QR + email) shown after a kid signs up ──
 function showInvite(data, parentEmail) {
@@ -273,7 +351,7 @@ function setSchoolPlan(plan) {
   });
   const info = SCHOOL_PLAN_INFO[plan];
   const note = document.getElementById('schoolPlanNote');
-  if (note) note.innerHTML = `💳 Next step is payment — your <strong>${info.label}</strong> (${info.price}, ${info.cap}) activates after checkout, then you can manage students.`;
+  if (note) note.innerHTML = `💳 Next step is payment - your <strong>${info.label}</strong> (${info.price}, ${info.cap}) activates after checkout, then you can manage students.`;
 }
 function openSchoolSignup(plan) {
   document.getElementById('schoolModal').classList.remove('hidden');
@@ -315,7 +393,7 @@ function refreshAuthUI() {
       const trial = u.plan === 'trial' && u.trialDaysLeft != null ? ` · ${u.trialDaysLeft}d left` : '';
       const home = u.role === 'parent' ? 'parent.html' : (u.role === 'kid' ? 'dashboard.html' : 'admin.html');
       cta.classList.add('nav-account');
-      // Kids can't log out — only parents/admins get a Log Out button.
+      // Kids can't log out - only parents/admins get a Log Out button.
       const logoutBtn = u.role === 'kid' ? '' : `<a href="#" class="btn btn-ghost" onclick="doLogout();return false;">Log Out</a>`;
       cta.innerHTML =
         `<a href="${home}" class="nav-chip" title="My dashboard" style="text-decoration:none;color:inherit;"><span class="av">${(u.name||'?')[0].toUpperCase()}</span>${u.name}` +
@@ -436,7 +514,7 @@ const BOTS = {
       const jokes = [
         "Why do programmers prefer dark mode? Because light attracts bugs! 🐛",
         "Why was the JavaScript developer sad? Because they didn't know how to null their feelings! 😢",
-        "How many programmers does it take to change a light bulb? None — that's a hardware problem! 💡",
+        "How many programmers does it take to change a light bulb? None - that's a hardware problem! 💡",
         "Why did the coder go broke? Because they used up all their cache! 💰",
         "What's a computer's favorite snack? Microchips! 🍟"
       ];
@@ -493,7 +571,7 @@ let activeBot = null;
 function openBot(key) {
   if (!C4K.hasAI()) {
     if (C4K.isLoggedIn()) {
-      alert("🔒 AI chatbots are a Pro feature. Your current plan doesn't include AI — upgrade to Pro to play!");
+      alert("🔒 AI chatbots are a Pro feature. Your current plan doesn't include AI - upgrade to Pro to play!");
     } else {
       openLogin();
     }
@@ -549,7 +627,7 @@ window.addEventListener('scroll', () => {
   const cc = params.get('consentconfirm');
   await C4K.loadMe();
 
-  // Parental consent links (COPPA) — open the consent flow regardless of who's logged in.
+  // Parental consent links (COPPA) - open the consent flow regardless of who's logged in.
   if (consent) { refreshAuthUI(); openConsent(consent); return; }
   if (cc) { refreshAuthUI(); document.getElementById('consentModal').classList.remove('hidden'); consentConfirm(cc); return; }
 
@@ -560,7 +638,7 @@ window.addEventListener('scroll', () => {
     return;
   }
 
-  // Already logged in? Send them straight to their own space — but NOT if they
+  // Already logged in? Send them straight to their own space - but NOT if they
   // followed a deep link (e.g. #pricing for an upgrade) which they need to see.
   if (C4K.isLoggedIn() && !location.hash) {
     if (C4K.user.role !== 'admin' && C4K.user.role !== 'super_admin') {
@@ -585,16 +663,16 @@ window.__siteConfig = { signupsEnabled: true, loginsEnabled: true };
       const n = document.createElement('p');
       n.id = 'signupPausedNote'; n.className = 'signup-fine';
       n.style.cssText = 'color:#fbbf24;font-weight:800;';
-      n.textContent = '⏸️ New sign-ups are temporarily paused — please check back soon!';
+      n.textContent = '⏸️ New sign-ups are temporarily paused - please check back soon!';
       form.parentNode.insertBefore(n, form);
     }
   }
 })();
 
-// Share KidVibers — native share sheet on phones, copy-link fallback on desktop.
+// Share KidVibers - native share sheet on phones, copy-link fallback on desktop.
 async function shareSite() {
   const url = 'https://kidvibers.com';
-  const shareData = { title: 'KidVibers', text: 'Learn to code like a game — made by a kid, for kids! 🚀', url };
+  const shareData = { title: 'KidVibers', text: 'Learn to code like a game - made by a kid, for kids! 🚀', url };
   if (navigator.share) {
     try { await navigator.share(shareData); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   }

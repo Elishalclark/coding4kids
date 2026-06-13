@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Code Playground — KidVibers</title>
+  <title>Code Playground - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <!-- Skulpt: runs real Python in the browser -->
   <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
@@ -61,7 +61,7 @@
   <main class="pg">
     <div class="pg-head">
       <span style="font-size:2rem;">🛝</span>
-      <div><h1>Code Playground</h1><p>Write real Python and run it right here — no setup needed!</p></div>
+      <div><h1>Code Playground</h1><p>Write real Python and run it right here - no setup needed!</p></div>
     </div>
 
     <div class="examples" id="examples"></div>
@@ -111,7 +111,7 @@ for i in range(1, 4):
     </div>
   </main>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     const EXAMPLES = {
       '👋 Hello': `print("Hello, World!")\nprint("I am learning to code!")`,
@@ -141,7 +141,7 @@ for i in range(1, 4):
     function clearOut() { document.getElementById('out').textContent = 'Press “Run ▶” to see your code come to life!'; }
 
     function runCode() {
-      if (typeof Sk === 'undefined') { show('Still loading the Python engine — try again in a second.', true); return; }
+      if (typeof Sk === 'undefined') { show('Still loading the Python engine - try again in a second.', true); return; }
       const prog = document.getElementById('code').value;
       outText = '';
       const btn = document.getElementById('runBtn'); btn.disabled = true; btn.textContent = 'Running…';
@@ -227,7 +227,7 @@ for i in range(1, 4):
       const list = $('mineList'); list.innerHTML = '';
       if (!data.projects.length) {
         $('mineWrap').style.display = '';
-        list.innerHTML = '<p style="color:var(--text-faint);font-size:0.88rem;">No saved projects yet — write something and press 💾 Save!</p>';
+        list.innerHTML = '<p style="color:var(--text-faint);font-size:0.88rem;">No saved projects yet - write something and press 💾 Save!</p>';
         return;
       }
       $('mineWrap').style.display = '';
@@ -263,7 +263,7 @@ for i in range(1, 4):
             $('code').value = data.project.code;
             $('projTitle').value = (data.project.author && data.project.author + "'s ") + data.project.title;
             // If it's not mine I keep currentId null so "Save" creates my own copy (remix)
-            flash('Loaded “' + data.project.title + '” — press Save to keep your own copy!');
+            flash('Loaded “' + data.project.title + '” - press Save to keep your own copy!');
           }
         }
       } else {

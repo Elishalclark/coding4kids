@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Certificate — KidVibers</title>
+  <title>Certificate - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     body { background:#0d0a18; }
     .cert-page { max-width:880px; margin:0 auto; padding:24px 18px 70px; }
@@ -48,7 +48,7 @@
     <div id="content"><p class="msg">Loading your certificate…</p></div>
   </main>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     (async () => {
       const unit = parseInt(new URLSearchParams(location.search).get('unit'), 10);
@@ -61,7 +61,7 @@
       const pr = await C4K.api('/api/progress');
       const passed = (pr.ok && pr.data.unitsPassed) ? pr.data.unitsPassed : [];
       if (!passed.includes(unit)) {
-        content.innerHTML = '<p class="msg">🔒 You haven’t defeated this world’s boss yet — beat it to earn this certificate!</p>';
+        content.innerHTML = '<p class="msg">🔒 You haven’t defeated this world’s boss yet - beat it to earn this certificate!</p>';
         return;
       }
       const best = (pr.data.unitTests && pr.data.unitTests[unit]) ? pr.data.unitTests[unit].bestScore : null;

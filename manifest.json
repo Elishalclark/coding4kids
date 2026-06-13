@@ -1,7 +1,7 @@
 {
   "name": "KidVibers",
   "short_name": "KidVibers",
-  "description": "Learn to code like a game — worlds, boss battles, and an AI buddy made for kids.",
+  "description": "Learn to code like a game - worlds, boss battles, and an AI buddy made for kids.",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",

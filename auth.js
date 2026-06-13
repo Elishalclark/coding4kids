@@ -16,7 +16,7 @@ const C4K = {
       try { data = await res.json(); } catch {}
       return { ok: res.ok, status: res.status, data };
     } catch (e) {
-      // Network/offline error — do NOT treat as logged out.
+      // Network/offline error - do NOT treat as logged out.
       return { ok: false, status: 0, data: {}, networkError: true };
     }
   },
@@ -117,7 +117,7 @@ const C4K = {
         '<div style="font-size:3.4rem;">🔒</div>' +
         '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Hi ' + this.esc(me.name) + '! Your account is locked</h1>' +
         '<p style="color:#bdb6d6;line-height:1.6;">A parent or guardian has to <strong>approve your account</strong> before you can play, ' +
-        'do lessons, use the playground, or anything else. Nothing works until then — to keep you safe! 🛡️</p>' +
+        'do lessons, use the playground, or anything else. Nothing works until then - to keep you safe! 🛡️</p>' +
         '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
           '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Parent / guardian email</label>' +
           '<input id="c4kLockEmail" type="email" value="' + this.esc(email) + '" placeholder="grownup@email.com" ' +
@@ -129,7 +129,7 @@ const C4K = {
           '<p id="c4kLockMsg" style="font-size:0.82rem;margin:8px 0 0;color:#7ee0a0;min-height:1em;"></p>' +
         '</div>' +
         '<button id="c4kLockRefresh" style="background:none;border:1px solid #3a2f63;color:#bdb6d6;font-weight:800;' +
-          'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved — check again</button>' +
+          'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved - check again</button>' +
         '<p style="color:#6f6890;font-size:0.78rem;margin-top:16px;">Need help? Email ' +
           '<a href="mailto:kidvibers.help@outlook.com" style="color:#9b8cff;">kidvibers.help@outlook.com</a></p>' +
       '</div>';
@@ -180,9 +180,9 @@ const C4K = {
   ],
   shopItem(id) { return this.SHOP.find(i => i.id === id); },
 
-  // Pricing is never shown inline — only inside a popup (lesson-limit or the #pricing link).
+  // Pricing is never shown inline - only inside a popup (lesson-limit or the #pricing link).
   pricingPlans: [
-    { id: 'free', name: 'Free', price: '$0', tag: '', features: ['A few starter lessons', 'Badges, streaks & tokens', 'Avatar shop', '— No AI buddy'] },
+    { id: 'free', name: 'Free', price: '$0', tag: '', features: ['A few starter lessons', 'Badges, streaks & tokens', 'Avatar shop', '- No AI buddy'] },
     { id: 'pro', name: 'Pro', price: '$9', tag: 'Most Popular', features: ['All lessons & worlds', '🤖 AI buddy (Byte)', 'Boss battles', 'Certificates'] },
     { id: 'family', name: 'Family', price: '$15', tag: '', features: ['Everything in Pro', 'Up to 4 kids', 'Family dashboard', 'Priority support'] },
   ],
@@ -196,7 +196,7 @@ const C4K = {
           <div style="font-weight:900;color:var(--purple);text-transform:uppercase;font-size:0.78rem;letter-spacing:0.05em;">${p.name}</div>
           <div style="font-size:1.6rem;font-weight:900;margin:2px 0 8px;">${p.price}<span style="font-size:0.7rem;color:var(--text-dim);font-weight:700;">/mo</span></div>
           <ul style="list-style:none;display:flex;flex-direction:column;gap:5px;margin:0 0 12px;padding:0;flex:1;">
-            ${p.features.map(f => `<li style="font-size:0.78rem;color:var(--text-dim);">${f.startsWith('—') ? f : '✓ ' + f}</li>`).join('')}
+            ${p.features.map(f => `<li style="font-size:0.78rem;color:var(--text-dim);">${f.startsWith('-') ? f : '✓ ' + f}</li>`).join('')}
           </ul>
           ${buy && p.id !== 'free' ? `<a href="checkout.html?plan=${p.id}" class="btn ${p.tag ? 'btn-primary' : 'btn-outline'}" style="font-size:0.82rem;padding:8px;text-align:center;">Get ${p.name}</a>` : ''}
         </div>`).join('') + '</div>';
@@ -223,7 +223,7 @@ const C4K = {
   }
 };
 
-// Floating "Return to Super Admin" banner — appears on any page while impersonating.
+// Floating "Return to Super Admin" banner - appears on any page while impersonating.
 (function () {
   function mount() {
     if (!C4K.isImpersonating() || document.getElementById('c4kImpersonateBar')) return;
@@ -242,7 +242,7 @@ const C4K = {
   else mount();
 })();
 
-// Site-wide announcement banner — shown to everyone when the super admin sets one.
+// Site-wide announcement banner - shown to everyone when the super admin sets one.
 (function () {
   async function mount() {
     if (document.getElementById('c4kSiteBanner')) return;

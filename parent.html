@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Family Dashboard — KidVibers</title>
+  <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -82,7 +82,7 @@
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -137,7 +137,7 @@
         <input id="akName" placeholder="Kid's name" />
         <input id="akUser" placeholder="Username" />
         <input id="akPass" type="password" placeholder="Password (min 6)" />
-        <input id="akAge" placeholder="Age (e.g. 8–10)" />
+        <input id="akAge" placeholder="Age (e.g. 8-10)" />
         <div class="add-err" id="akErr"></div>
         <button class="btn btn-primary" onclick="addKid()">Add to Family</button>
       </div>`;
@@ -171,7 +171,7 @@
       const kids = (ok && data.kids) ? data.kids : [];
       grid.innerHTML = kids.map(kidCard).join('') + addKidCard();
       if (kids.length === 0) {
-        grid.insertAdjacentHTML('afterbegin', `<div class="empty">No ${isTeacher?'students':'kids'} yet — add your first one! 🎉</div>`);
+        grid.insertAdjacentHTML('afterbegin', `<div class="empty">No ${isTeacher?'students':'kids'} yet - add your first one! 🎉</div>`);
       }
       // messages: admin notices (sent to this account) + family messages (e.g. a kid asked to upgrade)
       const nr = await C4K.api('/api/notices');
@@ -214,6 +214,6 @@
 
     load();
   </script>
-  <script src="pwa.js?v=17" defer></script>
+  <script src="pwa.js?v=18" defer></script>
 </body>
 </html>

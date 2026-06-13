@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KidVibers backend — pure Python standard library (no pip installs needed).
+KidVibers backend - pure Python standard library (no pip installs needed).
 
 Roles:
   kid          - signs up, does lessons, AI if their plan allows
@@ -84,7 +84,7 @@ WORLDS = {
          "tagline": "Power up with math in code.", "boss": {"name": "Count Calculon", "emoji": "🧮"}},
     10: {"name": "Master's Summit", "emoji": "🏆", "color": "#f59e0b",
          "tagline": "Combine everything you've learned.", "boss": {"name": "The Grand Compiler", "emoji": "👑"}},
-    # ── Older-kid / teen track (ages 11–16): deeper, real-world programming ──
+    # ── Older-kid / teen track (ages 11-16): deeper, real-world programming ──
     11: {"name": "Function Forge", "emoji": "🛠️", "color": "#8b5cf6",
          "tagline": "Build reusable code like a pro.", "boss": {"name": "Lord Lambda", "emoji": "λ"}},
     12: {"name": "Data Structures Dojo", "emoji": "🥋", "color": "#14b8a6",
@@ -93,11 +93,16 @@ WORLDS = {
          "tagline": "Think in objects and classes.", "boss": {"name": "Class Titan", "emoji": "🛰️"}},
     14: {"name": "Pro Coder Peak", "emoji": "⛰️", "color": "#ef4444",
          "tagline": "Errors, recursion & real algorithms.", "boss": {"name": "The Architect", "emoji": "🏛️"}},
+    # -- Quiz-recommended bonus tracks (the placement quiz points new coders here) --
+    15: {"name": "Spark Lab", "emoji": "🔆", "color": "#fb923c",
+         "tagline": "Extra hands-on practice for new coders.", "boss": {"name": "Sparky the Bug", "emoji": "✨"}},
+    16: {"name": "Capstone Quests", "emoji": "🏔️", "color": "#3b82f6",
+         "tagline": "Real mini-projects for pro coders.", "boss": {"name": "The Final Boss", "emoji": "🐲"}},
 }
 UNIT_NAMES = {u: f"{w['emoji']} {w['name']}" for u, w in WORLDS.items()}
 
 # Teacher / school subscription tiers (how many students an educator account can have).
-# No free tier — a teacher must subscribe to add students.
+# No free tier - a teacher must subscribe to add students.
 TEACHER_PLANS = {
     "teacher":   {"label": "Teacher Plan",   "price": 24,  "students": 100},
     "school":    {"label": "School Plan",    "price": 136, "students": 550},
@@ -266,13 +271,13 @@ CURRICULUM = [
   {"e":"🚀","t":"Final Project","b":"Build your own app!","lv":"Ages 12+","xp":150,"p":"Plan, build, test and share your very own app.","c":"# your big idea here","q":"A great step before sharing your app is to?","o":["test it","skip testing","delete it"],"a":0,"x":"Always test your app before you share it."},
  ],
  [  # World 11 · Function Forge (ages 11+)
-  {"e":"🛠️","t":"Define a Function","b":"Package steps with a name.","lv":"Ages 11+","xp":70,"p":"<code>def</code> creates a function — a named block of code you can run anytime by calling it.","c":"def greet():\n    print('Hi coder!')\n\ngreet()","q":"How do you create a function in Python?","o":["function greet():","def greet():","make greet():"],"a":1,"x":"Use def name(): to define a function."},
+  {"e":"🛠️","t":"Define a Function","b":"Package steps with a name.","lv":"Ages 11+","xp":70,"p":"<code>def</code> creates a function - a named block of code you can run anytime by calling it.","c":"def greet():\n    print('Hi coder!')\n\ngreet()","q":"How do you create a function in Python?","o":["function greet():","def greet():","make greet():"],"a":1,"x":"Use def name(): to define a function."},
   {"e":"📥","t":"Parameters","b":"Send data into a function.","lv":"Ages 11+","xp":70,"p":"A parameter is a variable a function receives. The value you pass in is called an argument.","c":"def greet(name):\n    print('Hi ' + name)\n\ngreet('Sam')","q":"In greet('Sam'), 'Sam' is the?","o":["argument","loop","comment"],"a":0,"x":"The value passed in ('Sam') is the argument; name is the parameter."},
   {"e":"📤","t":"Return Values","b":"Get an answer back.","lv":"Ages 11+","xp":75,"p":"<code>return</code> sends a value back to whoever called the function so you can use it.","c":"def add(a, b):\n    return a + b\n\nprint(add(2, 3))","q":"What does return do?","o":["prints text","sends a value back","stops Python"],"a":1,"x":"return hands a value back to the caller."},
   {"e":"🔢","t":"Multiple Parameters","b":"More than one input.","lv":"Ages 11+","xp":75,"p":"Functions can take several parameters separated by commas.","c":"def area(w, h):\n    return w * h\n\nprint(area(4, 5))","q":"How many arguments does area(4, 5) receive?","o":["1","2","5"],"a":1,"x":"Two values are passed: w=4 and h=5."},
   {"e":"🎚️","t":"Default Parameters","b":"Optional inputs.","lv":"Ages 12+","xp":80,"p":"A default value is used when no argument is given for that parameter.","c":"def greet(name='friend'):\n    print('Hi ' + name)\n\ngreet()","q":"greet() with no argument prints?","o":["Hi friend","an error","Hi name"],"a":0,"x":"With no argument, name uses its default 'friend'."},
   {"e":"🏷️","t":"Keyword Arguments","b":"Name your inputs.","lv":"Ages 12+","xp":80,"p":"You can pass arguments by name, in any order.","c":"def box(w, h):\n    return w * h\n\nprint(box(h=2, w=3))","q":"box(h=2, w=3) works because the arguments are?","o":["in the right order only","named (keyword args)","random"],"a":1,"x":"Naming arguments lets you pass them in any order."},
-  {"e":"🔭","t":"Variable Scope","b":"Where variables live.","lv":"Ages 12+","xp":85,"p":"A variable made inside a function is <em>local</em> — it only exists inside that function.","c":"def f():\n    x = 5\n    print(x)\n\nf()","q":"A variable created inside a function is?","o":["global everywhere","local to that function","deleted instantly"],"a":1,"x":"Variables defined inside a function are local to it."},
+  {"e":"🔭","t":"Variable Scope","b":"Where variables live.","lv":"Ages 12+","xp":85,"p":"A variable made inside a function is <em>local</em> - it only exists inside that function.","c":"def f():\n    x = 5\n    print(x)\n\nf()","q":"A variable created inside a function is?","o":["global everywhere","local to that function","deleted instantly"],"a":1,"x":"Variables defined inside a function are local to it."},
   {"e":"📦","t":"Return Multiple Values","b":"Hand back a pack.","lv":"Ages 12+","xp":85,"p":"A function can return several values at once, separated by commas, and you can unpack them.","c":"def stats(a, b):\n    return a + b, a * b\n\ns, p = stats(2, 3)\nprint(s, p)","q":"return a, b hands back a?","o":["single number","pair of values","string"],"a":1,"x":"It returns both values (a tuple) you can unpack into s and p."},
   {"e":"λ","t":"Lambda Functions","b":"Tiny one-line functions.","lv":"Ages 13+","xp":90,"p":"A <code>lambda</code> is a small function written in a single line.","c":"square = lambda n: n * n\nprint(square(6))","q":"A lambda is a?","o":["loop","short anonymous function","list"],"a":1,"x":"lambda makes a small one-line function without def."},
  ],
@@ -282,9 +287,9 @@ CURRICULUM = [
   {"e":"🔢","t":"Loop with enumerate","b":"Item plus its position.","lv":"Ages 12+","xp":80,"p":"<code>enumerate</code> gives you the index and the item together while looping.","c":"for i, item in enumerate(['a', 'b']):\n    print(i, item)","q":"enumerate gives you?","o":["only items","index and item","only numbers"],"a":1,"x":"enumerate yields the position and the item each loop."},
   {"e":"🗂️","t":"Dictionaries","b":"Key-value pairs.","lv":"Ages 12+","xp":80,"p":"A dictionary stores values under named keys instead of positions.","c":"player = {'name': 'Sam', 'hp': 100}\nprint(player['hp'])","q":"You look up a dictionary value using its?","o":["index number","key","color"],"a":1,"x":"Dictionaries are accessed by key, like player['hp']."},
   {"e":"🔑","t":"Dict Keys & Values","b":"Tour the data.","lv":"Ages 12+","xp":85,"p":"<code>.keys()</code>, <code>.values()</code> and <code>.items()</code> let you loop through a dictionary.","c":"d = {'a': 1, 'b': 2}\nfor k, v in d.items():\n    print(k, v)","q":"d.items() gives back?","o":["only keys","key-value pairs","a number"],"a":1,"x":".items() gives each key together with its value."},
-  {"e":"📌","t":"Tuples","b":"Locked-down lists.","lv":"Ages 12+","xp":85,"p":"A tuple is like a list, but it cannot be changed (it's immutable).","c":"point = (3, 4)\nprint(point[0])","q":"A tuple is different from a list because it?","o":["can't be changed","holds one value","prints faster"],"a":0,"x":"Tuples are immutable — their contents can't be changed."},
-  {"e":"🎯","t":"Sets","b":"No duplicates allowed.","lv":"Ages 13+","xp":85,"p":"A <code>set</code> stores only unique items — duplicates are removed automatically.","c":"nums = {1, 2, 2, 3}\nprint(nums)","q":"A set automatically removes?","o":["duplicates","all items","numbers"],"a":0,"x":"Sets keep only unique values, dropping duplicates."},
-  {"e":"🪆","t":"Nested Data","b":"Lists inside dicts.","lv":"Ages 13+","xp":90,"p":"You can nest structures — like a list of dictionaries — to model real-world data.","c":"team = [{'n': 'Sam'}, {'n': 'Mia'}]\nprint(team[1]['n'])","q":"team[1]['n'] reads?","o":["the first name","the second person's name","an error"],"a":1,"x":"team[1] is the 2nd dict; ['n'] reads its name → 'Mia'."},
+  {"e":"📌","t":"Tuples","b":"Locked-down lists.","lv":"Ages 12+","xp":85,"p":"A tuple is like a list, but it cannot be changed (it's immutable).","c":"point = (3, 4)\nprint(point[0])","q":"A tuple is different from a list because it?","o":["can't be changed","holds one value","prints faster"],"a":0,"x":"Tuples are immutable - their contents can't be changed."},
+  {"e":"🎯","t":"Sets","b":"No duplicates allowed.","lv":"Ages 13+","xp":85,"p":"A <code>set</code> stores only unique items - duplicates are removed automatically.","c":"nums = {1, 2, 2, 3}\nprint(nums)","q":"A set automatically removes?","o":["duplicates","all items","numbers"],"a":0,"x":"Sets keep only unique values, dropping duplicates."},
+  {"e":"🪆","t":"Nested Data","b":"Lists inside dicts.","lv":"Ages 13+","xp":90,"p":"You can nest structures - like a list of dictionaries - to model real-world data.","c":"team = [{'n': 'Sam'}, {'n': 'Mia'}]\nprint(team[1]['n'])","q":"team[1]['n'] reads?","o":["the first name","the second person's name","an error"],"a":1,"x":"team[1] is the 2nd dict; ['n'] reads its name → 'Mia'."},
   {"e":"✨","t":"List Comprehensions","b":"Build lists in one line.","lv":"Ages 13+","xp":95,"p":"A comprehension builds a whole list in a single compact line.","c":"squares = [n * n for n in range(5)]\nprint(squares)","q":"[n*n for n in range(5)] builds a?","o":["list of squares","single number","dictionary"],"a":0,"x":"It builds a new list with each n squared."},
  ],
  [  # World 13 · Object Orbit (ages 12+, OOP)
@@ -296,18 +301,38 @@ CURRICULUM = [
   {"e":"👥","t":"Many Objects","b":"One class, many things.","lv":"Ages 13+","xp":95,"p":"From one class you can create many separate objects, each with its own data.","c":"class P:\n    def __init__(self, n):\n        self.n = n\n\na = P('Sam')\nb = P('Mia')\nprint(a.n, b.n)","q":"a and b made from class P are?","o":["the same object","separate objects","functions"],"a":1,"x":"Each call to P(...) makes a new, separate object."},
   {"e":"🛡️","t":"Methods Using Data","b":"Combine data and actions.","lv":"Ages 14+","xp":100,"p":"Methods can read and change the object's own attributes through self.","c":"class Hero:\n    def __init__(self):\n        self.hp = 100\n    def hurt(self, n):\n        self.hp = self.hp - n\n\nh = Hero()\nh.hurt(30)\nprint(h.hp)","q":"h.hurt(30) changes the object's?","o":["class name","hp attribute","color"],"a":1,"x":"The method updates self.hp, the object's own data."},
   {"e":"🧬","t":"Inheritance","b":"Build on another class.","lv":"Ages 14+","xp":100,"p":"A class can <em>inherit</em> from another, reusing its methods.","c":"class Animal:\n    def eat(self):\n        print('nom')\n\nclass Dog(Animal):\n    pass\n\nDog().eat()","q":"class Dog(Animal) means Dog?","o":["inherits from Animal","deletes Animal","ignores Animal"],"a":0,"x":"Dog(Animal) makes Dog inherit Animal's methods."},
-  {"e":"🪐","t":"Build: A Class","b":"Model something real.","lv":"Ages 14+","xp":110,"p":"Combine __init__, attributes and methods to model a real thing — like a bank account.","c":"class Account:\n    def __init__(self):\n        self.bal = 0\n    def add(self, n):\n        self.bal = self.bal + n\n\na = Account()\na.add(50)\nprint(a.bal)","q":"A good class bundles together?","o":["data and actions","only numbers","only loops"],"a":0,"x":"Classes bundle related data (attributes) and actions (methods)."},
+  {"e":"🪐","t":"Build: A Class","b":"Model something real.","lv":"Ages 14+","xp":110,"p":"Combine __init__, attributes and methods to model a real thing - like a bank account.","c":"class Account:\n    def __init__(self):\n        self.bal = 0\n    def add(self, n):\n        self.bal = self.bal + n\n\na = Account()\na.add(50)\nprint(a.bal)","q":"A good class bundles together?","o":["data and actions","only numbers","only loops"],"a":0,"x":"Classes bundle related data (attributes) and actions (methods)."},
  ],
  [  # World 14 · Pro Coder Peak (ages 13+, advanced)
   {"e":"🧯","t":"Handle Errors","b":"Catch problems safely.","lv":"Ages 13+","xp":95,"p":"<code>try/except</code> lets your program handle an error instead of crashing.","c":"try:\n    print(10 / 0)\nexcept:\n    print('Cannot divide by zero')","q":"try/except is used to?","o":["handle errors","make loops","define classes"],"a":0,"x":"try/except catches errors so the program keeps running."},
   {"e":"🚨","t":"Raise an Error","b":"Signal a problem on purpose.","lv":"Ages 14+","xp":95,"p":"<code>raise</code> deliberately triggers an error when something is wrong.","c":"def withdraw(n):\n    if n < 0:\n        raise ValueError('negative!')\n    return n\n\nprint(withdraw(5))","q":"raise is used to?","o":["trigger an error on purpose","ignore all errors","make a loop"],"a":0,"x":"raise deliberately throws an error you choose."},
   {"e":"🌀","t":"Recursion","b":"A function that calls itself.","lv":"Ages 14+","xp":100,"p":"A recursive function calls itself, with a <em>base case</em> that stops it.","c":"def countdown(n):\n    if n == 0:\n        return\n    print(n)\n    countdown(n - 1)\n\ncountdown(3)","q":"A recursion's base case is there to?","o":["stop the calls","speed it up","print colors"],"a":0,"x":"The base case stops a recursive function from running forever."},
-  {"e":"❗","t":"Recursion: Factorial","b":"The classic example.","lv":"Ages 14+","xp":105,"p":"Factorial multiplies n by every number below it — a perfect recursion example.","c":"def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nprint(fact(5))","q":"fact(5) returns?","o":["15","120","5"],"a":1,"x":"5*4*3*2*1 = 120."},
+  {"e":"❗","t":"Recursion: Factorial","b":"The classic example.","lv":"Ages 14+","xp":105,"p":"Factorial multiplies n by every number below it - a perfect recursion example.","c":"def fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\n\nprint(fact(5))","q":"fact(5) returns?","o":["15","120","5"],"a":1,"x":"5*4*3*2*1 = 120."},
   {"e":"🔍","t":"Linear Search","b":"Check each item.","lv":"Ages 14+","xp":105,"p":"Linear search looks at each item one by one until it finds the target.","c":"def find(lst, t):\n    for i in range(len(lst)):\n        if lst[i] == t:\n            return i\n    return -1\n\nprint(find([5, 8, 2], 2))","q":"Linear search checks items?","o":["one by one","all at once","randomly"],"a":0,"x":"It scans each item in order until it finds the target."},
-  {"e":"⚡","t":"Binary Search","b":"Divide and conquer.","lv":"Ages 15+","xp":110,"p":"On a <em>sorted</em> list, binary search checks the middle and throws away half each time — very fast.","c":"nums = [1, 3, 5, 7, 9]\nmid = len(nums) // 2\nprint(nums[mid])","q":"Binary search needs the list to be?","o":["sorted","empty","reversed"],"a":0,"x":"Binary search only works on a sorted list."},
+  {"e":"⚡","t":"Binary Search","b":"Divide and conquer.","lv":"Ages 15+","xp":110,"p":"On a <em>sorted</em> list, binary search checks the middle and throws away half each time - very fast.","c":"nums = [1, 3, 5, 7, 9]\nmid = len(nums) // 2\nprint(nums[mid])","q":"Binary search needs the list to be?","o":["sorted","empty","reversed"],"a":0,"x":"Binary search only works on a sorted list."},
   {"e":"🫧","t":"Bubble Sort","b":"Swap until sorted.","lv":"Ages 15+","xp":110,"p":"Bubble sort repeatedly swaps neighbouring items that are out of order.","c":"nums = [3, 1, 2]\nfor i in range(len(nums)):\n    for j in range(len(nums) - 1):\n        if nums[j] > nums[j + 1]:\n            nums[j], nums[j + 1] = nums[j + 1], nums[j]\nprint(nums)","q":"Bubble sort works by?","o":["swapping neighbours","deleting items","adding items"],"a":0,"x":"It swaps neighbouring items until the list is sorted."},
   {"e":"📚","t":"Modules & import","b":"Use Python's toolboxes.","lv":"Ages 13+","xp":100,"p":"<code>import</code> brings in extra tools, like the math and random modules.","c":"import math\nprint(math.sqrt(16))","q":"import lets you?","o":["use extra modules","delete code","make loops"],"a":0,"x":"import loads modules full of ready-made tools."},
-  {"e":"🧾","t":"Structured Data","b":"How real apps store info.","lv":"Ages 15+","xp":115,"p":"Real apps store data as nested dictionaries and lists — the idea behind JSON.","c":"user = {'name': 'Sam', 'scores': [8, 9, 10]}\nprint(user['scores'][2])","q":"Nested dicts and lists are how apps?","o":["organize data","change colors","loop forever"],"a":0,"x":"Structured data (dicts + lists) is how apps model real information."},
+  {"e":"🧾","t":"Structured Data","b":"How real apps store info.","lv":"Ages 15+","xp":115,"p":"Real apps store data as nested dictionaries and lists - the idea behind JSON.","c":"user = {'name': 'Sam', 'scores': [8, 9, 10]}\nprint(user['scores'][2])","q":"Nested dicts and lists are how apps?","o":["organize data","change colors","loop forever"],"a":0,"x":"Structured data (dicts + lists) is how apps model real information."},
+ ],
+ [  # World 15 · Spark Lab (beginner reinforcement - the quiz sends brand-new coders here)
+  {"e":"🎨","t":"Emoji Art","b":"Print a picture with code.","lv":"Ages 7+","xp":45,"p":"You can use <code>print</code> many times to draw simple art.","c":"print('  *  ')\nprint(' *** ')\nprint('*****')","q":"How many lines do 3 prints show?","o":["1","3","5"],"a":1,"x":"Each print() makes its own line, so 3 prints show 3 lines."},
+  {"e":"👋","t":"Name Greeter","b":"Say hi to anyone.","lv":"Ages 7+","xp":50,"p":"Store the user's name in a variable, then use it.","c":"name = input('Your name? ')\nprint('Hi ' + name + '!')","q":"How do you join two strings?","o":["with +","with -","with *"],"a":0,"x":"The + sign joins (concatenates) strings together."},
+  {"e":"🔢","t":"Simple Counter","b":"Count out loud with a loop.","lv":"Ages 8+","xp":50,"p":"<code>range(1, 6)</code> gives the numbers 1, 2, 3, 4, 5.","c":"for n in range(1, 6):\n    print(n)","q":"What is the last number range(1, 6) prints?","o":["6","5","4"],"a":1,"x":"range stops BEFORE the second number, so it ends at 5."},
+  {"e":"⚖️","t":"Even or Odd","b":"Is it even?","lv":"Ages 9+","xp":55,"p":"The <code>%</code> sign gives the remainder. An even number has remainder 0 when divided by 2.","c":"n = 4\nif n % 2 == 0:\n    print('even')\nelse:\n    print('odd')","q":"What is 4 % 2?","o":["0","1","2"],"a":0,"x":"4 divides by 2 evenly, so the remainder is 0."},
+  {"e":"🔐","t":"Secret Password","b":"Check a code word.","lv":"Ages 9+","xp":55,"p":"Use <code>==</code> to check if what the user typed matches.","c":"pw = input('Password? ')\nif pw == 'pizza':\n    print('Access granted!')\nelse:\n    print('Wrong!')","q":"Which checks if two things are equal?","o":["=","==","=>"],"a":1,"x":"== compares; a single = stores a value."},
+  {"e":"⭐","t":"Star Builder","b":"Build a line of stars.","lv":"Ages 9+","xp":55,"p":"You can add to a string inside a loop to make it grow.","c":"stars = ''\nfor i in range(5):\n    stars = stars + '*'\nprint(stars)","q":"What does this print?","o":["*****","5","* * * * *"],"a":0,"x":"The loop adds a star 5 times, making *****."},
+  {"e":"🧮","t":"Mini Calculator","b":"Add two numbers.","lv":"Ages 9+","xp":60,"p":"<code>int()</code> turns typed text into a number you can add.","c":"a = int(input('First: '))\nb = int(input('Second: '))\nprint(a + b)","q":"Why use int() on input?","o":["to make it text","to turn text into a number","to delete it"],"a":1,"x":"input() gives text; int() turns it into a number for math."},
+  {"e":"🎲","t":"Lucky Number","b":"Roll a random number.","lv":"Ages 9+","xp":60,"p":"<code>random.randint(1, 6)</code> picks a random number like a dice.","c":"import random\nprint(random.randint(1, 6))","q":"randint(1, 6) can give?","o":["only 1","any number 1 to 6","7"],"a":1,"x":"randint(1, 6) returns a random whole number from 1 to 6."},
+ ],
+ [  # World 16 · Capstone Quests (advanced mini-projects - the quiz sends experienced coders here)
+  {"e":"📝","t":"Build a To-Do List","b":"Add tasks to a list.","lv":"Ages 13+","xp":95,"p":"Use <code>.append()</code> to add items to a list.","c":"todo = []\ntodo.append('Code')\ntodo.append('Play')\nprint(todo)","q":"What does .append() do?","o":["adds an item","removes all items","sorts numbers"],"a":0,"x":".append() adds a new item to the end of a list."},
+  {"e":"🔤","t":"Word Counter","b":"Count words in a sentence.","lv":"Ages 13+","xp":100,"p":"<code>.split()</code> breaks a sentence into a list of words; <code>len()</code> counts them.","c":"text = 'i love to code'\nwords = text.split()\nprint(len(words))","q":"What does this print?","o":["4","1","'i love to code'"],"a":0,"x":"split() makes 4 words and len() counts them: 4."},
+  {"e":"🎯","t":"Guessing Game","b":"Guess the secret number.","lv":"Ages 13+","xp":105,"p":"A <code>while</code> loop keeps asking until the guess is right.","c":"secret = 7\nguess = 0\nwhile guess != secret:\n    guess = int(input('Guess: '))\nprint('You got it!')","q":"The while loop stops when?","o":["guess equals secret","never","after one try"],"a":0,"x":"It repeats while guess != secret, so it stops when they match."},
+  {"e":"📊","t":"Tally Counter","b":"Count with a dictionary.","lv":"Ages 14+","xp":105,"p":"A dictionary can count how many times something appears.","c":"votes = ['cat', 'dog', 'cat']\ncount = {}\nfor v in votes:\n    count[v] = count.get(v, 0) + 1\nprint(count['cat'])","q":"What does count['cat'] show?","o":["2","1","3"],"a":0,"x":"'cat' appears twice, so the tally is 2."},
+  {"e":"🌡️","t":"Temperature Converter","b":"Celsius to Fahrenheit.","lv":"Ages 13+","xp":100,"p":"A function can run a math formula for you any time.","c":"def to_f(c):\n    return c * 9 / 5 + 32\n\nprint(to_f(100))","q":"What does to_f(100) return?","o":["212.0","100","32"],"a":0,"x":"100*9/5+32 = 212.0, the boiling point in Fahrenheit."},
+  {"e":"🔝","t":"Find the Biggest","b":"Find the max in a list.","lv":"Ages 14+","xp":105,"p":"Loop through and remember the biggest number you have seen.","c":"nums = [4, 9, 2, 7]\nbiggest = nums[0]\nfor n in nums:\n    if n > biggest:\n        biggest = n\nprint(biggest)","q":"What prints?","o":["9","4","7"],"a":0,"x":"9 is the largest number in the list."},
+  {"e":"🔁","t":"Reverse a Word","b":"Flip text backwards.","lv":"Ages 14+","xp":105,"p":"The slice <code>[::-1]</code> reverses a string.","c":"word = 'code'\nprint(word[::-1])","q":"What does 'code'[::-1] give?","o":["'edoc'","'code'","'CODE'"],"a":0,"x":"[::-1] steps backwards, spelling 'code' as 'edoc'."},
+  {"e":"🏆","t":"Mini Quiz Game","b":"Score the player.","lv":"Ages 14+","xp":115,"p":"Combine input, if, and a score variable to build a quiz.","c":"score = 0\nif input('2+2? ') == '4':\n    score = score + 1\nprint('Score:', score)","q":"What makes the score go up?","o":["a correct answer","any answer","running the code"],"a":0,"x":"score only increases when the typed answer equals '4'."},
  ],
 ]
 
@@ -429,6 +454,8 @@ def init_db():
         "suspended": "INTEGER DEFAULT 0", "suspend_reason": "TEXT", "suspend_until": "TEXT",
         "reset_token": "TEXT", "reset_expires": "TEXT",
         "brand_name": "TEXT", "brand_logo": "TEXT",   # school/district custom branding
+        "quiz_done": "INTEGER DEFAULT 0", "quiz_level": "TEXT",   # placement quiz result
+        "quiz_plan": "TEXT", "start_unit": "INTEGER",
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -446,7 +473,7 @@ def seed_settings():
     conn.close()
 
 
-LESSON_VERSION = "2026-136-lessons-v2"  # bump to refresh the lesson catalog (keeps users & progress)
+LESSON_VERSION = "2026-152-lessons-v3"  # bump to refresh the lesson catalog (keeps users & progress)
 
 def seed_lessons():
     conn = db()
@@ -620,10 +647,10 @@ def rate_limited(key, max_actions, window_seconds):
 
 # ────────────────────────────── email ──────────────────────────────
 # Ways to send a real email (otherwise it's a no-op and we just store the in-app message):
-#   1. Outlook SMTP — set OUTLOOK_APP_PASSWORD (and OUTLOOK_USER, default kidvibers.help@outlook.com).
+#   1. Outlook SMTP - set OUTLOOK_APP_PASSWORD (and OUTLOOK_USER, default kidvibers.help@outlook.com).
 #                     Sends straight FROM the Outlook address. Preferred for the KidVibers mailbox.
-#   2. Gmail SMTP   — set GMAIL_APP_PASSWORD (+ GMAIL_USER). Fallback; sends FROM the Gmail address.
-#   3. Resend API   — set RESEND_API_KEY (needs a verified custom domain for the "from").
+#   2. Gmail SMTP   - set GMAIL_APP_PASSWORD (+ GMAIL_USER). Fallback; sends FROM the Gmail address.
+#   3. Resend API   - set RESEND_API_KEY (needs a verified custom domain for the "from").
 EMAIL_FROM_DEFAULT = "KidVibers <kidvibers.help@outlook.com>"
 
 
@@ -680,7 +707,7 @@ def send_email_resend(to, subject, html):
     payload = {"from": frm, "to": [to], "subject": subject, "html": _wrap_html(html),
                "reply_to": os.environ.get("REPLY_TO", "kidvibers.help@outlook.com")}
     body = json.dumps(payload).encode()
-    # Resend/SES occasionally returns a transient 403/429 — retry a few times before giving up.
+    # Resend/SES occasionally returns a transient 403/429 - retry a few times before giving up.
     last = None
     for attempt in range(4):
         req = urllib.request.Request("https://api.resend.com/emails", data=body, method="POST",
@@ -731,7 +758,7 @@ def suspension_status(row):
         try:
             ends = datetime.datetime.fromisoformat(until.replace("Z", ""))
             if datetime.datetime.utcnow() >= ends:
-                return (False, until)  # time served — expired
+                return (False, until)  # time served - expired
         except ValueError:
             pass
     return (True, until)
@@ -805,7 +832,7 @@ def ensure_admin_config():
         if k not in cfg:
             cfg[k] = v
             added = True
-    # Environment variables (e.g. set in the Render dashboard) override the file — the secure way to set creds in production.
+    # Environment variables (e.g. set in the Render dashboard) override the file - the secure way to set creds in production.
     env_map = {
         "super_admin_username": "SUPER_ADMIN_USER", "super_admin_password": "SUPER_ADMIN_PASS",
         "admin_username": "ADMIN_USER", "admin_password": "ADMIN_PASS",
@@ -1001,6 +1028,60 @@ def teacher_plan_cfg(plan):
     return TEACHER_PLANS.get(plan, NO_TEACHER_PLAN)
 
 
+# ── Placement quiz: turns 6 answer indices into a plan + starting world recommendation ──
+# Answer indices (must match the quiz shown in app.js):
+#  0 age:        0=6-8, 1=9-11, 2=12-14, 3=15+
+#  1 experience: 0=never, 1=a little (blocks), 2=some Python, 3=I build things
+#  2 interest:   0=games, 1=websites, 2=art & stories, 3=smart AI
+#  3 practice:   0=here & there, 1=~15 min most days, 2=deep daily
+#  4 helper:     0=yes please, 1=maybe later, 2=I figure it out myself
+#  5 who:        0=just me, 1=me + siblings
+PLAN_BLURB = {
+    "free":   "Start free with starter lessons, badges and the avatar shop. Upgrade any time.",
+    "pro":    "Pro unlocks every lesson plus Byte, your AI coding buddy, for hints and explanations.",
+    "family": "The Family plan covers up to 4 kids with AI included, so everyone learns together.",
+}
+PLAN_LABEL = {"free": "Free", "pro": "Pro", "family": "Family"}
+
+
+def recommend_from_quiz(a):
+    age, exp, interest, practice, helper, who = (a + [0] * 6)[:6]
+
+    # Skill level -> where to start
+    if exp >= 2 and age >= 2:
+        level, start_unit = "Pro Coder", 11          # teen / advanced track
+    elif exp == 0 or age == 0:
+        level, start_unit = "Beginner", 1            # Greenwood Basics from the top
+    else:
+        level = "Builder"
+        start_unit = {0: 5, 1: 6, 3: 8}.get(interest, 2)   # games / web / AI / general
+
+    bonus_unit = 15 if level == "Beginner" else 16   # Spark Lab vs Capstone Quests
+
+    # Plan that fits how they want to learn
+    if who == 1:
+        plan = "family"
+    elif helper == 0 or exp >= 2 or practice == 2:
+        plan = "pro"
+    else:
+        plan = "free"
+
+    interest_word = {0: "games", 1: "websites", 2: "art & stories", 3: "smart AI"}.get(interest, "code")
+    return {
+        "level": level,
+        "plan": plan,
+        "planLabel": PLAN_LABEL[plan],
+        "planBlurb": PLAN_BLURB[plan],
+        "startUnit": start_unit,
+        "startWorld": UNIT_NAMES.get(start_unit, "Greenwood Basics"),
+        "bonusUnit": bonus_unit,
+        "bonusWorld": UNIT_NAMES.get(bonus_unit, ""),
+        "title": f"You're a {level}!",
+        "blurb": f"Based on your answers, we'll start you in {UNIT_NAMES.get(start_unit, 'Greenwood Basics')} "
+                 f"and line up {interest_word} projects you'll love.",
+    }
+
+
 def students_in_family(family_id):
     if family_id is None:
         return 0
@@ -1011,7 +1092,7 @@ def students_in_family(family_id):
 
 
 def family_branding(family_id):
-    """Custom school/district branding (set by the family's owner) — applied to that family's kids."""
+    """Custom school/district branding (set by the family's owner) - applied to that family's kids."""
     if family_id is None:
         return {"brandName": None, "brandLogo": None}
     conn = db()
@@ -1065,6 +1146,10 @@ def public_user(user):
         "needsConsent": (user["role"] == "kid" and cstatus == "pending"),
         "school": _row_get(user, "school"),
         "suspended": bool(_row_get(user, "suspended", 0)),
+        "quizDone": bool(_row_get(user, "quiz_done", 0)),
+        "quizLevel": _row_get(user, "quiz_level"),
+        "recommendedPlan": _row_get(user, "quiz_plan"),
+        "startUnit": _row_get(user, "start_unit"),
         **kid_brand,
     }
 
@@ -1527,6 +1612,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/school/branding": lambda: self.api_school_branding(data),
             "/api/school/student/suspend": lambda: self.api_school_student_suspend(data),
             "/api/school/student/credentials": lambda: self.api_school_student_credentials(data),
+            "/api/quiz/submit": lambda: self.api_quiz_submit(data),
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
@@ -1590,7 +1676,7 @@ class Handler(BaseHTTPRequestHandler):
             send_email_async(row["parent_email"], "Reset your KidVibers password",
                              f"<p>Hi {clean_name(row['name'] or '')}, we got a request to reset your KidVibers password.</p>"
                              f"<p><a href=\"{url}\">Click here to choose a new password</a> (link expires in 2 hours).</p>"
-                             f"<p style=\"color:#777;font-size:0.9em\">If you didn't ask for this, you can ignore this email — your password won't change.</p>")
+                             f"<p style=\"color:#777;font-size:0.9em\">If you didn't ask for this, you can ignore this email - your password won't change.</p>")
         conn.close()
         return self._send_json(generic)
 
@@ -1721,13 +1807,13 @@ class Handler(BaseHTTPRequestHandler):
                     "Parental Consent (COPPA): As the parent or legal guardian, by creating this Family account "
                     "and adding or linking a child, you give verifiable parental consent for your child(ren) under 13 "
                     "to use KidVibers. We collect only what's needed to run the learning service (a first name, "
-                    "username, age range, learning progress, and your contact email) — never more than necessary, "
+                    "username, age range, learning progress, and your contact email) - never more than necessary, "
                     "and we never sell it. There is no private messaging; shared projects and comments are moderated. "
                     "You can review or download your child's data, withdraw consent, or delete the account at any time "
                     "from your Family Dashboard or by emailing kidvibers.help@outlook.com.")
                 consent_record = ""
                 if linked:
-                    consent_record = (f"<br><br>Consent recorded: {now_iso()} — you approved {clean_name(linked)}'s account "
+                    consent_record = (f"<br><br>Consent recorded: {now_iso()} - you approved {clean_name(linked)}'s account "
                                       f"(method: parent account, granted by {clean_name(email)}).")
                 full_body = welcome + "<br><br><strong>Parental Consent (COPPA):</strong> " + \
                     consent_note[len("Parental Consent (COPPA): "):] + consent_record
@@ -1741,7 +1827,7 @@ class Handler(BaseHTTPRequestHandler):
                                 + consent_note[len("Parental Consent (COPPA): "):] + "</p>")
                 if consent_record:
                     consent_html += f'<p style="font-size:0.9em;color:#555">{consent_record.strip()}</p>'
-                send_email_async(email, "Welcome to KidVibers — your account & parental consent 🎉",
+                send_email_async(email, "Welcome to KidVibers - your account & parental consent 🎉",
                                  f"{welcome}<br><br><a href=\"{dash_url}\">Open your Family Dashboard →</a>{consent_html}")
             token = create_session(uid)
             return self._send_json({"token": token, "user": public_user(row), "linkedChild": linked})
@@ -1947,7 +2033,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "You already own this!"}, 400)
         price = item.get("price", 0)
         if pu["tokens"] < price:
-            return self._send_json({"error": f"Not enough tokens — you need {price} 🪙"}, 400)
+            return self._send_json({"error": f"Not enough tokens - you need {price} 🪙"}, 400)
         owned = pu["ownedItems"] + [item_id]
         conn = db()
         conn.execute("UPDATE users SET tokens = tokens - ?, owned_items=? WHERE id=?", (price, json.dumps(owned), u["id"]))
@@ -2078,13 +2164,13 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         row = conn.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
         conn.close()
-        # We're not charging real cards yet — be upfront that no money was taken.
+        # We're not charging real cards yet - be upfront that no money was taken.
         if u["parent_email"]:
             send_email_async(u["parent_email"], "About your KidVibers plan",
                              "<p>Thanks for your interest in upgrading! <strong>You have not been charged.</strong></p>"
-                             "<p>We're currently not accepting new paid plans yet — we'll have that solved soon. "
+                             "<p>We're currently not accepting new paid plans yet - we'll have that solved soon. "
                              "We'll let you know the moment billing is ready.</p>"
-                             "<p>Thanks for your patience! 💜<br>— The KidVibers Team</p>")
+                             "<p>Thanks for your patience! 💜<br>- The KidVibers Team</p>")
         return self._send_json({"ok": True, "plan": plan, "user": public_user(row),
                                 "notCharged": True})
 
@@ -2538,6 +2624,26 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"ok": True, "changed": changed,
                                 "username": new_user if "username" in changed else kid["username"]})
 
+    def api_quiz_submit(self, data):
+        """A kid completes the placement quiz; we store + return a plan + starting-world recommendation."""
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "Only a kid account can take the placement quiz."}, 403)
+        answers = data.get("answers")
+        if not isinstance(answers, list) or len(answers) < 6:
+            return self._send_json({"error": "Please answer all the questions."}, 400)
+        try:
+            a = [max(0, int(x)) for x in answers[:6]]
+        except (TypeError, ValueError):
+            return self._send_json({"error": "Invalid answers."}, 400)
+        rec = recommend_from_quiz(a)
+        conn = db()
+        conn.execute("UPDATE users SET quiz_done=1, quiz_level=?, quiz_plan=?, start_unit=? WHERE id=?",
+                     (rec["level"], rec["plan"], rec["startUnit"], u["id"]))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "recommendation": rec})
+
     def api_consent_resend(self, data):
         """A locked kid (or first-time setup) sends/re-sends the approval email to their parent."""
         u = self._current_user()
@@ -2927,7 +3033,7 @@ class Handler(BaseHTTPRequestHandler):
         conn.execute("UPDATE comments SET reported=reported+1 WHERE id=?", (cid,))
         conn.commit()
         conn.close()
-        # let the super admin know there's something to review — show the actual reported message.
+        # let the super admin know there's something to review - show the actual reported message.
         author = clean_name(c["author_name"] or "") or "?"
         author_un = clean_name(_row_get(c, "author_username") or "")
         project = clean_name(_row_get(c, "project_title") or "(unknown project)")
@@ -3001,18 +3107,18 @@ def byte_reply(q):
     if re.search(r"loop|repeat", q):
         return "A loop repeats code so you don't have to write it 100 times! 🔄 Try: <code>for i in range(3):<br>&nbsp;&nbsp;print('hi')</code>"
     if re.search(r"\bif\b|condition", q):
-        return "An <code>if</code> statement makes choices! 🤔 <code>if score > 10:<br>&nbsp;&nbsp;print('You win!')</code> — don't forget the colon!"
+        return "An <code>if</code> statement makes choices! 🤔 <code>if score > 10:<br>&nbsp;&nbsp;print('You win!')</code> - don't forget the colon!"
     if re.search(r"function", q):
-        return "A function is a reusable mini-program! 🛠️ <code>def hello():<br>&nbsp;&nbsp;print('Hi!')</code> — call it with <code>hello()</code>."
+        return "A function is a reusable mini-program! 🛠️ <code>def hello():<br>&nbsp;&nbsp;print('Hi!')</code> - call it with <code>hello()</code>."
     if re.search(r"error|bug|broken|not work", q):
         return "Every coder gets errors! 🐛 Read the last line, check for a missing <code>:</code> or <code>)</code>, and try again. You've got this!"
     if re.search(r"python|javascript|language", q):
         return "Great question! 🐍 Python is super beginner-friendly. You start with blocks, then move to real Python on KidVibers!"
     if re.search(r"\b(hi|hello|hey)\b", q):
-        return "Hey there, coder! 👋 What do you want to learn today? Loops, variables, functions — just ask!"
+        return "Hey there, coder! 👋 What do you want to learn today? Loops, variables, functions - just ask!"
     if re.search(r"thank", q):
-        return "You're so welcome! 🌟 Keep up the awesome coding — I'm always here to help!"
-    return "Ooh, good question! 🤖 I'm best at coding basics — try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!"
+        return "You're so welcome! 🌟 Keep up the awesome coding - I'm always here to help!"
+    return "Ooh, good question! 🤖 I'm best at coding basics - try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!"
 
 
 def main():

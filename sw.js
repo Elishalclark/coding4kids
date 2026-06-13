@@ -1,4 +1,4 @@
-// KidVibers service worker — installable + offline, but always fresh when online.
+// KidVibers service worker - installable + offline, but always fresh when online.
 const CACHE = 'c4k-v2';
 const SHELL = ['/index.html', '/styles.css', '/auth.js', '/app.js', '/favicon.svg', '/manifest.json', '/offline.html'];
 
@@ -15,7 +15,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Never touch the API or non-GET — accounts/progress must always be live.
+  // Never touch the API or non-GET - accounts/progress must always be live.
   if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
   if (url.origin !== self.location.origin) return;  // let cross-origin (fonts, QR) go straight to network
 

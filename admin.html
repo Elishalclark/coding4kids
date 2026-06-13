@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin — KidVibers</title>
+  <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -119,10 +119,10 @@
       <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
 
       <div class="stat-grid">
-        <div class="stat-box"><div class="big" id="statKids">—</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
-        <div class="stat-box"><div class="big" id="statLessons">—</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
-        <div class="stat-box"><div class="big" id="statPro">—</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div>
-        <div class="stat-box"><div class="big" id="statTrial">—</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
+        <div class="stat-box"><div class="big" id="statKids">-</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
+        <div class="stat-box"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
+        <div class="stat-box"><div class="big" id="statPro">-</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div>
+        <div class="stat-box"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
       </div>
 
       <div class="two-col">
@@ -157,7 +157,7 @@
               <option value="admin">🛠️ Admin</option>
             </select></label>
           <label class="le-lbl">Name <input id="caName" class="le-in" placeholder="Full name" /></label>
-          <label class="le-lbl">Username <input id="caUser" class="le-in" autocomplete="off" placeholder="3–20 chars" /></label>
+          <label class="le-lbl">Username <input id="caUser" class="le-in" autocomplete="off" placeholder="3-20 chars" /></label>
           <label class="le-lbl">Password <input id="caPass" class="le-in" autocomplete="new-password" placeholder="6+ chars" /></label>
           <label class="le-lbl">Email <span style="color:var(--text-faint);font-weight:600;">(optional)</span><input id="caEmail" class="le-in" placeholder="email@example.com" /></label>
           <label class="le-lbl" id="caPlanWrap">Plan
@@ -186,7 +186,7 @@
       <div class="panel super-only" id="siteMsgPanel" style="display:none;">
         <h3>📢 Site Announcement <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">shown to everyone on the site</span></h3>
         <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">A banner that appears at the top of every page for all visitors. Great for news, maintenance notices, or a welcome message.</p>
-        <textarea id="siteMsgText" class="le-in" maxlength="300" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;" placeholder="e.g. 🎉 New advanced lessons just dropped — check out the Pro Coder Peak world!"></textarea>
+        <textarea id="siteMsgText" class="le-in" maxlength="300" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;" placeholder="e.g. 🎉 New advanced lessons just dropped - check out the Pro Coder Peak world!"></textarea>
         <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:0.88rem;margin:10px 0;">
           <input type="checkbox" id="siteMsgActive" /> Show this banner on the website
         </label>
@@ -213,7 +213,7 @@
       <!-- All registered accounts (kept forever) -->
       <div class="panel">
         <h3>📋 All Registered Accounts <span id="acctCount" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
-        <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:14px;">Every name that registers is kept permanently — kids and parents.</p>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:14px;">Every name that registers is kept permanently - kids and parents.</p>
         <table class="admin-table">
           <thead><tr><th>#</th><th>Name</th><th>Username</th><th>Role</th><th>Plan</th><th>Joined</th><th id="acctActionHead"></th></tr></thead>
           <tbody id="acctRows"></tbody>
@@ -237,15 +237,15 @@
         </div>
         <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <span style="font-weight:800;font-size:0.88rem;color:var(--text-dim);">🛒 Open the checkout screen:</span>
-          <a href="checkout.html?plan=pro" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout — Pro</a>
-          <a href="checkout.html?plan=family" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout — Family</a>
+          <a href="checkout.html?plan=pro" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout - Pro</a>
+          <a href="checkout.html?plan=family" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout - Family</a>
         </div>
       </div>
 
       <!-- Parental Consent (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="consentPanel" style="display:none;">
         <h3>🛡️ Parental Consent (COPPA) <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
-        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Record verifiable parental consent for under-13 kids — including offline methods (phone call, signed form, in person). You can also revoke consent.</p>
+        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Record verifiable parental consent for under-13 kids - including offline methods (phone call, signed form, in person). You can also revoke consent.</p>
         <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
           <div style="font-weight:900;margin-bottom:12px;">📝 Record consent</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
@@ -342,7 +342,7 @@
     <div class="modal">
       <div class="chat-header">
         <span class="chat-avatar">⏸️</span>
-        <div style="flex:1;"><div class="chat-name">Suspend account</div><div class="chat-status" id="suspWho">—</div></div>
+        <div style="flex:1;"><div class="chat-name">Suspend account</div><div class="chat-status" id="suspWho">-</div></div>
         <button class="modal-close" onclick="closeSuspend()">✕</button>
       </div>
       <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
@@ -370,13 +370,13 @@
     <div class="modal">
       <div class="chat-header">
         <span class="chat-avatar">🔑</span>
-        <div style="flex:1;"><div class="chat-name">Set login</div><div class="chat-status" id="credsWho">—</div></div>
+        <div style="flex:1;"><div class="chat-name">Set login</div><div class="chat-status" id="credsWho">-</div></div>
         <button class="modal-close" onclick="closeCreds()">✕</button>
       </div>
       <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
         <input type="hidden" id="credsId" />
         <label class="le-lbl">New username <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
-          <input id="credsUser" class="le-in" autocomplete="off" placeholder="3–20 letters, numbers or _" /></label>
+          <input id="credsUser" class="le-in" autocomplete="off" placeholder="3-20 letters, numbers or _" /></label>
         <label class="le-lbl">New password <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
           <input id="credsPass" class="le-in" autocomplete="new-password" placeholder="at least 6 characters" /></label>
         <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">Changing the password signs that account out of its current sessions. Tell the person their new login.</p>
@@ -386,7 +386,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -433,10 +433,10 @@
       loadAdminNotices();
 
       const stats = (await C4K.api('/api/admin/stats')).data;
-      document.getElementById('statKids').textContent = stats.totalKids ?? '—';
-      document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '—';
-      document.getElementById('statPro').textContent = stats.proKids ?? '—';
-      document.getElementById('statTrial').textContent = stats.trialKids ?? '—';
+      document.getElementById('statKids').textContent = stats.totalKids ?? '-';
+      document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '-';
+      document.getElementById('statPro').textContent = stats.proKids ?? '-';
+      document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
 
       const users = (await C4K.api('/api/admin/users')).data.users || [];
       const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
@@ -445,7 +445,7 @@
         `<tr>
            <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span></td>
            <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
-           <td>${u.hasAI ? '🤖 yes' : '— no'}</td>
+           <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
            <td>${sup ? `
              <select onchange="setPlan(${u.id}, this.value)" class="mini-btn" style="padding:5px 8px;">
                <option ${u.plan==='free'?'selected':''}>free</option>
@@ -455,7 +455,7 @@
              </select>` : '<span style="color:var(--text-faint);font-size:0.8rem;">🔒 super admin only</span>'}
            </td>
          </tr>`).join('')
-        : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet — sign one up on the home page!</td></tr>';
+        : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
 
       document.getElementById('botRows').innerHTML = BOTS.map(b =>
         `<tr><td><strong>${b.n}</strong></td><td>${b.chats}</td><td><span class="pill active">live</span></td></tr>`).join('');
@@ -475,7 +475,7 @@
            <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span></td>
            <td>${roleTag(a.role)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
-           <td style="color:var(--text-dim);">${a.joined || '—'}</td>
+           <td style="color:var(--text-dim);">${a.joined || '-'}</td>
            <td>${sup ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
              <button class="mini-btn" onclick="impersonate(${a.id},'${a.role}')">Log in as</button>
              <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);" onclick="setCreds(${a.id},'${nm}','${a.username}')">🔑 Login</button>
@@ -525,7 +525,7 @@
         msg.style.color = 'var(--green, #5ad17e)';
         msg.textContent = data.created
           ? `✅ Created ${data.role} account @${data.username}.`
-          : `📨 Request sent — the super admin will approve @${data.username}.`;
+          : `📨 Request sent - the super admin will approve @${data.username}.`;
         ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
         loadData();
       } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not create account.'; }
@@ -586,7 +586,7 @@
       const { ok, data } = await C4K.api('/api/admin/site-message', 'POST', { text, active });
       const m = document.getElementById('siteMsgMsg');
       m.style.color = ok ? 'var(--green,#5ad17e)' : '#f87171';
-      m.textContent = ok ? (data.active ? '✅ Saved — the banner is live on the site.' : '✅ Saved (banner is hidden).') : (data.error || 'Could not save.');
+      m.textContent = ok ? (data.active ? '✅ Saved - the banner is live on the site.' : '✅ Saved (banner is hidden).') : (data.error || 'Could not save.');
     }
     async function clearSiteMessage() {
       document.getElementById('siteMsgText').value = '';
@@ -605,7 +605,7 @@
           <td>${C4K.esc(r.role)}</td>
           <td><strong>${C4K.esc(r.name)}</strong></td>
           <td>@${C4K.esc(r.username)}</td>
-          <td style="color:var(--text-dim);">${C4K.esc(r.email || '—')}</td>
+          <td style="color:var(--text-dim);">${C4K.esc(r.email || '-')}</td>
           <td>${C4K.esc(r.requestedBy || '?')}</td>
           <td style="color:var(--text-dim);">${C4K.esc(r.at)}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -635,9 +635,9 @@
       document.getElementById('consentRows').innerHTML = kids.length ? kids.map(k =>
         `<tr>
            <td><strong>${C4K.esc(k.name)}</strong> <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(k.username)}</span></td>
-           <td>${k.ageYears || '—'}</td>
+           <td>${k.ageYears || '-'}</td>
            <td>${badge(k.consentStatus)}</td>
-           <td style="font-size:0.82rem;color:var(--text-dim);">${k.consentMethod || '—'}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+k.consentBy+'</span>' : ''}</td>
+           <td style="font-size:0.82rem;color:var(--text-dim);">${k.consentMethod || '-'}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+k.consentBy+'</span>' : ''}</td>
            <td>${k.consentStatus === 'granted'
               ? `<button class="mini-btn" style="color:#f87171;" onclick="revokeConsent(${k.id})">Revoke</button>`
               : `<button class="mini-btn" onclick="document.getElementById('consentKid').value=${k.id};document.getElementById('consentNote').focus();">Record ↑</button>`}</td>
@@ -906,6 +906,6 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=17" defer></script>
+  <script src="pwa.js?v=18" defer></script>
 </body>
 </html>

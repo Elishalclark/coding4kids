@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
-# Private / app pages — no need to index these
+# Private / app pages - no need to index these
 Disallow: /admin.html
 Disallow: /dashboard.html
 Disallow: /parent.html

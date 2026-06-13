@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Dashboard — KidVibers</title>
+  <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -78,10 +78,12 @@
         <p id="dTagline">Ready to code something awesome today?</p>
       </div>
       <div class="dash-plan">
-        <span class="pill" id="dPlan">—</span>
+        <span class="pill" id="dPlan">-</span>
         <div class="sub" id="dPlanSub"></div>
       </div>
     </div>
+
+    <div id="recoPath" style="display:none;margin-bottom:18px;"></div>
 
     <div class="stat-grid">
       <div class="stat-box"><div class="big" id="sLevel">1</div><div class="lbl">Level</div></div>
@@ -121,7 +123,7 @@
 
       <div>
         <div class="card">
-          <h3>🤖 Byte — AI Buddy</h3>
+          <h3>🤖 Byte - AI Buddy</h3>
           <div id="byteArea"></div>
         </div>
 
@@ -168,7 +170,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=17"></script>
+  <script src="auth.js?v=18"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -205,7 +207,7 @@
       const area = document.getElementById('byteArea');
       if (!ME.hasAI) {
         area.innerHTML = `<div class="byte-locked"><div class="lk">🔒</div>
-          <p>You can learn more with Pro or a Family Plan — that unlocks Byte, your AI buddy!</p>
+          <p>You can learn more with Pro or a Family Plan - that unlocks Byte, your AI buddy!</p>
           <button class="btn btn-primary" style="margin-top:12px;" onclick="askParentAI()">Ask my parent 👨‍👩‍👧</button>
           <div id="aiAskDone" style="margin-top:10px;color:var(--green);font-weight:800;font-size:0.85rem;"></div></div>`;
         return;
@@ -218,7 +220,7 @@
           <input class="chat-input" id="byteIn" placeholder="Ask Byte anything…" onkeydown="if(event.key==='Enter')askByte()" />
           <button class="chat-send" onclick="askByte()">➤</button>
         </div></div>`;
-      addByteMsg(document.getElementById('byteMsgs'), `Hi ${ME.name}! 🎉 I'm Byte. Ask me about variables, loops, functions — anything!`, 'ai');
+      addByteMsg(document.getElementById('byteMsgs'), `Hi ${ME.name}! 🎉 I'm Byte. Ask me about variables, loops, functions - anything!`, 'ai');
     }
 
     async function askByte() {
@@ -281,7 +283,7 @@
       } else {
         document.getElementById('cEmoji').textContent = '🏆';
         document.getElementById('cTitle').textContent = 'All lessons complete!';
-        document.getElementById('cSub').textContent = 'You finished everything — amazing work!';
+        document.getElementById('cSub').textContent = 'You finished everything - amazing work!';
         document.getElementById('cBtn').textContent = 'Review';
       }
     }
@@ -317,6 +319,27 @@
       document.body.insertBefore(bar, document.body.firstChild);
     }
 
+    // Personalized "your path" card from the signup placement quiz.
+    function recommendedPathBar(worlds) {
+      if (!ME || !ME.quizDone || !ME.startUnit) return;
+      const host = document.getElementById('recoPath');
+      if (!host) return;
+      const w = worlds[ME.startUnit] || worlds[String(ME.startUnit)] || {};
+      const wname = (w.emoji ? w.emoji + ' ' : '') + (w.name || 'your starting world');
+      const planTxt = ME.recommendedPlan && ME.recommendedPlan !== 'free'
+        ? ` · suggested plan: <strong style="color:var(--purple);">${C4K.esc(ME.recommendedPlan)}</strong>` : '';
+      host.style.display = '';
+      host.innerHTML =
+        '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,#2e1457,#4c1d95);border:1px solid var(--border-bright);border-radius:16px;padding:16px 20px;">' +
+          '<div style="font-size:1.8rem;">🧭</div>' +
+          '<div style="flex:1;min-width:180px;">' +
+            '<div style="font-weight:900;color:#fff;">Your path: ' + C4K.esc(ME.quizLevel || 'Coder') + '</div>' +
+            '<div style="color:#e6dcff;font-size:0.86rem;">Start in <strong>' + C4K.esc(wname) + '</strong>' + planTxt + '</div>' +
+          '</div>' +
+          '<a href="lessons.html#world-' + encodeURIComponent(ME.startUnit) + '" class="btn btn-primary">Start here →</a>' +
+        '</div>';
+    }
+
     async function load() {
       ME = await C4K.loadMe();
       if (!ME) { location.href = 'index.html'; return; }
@@ -326,7 +349,7 @@
         location.href = (ME.role === 'parent' || ME.role === 'teacher') ? 'parent.html' : (ME.role === 'admin' ? 'admin.html' : 'index.html');
         return;
       }
-      // COPPA: under-13 accounts are fully locked until a grown-up approves — nothing works.
+      // COPPA: under-13 accounts are fully locked until a grown-up approves - nothing works.
       if (C4K.consentLock(ME)) return;
       schoolBrandBar();
       document.getElementById('dAv').innerHTML = C4K.renderAvatar(ME.avatar, 70);
@@ -342,6 +365,7 @@
       document.getElementById('sStreak').textContent = streak();
       const ld = await (await fetch('/api/lessons')).json();
       LESSONS = ld.lessons || [];
+      recommendedPathBar(ld.worlds || {});
       WORLDS = ld.worlds || {};
       const pr = await C4K.api('/api/progress');
       COMPLETED = pr.ok ? (pr.data.completed || []) : [];
@@ -451,6 +475,6 @@
 
     load();
   </script>
-  <script src="pwa.js?v=17" defer></script>
+  <script src="pwa.js?v=18" defer></script>
 </body>
 </html>

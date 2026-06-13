@@ -103,11 +103,11 @@ function render() {
       const t = unitTests[unit] || {};
       const label = passed ? `Defeated! 🏆 best score ${t.bestScore || 0}%` : `Score ${PASS}% to defeat ${boss.name}!`;
       test = `<div class="boss-card ${passed ? 'beaten' : 'ready'}" style="--boss-color:${world.color};"><span class="boss-emoji">${passed ? '🏆' : boss.emoji}</span>
-        <div class="utc-txt"><h4>⚔️ Boss Battle: ${boss.name}${passed ? ' — Defeated!' : ''}</h4><p>${label}</p></div>
+        <div class="utc-txt"><h4>⚔️ Boss Battle: ${boss.name}${passed ? ' - Defeated!' : ''}</h4><p>${label}</p></div>
         <button class="btn ${passed ? 'btn-outline' : 'btn-primary'}" onclick="openPledge(${unit})">${passed ? 'Rematch' : 'Battle!'}</button></div>`;
     }
 
-    return `<section class="unit world" style="--world-color:${world.color};">
+    return `<section id="world-${unit}" class="unit world" style="--world-color:${world.color};scroll-margin-top:90px;">
       <div class="world-head">
         <span class="world-emoji">${world.emoji}</span>
         <div class="world-title">
@@ -245,7 +245,7 @@ function checkDrag(i) {
     // mark which lines are already correct so they can see what to fix
     document.querySelectorAll('#dragList .drag-item').forEach((e, idx) =>
       e.classList.toggle('correct', s.order[idx] === s.correct[idx]));
-    fb.innerHTML = `❌ Not in order yet — <strong>${inPlace} of ${s.correct.length}</strong> lines are in the right spot (shown in green). ` +
+    fb.innerHTML = `❌ Not in order yet - <strong>${inPlace} of ${s.correct.length}</strong> lines are in the right spot (shown in green). ` +
       `💡 <strong>How to fix it:</strong> code runs top to bottom, so set things up (like making a variable) <em>before</em> you use them. Drag a line and press Check again.`;
     fb.style.color = '#f87171';
   }
@@ -270,9 +270,9 @@ function answerMcq(i, choice) {
     const fix = q.explain ? ` 💡 <strong>How to fix it:</strong> ${q.explain}` : '';
     if (screens[i]._wrong >= 2) {                     // after 2 tries, show the right one
       opts[q.answer].classList.add('correct');
-      fb.innerHTML = `❌ Not quite.${fix} The right answer is highlighted green — tap it to continue. 💪`;
+      fb.innerHTML = `❌ Not quite.${fix} The right answer is highlighted green - tap it to continue. 💪`;
     } else {
-      fb.innerHTML = `❌ Not quite.${fix} Read the hint and try again — you've got this! 💪`;
+      fb.innerHTML = `❌ Not quite.${fix} Read the hint and try again - you've got this! 💪`;
     }
     fb.style.color = '#f87171';
   }
@@ -393,7 +393,7 @@ async function submitTest() {
       <h3 style="font-weight:900;margin:6px 0;">${data.passed ? `🎉 You defeated ${boss.name}!` : `💪 ${boss.name} is still standing!`}</h3>
       <p style="color:var(--text-dim);">You got ${data.correct} of ${data.total} right (need ${data.passPercent}%).</p>
       ${data.passed ? `<p style="color:var(--green);font-weight:800;margin-top:10px;">⬆️ Level up! You're now Level ${data.level}. The next world is unlocked! 🗺️</p>`
-        : `<p style="color:var(--text-dim);font-size:0.85rem;margin-top:8px;">Review the lessons and rematch the boss — you can try as many times as you need.</p>`}
+        : `<p style="color:var(--text-dim);font-size:0.85rem;margin-top:8px;">Review the lessons and rematch the boss - you can try as many times as you need.</p>`}
       <div style="margin-top:14px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
         ${data.results.map((r, i) => `<span title="Q${i + 1}" style="font-size:1.1rem;">${r ? '✅' : '❌'}</span>`).join('')}
       </div>
