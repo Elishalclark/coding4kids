@@ -12,3 +12,21 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "kidvibers"
 database_id = "195abd8a-85e7-4740-b127-31bab6cc499e"
+
+# ── Staging: a private, password-protected copy with its own database ──
+# Deploy with:  wrangler deploy --env staging
+# The STAGING_USER var turns on the username/password gate; STAGING_PASS is a secret.
+[env.staging]
+name = "kidvibers-staging"
+vars = { STAGING_USER = "preview" }
+
+[env.staging.assets]
+directory = "./public"
+binding = "ASSETS"
+# Run the Worker before serving any page, so the password gate covers the WHOLE site.
+run_worker_first = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "kidvibers-staging"
+database_id = "64beba15-b273-4ed9-8671-b6b830ea3c61"

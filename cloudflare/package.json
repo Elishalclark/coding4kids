@@ -2,5 +2,9 @@
   "name": "kidvibers-worker",
   "private": true,
   "version": "1.0.0",
-  "scripts": { "deploy": "wrangler deploy" }
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "stage": "bash deploy.sh staging",
+    "publish": "bash deploy.sh production"
+  }
 }
