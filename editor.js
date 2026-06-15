@@ -44,10 +44,19 @@
       r = document.createElement("div");
       r.id = "editorBlocks";
       r.style.cssText = "max-width:900px;margin:0 auto;padding:10px 20px 40px;";
-      const main = document.querySelector("main") || document.querySelector(".signup") || document.body;
-      main.appendChild(r);
+      // Put added content right before the footer (end of the page's content).
+      const footer = document.querySelector("footer");
+      if (footer && footer.parentNode) footer.parentNode.insertBefore(r, footer);
+      else (document.querySelector("main") || document.body).appendChild(r);
     }
     return r;
+  }
+  function flashLastBlock() {
+    const r = document.getElementById("editorBlocks");
+    const el = r && r.lastElementChild;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.animate([{ boxShadow: "0 0 0 4px #fbbf24" }, { boxShadow: "0 0 0 0 transparent" }], { duration: 1400 });
   }
   function renderBlocks() {
     const list = pageBlocks();
@@ -131,11 +140,19 @@
     const f = document.getElementById("editFab"); if (f) f.style.display = "";
   }
 
-  function addText() { pageBlocks().push({ type: "text", content: "New text - click to edit me!" }); renderBlocks(); }
+  function toast(text, ok) {
+    const m = document.getElementById("edMsg");
+    if (m) { m.style.color = ok === false ? "#ff8a8a" : "#7ee0a0"; m.textContent = text; }
+  }
+  function addText() {
+    pageBlocks().push({ type: "text", content: "New text - click to edit me!" });
+    renderBlocks(); flashLastBlock(); toast("✅ Text added below.");
+  }
   function addImage() {
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
     inp.onchange = function () {
       const file = inp.files[0]; if (!file) return;
+      toast("Loading image…");
       const img = new Image();
       img.onload = function () {
         const maxW = 1000, scale = Math.min(1, maxW / img.width);
@@ -143,8 +160,9 @@
         const c = document.createElement("canvas"); c.width = w; c.height = h;
         c.getContext("2d").drawImage(img, 0, 0, w, h);
         pageBlocks().push({ type: "image", src: c.toDataURL("image/jpeg", 0.72) });
-        renderBlocks();
+        renderBlocks(); flashLastBlock(); toast("✅ Image added below.");
       };
+      img.onerror = function () { toast("Couldn't read that image. Try a JPG or PNG.", false); };
       img.src = URL.createObjectURL(file);
     };
     inp.click();

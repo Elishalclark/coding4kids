@@ -1402,6 +1402,13 @@ class Handler(BaseHTTPRequestHandler):
             m = get_setting("site_message", {})
             return self._send_json({"text": m.get("text", ""), "active": bool(m.get("active"))})
 
+        if path == "/api/site-edits":  # public: visual-editor overrides (colors/text/blocks)
+            e = get_setting("site_edits", {})
+            u = self._current_user()
+            return self._send_json({"colors": e.get("colors", {}), "texts": e.get("texts", {}),
+                                    "blocks": e.get("blocks", {}),
+                                    "canEdit": bool(u and u["role"] == "super_admin")})
+
         if path == "/api/site-config":  # public: whether sign-ups / logins are currently enabled
             return self._send_json({"signupsEnabled": auth_enabled("signups"),
                                     "loginsEnabled": auth_enabled("logins"),
@@ -1739,6 +1746,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
             "/api/admin/create-account": lambda: self.api_admin_create_account(data),
             "/api/admin/site-message": lambda: self.api_admin_site_message(data),
+            "/api/admin/site-edits": lambda: self.api_site_edits_save(data),
+            "/api/admin/site-edits/publish": lambda: self._send_json({"ok": True}),
             "/api/admin/toggles": lambda: self.api_admin_toggles(data),
             "/api/admin/account-requests/resolve": lambda: self.api_admin_resolve_request(data),
             "/api/notices/dismiss": lambda: self.api_dismiss_notice(data),
@@ -2581,6 +2590,17 @@ class Handler(BaseHTTPRequestHandler):
         active = bool(data.get("active")) and bool(text)
         set_setting("site_message", {"text": text, "active": active})
         return self._send_json({"ok": True, "active": active})
+
+    def api_site_edits_save(self, data):
+        """Super admin saves the visual-editor overrides (colors / text / blocks)."""
+        u = self._current_user()
+        if not u or u["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        clean = {"colors": data.get("colors") or {}, "texts": data.get("texts") or {}, "blocks": data.get("blocks") or {}}
+        if len(json.dumps(clean)) > 4_000_000:
+            return self._send_json({"error": "Too much content/images to save."}, 413)
+        set_setting("site_edits", clean)
+        return self._send_json({"ok": True})
 
     def api_admin_create_account(self, data):
         """Super admin creates an account directly; a regular admin's submission becomes a pending request."""
