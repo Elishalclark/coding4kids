@@ -1,11 +1,16 @@
 // KidVibers - Cloudflare Worker backend (port of the Python server).
-// Phase 2: foundation + accounts/login/sessions. Other endpoints are added in stages;
+// Foundation + accounts + lessons. Other endpoints are added in stages;
 // any route not yet ported returns a friendly 503 so the static pages still load.
+
+import WORLDS from "./worlds.json";
+const UNIT_NAMES = Object.fromEntries(Object.entries(WORLDS).map(([u, w]) => [u, `${w.emoji} ${w.name}`]));
 
 // ───────────────────────── constants (mirror server.py) ─────────────────────────
 const TRIAL_DAYS = 3;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
+const TOKENS_PER_LESSON = 10;
+const PASS_PERCENT = 70;
 const ADMIN_ROLES = ["admin", "super_admin"];
 const DISTRICT_PLANS = ["school", "district"];
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
@@ -359,6 +364,130 @@ async function apiSignup(env, request, data) {
   });
 }
 
+// ───────────────────────── lessons / progress / boss battles ─────────────────────────
+function consentOk(user) {
+  if (user.role !== "kid") return true;
+  return ["granted", "not_required"].includes(user.consent_status ?? "not_required");
+}
+async function getPassPercent(env) {
+  const v = await getSetting(env, "pass_percent", PASS_PERCENT);
+  const n = parseInt(v, 10);
+  return isNaN(n) ? PASS_PERCENT : n;
+}
+function lessonLimitFor(settings, user) {
+  return planCfg(settings, effectivePlan(user)).lessonLimit | 0;
+}
+function lessonPublic(r) {
+  let quiz = {}, steps = [];
+  try { quiz = JSON.parse(r.quiz || "{}"); } catch {}
+  try { steps = JSON.parse(r.steps || "[]"); } catch {}
+  return {
+    id: r.id, position: r.position, emoji: r.emoji, title: r.title, blurb: r.blurb,
+    level: r.level, xp: r.xp, published: !!r.published, unit: r.unit ?? 1, steps, quiz,
+  };
+}
+
+async function apiLessons(env) {
+  const r = await env.DB.prepare("SELECT * FROM lessons WHERE published=1 ORDER BY position, id").all();
+  return json({
+    lessons: (r.results || []).map(lessonPublic),
+    unitNames: UNIT_NAMES, worlds: WORLDS, passPercent: await getPassPercent(env),
+  });
+}
+
+async function apiProgressGet(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const rows = (await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(u.id).all()).results || [];
+  const tests = (await env.DB.prepare("SELECT unit,passed,best_score,attempts FROM unit_tests WHERE user_id=?").bind(u.id).all()).results || [];
+  const settings = await getPlanSettings(env);
+  const unitTests = {};
+  for (const t of tests) unitTests[t.unit] = { passed: !!t.passed, bestScore: t.best_score, attempts: t.attempts };
+  return json({
+    completed: rows.map((x) => x.lesson_id),
+    unitsPassed: await unitsPassed(env, u.id),
+    unitTests, lessonLimit: lessonLimitFor(settings, u), lessonsDone: rows.length,
+  });
+}
+
+async function apiProgressPost(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
+  const lessonId = (data.lessonId || "").trim();
+  if (!lessonId) return json({ error: "lessonId required" }, 400);
+  const settings = await getPlanSettings(env);
+  const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
+  const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(u.id).first()).c;
+  const limit = lessonLimitFor(settings, u);
+  if (!already && limit >= 0 && done >= limit)
+    return json({ error: `Your ${effectivePlan(u)} plan allows ${limit} lessons. Upgrade to unlock more!`, limitReached: true }, 403);
+  await env.DB.prepare("INSERT OR IGNORE INTO progress (user_id,lesson_id,completed_at) VALUES (?,?,?)").bind(u.id, lessonId, nowIso()).run();
+  let awarded = 0;
+  if (!already) {
+    awarded = TOKENS_PER_LESSON;
+    await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id=?").bind(awarded, u.id).run();
+  }
+  const rows = (await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(u.id).all()).results || [];
+  const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens;
+  return json({ completed: rows.map((x) => x.lesson_id), unitsPassed: await unitsPassed(env, u.id), tokensAwarded: awarded, tokens: tok });
+}
+
+async function apiTestSubmit(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
+  const unit = parseInt(data.unit, 10);
+  if (isNaN(unit)) return json({ error: "bad unit" }, 400);
+  const answers = data.answers || [];
+  const rows = (await env.DB.prepare("SELECT * FROM lessons WHERE published=1 AND unit=? ORDER BY position, id").bind(unit).all()).results || [];
+  const graded = [];
+  for (const r of rows) {
+    let q = {}; try { q = JSON.parse(r.quiz || "{}"); } catch {}
+    if (q.q && "answer" in q) graded.push([r, q]);
+  }
+  const total = graded.length;
+  if (total === 0) return json({ error: "No test available for this unit." }, 400);
+  let correct = 0;
+  graded.forEach(([r, q], i) => { if (i < answers.length && answers[i] === q.answer) correct++; });
+  const score = Math.round((correct / total) * 100);
+  const passPct = await getPassPercent(env);
+  const passedNow = score >= passPct;
+  const existing = await env.DB.prepare("SELECT passed,best_score,attempts FROM unit_tests WHERE user_id=? AND unit=?").bind(u.id, unit).first();
+  const everPassed = passedNow || (existing && existing.passed) ? 1 : 0;
+  const best = existing ? Math.max(score, existing.best_score) : score;
+  const attempts = existing ? existing.attempts + 1 : 1;
+  await env.DB.prepare(
+    "INSERT INTO unit_tests (user_id,unit,passed,best_score,attempts,updated_at) VALUES (?,?,?,?,?,?) " +
+    "ON CONFLICT(user_id,unit) DO UPDATE SET passed=?, best_score=?, attempts=?, updated_at=?"
+  ).bind(u.id, unit, everPassed, best, attempts, nowIso(), everPassed, best, attempts, nowIso()).run();
+  const feedback = graded.map(([r, q], i) => {
+    const ok = i < answers.length && answers[i] === q.answer;
+    const fb = { ok, question: q.q };
+    if (!ok) { fb.fix = q.explain || "Review the lesson and try this question again."; fb.review = `${r.emoji} ${r.title}`; }
+    return fb;
+  });
+  const up = await unitsPassed(env, u.id);
+  return json({
+    score, correct, total, passed: passedNow, passPercent: passPct,
+    results: feedback.map((f) => f.ok), feedback, unitsPassed: up, level: up.length + 1, attempts,
+  });
+}
+
+async function apiNotices(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const rows = (await env.DB.prepare("SELECT id,kind,body,created_at FROM notices WHERE user_id=? ORDER BY id DESC").bind(u.id).all()).results || [];
+  return json({ notices: rows.map((r) => ({ id: r.id, kind: r.kind, body: r.body, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+
+async function apiDismissNotice(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  await env.DB.prepare("DELETE FROM notices WHERE id=? AND user_id=?").bind(data.id, u.id).run();
+  return json({ ok: true });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -375,12 +504,20 @@ async function handleApi(env, request, path) {
     return json({ text: m.text || "", active: !!m.active });
   }
   if (path === "/api/me" && method === "GET") return apiMe(env, request);
+  if (path === "/api/lessons" && method === "GET") return apiLessons(env);
+  if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
+  if (path === "/api/notices" && method === "GET") return apiNotices(env, request);
 
   // auth POSTs
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
   if (path === "/api/logout" && method === "POST") return apiLogout(env, request);
+
+  // lessons / progress
+  if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
+  if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
+  if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
 
   // not yet ported
   return json({ error: PORTED_503 }, 503);
