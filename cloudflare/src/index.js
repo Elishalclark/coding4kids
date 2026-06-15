@@ -765,6 +765,257 @@ async function apiProjectTakedown(env, request, data) {
   return json({ ok: true });
 }
 
+// ───────────────────────── parent / teacher / district ─────────────────────────
+const GUARDIAN_ROLES = ["parent", "teacher"];
+const PLAN_LABEL = { free: "Free", pro: "Pro", family: "Family" };
+const PLAN_BLURB = {
+  free: "Start free with starter lessons, badges and the avatar shop. Upgrade any time.",
+  pro: "Pro unlocks every lesson plus Byte, your AI coding buddy, for hints and explanations.",
+  family: "The Family plan covers up to 4 kids with AI included, so everyone learns together.",
+};
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+async function genClassCode(env) {
+  for (let tries = 0; tries < 50; tries++) {
+    let code = ""; const b = new Uint8Array(6); crypto.getRandomValues(b);
+    for (let i = 0; i < 6; i++) code += CODE_ALPHABET[b[i] % CODE_ALPHABET.length];
+    const exists = await env.DB.prepare("SELECT 1 FROM users WHERE class_code=?").bind(code).first();
+    if (!exists) return code;
+  }
+  return "C" + randToken(4).slice(0, 5).toUpperCase();
+}
+async function grantConsent(env, kidId, method, grantedBy) {
+  await env.DB.prepare("UPDATE users SET consent_status='granted', consent_method=?, consent_by=?, consent_at=?, consent_token=NULL, consent_confirm_token=NULL WHERE id=?")
+    .bind(method, grantedBy, nowIso(), kidId).run();
+}
+function recommendFromQuiz(a) {
+  const [age, exp, interest, practice, helper, who] = [...a, 0, 0, 0, 0, 0, 0].slice(0, 6);
+  let level, startUnit;
+  if (exp >= 2 && age >= 2) { level = "Pro Coder"; startUnit = 11; }
+  else if (exp === 0 || age === 0) { level = "Beginner"; startUnit = 1; }
+  else { level = "Builder"; startUnit = { 0: 5, 1: 6, 3: 8 }[interest] ?? 2; }
+  const bonusUnit = level === "Beginner" ? 15 : 16;
+  let plan;
+  if (who === 1) plan = "family";
+  else if (helper === 0 || exp >= 2 || practice === 2) plan = "pro";
+  else plan = "free";
+  const interestWord = { 0: "games", 1: "websites", 2: "art & stories", 3: "smart AI" }[interest] || "code";
+  const startWorld = UNIT_NAMES[startUnit] || "Greenwood Basics";
+  return {
+    level, plan, planLabel: PLAN_LABEL[plan], planBlurb: PLAN_BLURB[plan],
+    startUnit, startWorld, bonusUnit, bonusWorld: UNIT_NAMES[bonusUnit] || "",
+    title: `You're a ${level}!`,
+    blurb: `Based on your answers, we'll start you in ${startWorld} and line up ${interestWord} projects you'll love.`,
+  };
+}
+
+async function apiParentSignup(env, request, data) {
+  if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
+  const name = (data.name || "").trim(), username = (data.username || "").trim(), password = data.password || "";
+  const email = (data.email || data.parentEmail || "").trim();
+  const err = validateCredentials(name, username, password);
+  if (err) return json({ error: err }, 400);
+  const linkToken = (data.linkToken || "").trim();
+  const r = await createUser(env, { role: "parent", name, username, password, email, age: "", plan: "family", trial_ends: null });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(r.uid, r.uid).run();
+  let linked = null;
+  if (linkToken) {
+    const kid = await env.DB.prepare("SELECT id,name,username FROM users WHERE link_token=? AND role='kid'").bind(linkToken).first();
+    if (kid) {
+      await env.DB.prepare("UPDATE users SET family_id=?, parent_email=? WHERE id=?").bind(r.uid, email, kid.id).run();
+      await grantConsent(env, kid.id, "parent_account", email);
+      await logConsent(env, kid.id, kid.username, "parent_account", email, "Parent linked the child's account");
+      linked = kid.name;
+    }
+  }
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
+  if (email) {
+    const first = name.split(" ")[0] || "there";
+    const welcome = `Hi ${cleanName(first)}, welcome to KidVibers! 🎉 Your Family account is ready.${linked ? ` You're now connected to ${cleanName(linked)}'s account.` : ""} From your Family Dashboard you can add kids, see their progress, approve accounts, and sign them in or out anytime.`;
+    await env.DB.prepare("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)").bind(email, "welcome", welcome, nowIso()).run();
+  }
+  const token = await createSession(env, r.uid);
+  return json({ token, user: await publicUser(env, row), linkedChild: linked });
+}
+
+async function apiTeacherSignup(env, request, data) {
+  if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
+  const name = (data.name || "").trim(), username = (data.username || "").trim(), password = data.password || "";
+  const school = (data.school || "").trim() || "My Classroom", email = (data.email || "").trim();
+  const err = validateCredentials(name, username, password);
+  if (err) return json({ error: err }, 400);
+  const r = await createUser(env, { role: "teacher", name, username, password, email, age: "", plan: "none", trial_ends: null, school });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  await env.DB.prepare("UPDATE users SET family_id=?, class_code=? WHERE id=?").bind(r.uid, await genClassCode(env), r.uid).run();
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
+  const token = await createSession(env, r.uid);
+  return json({ token, user: await publicUser(env, row) });
+}
+
+async function apiParentAddKid(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "Only a parent or teacher can add kids." }, 403);
+  const name = (data.name || "").trim(), username = (data.username || "").trim(), password = data.password || "";
+  const age = (data.ageBand || "").trim();
+  const err = validateCredentials(name, username, password);
+  if (err) return json({ error: err }, 400);
+  const isTeacher = u.role === "teacher";
+  if (isTeacher) {
+    const cfg = teacherPlanCfg(u.plan), limit = cfg.students;
+    if (limit !== -1 && (await studentsInFamily(env, u.family_id)) >= limit) {
+      const msg = limit === 0 ? "Choose a Teacher, School or District plan to add students." : `Your ${cfg.label} allows ${limit} students. Upgrade for more.`;
+      return json({ error: msg, limitReached: true }, 403);
+    }
+  }
+  const method = isTeacher ? "school" : "parent_account";
+  const grantedBy = isTeacher ? `${u.school} (teacher: ${u.username})` : (u.parent_email || u.username);
+  const r = await createUser(env, {
+    role: "kid", name, username, password, email: u.parent_email || "", age, plan: "family", trial_ends: null,
+    family_id: u.family_id, consent_status: "granted", consent_method: method, consent_by: grantedBy,
+  });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  await logConsent(env, r.uid, username, method, grantedBy, isTeacher ? "School/classroom consent" : "Parent created the account");
+  return json({ token: null, user: await publicUser(env, r.row) });
+}
+
+async function apiParentFamily(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=? ORDER BY id").bind(u.family_id).all()).results || [];
+  const kidsPub = []; for (const k of kids) kidsPub.push(await publicUser(env, k));
+  return json({ parent: await publicUser(env, u), kids: kidsPub });
+}
+
+async function apiParentMessages(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  const rows = (await env.DB.prepare("SELECT * FROM messages WHERE to_email=? ORDER BY id DESC LIMIT 50").bind(u.parent_email || "").all()).results || [];
+  return json({ messages: rows.map((r) => ({ kind: r.kind, body: r.body, createdAt: r.created_at })) });
+}
+
+async function apiParentKidData(env, request, kidId) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(kidId, u.family_id).first();
+  if (!kid) return json({ error: "Not your family's kid." }, 403);
+  const prog = ((await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(kidId).all()).results || []).map((r) => r.lesson_id);
+  const tests = (await env.DB.prepare("SELECT unit,passed,best_score,attempts FROM unit_tests WHERE user_id=?").bind(kidId).all()).results || [];
+  return json({ profile: {
+    name: kid.name, username: kid.username, ageYears: kid.age_years, parentEmail: kid.parent_email, plan: kid.plan,
+    tokens: kid.tokens ?? 0, consentStatus: kid.consent_status, consentMethod: kid.consent_method,
+    consentBy: kid.consent_by, consentAt: kid.consent_at, createdAt: kid.created_at,
+  }, lessonsCompleted: prog, unitTests: tests });
+}
+
+async function apiConsentLookup(env, token) {
+  const kid = await env.DB.prepare("SELECT id,name,age_years,parent_email FROM users WHERE consent_token=? AND role='kid'").bind(token).first();
+  if (!kid) return json({ error: "This consent link is invalid or already used." }, 404);
+  return json({ childName: kid.name, ageYears: kid.age_years, parentEmail: kid.parent_email });
+}
+
+async function apiParentSignoutKid(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role) || u.family_id == null) return json({ error: "Only a parent or teacher can do this." }, 403);
+  const kid = await env.DB.prepare("SELECT id,name FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, u.family_id).first();
+  if (!kid) return json({ error: "That kid isn't in your family." }, 403);
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+  return json({ ok: true, name: kid.name });
+}
+
+async function apiParentDeleteKid(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role) || u.family_id == null) return json({ error: "Only a parent or teacher can do this." }, 403);
+  const kid = await env.DB.prepare("SELECT id,name,username FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, u.family_id).first();
+  if (!kid) return json({ error: "That kid isn't in your family." }, 403);
+  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?",
+    "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"])
+    await env.DB.prepare(sql).bind(kid.id).run();
+  await logConsent(env, kid.id, kid.name, "deleted", u.username, "Guardian deleted the child's account & data");
+  return json({ ok: true, name: kid.name });
+}
+
+async function districtOwner(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher" || u.family_id == null || !DISTRICT_PLANS.includes(u.plan)) return null;
+  return u;
+}
+
+async function apiSchoolBranding(env, request, data) {
+  const owner = await districtOwner(env, request);
+  if (!owner) return json({ error: "Only a School or District account can change branding." }, 403);
+  const brandName = (data.brandName || "").trim().slice(0, 80);
+  const brandLogo = (data.brandLogo || "").trim().slice(0, 500);
+  if (brandLogo && !/^https:\/\//.test(brandLogo)) return json({ error: "Logo must be a secure https:// image link." }, 400);
+  await env.DB.prepare("UPDATE users SET brand_name=?, brand_logo=? WHERE id=?").bind(brandName || null, brandLogo || null, owner.id).run();
+  return json({ ok: true, brandName: brandName || null, brandLogo: brandLogo || null });
+}
+
+async function apiSchoolSuspend(env, request, data) {
+  const owner = await districtOwner(env, request);
+  if (!owner) return json({ error: "Only a School or District account can do this." }, 403);
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, owner.family_id).first();
+  if (!kid) return json({ error: "That student isn't in your school." }, 403);
+  const suspend = !!data.suspended;
+  const reason = (data.reason || "").trim().slice(0, 200);
+  let until = null;
+  if (suspend) {
+    const days = parseFloat(data.days) || 0;
+    if (days > 0) until = new Date(Date.now() + days * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+    await env.DB.prepare("UPDATE users SET suspended=1, suspend_reason=?, suspend_until=? WHERE id=?")
+      .bind(reason || `Suspended by ${owner.school || "your school"}`, until, kid.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+  } else {
+    await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(kid.id).run();
+  }
+  await logConsent(env, kid.id, kid.username, suspend ? "suspended" : "reinstated", `school owner (${owner.username})`, reason);
+  return json({ ok: true, name: kid.name, suspended: suspend, until });
+}
+
+async function apiSchoolCredentials(env, request, data) {
+  const owner = await districtOwner(env, request);
+  if (!owner) return json({ error: "Only a School or District account can do this." }, 403);
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, owner.family_id).first();
+  if (!kid) return json({ error: "That student isn't in your school." }, 403);
+  const newUser = (data.username || "").trim(), newPass = data.password || "";
+  if (!newUser && !newPass) return json({ error: "Enter a new username and/or password." }, 400);
+  const changed = [];
+  if (newUser && newUser !== kid.username) {
+    if (!USERNAME_RE.test(newUser)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+    const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(newUser, kid.id).first();
+    if (dup) return json({ error: "That username is already taken." }, 409);
+    await env.DB.prepare("UPDATE users SET username=? WHERE id=?").bind(newUser, kid.id).run();
+    changed.push("username");
+  }
+  if (newPass) {
+    if (newPass.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+    const { hash, salt } = await hashPassword(newPass);
+    await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, kid.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+    changed.push("password");
+  }
+  return json({ ok: true, changed, username: changed.includes("username") ? newUser : kid.username });
+}
+
+async function apiTeacherNewCode(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher account has a class code." }, 403);
+  const code = await genClassCode(env);
+  await env.DB.prepare("UPDATE users SET class_code=? WHERE id=?").bind(code, u.id).run();
+  return json({ ok: true, classCode: code });
+}
+
+async function apiQuizSubmit(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid account can take the placement quiz." }, 403);
+  const answers = data.answers;
+  if (!Array.isArray(answers) || answers.length < 6) return json({ error: "Please answer all the questions." }, 400);
+  const a = answers.slice(0, 6).map((x) => Math.max(0, parseInt(x, 10) || 0));
+  const rec = recommendFromQuiz(a);
+  await env.DB.prepare("UPDATE users SET quiz_done=1, quiz_level=?, quiz_plan=?, start_unit=? WHERE id=?")
+    .bind(rec.level, rec.plan, rec.startUnit, u.id).run();
+  return json({ ok: true, recommendation: rec });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -794,12 +1045,31 @@ async function handleApi(env, request, path) {
     const pid = parseInt(path.split("/").pop(), 10);
     return isNaN(pid) ? json({ error: "bad id" }, 400) : apiCommentsGet(env, request, pid);
   }
+  if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
+  if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
+  if (path.startsWith("/api/parent/kid-data/") && method === "GET") {
+    const kid = parseInt(path.split("/").pop(), 10);
+    return isNaN(kid) ? json({ error: "bad id" }, 400) : apiParentKidData(env, request, kid);
+  }
+  if (path.startsWith("/api/consent/") && method === "GET") return apiConsentLookup(env, path.split("/").pop());
 
   // auth POSTs
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
+  if (path === "/api/parent/signup" && method === "POST") return apiParentSignup(env, request, data);
+  if (path === "/api/teacher/signup" && method === "POST") return apiTeacherSignup(env, request, data);
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
   if (path === "/api/logout" && method === "POST") return apiLogout(env, request);
+
+  // parent / teacher / district
+  if (path === "/api/parent/add-kid" && method === "POST") return apiParentAddKid(env, request, data);
+  if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
+  if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
+  if (path === "/api/school/branding" && method === "POST") return apiSchoolBranding(env, request, data);
+  if (path === "/api/school/student/suspend" && method === "POST") return apiSchoolSuspend(env, request, data);
+  if (path === "/api/school/student/credentials" && method === "POST") return apiSchoolCredentials(env, request, data);
+  if (path === "/api/teacher/new-code" && method === "POST") return apiTeacherNewCode(env, request);
+  if (path === "/api/quiz/submit" && method === "POST") return apiQuizSubmit(env, request, data);
 
   // lessons / progress
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
