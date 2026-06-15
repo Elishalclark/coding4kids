@@ -1,0 +1,4 @@
+# Static assets are copied from the project root at build time - don't track duplicates
+public/
+.wrangler/
+node_modules/

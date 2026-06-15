@@ -1,0 +1,14 @@
+name = "kidvibers"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "3021aff7dc59bb05483ada6d03b99ad7"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kidvibers"
+database_id = "195abd8a-85e7-4740-b127-31bab6cc499e"
