@@ -45,6 +45,42 @@ function hexToBytes(hex) {
 function bytesToHex(bytes) {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+async function sha256hex(s) {
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))));
+}
+function parseCookies(str) {
+  const out = {};
+  (str || "").split(";").forEach((p) => { const i = p.indexOf("="); if (i > 0) out[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+  return out;
+}
+function stagingPasswordPage(msg) {
+  const err = msg ? `<p style="color:#ff8a8a;font-size:0.82rem;margin-top:10px;">${msg}</p>` : "";
+  return new Response(
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<title>KidVibers Staging</title></head>` +
+    `<body style="font-family:system-ui,'Nunito',sans-serif;background:#0c0a18;color:#eee;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">` +
+    `<form method="POST" action="/__unlock" style="background:#171327;border:1px solid #3a2f63;border-radius:18px;padding:34px 30px;width:300px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">` +
+    `<div style="font-size:2.6rem;">🔒</div><h1 style="font-size:1.2rem;font-weight:900;margin:8px 0;">KidVibers Staging</h1>` +
+    `<p style="color:#bdb6d6;font-size:0.85rem;margin-bottom:6px;">Private preview - enter the password.</p>` +
+    `<input name="pw" type="password" autofocus placeholder="Password" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #3a2f63;background:#08060f;color:#fff;font-weight:700;margin:10px 0;">` +
+    `<button style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#7c5cff,#b14cff);color:#fff;font-weight:900;cursor:pointer;">Unlock →</button>${err}</form></body></html>`,
+    { status: msg ? 401 : 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+}
+async function stagingGate(env, request) {
+  const url = new URL(request.url);
+  const expected = await sha256hex("kidvibers-stg-v1:" + (env.STAGING_PASS || ""));
+  if (url.pathname === "/__unlock" && request.method === "POST") {
+    let pw = "";
+    try { pw = (await request.formData()).get("pw") || ""; } catch (e) {}
+    if (pw === (env.STAGING_PASS || "")) {
+      return new Response("", { status: 302, headers: { Location: "/", "Set-Cookie": `stg_ok=${expected}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800` } });
+    }
+    return stagingPasswordPage("Wrong password - try again.");
+  }
+  const cookies = parseCookies(request.headers.get("Cookie"));
+  if (cookies.stg_ok === expected) return null;   // already unlocked
+  return stagingPasswordPage();
+}
 function randHex(nbytes) {
   const b = new Uint8Array(nbytes); crypto.getRandomValues(b); return bytesToHex(b);
 }
@@ -1490,6 +1526,26 @@ async function apiConsentResend(env, request, data) {
   return json({ ok: true, parentEmail: kid.parent_email });
 }
 
+// ───────────────────────── visual editor (text + color edits) ─────────────────────────
+async function apiSiteEditsGet(env) {
+  const e = await getSetting(env, "site_edits", { colors: {}, texts: {} });
+  return json({ colors: e.colors || {}, texts: e.texts || {} });
+}
+async function apiSiteEditsSave(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {} };
+  await setSetting(env, "site_edits", clean);
+  return json({ ok: true });
+}
+async function apiSiteEditsPublish(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (!env.DB_PROD) return json({ error: "Publish is only available from the staging site." }, 400);
+  const edits = await getSetting(env, "site_edits", { colors: {}, texts: {} });
+  await env.DB_PROD.prepare("INSERT INTO settings (key,value) VALUES ('site_edits',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .bind(JSON.stringify(edits)).run();
+  return json({ ok: true });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -1505,6 +1561,9 @@ async function handleApi(env, request, path) {
     const m = await getSetting(env, "site_message", {});
     return json({ text: m.text || "", active: !!m.active });
   }
+  if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
+  if (path === "/api/admin/site-edits" && method === "POST") return apiSiteEditsSave(env, request, data);
+  if (path === "/api/admin/site-edits/publish" && method === "POST") return apiSiteEditsPublish(env, request);
   if (path === "/api/me" && method === "GET") return apiMe(env, request);
   if (path === "/api/lessons" && method === "GET") return apiLessons(env);
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
@@ -1617,16 +1676,12 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Staging gate: when STAGING_USER is set (only on the staging deploy), the whole
-    // site is behind a username/password so only you can see it. Production has no gate.
+    // Staging gate: when STAGING_USER is set (only on the staging deploy), the whole site
+    // is behind a password. Uses a cookie (not the Authorization header) so it doesn't clash
+    // with the app's login tokens. Production has no gate.
     if (env.STAGING_USER) {
-      const expected = "Basic " + btoa(`${env.STAGING_USER}:${env.STAGING_PASS || ""}`);
-      if ((request.headers.get("Authorization") || "") !== expected) {
-        return new Response("🔒 KidVibers staging - please log in.", {
-          status: 401,
-          headers: { "WWW-Authenticate": 'Basic realm="KidVibers Staging"', "Content-Type": "text/plain; charset=utf-8" },
-        });
-      }
+      const gated = await stagingGate(env, request);
+      if (gated) return gated;
     }
 
     // Stripe webhook needs the RAW body for signature verification - read it here.

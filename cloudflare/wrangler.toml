@@ -30,3 +30,9 @@ run_worker_first = true
 binding = "DB"
 database_name = "kidvibers-staging"
 database_id = "64beba15-b273-4ed9-8671-b6b830ea3c61"
+
+# Production DB, bound to staging only, so the "Publish to live" button can push edits.
+[[env.staging.d1_databases]]
+binding = "DB_PROD"
+database_name = "kidvibers"
+database_id = "195abd8a-85e7-4740-b127-31bab6cc499e"
