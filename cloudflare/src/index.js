@@ -1527,20 +1527,29 @@ async function apiConsentResend(env, request, data) {
 }
 
 // ───────────────────────── visual editor (text + color edits) ─────────────────────────
+// On staging (STAGING_USER set) the password gate already authorized the visitor, so
+// editing is open - no admin login needed. On production, editing requires super admin.
+async function editAuth(env, request) {
+  if (env.STAGING_USER) return null;             // staging: gate already verified
+  const { err } = await requireRole(env, request, ["super_admin"]);
+  return err || null;
+}
 async function apiSiteEditsGet(env) {
-  const e = await getSetting(env, "site_edits", { colors: {}, texts: {} });
-  return json({ colors: e.colors || {}, texts: e.texts || {} });
+  const e = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {} });
+  return json({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, canEdit: !!env.STAGING_USER });
 }
 async function apiSiteEditsSave(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {} };
+  const err = await editAuth(env, request); if (err) return err;
+  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {}, blocks: (data && data.blocks) || {} };
+  const size = JSON.stringify(clean).length;
+  if (size > 4_000_000) return json({ error: "Too much content/images to save - try smaller or fewer images." }, 413);
   await setSetting(env, "site_edits", clean);
   return json({ ok: true });
 }
 async function apiSiteEditsPublish(env, request) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const err = await editAuth(env, request); if (err) return err;
   if (!env.DB_PROD) return json({ error: "Publish is only available from the staging site." }, 400);
-  const edits = await getSetting(env, "site_edits", { colors: {}, texts: {} });
+  const edits = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {} });
   await env.DB_PROD.prepare("INSERT INTO settings (key,value) VALUES ('site_edits',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
     .bind(JSON.stringify(edits)).run();
   return json({ ok: true });
