@@ -3,7 +3,9 @@
 // any route not yet ported returns a friendly 503 so the static pages still load.
 
 import WORLDS from "./worlds.json";
+import SHOP_ITEMS from "./shop.json";
 const UNIT_NAMES = Object.fromEntries(Object.entries(WORLDS).map(([u, w]) => [u, `${w.emoji} ${w.name}`]));
+const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
 
 // ───────────────────────── constants (mirror server.py) ─────────────────────────
 const TRIAL_DAYS = 3;
@@ -488,6 +490,112 @@ async function apiDismissNotice(env, request, data) {
   return json({ ok: true });
 }
 
+// ───────────────────────── avatar shop / Byte AI / upgrade / class join ─────────────────────────
+async function logConsent(env, childId, childUsername, method, grantedBy, detail = "") {
+  await env.DB.prepare("INSERT INTO consent_log (child_id,child_username,method,granted_by,detail,created_at) VALUES (?,?,?,?,?,?)")
+    .bind(childId, childUsername, method, grantedBy, detail, nowIso()).run();
+}
+
+function byteReply(q) {
+  q = (q || "").toLowerCase();
+  if (/variable/.test(q)) return "A variable is like a labeled box that stores a value! 📦 Example: <code>score = 10</code> puts 10 in a box called <code>score</code>.";
+  if (/loop|repeat/.test(q)) return "A loop repeats code so you don't have to write it 100 times! 🔄 Try: <code>for i in range(3):<br>&nbsp;&nbsp;print('hi')</code>";
+  if (/\bif\b|condition/.test(q)) return "An <code>if</code> statement makes choices! 🤔 <code>if score > 10:<br>&nbsp;&nbsp;print('You win!')</code> - don't forget the colon!";
+  if (/function/.test(q)) return "A function is a reusable mini-program! 🛠️ <code>def hello():<br>&nbsp;&nbsp;print('Hi!')</code> - call it with <code>hello()</code>.";
+  if (/error|bug|broken|not work/.test(q)) return "Every coder gets errors! 🐛 Read the last line, check for a missing <code>:</code> or <code>)</code>, and try again. You've got this!";
+  if (/python|javascript|language/.test(q)) return "Great question! 🐍 Python is super beginner-friendly. You start with blocks, then move to real Python on KidVibers!";
+  if (/\b(hi|hello|hey)\b/.test(q)) return "Hey there, coder! 👋 What do you want to learn today? Loops, variables, functions - just ask!";
+  if (/thank/.test(q)) return "You're so welcome! 🌟 Keep up the awesome coding - I'm always here to help!";
+  return "Ooh, good question! 🤖 I'm best at coding basics - try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!";
+}
+
+async function apiShop(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const pu = await publicUser(env, u);
+  return json({ items: SHOP_ITEMS, owned: pu.ownedItems, avatar: pu.avatar, tokens: pu.tokens });
+}
+
+async function apiShopBuy(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const itemId = (data.itemId || "").trim();
+  const item = SHOP_BY_ID[itemId];
+  if (!item) return json({ error: "Unknown item" }, 400);
+  const pu = await publicUser(env, u);
+  if (pu.ownedItems.includes(itemId)) return json({ error: "You already own this!" }, 400);
+  const price = item.price || 0;
+  if (pu.tokens < price) return json({ error: `Not enough tokens - you need ${price} 🪙` }, 400);
+  const owned = [...pu.ownedItems, itemId];
+  await env.DB.prepare("UPDATE users SET tokens = tokens - ?, owned_items=? WHERE id=?").bind(price, JSON.stringify(owned), u.id).run();
+  return json({ ok: true, tokens: pu.tokens - price, owned });
+}
+
+async function apiSaveAvatar(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const av = data.avatar || {};
+  const pu = await publicUser(env, u);
+  const owned = new Set(pu.ownedItems);
+  const clean = { ...DEFAULT_AVATAR };
+  for (const slot of ["face", "hat", "accessory", "clothing", "companion", "background"]) {
+    const val = av[slot];
+    if (val == null) { if (slot !== "face" && slot !== "background") clean[slot] = null; }
+    else if (owned.has(val) && (SHOP_BY_ID[val] || {}).cat === slot) clean[slot] = val;
+  }
+  await env.DB.prepare("UPDATE users SET avatar=? WHERE id=?").bind(JSON.stringify(clean), u.id).run();
+  return json({ ok: true, avatar: clean });
+}
+
+async function apiAi(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Log in to use the AI buddy.", locked: true }, 401);
+  if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true, locked: true }, 403);
+  const settings = await getPlanSettings(env);
+  const cfg = planCfg(settings, effectivePlan(u));
+  if (!cfg.ai) return json({ error: "AI features are a Pro perk. Upgrade to unlock Byte!", locked: true }, 403);
+  const limit = cfg.chatsPerDay | 0;
+  const used = await chatsUsedToday(env, u.id);
+  if (limit >= 0 && used >= limit) return json({ error: `You've used all ${limit} AI chats for today. Come back tomorrow! 🌙`, limitReached: true }, 429);
+  await env.DB.prepare("INSERT INTO chat_usage (user_id,day,count) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count = count + 1")
+    .bind(u.id, todayStr()).run();
+  const remaining = limit >= 0 ? limit - used - 1 : null;
+  return json({ reply: byteReply((data.message || "").trim()), remaining });
+}
+
+async function apiRequestUpgrade(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid can ask a parent to upgrade." }, 403);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const origin = new URL(request.url).origin;
+  const body = `Your kid wants to upgrade. If you would like to upgrade their account, go to ${origin}/index.html#pricing. If this is a mistake, please ignore this message. Thank you and have a great day.`;
+  if (u.parent_email)
+    await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)")
+      .bind(u.parent_email, "upgrade_request", body, u.id, nowIso()).run();
+  return json({ ok: true, parentEmail: u.parent_email, message: body });
+}
+
+async function apiClassJoin(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid account can join a classroom." }, 403);
+  const code = (data.code || "").trim().toUpperCase().replace(/ /g, "");
+  if (!code) return json({ error: "Enter your class code." }, 400);
+  const teacher = await env.DB.prepare("SELECT * FROM users WHERE role='teacher' AND class_code=?").bind(code).first();
+  if (!teacher) return json({ error: "That class code wasn't found. Double-check it with your teacher." }, 404);
+  const cfg = teacherPlanCfg(teacher.plan);
+  const used = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?").bind(teacher.family_id).first()).c;
+  if (cfg.students !== -1 && used >= cfg.students) return json({ error: "That classroom is full. Ask your teacher for help." }, 403);
+  const grantedBy = `${teacher.school || teacher.username} (code ${code})`;
+  await env.DB.prepare("UPDATE users SET family_id=?, plan='family', consent_status='granted', consent_method='class_code', consent_by=?, consent_at=? WHERE id=?")
+    .bind(teacher.family_id, grantedBy, nowIso(), u.id).run();
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.id).first();
+  await logConsent(env, u.id, u.username, "class_join", grantedBy, `Joined classroom via code ${code}`);
+  const grp = await familyGroup(env, teacher.family_id);
+  return json({ ok: true, user: await publicUser(env, row), groupName: grp.groupName || (teacher.school || "the classroom"), groupLabel: grp.groupLabel || "Classroom" });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -507,6 +615,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/lessons" && method === "GET") return apiLessons(env);
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
   if (path === "/api/notices" && method === "GET") return apiNotices(env, request);
+  if (path === "/api/shop" && method === "GET") return apiShop(env, request);
 
   // auth POSTs
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
@@ -518,6 +627,13 @@ async function handleApi(env, request, path) {
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
   if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
+
+  // kid dashboard: shop / avatar / AI / upgrade / class join
+  if (path === "/api/shop/buy" && method === "POST") return apiShopBuy(env, request, data);
+  if (path === "/api/avatar" && method === "POST") return apiSaveAvatar(env, request, data);
+  if (path === "/api/ai" && method === "POST") return apiAi(env, request, data);
+  if (path === "/api/request-upgrade" && method === "POST") return apiRequestUpgrade(env, request);
+  if (path === "/api/class/join" && method === "POST") return apiClassJoin(env, request, data);
 
   // not yet ported
   return json({ error: PORTED_503 }, 503);
