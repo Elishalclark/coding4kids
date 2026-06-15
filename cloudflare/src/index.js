@@ -596,6 +596,175 @@ async function apiClassJoin(env, request, data) {
   return json({ ok: true, user: await publicUser(env, row), groupName: grp.groupName || (teacher.school || "the classroom"), groupLabel: grp.groupLabel || "Classroom" });
 }
 
+// ───────────────────────── gallery / projects / comments ─────────────────────────
+const PROJECT_MAX = 50, CODE_MAX = 20000, TITLE_MAX = 60, COMMENT_MAX = 500;
+const BAD_WORDS = [
+  "fuck", "shit", "bitch", "asshole", "bastard", "dick", "piss", "cunt", "slut",
+  "whore", "fag", "faggot", "nigger", "nigga", "retard", "rape", "kill yourself",
+  "kys", "stupid idiot", "loser", "hate you", "dumbass", "douche", "crap",
+  "penis", "vagina", "sex", "porn", "nude",
+];
+function containsBadWords(text) {
+  const low = (text || "").toLowerCase();
+  const squashed = low.replace(/@/g, "a").replace(/\$/g, "s").replace(/!/g, "i")
+    .replace(/0/g, "o").replace(/1/g, "i").replace(/3/g, "e").replace(/4/g, "a").replace(/[^a-z]/g, "");
+  for (const w of BAD_WORDS) { if (w.replace(/ /g, "") && squashed.includes(w.replace(/ /g, ""))) return true; if (low.includes(w)) return true; }
+  return false;
+}
+// simple in-memory rate limiter (best-effort per isolate)
+const rlMap = new Map();
+function rateLimited(key, max, windowSec) {
+  const now = Date.now(); let e = rlMap.get(key);
+  if (!e || now - e.first > windowSec * 1000) { e = { count: 0, first: now }; }
+  e.count++; rlMap.set(key, e);
+  return e.count > max;
+}
+function firstName(u) { return cleanName((u.name || u.username || "").split(" ")[0]) || "A coder"; }
+function projectPublic(r, withCode = false, liked = null) {
+  const out = { id: r.id, title: r.title, author: r.author_name, shared: !!r.shared, likes: r.likes ?? 0, updatedAt: (r.updated_at || "").slice(0, 16).replace("T", " ") };
+  if (withCode) out.code = r.code;
+  if (liked !== null) out.liked = liked;
+  return out;
+}
+
+async function apiGallery(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const rows = (await env.DB.prepare(
+    "SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes, " +
+    "(SELECT COUNT(*) FROM project_likes WHERE project_id=p.id AND user_id=?) mine " +
+    "FROM projects p WHERE p.shared=1 ORDER BY likes DESC, p.updated_at DESC LIMIT 200").bind(u.id).all()).results || [];
+  return json({ canModerate: u.role === "super_admin", projects: rows.map((r) => projectPublic(r, true, !!r.mine)) });
+}
+
+async function apiProjectGet(env, request, pid) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const r = await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes FROM projects p WHERE p.id=?").bind(pid).first();
+  if (!r) return json({ error: "Project not found" }, 404);
+  if (!r.shared && r.user_id !== u.id && u.role !== "super_admin") return json({ error: "This project is private." }, 403);
+  return json({ project: projectPublic(r, true) });
+}
+
+async function apiCommentsGet(env, request, pid) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const proj = await env.DB.prepare("SELECT user_id, shared FROM projects WHERE id=?").bind(pid).first();
+  if (!proj || (!proj.shared && proj.user_id !== u.id && u.role !== "super_admin")) return json({ error: "Project not found" }, 404);
+  const rows = (await env.DB.prepare("SELECT * FROM comments WHERE project_id=? ORDER BY id").bind(pid).all()).results || [];
+  const isMod = u.role === "super_admin", ownsProject = proj.user_id === u.id;
+  return json({ comments: rows.map((c) => ({
+    id: c.id, author: c.author_name, body: c.body, at: (c.created_at || "").slice(0, 16).replace("T", " "),
+    reported: isMod ? !!c.reported : false, canDelete: isMod || ownsProject || c.user_id === u.id,
+  })) });
+}
+
+async function apiProjectSave(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const title = cleanName(data.title || "").slice(0, TITLE_MAX) || "Untitled project";
+  const code = (data.code || "").slice(0, CODE_MAX);
+  let pid = data.id;
+  const author = firstName(u);
+  if (pid) {
+    const row = await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(pid, u.id).first();
+    if (!row) return json({ error: "Project not found" }, 404);
+    await env.DB.prepare("UPDATE projects SET title=?, code=?, updated_at=? WHERE id=?").bind(title, code, nowIso(), pid).run();
+  } else {
+    const count = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(u.id).first()).c;
+    if (count >= PROJECT_MAX) return json({ error: `You can keep up to ${PROJECT_MAX} projects. Delete one to save a new one.` }, 400);
+    const res = await env.DB.prepare("INSERT INTO projects (user_id,author_name,title,code,shared,created_at,updated_at) VALUES (?,?,?,?,0,?,?)")
+      .bind(u.id, author, title, code, nowIso(), nowIso()).run();
+    pid = res.meta.last_row_id;
+  }
+  return json({ ok: true, id: pid });
+}
+
+async function apiProjectShare(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const shared = data.shared ? 1 : 0;
+  const row = await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
+  if (!row) return json({ error: "Project not found" }, 404);
+  await env.DB.prepare("UPDATE projects SET shared=?, updated_at=? WHERE id=?").bind(shared, nowIso(), data.id).run();
+  return json({ ok: true, shared: !!shared });
+}
+
+async function apiProjectDelete(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const row = u.role === "super_admin"
+    ? await env.DB.prepare("SELECT id FROM projects WHERE id=?").bind(data.id).first()
+    : await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
+  if (!row) return json({ error: "Project not found" }, 404);
+  await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(data.id).run();
+  await env.DB.prepare("DELETE FROM project_likes WHERE project_id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
+async function apiProjectLike(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const proj = await env.DB.prepare("SELECT shared FROM projects WHERE id=?").bind(data.id).first();
+  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
+  const existing = await env.DB.prepare("SELECT 1 FROM project_likes WHERE user_id=? AND project_id=?").bind(u.id, data.id).first();
+  let liked;
+  if (existing) { await env.DB.prepare("DELETE FROM project_likes WHERE user_id=? AND project_id=?").bind(u.id, data.id).run(); liked = false; }
+  else { await env.DB.prepare("INSERT INTO project_likes (user_id,project_id) VALUES (?,?)").bind(u.id, data.id).run(); liked = true; }
+  const likes = (await env.DB.prepare("SELECT COUNT(*) c FROM project_likes WHERE project_id=?").bind(data.id).first()).c;
+  return json({ ok: true, liked, likes });
+}
+
+async function apiCommentAdd(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  if (rateLimited(`comment:${u.id}`, 6, 60)) return json({ error: "Whoa, slow down a sec! Try again in a moment. 🙂" }, 429);
+  const body = cleanName(data.body || "").slice(0, COMMENT_MAX);
+  if (!body) return json({ error: "Write something first!" }, 400);
+  if (containsBadWords(body)) return json({ error: "Please keep comments kind and clean. That message wasn't posted." }, 400);
+  const proj = await env.DB.prepare("SELECT shared FROM projects WHERE id=?").bind(data.projectId).first();
+  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
+  await env.DB.prepare("INSERT INTO comments (project_id,user_id,author_name,body,reported,created_at) VALUES (?,?,?,?,0,?)")
+    .bind(data.projectId, u.id, firstName(u), body, nowIso()).run();
+  return json({ ok: true });
+}
+
+async function apiCommentDelete(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const c = await env.DB.prepare("SELECT c.*, p.user_id AS owner FROM comments c JOIN projects p ON p.id=c.project_id WHERE c.id=?").bind(data.id).first();
+  if (!c) return json({ error: "Comment not found" }, 404);
+  if (!(u.role === "super_admin" || c.user_id === u.id || c.owner === u.id)) return json({ error: "forbidden" }, 403);
+  await env.DB.prepare("DELETE FROM comments WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
+async function apiCommentReport(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const c = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(data.id).first();
+  if (!c) return json({ error: "Comment not found" }, 404);
+  await env.DB.prepare("UPDATE comments SET reported=reported+1 WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
+async function apiProjectTakedown(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  const reason = cleanName(data.reason || "").slice(0, 500);
+  const proj = await env.DB.prepare("SELECT id,shared FROM projects WHERE id=?").bind(data.projectId).first();
+  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
+  const dup = await env.DB.prepare("SELECT id FROM takedowns WHERE project_id=? AND requester_id=? AND status='pending'").bind(data.projectId, u.id).first();
+  if (dup) return json({ ok: true, already: true });
+  await env.DB.prepare("INSERT INTO takedowns (project_id,requester_id,requester_name,reason,status,created_at) VALUES (?,?,?,?,'pending',?)")
+    .bind(data.projectId, u.id, firstName(u), reason, nowIso()).run();
+  return json({ ok: true });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -616,6 +785,15 @@ async function handleApi(env, request, path) {
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
   if (path === "/api/notices" && method === "GET") return apiNotices(env, request);
   if (path === "/api/shop" && method === "GET") return apiShop(env, request);
+  if (path === "/api/gallery" && method === "GET") return apiGallery(env, request);
+  if (path.startsWith("/api/project/") && method === "GET") {
+    const pid = parseInt(path.split("/").pop(), 10);
+    return isNaN(pid) ? json({ error: "bad id" }, 400) : apiProjectGet(env, request, pid);
+  }
+  if (path.startsWith("/api/comments/") && method === "GET") {
+    const pid = parseInt(path.split("/").pop(), 10);
+    return isNaN(pid) ? json({ error: "bad id" }, 400) : apiCommentsGet(env, request, pid);
+  }
 
   // auth POSTs
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
@@ -634,6 +812,16 @@ async function handleApi(env, request, path) {
   if (path === "/api/ai" && method === "POST") return apiAi(env, request, data);
   if (path === "/api/request-upgrade" && method === "POST") return apiRequestUpgrade(env, request);
   if (path === "/api/class/join" && method === "POST") return apiClassJoin(env, request, data);
+
+  // gallery / projects / comments
+  if (path === "/api/projects/save" && method === "POST") return apiProjectSave(env, request, data);
+  if (path === "/api/projects/share" && method === "POST") return apiProjectShare(env, request, data);
+  if (path === "/api/projects/delete" && method === "POST") return apiProjectDelete(env, request, data);
+  if (path === "/api/projects/like" && method === "POST") return apiProjectLike(env, request, data);
+  if (path === "/api/projects/takedown" && method === "POST") return apiProjectTakedown(env, request, data);
+  if (path === "/api/comments/add" && method === "POST") return apiCommentAdd(env, request, data);
+  if (path === "/api/comments/delete" && method === "POST") return apiCommentDelete(env, request, data);
+  if (path === "/api/comments/report" && method === "POST") return apiCommentReport(env, request, data);
 
   // not yet ported
   return json({ error: PORTED_503 }, 503);
