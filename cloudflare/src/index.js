@@ -1310,6 +1310,186 @@ async function adminTakedownResolve(env, request, data) {
   return json({ ok: true, status: "denied" });
 }
 
+// ───────────────────────── email (Resend) ─────────────────────────
+async function sendEmail(env, to, subject, html) {
+  if (!to || !env.RESEND_API_KEY) return false;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM || "KidVibers <noreply@kidvibers.com>",
+        to: [to], subject,
+        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222">${html}</div>`,
+        reply_to: env.REPLY_TO || "kidvibers.help@outlook.com",
+      }),
+    });
+    return res.ok;
+  } catch (e) { console.log("email failed:", e); return false; }
+}
+
+// ───────────────────────── Stripe ─────────────────────────
+function stripeEnabled(env) { return !!env.STRIPE_SECRET_KEY; }
+function stripePrices(env) {
+  return { pro: env.STRIPE_PRICE_PRO, family: env.STRIPE_PRICE_FAMILY, teacher: env.STRIPE_PRICE_TEACHER, school: env.STRIPE_PRICE_SCHOOL, district: env.STRIPE_PRICE_DISTRICT };
+}
+function siteUrl(env, request) { return (env.SITE_URL || new URL(request.url).origin).replace(/\/$/, ""); }
+function stripePlanRoleOk(plan, role) {
+  if (["teacher", "school", "district"].includes(plan)) return ["teacher", "super_admin"].includes(role);
+  if (["pro", "family"].includes(plan)) return ["kid", "parent", "super_admin"].includes(role);
+  return false;
+}
+async function stripeRequest(env, path, params) {
+  const res = await fetch("https://api.stripe.com/v1" + path, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params).toString(),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error((j.error && j.error.message) || "Stripe error");
+  return j;
+}
+async function stripeVerifySig(env, payload, sigHeader) {
+  if (!env.STRIPE_WEBHOOK_SECRET || !sigHeader) return false;
+  const parts = Object.fromEntries(sigHeader.split(",").map((p) => { const i = p.indexOf("="); return [p.slice(0, i), p.slice(i + 1)]; }));
+  if (!parts.t || !parts.v1) return false;
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.STRIPE_WEBHOOK_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${parts.t}.${payload}`));
+  if (bytesToHex(new Uint8Array(sig)) !== parts.v1) return false;
+  return Math.abs(Date.now() / 1000 - parseInt(parts.t, 10)) < 300;
+}
+
+async function apiCheckout(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Please log in to upgrade." }, 401);
+  const plan = (data.plan || "").trim();
+  if (!stripePlanRoleOk(plan, u.role)) {
+    if (!["pro", "family", "teacher", "school", "district"].includes(plan)) return json({ error: "Unknown plan." }, 400);
+    return json({ error: "This account type can't purchase that plan." }, 403);
+  }
+  await env.DB.prepare("UPDATE users SET plan=? WHERE id=?").bind(plan, u.id).run();
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.id).first();
+  if (u.parent_email) await sendEmail(env, u.parent_email, "About your KidVibers plan",
+    "<p>Thanks for your interest in upgrading! <strong>You have not been charged.</strong></p><p>We're currently not accepting new paid plans yet - we'll have that solved soon.</p>");
+  return json({ ok: true, plan, user: await publicUser(env, row), notCharged: true });
+}
+
+async function apiCheckoutSession(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Please log in to upgrade." }, 401);
+  const plan = (data.plan || "").trim();
+  if (!["pro", "family", "teacher", "school", "district"].includes(plan)) return json({ error: "Unknown plan." }, 400);
+  if (!stripePlanRoleOk(plan, u.role)) return json({ error: "This account type can't purchase that plan." }, 403);
+  const price = stripePrices(env)[plan];
+  if (!stripeEnabled(env) || !price) return json({ simulated: true });
+  const base = siteUrl(env, request);
+  const params = {
+    mode: "subscription", "line_items[0][price]": price, "line_items[0][quantity]": 1,
+    success_url: `${base}/checkout.html?status=success&plan=${plan}`, cancel_url: `${base}/checkout.html?plan=${plan}&status=cancel`,
+    client_reference_id: String(u.id), "metadata[user_id]": String(u.id), "metadata[plan]": plan, allow_promotion_codes: "true",
+  };
+  if (u.parent_email) params.customer_email = u.parent_email;
+  try { const session = await stripeRequest(env, "/checkout/sessions", params); return json({ url: session.url }); }
+  catch (e) { console.log("stripe session error:", e); return json({ error: "Could not start checkout. Please try again." }, 502); }
+}
+
+async function apiStripeWebhook(env, rawBody, sigHeader) {
+  if (!(await stripeVerifySig(env, rawBody, sigHeader))) return json({ error: "bad signature" }, 400);
+  let event; try { event = JSON.parse(rawBody); } catch { return json({ error: "bad payload" }, 400); }
+  const obj = (event.data && event.data.object) || {};
+  if (event.type === "checkout.session.completed") {
+    const uid = obj.client_reference_id || (obj.metadata && obj.metadata.user_id);
+    const plan = obj.metadata && obj.metadata.plan;
+    if (uid && plan) {
+      const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(uid).first();
+      if (row) {
+        await env.DB.prepare("UPDATE users SET plan=?, stripe_customer_id=?, stripe_subscription_id=? WHERE id=?").bind(plan, obj.customer ?? null, obj.subscription ?? null, uid).run();
+        if (row.parent_email) await sendEmail(env, row.parent_email, "Your KidVibers plan is active 🎉", `<p>Thanks for subscribing! Your <strong>${plan}</strong> plan is now active.</p>`);
+      }
+    }
+  } else if (event.type === "customer.subscription.deleted") {
+    if (obj.id) {
+      const row = await env.DB.prepare("SELECT * FROM users WHERE stripe_subscription_id=?").bind(obj.id).first();
+      if (row) await env.DB.prepare("UPDATE users SET plan=?, stripe_subscription_id=NULL WHERE id=?").bind(["kid", "parent"].includes(row.role) ? "free" : "none", row.id).run();
+    }
+  }
+  return json({ received: true });
+}
+
+async function apiBillingPortal(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Please log in." }, 401);
+  if (!stripeEnabled(env) || !u.stripe_customer_id) return json({ error: "No billing account to manage yet." }, 400);
+  try { const session = await stripeRequest(env, "/billing_portal/sessions", { customer: u.stripe_customer_id, return_url: `${siteUrl(env, request)}/dashboard.html` }); return json({ url: session.url }); }
+  catch (e) { console.log("stripe portal error:", e); return json({ error: "Could not open billing. Please try again." }, 502); }
+}
+
+// ───────────────────────── consent + password reset ─────────────────────────
+async function apiForgotPassword(env, request, data) {
+  const who = (data.usernameOrEmail || "").trim();
+  const generic = json({ ok: true, message: "If an account matches, we've emailed a reset link." });
+  if (!who || rateLimited(`forgot:${who.toLowerCase()}`, 3, 600)) return generic;
+  const row = await env.DB.prepare("SELECT * FROM users WHERE (username=? OR parent_email=?) AND role IN ('parent','teacher') LIMIT 1").bind(who, who).first();
+  if (row && row.parent_email) {
+    const token = randToken(24);
+    const expires = new Date(Date.now() + 2 * 3600000).toISOString().replace(/\.\d+Z$/, "Z");
+    await env.DB.prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?").bind(token, expires, row.id).run();
+    const url = `${siteUrl(env, request)}/reset.html?token=${token}`;
+    await sendEmail(env, row.parent_email, "Reset your KidVibers password",
+      `<p>Hi ${cleanName(row.name || "")}, we got a request to reset your KidVibers password.</p><p><a href="${url}">Click here to choose a new password</a> (expires in 2 hours).</p>`);
+  }
+  return generic;
+}
+async function apiResetPassword(env, request, data) {
+  const token = (data.token || "").trim(), password = data.password || "";
+  if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+  const row = await env.DB.prepare("SELECT * FROM users WHERE reset_token=?").bind(token).first();
+  if (!row) return json({ error: "This reset link is invalid or already used." }, 400);
+  const exp = row.reset_expires;
+  if (!exp || new Date() >= new Date(exp.replace("Z", "Z"))) return json({ error: "This reset link has expired. Please request a new one." }, 400);
+  const { hash, salt } = await hashPassword(password);
+  await env.DB.prepare("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?").bind(hash, salt, row.id).run();
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(row.id).run();
+  return json({ ok: true });
+}
+
+async function apiConsentStart(env, request, data) {
+  const tok = (data.token || "").trim();
+  const kid = await env.DB.prepare("SELECT id,name,parent_email FROM users WHERE consent_token=? AND role='kid'").bind(tok).first();
+  if (!kid) return json({ error: "Invalid or used consent link." }, 404);
+  const confirm = randToken(10);
+  await env.DB.prepare("UPDATE users SET consent_confirm_token=? WHERE id=?").bind(confirm, kid.id).run();
+  if (kid.parent_email) {
+    const confirmUrl = `${siteUrl(env, request)}/index.html?consentconfirm=${confirm}`;
+    await sendEmail(env, kid.parent_email, `Confirm consent for ${kid.name}`, `One more step to approve ${kid.name}. <a href="${confirmUrl}">Confirm consent →</a>`);
+  }
+  return json({ ok: true, confirmToken: confirm, childName: kid.name });
+}
+async function apiConsentConfirm(env, request, data) {
+  const tok = (data.token || "").trim();
+  const kid = await env.DB.prepare("SELECT id,name,username,parent_email FROM users WHERE consent_confirm_token=? AND role='kid'").bind(tok).first();
+  if (!kid) return json({ error: "Invalid or used confirmation link." }, 404);
+  await grantConsent(env, kid.id, "email_plus", kid.parent_email || "parent");
+  await logConsent(env, kid.id, kid.username, "email_plus", kid.parent_email || "parent", "Parent gave verifiable consent (email-plus)");
+  return json({ ok: true, childName: kid.name });
+}
+async function apiConsentResend(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);
+  if (consentOk(u)) return json({ error: "This account is already approved." }, 400);
+  const newEmail = (data.parentEmail || "").trim();
+  if (newEmail) await env.DB.prepare("UPDATE users SET parent_email=? WHERE id=?").bind(newEmail, u.id).run();
+  let tok = u.consent_token;
+  if (!tok) { tok = randToken(10); await env.DB.prepare("UPDATE users SET consent_token=? WHERE id=?").bind(tok, u.id).run(); }
+  const kid = await env.DB.prepare("SELECT name, parent_email FROM users WHERE id=?").bind(u.id).first();
+  if (!kid.parent_email) return json({ error: "Please enter a parent's email address." }, 400);
+  const consentUrl = `${siteUrl(env, request)}/index.html?consent=${tok}`;
+  await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
+    .bind(kid.parent_email, "consent_request", `Parental consent needed for ${kid.name}: ${consentUrl}`, u.id, tok, nowIso()).run();
+  await sendEmail(env, kid.parent_email, `Approve ${kid.name}'s KidVibers account`, `${kid.name} (under 13) wants to use KidVibers. <a href="${consentUrl}">Review &amp; approve →</a>`);
+  return json({ ok: true, parentEmail: kid.parent_email });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -1346,6 +1526,7 @@ async function handleApi(env, request, path) {
     return isNaN(kid) ? json({ error: "bad id" }, 400) : apiParentKidData(env, request, kid);
   }
   if (path.startsWith("/api/consent/") && method === "GET") return apiConsentLookup(env, path.split("/").pop());
+  if (path === "/api/billing/portal" && method === "POST") return apiBillingPortal(env, request);
   if (path === "/api/projects/mine" && method === "GET") return apiProjectsMine(env, request);
   // admin GETs
   if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
@@ -1364,6 +1545,15 @@ async function handleApi(env, request, path) {
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
   if (path === "/api/logout" && method === "POST") return apiLogout(env, request);
+  if (path === "/api/forgot-password" && method === "POST") return apiForgotPassword(env, request, data);
+  if (path === "/api/reset-password" && method === "POST") return apiResetPassword(env, request, data);
+
+  // billing + consent flows
+  if (path === "/api/checkout" && method === "POST") return apiCheckout(env, request, data);
+  if (path === "/api/checkout/session" && method === "POST") return apiCheckoutSession(env, request, data);
+  if (path === "/api/consent/start" && method === "POST") return apiConsentStart(env, request, data);
+  if (path === "/api/consent/confirm" && method === "POST") return apiConsentConfirm(env, request, data);
+  if (path === "/api/consent/resend" && method === "POST") return apiConsentResend(env, request, data);
 
   // parent / teacher / district
   if (path === "/api/parent/add-kid" && method === "POST") return apiParentAddKid(env, request, data);
@@ -1422,6 +1612,11 @@ async function handleApi(env, request, path) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Stripe webhook needs the RAW body for signature verification - read it here.
+    if (url.pathname === "/api/stripe/webhook" && request.method === "POST") {
+      try { return await apiStripeWebhook(env, await request.text(), request.headers.get("Stripe-Signature") || ""); }
+      catch (e) { console.log("webhook error:", e && e.stack || e); return json({ error: "error" }, 500); }
+    }
     if (url.pathname.startsWith("/api/")) {
       try { return await handleApi(env, request, url.pathname); }
       catch (e) { console.log("api error:", e && e.stack || e); return json({ error: "Something went wrong. Please try again." }, 500); }
