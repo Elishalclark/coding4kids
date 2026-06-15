@@ -1526,6 +1526,10 @@ async function handleApi(env, request, path) {
     return isNaN(kid) ? json({ error: "bad id" }, 400) : apiParentKidData(env, request, kid);
   }
   if (path.startsWith("/api/consent/") && method === "GET") return apiConsentLookup(env, path.split("/").pop());
+  if (path.startsWith("/api/invite/") && method === "GET") {
+    const kid = await env.DB.prepare("SELECT name, username FROM users WHERE link_token=? AND role='kid'").bind(path.split("/").pop()).first();
+    return kid ? json({ childName: kid.name, childUsername: kid.username }) : json({ error: "Invite not found" }, 404);
+  }
   if (path === "/api/billing/portal" && method === "POST") return apiBillingPortal(env, request);
   if (path === "/api/projects/mine" && method === "GET") return apiProjectsMine(env, request);
   // admin GETs
