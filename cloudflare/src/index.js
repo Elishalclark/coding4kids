@@ -1016,6 +1016,300 @@ async function apiQuizSubmit(env, request, data) {
   return json({ ok: true, recommendation: rec });
 }
 
+// ───────────────────────── admin dashboard ─────────────────────────
+const DEFAULT_PLAN_BY_ROLE = { teacher: "teacher", parent: "family", admin: "pro", super_admin: "pro" };
+
+async function provisionAccount(env, role, name, username, pwhash, salt, email = "", plan = null) {
+  name = cleanName(name);
+  if (!plan) plan = DEFAULT_PLAN_BY_ROLE[role] || "trial";
+  const linkToken = randToken(8);
+  try {
+    const res = await env.DB.prepare(
+      "INSERT INTO users (role,name,username,password_hash,salt,parent_email,plan,tokens,avatar,owned_items,link_token,consent_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(role, name, username, pwhash, salt, email, plan, STARTER_TOKENS, JSON.stringify(DEFAULT_AVATAR), JSON.stringify(FREE_ITEMS), linkToken, "not_required", nowIso()).run();
+    const uid = res.meta.last_row_id;
+    if (role === "teacher") await env.DB.prepare("UPDATE users SET family_id=?, class_code=? WHERE id=?").bind(uid, await genClassCode(env), uid).run();
+    else if (role === "parent") await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(uid, uid).run();
+    return uid;
+  } catch (e) { if (String(e.message || e).includes("UNIQUE")) return null; throw e; }
+}
+async function requireRole(env, request, roles) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !roles.includes(u.role)) return { err: json({ error: "forbidden" }, 403) };
+  return { u };
+}
+
+async function adminUsers(env, request) {
+  const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' ORDER BY id DESC").all()).results || [];
+  const out = []; for (const r of rows) out.push({ ...(await publicUser(env, r)), createdAt: r.created_at, parentEmail: r.parent_email });
+  return json({ users: out });
+}
+async function adminAccounts(env, request) {
+  const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const roles = u.role === "super_admin" ? ["kid", "parent", "teacher", "admin", "super_admin"] : ["kid", "parent", "teacher"];
+  const ph = roles.map(() => "?").join(",");
+  const rows = (await env.DB.prepare(`SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason,suspend_until FROM users WHERE role IN (${ph}) ORDER BY id`).bind(...roles).all()).results || [];
+  return json({ accounts: rows.map((r) => ({
+    id: r.id, name: r.name, username: r.username, role: r.role, plan: r.plan, parentEmail: r.parent_email,
+    familyId: r.family_id, joined: (r.created_at || "").slice(0, 10), suspended: suspensionStatus(r)[0],
+    suspendReason: r.suspend_reason ?? null, suspendUntil: r.suspend_until ?? null,
+  })) });
+}
+async function adminStats(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const c = async (sql) => (await env.DB.prepare(sql).first()).c;
+  return json({
+    totalKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid'"),
+    proKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan IN ('pro','family')"),
+    trialKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan='trial'"),
+    parents: await c("SELECT COUNT(*) c FROM users WHERE role='parent'"),
+    lessonsCompleted: await c("SELECT COUNT(*) c FROM progress"),
+  });
+}
+async function adminConsentGet(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const kids = (await env.DB.prepare("SELECT id,name,username,age_years,parent_email,consent_status,consent_method,consent_by,consent_at FROM users WHERE role='kid' ORDER BY id DESC").all()).results || [];
+  const log = (await env.DB.prepare("SELECT child_username,method,granted_by,detail,created_at FROM consent_log ORDER BY id DESC LIMIT 100").all()).results || [];
+  return json({
+    kids: kids.map((k) => ({ id: k.id, name: k.name, username: k.username, ageYears: k.age_years, parentEmail: k.parent_email, consentStatus: k.consent_status || "not_required", consentMethod: k.consent_method, consentBy: k.consent_by, consentAt: k.consent_at })),
+    log: log.map((r) => ({ child: r.child_username, method: r.method, by: r.granted_by, detail: r.detail, at: (r.created_at || "").slice(0, 16).replace("T", " ") })),
+  });
+}
+async function adminSettingsGet(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT * FROM lessons ORDER BY position, id").all()).results || [];
+  return json({ planSettings: await getPlanSettings(env), passPercent: await getPassPercent(env), unitNames: UNIT_NAMES, worlds: WORLDS, lessons: rows.map(lessonPublic) });
+}
+async function adminReportedComments(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT c.*, p.title AS project_title, us.username AS author_username, us.id AS author_id FROM comments c LEFT JOIN projects p ON p.id=c.project_id LEFT JOIN users us ON us.id=c.user_id WHERE c.reported > 0 ORDER BY c.reported DESC, c.id DESC").all()).results || [];
+  return json({ comments: rows.map((r) => ({ id: r.id, body: r.body, author: r.author_name, authorUsername: r.author_username ?? null, authorId: r.author_id ?? null, projectId: r.project_id, projectTitle: r.project_title || "(deleted project)", reports: r.reported, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+async function adminTakedowns(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT t.*, p.title AS project_title, p.author_name AS project_author, p.shared AS project_shared FROM takedowns t LEFT JOIN projects p ON p.id=t.project_id WHERE t.status='pending' ORDER BY t.id DESC").all()).results || [];
+  return json({ takedowns: rows.map((r) => ({ id: r.id, projectId: r.project_id, projectTitle: r.project_title || "(deleted project)", projectAuthor: r.project_author ?? null, projectShared: !!r.project_shared, requester: r.requester_name, reason: r.reason, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+async function adminAccountRequests(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT id,role,name,username,email,plan,requested_by,created_at FROM account_requests WHERE status='pending' ORDER BY id DESC").all()).results || [];
+  return json({ requests: rows.map((r) => ({ id: r.id, role: r.role, name: r.name, username: r.username, email: r.email, plan: r.plan, requestedBy: r.requested_by, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+async function apiProjectsMine(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const rows = (await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes FROM projects p WHERE p.user_id=? ORDER BY p.updated_at DESC").bind(u.id).all()).results || [];
+  return json({ projects: rows.map((r) => projectPublic(r, true)) });
+}
+
+async function adminSetPlan(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (!["free", "trial", "pro", "family"].includes((data.plan || "").trim())) return json({ error: "bad plan" }, 400);
+  await env.DB.prepare("UPDATE users SET plan=? WHERE id=? AND role='kid'").bind(data.plan, data.userId).run();
+  return json({ ok: true });
+}
+async function adminConsentPost(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const kid = await env.DB.prepare("SELECT id,username,parent_email FROM users WHERE id=? AND role='kid'").bind(data.kidId).first();
+  if (!kid) return json({ error: "Kid not found." }, 404);
+  const note = (data.note || "").trim(), action = (data.action || "").trim();
+  if (action === "grant") {
+    const method = (data.method || "admin_recorded").trim();
+    const grantedBy = note || kid.parent_email || `super admin (${u.username})`;
+    await grantConsent(env, kid.id, method, grantedBy);
+    await logConsent(env, kid.id, kid.username, method, grantedBy, `Recorded by super admin ${u.username}` + (note ? `: ${note}` : ""));
+    return json({ ok: true });
+  } else if (action === "revoke") {
+    await env.DB.prepare("UPDATE users SET consent_status='pending', consent_method=NULL, consent_by=NULL, consent_at=NULL, consent_token=? WHERE id=?").bind(randToken(10), kid.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+    await logConsent(env, kid.id, kid.username, "revoked", `super admin (${u.username})`, note || "Consent revoked");
+    return json({ ok: true });
+  }
+  return json({ error: "action must be grant or revoke" }, 400);
+}
+async function adminNotice(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const msg = (data.message || "").trim();
+  if (!msg) return json({ error: "Notice message is required." }, 400);
+  const target = await env.DB.prepare("SELECT id,parent_email FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "User not found." }, 404);
+  await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)").bind(target.id, data.kind || "notice", msg, nowIso()).run();
+  return json({ ok: true });
+}
+async function adminDeleteUser(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const reason = (data.reason || "").trim();
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "User not found." }, 404);
+  if (target.role === "super_admin") return json({ error: "The super-admin account can't be deleted." }, 403);
+  if (target.parent_email) {
+    const body = `Notice: the KidVibers account '${target.name}' (@${target.username}) has been deleted by an administrator.` + (reason ? ` Reason: ${reason}` : "");
+    await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)").bind(target.parent_email, "account_deleted", body, target.id, nowIso()).run();
+  }
+  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"])
+    await env.DB.prepare(sql).bind(target.id).run();
+  await logConsent(env, target.id, target.username, "deleted", `super admin (${u.username})`, reason || "Account deleted");
+  return json({ ok: true, name: target.name });
+}
+async function adminSuspend(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "User not found." }, 404);
+  if (target.role === "super_admin") return json({ error: "The super-admin account can't be suspended." }, 403);
+  const suspend = !!data.suspended, reason = (data.reason || "").trim();
+  let until = null;
+  if (suspend) {
+    const days = parseFloat(data.days) || 0;
+    if (days > 0) until = new Date(Date.now() + days * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+    await env.DB.prepare("UPDATE users SET suspended=1, suspend_reason=?, suspend_until=? WHERE id=?").bind(reason, until, target.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
+  } else {
+    await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(target.id).run();
+  }
+  await logConsent(env, target.id, target.username, suspend ? "suspended" : "reinstated", `super admin (${u.username})`, reason);
+  return json({ ok: true, name: target.name, suspended: suspend, until });
+}
+async function adminSetCredentials(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "Account not found." }, 404);
+  const newUser = (data.username || "").trim(), newPass = data.password || "";
+  if (!newUser && !newPass) return json({ error: "Enter a new username and/or password." }, 400);
+  const changed = [];
+  if (newUser && newUser !== target.username) {
+    if (!USERNAME_RE.test(newUser)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+    const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(newUser, target.id).first();
+    if (dup) return json({ error: "That username is already taken." }, 409);
+    await env.DB.prepare("UPDATE users SET username=? WHERE id=?").bind(newUser, target.id).run();
+    changed.push("username");
+  }
+  if (newPass) {
+    if (newPass.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+    const { hash, salt } = await hashPassword(newPass);
+    await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, target.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
+    changed.push("password");
+  }
+  return json({ ok: true, changed, username: changed.includes("username") ? newUser : target.username });
+}
+async function adminToggles(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if ("signups" in data) await setSetting(env, "signups_enabled", !!data.signups);
+  if ("logins" in data) await setSetting(env, "logins_enabled", !!data.logins);
+  return json({ ok: true, signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins") });
+}
+async function adminSiteMessage(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const text = cleanName(data.text || "").slice(0, 300);
+  const active = !!data.active && !!text;
+  await setSetting(env, "site_message", { text, active });
+  return json({ ok: true, active });
+}
+async function adminCreateAccount(env, request, data) {
+  const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const role = (data.role || "").trim(), name = (data.name || "").trim(), username = (data.username || "").trim();
+  const password = data.password || "", email = (data.email || "").trim(), plan = (data.plan || "").trim() || null;
+  if (!["kid", "parent", "teacher", "admin"].includes(role)) return json({ error: "Pick a valid account type." }, 400);
+  const verr = validateCredentials(name, username, password); if (verr) return json({ error: verr }, 400);
+  const taken = (await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(username).first()) ||
+    (await env.DB.prepare("SELECT 1 FROM account_requests WHERE username=? AND status='pending'").bind(username).first());
+  if (taken) return json({ error: "That username is already taken or pending." }, 409);
+  const { hash, salt } = await hashPassword(password);
+  if (u.role === "super_admin") {
+    const uid = await provisionAccount(env, role, name, username, hash, salt, email, plan);
+    if (!uid) return json({ error: "That username is already taken." }, 409);
+    return json({ ok: true, created: true, role, username });
+  }
+  await env.DB.prepare("INSERT INTO account_requests (role,name,username,password_hash,salt,email,plan,requested_by,status,created_at) VALUES (?,?,?,?,?,?,?,?,'pending',?)")
+    .bind(role, cleanName(name), username, hash, salt, email, plan, u.username, nowIso()).run();
+  return json({ ok: true, pending: true, role, username });
+}
+async function adminResolveRequest(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const action = (data.action || "").trim();
+  if (!["approve", "decline"].includes(action)) return json({ error: "bad action" }, 400);
+  const r = await env.DB.prepare("SELECT * FROM account_requests WHERE id=?").bind(data.id).first();
+  if (!r || r.status !== "pending") return json({ error: "Request not found or already handled." }, 404);
+  const setStatus = (st) => env.DB.prepare("UPDATE account_requests SET status=?, resolved_at=?, resolved_by=? WHERE id=?").bind(st, nowIso(), u.username, r.id).run();
+  if (action === "approve") {
+    const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(r.username).first();
+    if (taken) { await setStatus("declined"); return json({ error: "Username is now taken; request declined." }, 409); }
+    const uid = await provisionAccount(env, r.role, r.name, r.username, r.password_hash, r.salt, r.email || "", r.plan);
+    if (!uid) { await setStatus("declined"); return json({ error: "Could not create (username taken). Request declined." }, 409); }
+    await setStatus("approved");
+    return json({ ok: true, status: "approved", username: r.username });
+  }
+  await setStatus("declined");
+  return json({ ok: true, status: "declined" });
+}
+async function adminImpersonate(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "User not found" }, 404);
+  if (target.role === "super_admin") return json({ error: "Cannot impersonate another super admin." }, 403);
+  const token = await createSession(env, target.id);
+  return json({ token, user: await publicUser(env, target) });
+}
+async function adminSaveSettings(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const ps = data.planSettings;
+  if (typeof ps !== "object" || !ps) return json({ error: "planSettings required" }, 400);
+  const clean = {};
+  for (const plan of ["free", "trial", "pro", "family"]) {
+    const p = ps[plan] || {};
+    clean[plan] = { ai: !!p.ai, chatsPerDay: parseInt(p.chatsPerDay, 10) || 0, lessonLimit: p.lessonLimit === undefined ? -1 : (parseInt(p.lessonLimit, 10) || 0) };
+  }
+  await setSetting(env, "plan_settings", clean);
+  if ("passPercent" in data) await setSetting(env, "pass_percent", Math.max(1, Math.min(100, parseInt(data.passPercent, 10) || PASS_PERCENT)));
+  return json({ ok: true, planSettings: clean, passPercent: await getPassPercent(env) });
+}
+async function adminSaveLesson(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const lid = (data.id || "").trim(), title = (data.title || "").trim();
+  if (!title) return json({ error: "Title is required." }, 400);
+  const emoji = (data.emoji || "📘").trim(), blurb = (data.blurb || "").trim(), level = (data.level || "All ages").trim();
+  const xp = parseInt(data.xp, 10) || 50, published = data.published === false ? 0 : 1, unit = parseInt(data.unit, 10) || 1;
+  const existing = lid ? await env.DB.prepare("SELECT id FROM lessons WHERE id=?").bind(lid).first() : null;
+  if (existing) {
+    await env.DB.prepare("UPDATE lessons SET emoji=?,title=?,blurb=?,level=?,xp=?,published=?,unit=? WHERE id=?").bind(emoji, title, blurb, level, xp, published, unit, lid).run();
+  } else {
+    const newId = lid || ("l" + randHex(4));
+    const maxpos = (await env.DB.prepare("SELECT COALESCE(MAX(position),-1)+1 p FROM lessons").first()).p;
+    const dq = { q: "Did you understand this lesson?", opts: ["Yes!", "Mostly", "Need to review"], answer: 0 };
+    await env.DB.prepare("INSERT INTO lessons (id,position,emoji,title,blurb,level,xp,published,steps,quiz,unit) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(newId, maxpos, emoji, title, blurb, level, xp, published, JSON.stringify([{ h: title, p: blurb }]), JSON.stringify(dq), unit).run();
+  }
+  return json({ ok: true });
+}
+async function adminDeleteLesson(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("DELETE FROM lessons WHERE id=?").bind((data.id || "").trim()).run();
+  return json({ ok: true });
+}
+async function adminCommentDismiss(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const c = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(data.id).first();
+  if (!c) return json({ error: "Comment not found" }, 404);
+  await env.DB.prepare("UPDATE comments SET reported=0 WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+async function adminTakedownResolve(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const action = (data.action || "").trim();
+  if (!["approve", "deny"].includes(action)) return json({ error: "bad action" }, 400);
+  const t = await env.DB.prepare("SELECT * FROM takedowns WHERE id=?").bind(data.id).first();
+  if (!t) return json({ error: "Request not found" }, 404);
+  if (t.status !== "pending") return json({ error: "Already resolved." }, 400);
+  if (action === "approve") {
+    await env.DB.prepare("UPDATE projects SET shared=0 WHERE id=?").bind(t.project_id).run();
+    await env.DB.prepare("UPDATE takedowns SET status='approved', resolved_at=?, resolved_by=? WHERE project_id=? AND status='pending'").bind(nowIso(), u.username, t.project_id).run();
+    return json({ ok: true, status: "approved" });
+  }
+  await env.DB.prepare("UPDATE takedowns SET status='denied', resolved_at=?, resolved_by=? WHERE id=?").bind(nowIso(), u.username, data.id).run();
+  return json({ ok: true, status: "denied" });
+}
+
 // ───────────────────────── router ─────────────────────────
 const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
@@ -1052,6 +1346,16 @@ async function handleApi(env, request, path) {
     return isNaN(kid) ? json({ error: "bad id" }, 400) : apiParentKidData(env, request, kid);
   }
   if (path.startsWith("/api/consent/") && method === "GET") return apiConsentLookup(env, path.split("/").pop());
+  if (path === "/api/projects/mine" && method === "GET") return apiProjectsMine(env, request);
+  // admin GETs
+  if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
+  if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
+  if (path === "/api/admin/stats" && method === "GET") return adminStats(env, request);
+  if (path === "/api/admin/consent" && method === "GET") return adminConsentGet(env, request);
+  if (path === "/api/admin/settings" && method === "GET") return adminSettingsGet(env, request);
+  if (path === "/api/admin/reported-comments" && method === "GET") return adminReportedComments(env, request);
+  if (path === "/api/admin/takedowns" && method === "GET") return adminTakedowns(env, request);
+  if (path === "/api/admin/account-requests" && method === "GET") return adminAccountRequests(env, request);
 
   // auth POSTs
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
@@ -1092,6 +1396,24 @@ async function handleApi(env, request, path) {
   if (path === "/api/comments/add" && method === "POST") return apiCommentAdd(env, request, data);
   if (path === "/api/comments/delete" && method === "POST") return apiCommentDelete(env, request, data);
   if (path === "/api/comments/report" && method === "POST") return apiCommentReport(env, request, data);
+
+  // admin POSTs
+  if (path === "/api/admin/set-plan" && method === "POST") return adminSetPlan(env, request, data);
+  if (path === "/api/admin/consent" && method === "POST") return adminConsentPost(env, request, data);
+  if (path === "/api/admin/notice" && method === "POST") return adminNotice(env, request, data);
+  if (path === "/api/admin/delete-user" && method === "POST") return adminDeleteUser(env, request, data);
+  if (path === "/api/admin/suspend" && method === "POST") return adminSuspend(env, request, data);
+  if (path === "/api/admin/set-credentials" && method === "POST") return adminSetCredentials(env, request, data);
+  if (path === "/api/admin/create-account" && method === "POST") return adminCreateAccount(env, request, data);
+  if (path === "/api/admin/account-requests/resolve" && method === "POST") return adminResolveRequest(env, request, data);
+  if (path === "/api/admin/site-message" && method === "POST") return adminSiteMessage(env, request, data);
+  if (path === "/api/admin/toggles" && method === "POST") return adminToggles(env, request, data);
+  if (path === "/api/admin/impersonate" && method === "POST") return adminImpersonate(env, request, data);
+  if (path === "/api/admin/settings" && method === "POST") return adminSaveSettings(env, request, data);
+  if (path === "/api/admin/lesson" && method === "POST") return adminSaveLesson(env, request, data);
+  if (path === "/api/admin/lesson/delete" && method === "POST") return adminDeleteLesson(env, request, data);
+  if (path === "/api/admin/comment-dismiss" && method === "POST") return adminCommentDismiss(env, request, data);
+  if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
 
   // not yet ported
   return json({ error: PORTED_503 }, 503);
