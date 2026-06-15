@@ -638,6 +638,13 @@ window.addEventListener('scroll', () => {
     return;
   }
 
+  // ?login=1 (e.g. from the "Log in to use Lessons" gate) → open the login modal
+  if (params.get('login') && !C4K.isLoggedIn()) {
+    refreshAuthUI();
+    openLogin();
+    return;
+  }
+
   // Already logged in? Send them straight to their own space - but NOT if they
   // followed a deep link (e.g. #pricing for an upgrade) which they need to see.
   if (C4K.isLoggedIn() && !location.hash) {

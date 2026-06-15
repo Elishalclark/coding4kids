@@ -69,6 +69,36 @@ const C4K = {
   hasAI() { return !!(this.user && this.user.hasAI); },
   isLoggedIn() { return !!this.user; },
 
+  // Require sign-in to use a feature (Lessons / Playground / Gallery). Shows a full-screen
+  // gate for logged-out visitors and returns true (so the caller can stop). Returns false
+  // when the user is logged in. Call after loadMe().
+  loginGate(feature) {
+    if (this.user) return false;
+    if (document.getElementById('c4kGate')) return true;
+    const f = this.esc(feature || 'this');
+    const ov = document.createElement('div');
+    ov.id = 'c4kGate';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:rgba(8,6,18,0.97);' +
+      'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;' +
+      "font-family:'Nunito',system-ui,sans-serif;");
+    ov.innerHTML =
+      '<div style="max-width:460px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
+        '<div style="font-size:3.4rem;">🔒</div>' +
+        '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Log in to use ' + f + '</h1>' +
+        '<p style="color:#bdb6d6;line-height:1.6;margin-bottom:22px;">Create a free account or log in to start coding on KidVibers! 🚀</p>' +
+        '<a href="index.html?login=1" style="display:block;text-decoration:none;margin-bottom:10px;padding:13px;border-radius:12px;' +
+          'background:linear-gradient(135deg,#7c5cff,#b14cff);color:#fff;font-weight:900;font-size:1rem;">Log In →</a>' +
+        '<a href="index.html#signup" style="display:block;text-decoration:none;margin-bottom:16px;padding:13px;border-radius:12px;' +
+          'border:1px solid #3a2f63;color:#cdb8ff;font-weight:800;">Create a Free Account</a>' +
+        '<a href="index.html" style="color:#8b83b0;font-size:0.85rem;text-decoration:none;">← Back to home</a>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return true;
+  },
+
   // Where a given user's "home" dashboard lives.
   homeFor(user) {
     user = user || this.user || {};

@@ -1616,6 +1616,19 @@ async function handleApi(env, request, path) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // Staging gate: when STAGING_USER is set (only on the staging deploy), the whole
+    // site is behind a username/password so only you can see it. Production has no gate.
+    if (env.STAGING_USER) {
+      const expected = "Basic " + btoa(`${env.STAGING_USER}:${env.STAGING_PASS || ""}`);
+      if ((request.headers.get("Authorization") || "") !== expected) {
+        return new Response("🔒 KidVibers staging - please log in.", {
+          status: 401,
+          headers: { "WWW-Authenticate": 'Basic realm="KidVibers Staging"', "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+    }
+
     // Stripe webhook needs the RAW body for signature verification - read it here.
     if (url.pathname === "/api/stripe/webhook" && request.method === "POST") {
       try { return await apiStripeWebhook(env, await request.text(), request.headers.get("Stripe-Signature") || ""); }

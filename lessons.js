@@ -16,6 +16,8 @@ function saveLocal() { const o = {}; completed.forEach(id => o[id] = true); loca
 // ───────────────────────── load ─────────────────────────
 async function load() {
   if (typeof C4K !== 'undefined') ME = await C4K.loadMe();
+  // Lessons require an account - show the sign-in gate for logged-out visitors.
+  if (typeof C4K !== 'undefined' && C4K.loginGate('Lessons')) return;
   document.getElementById('dashLink').style.display = (ME && ME.role === 'kid') ? '' : 'none';
   try {
     const ld = await (await fetch('/api/lessons')).json();
