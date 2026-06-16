@@ -26,6 +26,7 @@ vars = { STAGING_USER = "preview" }
 # IMPORTANT: empty so staging never claims the kidvibers.com custom domain (otherwise it
 # inherits the top-level routes and hijacks the live site). Staging stays on workers.dev.
 routes = []
+workers_dev = true
 
 [env.staging.assets]
 directory = "./public"
