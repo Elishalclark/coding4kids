@@ -1536,7 +1536,9 @@ async function editAuth(env, request) {
 }
 async function apiSiteEditsGet(env) {
   const e = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {} });
-  return json({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, canEdit: !!env.STAGING_USER });
+  // Never cache edits - so colour/text changes (and reverts) show immediately.
+  return new Response(JSON.stringify({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, canEdit: !!env.STAGING_USER }),
+    { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS } });
 }
 async function apiSiteEditsSave(env, request, data) {
   const err = await editAuth(env, request); if (err) return err;
@@ -1546,6 +1548,16 @@ async function apiSiteEditsSave(env, request, data) {
   await setSetting(env, "site_edits", clean);
   return json({ ok: true });
 }
+async function apiNotifyInterest(env, request, data) {
+  const email = (data.email || "").trim().slice(0, 120);
+  if (!/^\S+@\S+\.\S+$/.test(email)) return json({ error: "Enter a valid email." }, 400);
+  if (rateLimited(`notify:${email.toLowerCase()}`, 5, 3600)) return json({ ok: true });
+  const plan = (data.plan || "").trim().slice(0, 40) || "pro";
+  await env.DB.prepare("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)")
+    .bind(email, "plan_interest", plan, nowIso()).run();
+  return json({ ok: true });
+}
+
 async function apiSiteEditsPublish(env, request) {
   const err = await editAuth(env, request); if (err) return err;
   if (!env.DB_PROD) return json({ error: "Publish is only available from the staging site." }, 400);
@@ -1571,6 +1583,7 @@ async function handleApi(env, request, path) {
     return json({ text: m.text || "", active: !!m.active });
   }
   if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
+  if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
   if (path === "/api/admin/site-edits" && method === "POST") return apiSiteEditsSave(env, request, data);
   if (path === "/api/admin/site-edits/publish" && method === "POST") return apiSiteEditsPublish(env, request);
   if (path === "/api/me" && method === "GET") return apiMe(env, request);

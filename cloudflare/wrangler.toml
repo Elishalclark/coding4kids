@@ -23,6 +23,9 @@ database_id = "195abd8a-85e7-4740-b127-31bab6cc499e"
 [env.staging]
 name = "kidvibers-staging"
 vars = { STAGING_USER = "preview" }
+# IMPORTANT: empty so staging never claims the kidvibers.com custom domain (otherwise it
+# inherits the top-level routes and hijacks the live site). Staging stays on workers.dev.
+routes = []
 
 [env.staging.assets]
 directory = "./public"
