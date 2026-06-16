@@ -6,7 +6,6 @@ account_id = "3021aff7dc59bb05483ada6d03b99ad7"
 
 routes = [
   { pattern = "kidvibers.com", custom_domain = true },
-  { pattern = "www.kidvibers.com", custom_domain = true },
 ]
 
 [assets]
