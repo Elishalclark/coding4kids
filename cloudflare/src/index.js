@@ -29,6 +29,7 @@ const TEACHER_PLANS = {
   district: { label: "District Plan", price: 150, students: -1 },
 };
 const NO_TEACHER_PLAN = { label: "No plan yet", price: 0, students: 0 };
+const SCHOOL_ADDON_PRICE = 25;   // a District can add extra schools at $25/mo each
 const DEFAULT_AVATAR = { face: "face_kid", hat: null, accessory: null, clothing: null, companion: null, background: "bg_purple" };
 const FREE_ITEMS = ["face_kid", "bg_purple"];
 
@@ -117,6 +118,7 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -215,6 +217,8 @@ async function publicUser(env, user) {
       teacherPlan: user.plan || "none", teacherPlanLabel: tp.label,
       studentLimit: tp.students, studentsUsed: await studentsInFamily(env, user.family_id),
       isDistrict: DISTRICT_PLANS.includes(user.plan),
+      isFullDistrict: user.plan === "district",   // only true Districts can add schools
+      partOfDistrict: user.district_id != null,
       classCode: user.class_code ?? null,
       brandName: user.brand_name ?? null, brandLogo: user.brand_logo ?? null,
     };
@@ -372,7 +376,17 @@ async function apiSignup(env, request, data) {
   if (data.age !== undefined && data.age !== "" && data.age !== null) { const n = parseInt(data.age, 10); if (!isNaN(n)) ageYears = n; }
   const err = validateCredentials(name, username, password);
   if (err) return json({ error: err }, 400);
-  const needsConsent = ageYears !== null && ageYears < COPPA_AGE;
+  // Age is REQUIRED and must be sensible. Without this, a child could be created with no age
+  // (or a typo like 9999) and skip the under-13 parental-consent gate entirely.
+  if (ageYears === null || ageYears < 4 || ageYears > 18)
+    return json({ error: "Please enter the child's age (between 4 and 18)." }, 400);
+  // If a parent email is given, it must look like a real email so consent/notices can be delivered.
+  if (email && !/^\S+@\S+\.\S+$/.test(email))
+    return json({ error: "Please enter a valid parent email address." }, 400);
+  const needsConsent = ageYears < COPPA_AGE;
+  // An under-13 account can't be approved without somewhere to send the consent request.
+  if (needsConsent && !email)
+    return json({ error: "A parent's email is required so a parent can approve this account." }, 400);
   const consentToken = needsConsent ? randToken(10) : null;
   const consentStatus = needsConsent ? "pending" : "not_required";
   const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
@@ -454,6 +468,10 @@ async function apiProgressPost(env, request, data) {
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
   const lessonId = (data.lessonId || "").trim();
   if (!lessonId) return json({ error: "lessonId required" }, 400);
+  // Must be a REAL published lesson - otherwise kids could farm tokens and fake progress
+  // by POSTing made-up lesson IDs.
+  const realLesson = await env.DB.prepare("SELECT 1 FROM lessons WHERE id=? AND published=1").bind(lessonId).first();
+  if (!realLesson) return json({ error: "Unknown lesson." }, 404);
   const settings = await getPlanSettings(env);
   const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
   const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(u.id).first()).c;
@@ -783,6 +801,8 @@ async function apiCommentReport(env, request, data) {
   if (!u) return json({ error: "not logged in" }, 401);
   const c = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(data.id).first();
   if (!c) return json({ error: "Comment not found" }, 404);
+  // One report per user per comment, so a single kid can't inflate the count to harass someone.
+  if (rateLimited(`report:${u.id}:${data.id}`, 1, 86400)) return json({ ok: true });
   await env.DB.prepare("UPDATE comments SET reported=reported+1 WHERE id=?").bind(data.id).run();
   return json({ ok: true });
 }
@@ -976,9 +996,68 @@ async function districtOwner(env, request) {
   return u;
 }
 
+// Only a true District plan (not a single School) can add and manage child schools.
+async function fullDistrict(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher" || u.plan !== "district" || u.family_id == null) return null;
+  return u;
+}
+
+async function apiDistrictSchools(env, request) {
+  const d = await fullDistrict(env, request);
+  if (!d) return json({ error: "Only a District account can manage schools." }, 403);
+  const rows = (await env.DB.prepare("SELECT id,name,school,username,class_code FROM users WHERE role='teacher' AND district_id=? ORDER BY id").bind(d.id).all()).results || [];
+  const schools = [];
+  for (const s of rows) {
+    const cnt = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?").bind(s.id).first()).c;
+    schools.push({ id: s.id, name: s.school || s.name, admin: s.username, classCode: s.class_code, students: cnt });
+  }
+  return json({ schools, pricePer: SCHOOL_ADDON_PRICE, monthlyTotal: schools.length * SCHOOL_ADDON_PRICE, notCharged: true });
+}
+
+async function apiDistrictAddSchool(env, request, data) {
+  const d = await fullDistrict(env, request);
+  if (!d) return json({ error: "Only a District account can add schools." }, 403);
+  const schoolName = (data.schoolName || "").trim().slice(0, 80) || "New School";
+  const username = (data.username || "").trim();
+  const password = data.password || "";
+  // The "admin name" defaults to the school name; credentials are validated like any account.
+  const err = validateCredentials(schoolName, username, password);
+  if (err) return json({ error: err }, 400);
+  const r = await createUser(env, {
+    role: "teacher", name: schoolName, username, password, email: d.parent_email || "",
+    age: "", plan: "school", trial_ends: null, school: schoolName,
+  });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  // Link the new school to this district, give it its own group + class code, inherit branding.
+  await env.DB.prepare("UPDATE users SET family_id=?, class_code=?, district_id=?, brand_name=?, brand_logo=? WHERE id=?")
+    .bind(r.uid, await genClassCode(env), d.id, d.brand_name ?? null, d.brand_logo ?? null, r.uid).run();
+  const row = await env.DB.prepare("SELECT id,school,username,class_code FROM users WHERE id=?").bind(r.uid).first();
+  return json({ ok: true, notCharged: true, pricePer: SCHOOL_ADDON_PRICE,
+    school: { id: row.id, name: row.school, admin: row.username, classCode: row.class_code, students: 0 } });
+}
+
+async function apiDistrictRemoveSchool(env, request, data) {
+  const d = await fullDistrict(env, request);
+  if (!d) return json({ error: "Only a District account can remove schools." }, 403);
+  const school = await env.DB.prepare("SELECT id,school FROM users WHERE id=? AND role='teacher' AND district_id=?").bind(data.schoolId, d.id).first();
+  if (!school) return json({ error: "That school isn't in your district." }, 404);
+  // Remove the school's students, then the school account itself.
+  const kids = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id=?").bind(school.id).all()).results || [];
+  for (const k of kids) {
+    for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM users WHERE id=?"])
+      await env.DB.prepare(sql).bind(k.id).run();
+  }
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(school.id).run();
+  await env.DB.prepare("DELETE FROM users WHERE id=?").bind(school.id).run();
+  return json({ ok: true, name: school.school, removedStudents: kids.length });
+}
+
 async function apiSchoolBranding(env, request, data) {
   const owner = await districtOwner(env, request);
   if (!owner) return json({ error: "Only a School or District account can change branding." }, 403);
+  // A school created under a district inherits the district's branding and can't change it.
+  if (owner.district_id != null) return json({ error: "Your district manages branding for all its schools." }, 403);
   const brandName = (data.brandName || "").trim().slice(0, 80);
   const brandLogo = (data.brandLogo || "").trim().slice(0, 500);
   if (brandLogo && !/^https:\/\//.test(brandLogo)) return json({ error: "Logo must be a secure https:// image link." }, 400);
@@ -1347,22 +1426,25 @@ async function adminTakedownResolve(env, request, data) {
 }
 
 // ───────────────────────── email (Resend) ─────────────────────────
-async function sendEmail(env, to, subject, html) {
+// `from` is optional - pass it to send from a specific address (e.g. password@kidvibers.com
+// for reset emails). Everything else sends from support@kidvibers.com.
+async function sendEmail(env, to, subject, html, from) {
   if (!to || !env.RESEND_API_KEY) return false;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: env.EMAIL_FROM || "KidVibers <noreply@kidvibers.com>",
+        from: from || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
         to: [to], subject,
         html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222">${html}</div>`,
-        reply_to: env.REPLY_TO || "kidvibers.help@outlook.com",
+        reply_to: env.REPLY_TO || "support@kidvibers.com",
       }),
     });
     return res.ok;
   } catch (e) { console.log("email failed:", e); return false; }
 }
+const FROM_PASSWORD = "KidVibers <password@kidvibers.com>";
 
 // ───────────────────────── Stripe ─────────────────────────
 function stripeEnabled(env) { return !!env.STRIPE_SECRET_KEY; }
@@ -1403,11 +1485,8 @@ async function apiCheckout(env, request, data) {
     if (!["pro", "family", "teacher", "school", "district"].includes(plan)) return json({ error: "Unknown plan." }, 400);
     return json({ error: "This account type can't purchase that plan." }, 403);
   }
-  await env.DB.prepare("UPDATE users SET plan=? WHERE id=?").bind(plan, u.id).run();
-  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.id).first();
-  if (u.parent_email) await sendEmail(env, u.parent_email, "About your KidVibers plan",
-    "<p>Thanks for your interest in upgrading! <strong>You have not been charged.</strong></p><p>We're currently not accepting new paid plans yet - we'll have that solved soon.</p>");
-  return json({ ok: true, plan, user: await publicUser(env, row), notCharged: true });
+  // Billing isn't live, so DON'T change the plan - visiting checkout must never grant a free upgrade.
+  return json({ ok: true, plan, user: await publicUser(env, u), notCharged: true });
 }
 
 async function apiCheckoutSession(env, request, data) {
@@ -1452,6 +1531,55 @@ async function apiStripeWebhook(env, rawBody, sigHeader) {
   return json({ received: true });
 }
 
+// ───────────────────────── Resend webhook (bounces + inbound mail) ─────────────────────────
+// Verify Svix signature (how Resend signs webhooks) so only Resend can post events.
+async function resendSigOk(env, body, headers) {
+  const secret = env.RESEND_WEBHOOK_SECRET;
+  if (!secret) return false;                       // fail closed until the signing secret is set
+  const id = headers.get("svix-id"), ts = headers.get("svix-timestamp"), sig = headers.get("svix-signature");
+  if (!id || !ts || !sig) return false;
+  const tsNum = parseInt(ts, 10);
+  if (!tsNum || Math.abs(Date.now() / 1000 - tsNum) > 300) return false;  // 5-min replay guard
+  const keyB64 = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+  let keyBytes; try { keyBytes = Uint8Array.from(atob(keyB64), (c) => c.charCodeAt(0)); } catch { return false; }
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${ts}.${body}`));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  return sig.split(" ").some((p) => (p.split(",")[1] || "") === expected);
+}
+
+async function apiResendWebhook(env, rawBody, headers) {
+  if (!(await resendSigOk(env, rawBody, headers))) return json({ error: "bad signature" }, 401);
+  let ev; try { ev = JSON.parse(rawBody); } catch { return json({ error: "bad payload" }, 400); }
+  const t = ev.type || "", d = ev.data || {};
+  const subject = String(d.subject || "").slice(0, 200);
+  const now = nowIso();
+  if (t === "email.bounced" || t === "email.complained" || t === "email.delivery_delayed") {
+    const kind = t.split(".")[1];   // bounced | complained | delivery_delayed
+    const to = (Array.isArray(d.to) ? d.to.join(", ") : (d.to || "")).slice(0, 160);
+    const reason = (d.bounce && (d.bounce.message || d.bounce.subType || d.bounce.type))
+      || (kind === "complained" ? "Recipient marked it as spam" : "Delivery problem");
+    await env.DB.prepare("INSERT INTO email_events (direction,kind,peer_email,subject,body,created_at) VALUES ('outbound',?,?,?,?,?)")
+      .bind(kind, to, subject, String(reason).slice(0, 300), now).run();
+  } else if (t === "email.received") {
+    const from = String(d.from || (d.envelope && d.envelope.from) || "").slice(0, 160);
+    const text = String(d.text || d.html || "").slice(0, 4000);
+    await env.DB.prepare("INSERT INTO email_events (direction,kind,peer_email,subject,body,created_at) VALUES ('inbound','received',?,?,?,?)")
+      .bind(from, subject, text, now).run();
+  }
+  return json({ received: true });
+}
+
+async function apiAdminEmailEvents(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT id,direction,kind,peer_email,subject,body,created_at FROM email_events ORDER BY id DESC LIMIT 200").all()).results || [];
+  return json({ events: rows.map((r) => ({
+    id: r.id, direction: r.direction, kind: r.kind, email: r.peer_email || "",
+    subject: r.subject || "", body: (r.body || "").slice(0, 600),
+    at: (r.created_at || "").slice(0, 16).replace("T", " "),
+  })) });
+}
+
 async function apiBillingPortal(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "Please log in." }, 401);
@@ -1472,7 +1600,8 @@ async function apiForgotPassword(env, request, data) {
     await env.DB.prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?").bind(token, expires, row.id).run();
     const url = `${siteUrl(env, request)}/reset.html?token=${token}`;
     await sendEmail(env, row.parent_email, "Reset your KidVibers password",
-      `<p>Hi ${cleanName(row.name || "")}, we got a request to reset your KidVibers password.</p><p><a href="${url}">Click here to choose a new password</a> (expires in 2 hours).</p>`);
+      `<p>Hi ${cleanName(row.name || "")}, we got a request to reset your KidVibers password.</p><p><a href="${url}">Click here to choose a new password</a> (expires in 2 hours).</p>`,
+      FROM_PASSWORD);
   }
   return generic;
 }
@@ -1505,9 +1634,29 @@ async function apiConsentConfirm(env, request, data) {
   const tok = (data.token || "").trim();
   const kid = await env.DB.prepare("SELECT id,name,username,parent_email FROM users WHERE consent_confirm_token=? AND role='kid'").bind(tok).first();
   if (!kid) return json({ error: "Invalid or used confirmation link." }, 404);
-  await grantConsent(env, kid.id, "email_plus", kid.parent_email || "parent");
-  await logConsent(env, kid.id, kid.username, "email_plus", kid.parent_email || "parent", "Parent gave verifiable consent (email-plus)");
+  // Parent identity verification: full legal name + last 4 of a payment card + a sworn
+  // attestation. We NEVER charge the card and only ever keep the last 4 digits (no PCI scope).
+  // This raises the bar so a child can't simply self-approve from their own email.
+  const parentName = (data.parentName || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const cardLast4 = (data.cardLast4 || "").trim();
+  const attest = data.attest === true || data.attest === "true";
+  if (parentName.length < 2 || !/[a-zA-Z]/.test(parentName)) return json({ error: "Please enter the parent or guardian's full legal name." }, 400);
+  if (!/^\d{4}$/.test(cardLast4)) return json({ error: "Please enter the last 4 digits of your payment card." }, 400);
+  if (!attest) return json({ error: "Please confirm you are the parent or legal guardian and over 18." }, 400);
+  await grantConsent(env, kid.id, "verified_parent", parentName);
+  await logConsent(env, kid.id, kid.username, "verified_parent", parentName,
+    `Parent verified ID: name + card ending ${cardLast4}; attested parent/guardian, 18+ (card never charged)`);
   return json({ ok: true, childName: kid.name });
+}
+// On-device approval: a logged-in pending kid gets (or creates) their consent token so a
+// parent standing next to them can approve immediately - no email required.
+async function apiConsentSelf(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);
+  if (consentOk(u)) return json({ error: "This account is already approved." }, 400);
+  let tok = u.consent_token;
+  if (!tok) { tok = randToken(10); await env.DB.prepare("UPDATE users SET consent_token=? WHERE id=?").bind(tok, u.id).run(); }
+  return json({ ok: true, token: tok, childName: u.name });
 }
 async function apiConsentResend(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -1530,23 +1679,29 @@ async function apiConsentResend(env, request, data) {
 // On staging (STAGING_USER set) the password gate already authorized the visitor, so
 // editing is open - no admin login needed. On production, editing requires super admin.
 async function editAuth(env, request) {
-  if (env.STAGING_USER) return null;             // staging: gate already verified
-  const { err } = await requireRole(env, request, ["super_admin"]);
-  return err || null;
+  // Editing is ONLY allowed on the staging site (where the password gate already authorized
+  // the visitor). The live site is read-only - no one, not even a super admin, edits it
+  // directly; changes reach production only through staging's "Publish".
+  if (env.STAGING_USER) return null;
+  return json({ error: "The live site can't be edited directly - make changes on staging and Publish." }, 403);
 }
 async function apiSiteEditsGet(env) {
-  const e = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {} });
-  // Never cache edits - so colour/text changes (and reverts) show immediately.
-  return new Response(JSON.stringify({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, canEdit: !!env.STAGING_USER }),
+  const e = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {}, filters: {} });
+  // canEdit is true ONLY on staging - so the editor toolbar never appears on the live site.
+  return new Response(JSON.stringify({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, filters: e.filters || {}, canEdit: !!env.STAGING_USER }),
     { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS } });
 }
 async function apiSiteEditsSave(env, request, data) {
   const err = await editAuth(env, request); if (err) return err;
-  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {}, blocks: (data && data.blocks) || {} };
-  const size = JSON.stringify(clean).length;
-  if (size > 4_000_000) return json({ error: "Too much content/images to save - try smaller or fewer images." }, 413);
+  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {}, blocks: (data && data.blocks) || {}, filters: (data && data.filters) || {} };
+  if (JSON.stringify(clean).length > 4_000_000) return json({ error: "Too much content/images to save - try smaller or fewer images." }, 413);
   await setSetting(env, "site_edits", clean);
   return json({ ok: true });
+}
+async function apiAdminInterest(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT to_email, body, created_at FROM messages WHERE kind='plan_interest' ORDER BY id DESC LIMIT 500").all()).results || [];
+  return json({ interest: rows.map((r) => ({ email: r.to_email, plan: r.body, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
 async function apiNotifyInterest(env, request, data) {
   const email = (data.email || "").trim().slice(0, 120);
@@ -1558,17 +1713,51 @@ async function apiNotifyInterest(env, request, data) {
   return json({ ok: true });
 }
 
-async function apiSiteEditsPublish(env, request) {
+// Count what changed, so the super admin can see a quick summary of the request.
+function editsSummary(e) {
+  e = e || {};
+  let blocks = 0;
+  for (const pg in (e.blocks || {})) blocks += (e.blocks[pg] || []).length;
+  let texts = 0;
+  for (const pg in (e.texts || {})) texts += Object.keys(e.texts[pg] || {}).length;
+  return { colors: Object.keys(e.colors || {}).length, filters: Object.keys(e.filters || {}).length, texts, blocks };
+}
+
+// Staging: submit the current staged edits to the super admin for approval (does NOT go live).
+async function apiSiteEditsSubmit(env, request) {
   const err = await editAuth(env, request); if (err) return err;
-  if (!env.DB_PROD) return json({ error: "Publish is only available from the staging site." }, 400);
-  const edits = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {} });
-  await env.DB_PROD.prepare("INSERT INTO settings (key,value) VALUES ('site_edits',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
-    .bind(JSON.stringify(edits)).run();
+  if (!env.DB_PROD) return json({ error: "Submitting is only available from the staging site." }, 400);
+  const edits = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {}, filters: {} });
+  const pending = { edits, submittedAt: nowIso(), summary: editsSummary(edits) };
+  await env.DB_PROD.prepare("INSERT INTO settings (key,value) VALUES ('pending_site_edits',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .bind(JSON.stringify(pending)).run();
+  return json({ ok: true });
+}
+
+// Live admin (super admin): see the pending website-change request, if any.
+async function apiPendingGet(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const p = await getSetting(env, "pending_site_edits", null);
+  if (!p) return json({ pending: null });
+  return json({ pending: { submittedAt: p.submittedAt || "", summary: p.summary || editsSummary(p.edits), stagingUrl: "https://kidvibers-staging.elishalclark.workers.dev/" } });
+}
+
+// Live admin (super admin): APPROVE -> the change goes live. DENY -> the request is discarded.
+async function apiPendingApprove(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const p = await getSetting(env, "pending_site_edits", null);
+  if (!p) return json({ error: "There's no pending change to approve." }, 404);
+  await setSetting(env, "site_edits", p.edits || {});
+  await env.DB.prepare("DELETE FROM settings WHERE key='pending_site_edits'").run();
+  return json({ ok: true });
+}
+async function apiPendingDeny(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("DELETE FROM settings WHERE key='pending_site_edits'").run();
   return json({ ok: true });
 }
 
 // ───────────────────────── router ─────────────────────────
-const PORTED_503 = "This part of KidVibers is still moving to Cloudflare. Try again soon!";
 
 async function handleApi(env, request, path) {
   const method = request.method;
@@ -1585,7 +1774,12 @@ async function handleApi(env, request, path) {
   if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
   if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
   if (path === "/api/admin/site-edits" && method === "POST") return apiSiteEditsSave(env, request, data);
-  if (path === "/api/admin/site-edits/publish" && method === "POST") return apiSiteEditsPublish(env, request);
+  if (path === "/api/admin/site-edits/submit" && method === "POST") return apiSiteEditsSubmit(env, request);
+  if (path === "/api/admin/site-edits/pending" && method === "GET") return apiPendingGet(env, request);
+  if (path === "/api/admin/site-edits/approve" && method === "POST") return apiPendingApprove(env, request);
+  if (path === "/api/admin/site-edits/deny" && method === "POST") return apiPendingDeny(env, request);
+  if (path === "/api/admin/interest" && method === "GET") return apiAdminInterest(env, request);
+  if (path === "/api/admin/email-events" && method === "GET") return apiAdminEmailEvents(env, request);
   if (path === "/api/me" && method === "GET") return apiMe(env, request);
   if (path === "/api/lessons" && method === "GET") return apiLessons(env);
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
@@ -1636,6 +1830,7 @@ async function handleApi(env, request, path) {
   // billing + consent flows
   if (path === "/api/checkout" && method === "POST") return apiCheckout(env, request, data);
   if (path === "/api/checkout/session" && method === "POST") return apiCheckoutSession(env, request, data);
+  if (path === "/api/consent/self" && method === "POST") return apiConsentSelf(env, request);
   if (path === "/api/consent/start" && method === "POST") return apiConsentStart(env, request, data);
   if (path === "/api/consent/confirm" && method === "POST") return apiConsentConfirm(env, request, data);
   if (path === "/api/consent/resend" && method === "POST") return apiConsentResend(env, request, data);
@@ -1644,6 +1839,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/parent/add-kid" && method === "POST") return apiParentAddKid(env, request, data);
   if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
   if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
+  if (path === "/api/district/schools" && method === "GET") return apiDistrictSchools(env, request);
+  if (path === "/api/district/add-school" && method === "POST") return apiDistrictAddSchool(env, request, data);
+  if (path === "/api/district/remove-school" && method === "POST") return apiDistrictRemoveSchool(env, request, data);
   if (path === "/api/school/branding" && method === "POST") return apiSchoolBranding(env, request, data);
   if (path === "/api/school/student/suspend" && method === "POST") return apiSchoolSuspend(env, request, data);
   if (path === "/api/school/student/credentials" && method === "POST") return apiSchoolCredentials(env, request, data);
@@ -1690,13 +1888,20 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/comment-dismiss" && method === "POST") return adminCommentDismiss(env, request, data);
   if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
 
-  // not yet ported
-  return json({ error: PORTED_503 }, 503);
+  // Unknown API route or method.
+  return json({ error: "Not found." }, 404);
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // Canonical host: send www.kidvibers.com -> kidvibers.com (301). All canonical tags,
+    // the sitemap, and robots.txt use the bare apex, so this avoids duplicate-content for SEO.
+    if (url.hostname === "www.kidvibers.com") {
+      url.hostname = "kidvibers.com";
+      return Response.redirect(url.toString(), 301);
+    }
 
     // Staging gate: when STAGING_USER is set (only on the staging deploy), the whole site
     // is behind a password. Uses a cookie (not the Authorization header) so it doesn't clash
@@ -1711,10 +1916,20 @@ export default {
       try { return await apiStripeWebhook(env, await request.text(), request.headers.get("Stripe-Signature") || ""); }
       catch (e) { console.log("webhook error:", e && e.stack || e); return json({ error: "error" }, 500); }
     }
+    // Resend webhook (bounces, complaints, inbound mail) - needs the RAW body for signature checking.
+    if (url.pathname === "/api/events" && request.method === "POST") {
+      try { return await apiResendWebhook(env, await request.text(), request.headers); }
+      catch (e) { console.log("resend webhook error:", e && e.stack || e); return json({ error: "error" }, 500); }
+    }
     if (url.pathname.startsWith("/api/")) {
       try { return await handleApi(env, request, url.pathname); }
       catch (e) { console.log("api error:", e && e.stack || e); return json({ error: "Something went wrong. Please try again." }, 500); }
     }
-    return env.ASSETS.fetch(request);
+    // Static pages: serve from assets, but add our security headers so EVERY response
+    // (HTML included) carries anti-clickjacking, no-sniff, referrer, and HSTS protection.
+    const assetRes = await env.ASSETS.fetch(request);
+    const out = new Response(assetRes.body, assetRes);
+    for (const k in SECURITY_HEADERS) out.headers.set(k, SECURITY_HEADERS[k]);
+    return out;
   },
 };

@@ -6,11 +6,15 @@ account_id = "3021aff7dc59bb05483ada6d03b99ad7"
 
 routes = [
   { pattern = "kidvibers.com", custom_domain = true },
+  { pattern = "www.kidvibers.com", custom_domain = true },
 ]
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# Run the Worker before serving static files so the www->apex 301 redirect fires on every
+# request (otherwise Cloudflare serves assets before the Worker and the redirect is skipped).
+run_worker_first = true
 
 [[d1_databases]]
 binding = "DB"

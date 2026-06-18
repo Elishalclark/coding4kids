@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=35" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -94,6 +94,11 @@
       <div class="stat-box"><div class="big" id="sTokens">0</div><div class="lbl">Tokens 🪙</div></div>
     </div>
 
+    <div class="card" id="puzzleCard" style="display:none;border:1px solid var(--border-bright);">
+      <h3>🧩 Puzzle of the Day <span id="puzzleStreak" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
+      <div id="puzzleBody"></div>
+    </div>
+
     <div class="dash-cols">
       <div>
         <div class="card">
@@ -171,7 +176,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=25"></script>
+  <script src="auth.js?v=35"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -202,6 +207,66 @@
       if (who === 'user') m.textContent = text;
       else m.innerHTML = '<span class="msg-avatar">🤖</span><div class="msg-bubble">' + text + '</div>';
       box.appendChild(m); box.scrollTop = box.scrollHeight;
+    }
+
+    // ───────────── Puzzle of the Day ─────────────
+    // A rotating brain-teaser to build critical thinking + a reason to log in daily.
+    const PUZZLES = [
+      { q: "What does this print?\n\nfor i in range(3):\n    print(i)", a: ["0 1 2", "1 2 3", "0 1 2 3", "3"], c: 0, why: "range(3) gives 0, 1, 2 - it starts at 0 and stops before 3." },
+      { q: "What is the value of x?\n\nx = 5\nx = x + 3", a: ["5", "8", "3", "53"], c: 1, why: "x becomes 5, then 5 + 3 = 8." },
+      { q: "Which makes a list in Python?", a: ["(1, 2, 3)", "{1, 2, 3}", "[1, 2, 3]", "<1, 2, 3>"], c: 2, why: "Square brackets [ ] make a list." },
+      { q: "What prints?\n\nprint(2 ** 3)", a: ["6", "8", "9", "23"], c: 1, why: "** means 'to the power of'. 2 to the power 3 = 8." },
+      { q: "What does len('code') return?", a: ["3", "4", "5", "code"], c: 1, why: "len() counts characters: c-o-d-e = 4." },
+      { q: "Which is TRUE?", a: ["10 > 20", "5 == 5", "3 < 1", "7 != 7"], c: 1, why: "5 == 5 is true. == checks if two things are equal." },
+      { q: "What prints?\n\nprint('Hi' * 3)", a: ["HiHiHi", "Hi 3", "Hi*3", "Error"], c: 0, why: "A string times a number repeats it: 'Hi' three times." },
+      { q: "What does this print?\n\nx = 10\nif x > 5:\n    print('big')\nelse:\n    print('small')", a: ["big", "small", "10", "nothing"], c: 0, why: "10 is greater than 5, so the 'if' runs and prints 'big'." },
+      { q: "Which symbol starts a comment in Python?", a: ["//", "#", "<!--", "**"], c: 1, why: "Python uses # for comments." },
+      { q: "What prints?\n\nprint(7 % 2)", a: ["3", "1", "3.5", "0"], c: 1, why: "% is the remainder. 7 divided by 2 is 3 with remainder 1." },
+      { q: "What type is this?\n\nx = True", a: ["string", "number", "boolean", "list"], c: 2, why: "True and False are booleans." },
+      { q: "What prints?\n\nname = 'Sam'\nprint('Hi ' + name)", a: ["Hi name", "Hi Sam", "HiSam", "Error"], c: 1, why: "+ joins strings, so it becomes 'Hi Sam'." },
+      { q: "How many times does this loop run?\n\nfor i in range(1, 5):\n    print(i)", a: ["5", "4", "3", "1"], c: 1, why: "range(1, 5) is 1, 2, 3, 4 - that's 4 times (stops before 5)." },
+      { q: "What does int('5') do?", a: ["Error", "Makes the number 5", "Makes '5' bigger", "Prints 5"], c: 1, why: "int() turns text into a whole number." },
+      { q: "What prints last?\n\nprint('a')\nprint('b')\nprint('c')", a: ["a", "b", "c", "abc"], c: 2, why: "Lines run top to bottom, so 'c' prints last." },
+    ];
+    function puzzleToday() { const d = new Date(); const day = Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000); return { idx: day % PUZZLES.length, key: d.toISOString().slice(0,10) }; }
+    function puzzleStreak() {
+      const today = new Date(); const solved = [];
+      for (let i = 0; i < 60; i++) { const dt = new Date(today); dt.setDate(today.getDate()-i); if (localStorage.getItem('c4k_puzzle_' + dt.toISOString().slice(0,10))) solved.push(i); else break; }
+      return solved.length;
+    }
+    function renderPuzzle() {
+      const card = document.getElementById('puzzleCard'); const body = document.getElementById('puzzleBody');
+      if (!card || !body) return;
+      card.style.display = '';
+      const { idx, key } = puzzleToday(); const p = PUZZLES[idx];
+      const done = localStorage.getItem('c4k_puzzle_' + key);
+      const st = puzzleStreak();
+      document.getElementById('puzzleStreak').textContent = st > 1 ? `🔥 ${st}-day puzzle streak!` : 'New puzzle every day';
+      if (done) { puzzleSolvedView(p); return; }
+      body.innerHTML =
+        '<pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:0.92rem;margin-bottom:12px;">' + C4K.esc(p.q) + '</pre>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;">' +
+        p.a.map((opt, i) => '<button class="btn btn-outline" style="justify-content:flex-start;text-align:left;" onclick="answerPuzzle(' + i + ')">' + C4K.esc(opt) + '</button>').join('') +
+        '</div><div id="puzzleMsg" style="margin-top:10px;font-weight:800;min-height:1em;"></div>';
+    }
+    function answerPuzzle(i) {
+      const { idx, key } = puzzleToday(); const p = PUZZLES[idx];
+      const msg = document.getElementById('puzzleMsg');
+      if (i === p.c) {
+        localStorage.setItem('c4k_puzzle_' + key, '1');
+        msg.style.color = 'var(--green,#34d399)'; msg.textContent = '✅ Correct! ' + p.why;
+        setTimeout(() => renderPuzzle(), 1500);
+      } else {
+        msg.style.color = '#f87171'; msg.textContent = '❌ Not quite - try again!';
+      }
+    }
+    function puzzleSolvedView(p) {
+      const body = document.getElementById('puzzleBody');
+      body.innerHTML =
+        '<div style="text-align:center;padding:14px 0;"><div style="font-size:2.4rem;">🎉</div>' +
+        '<p style="font-weight:900;margin:6px 0;">You solved today\'s puzzle!</p>' +
+        '<p style="color:var(--text-dim);font-size:0.9rem;">' + C4K.esc(p.why) + '</p>' +
+        '<p style="color:var(--text-faint);font-size:0.85rem;margin-top:8px;">Come back tomorrow for a new one! 🧩</p></div>';
     }
 
     function renderByte() {
@@ -422,6 +487,7 @@
       renderByte();
       renderBadges();
       renderCerts();
+      renderPuzzle();
     }
 
     function renderCerts() {
@@ -521,7 +587,7 @@
 
     load();
   </script>
-  <script src="pwa.js?v=25" defer></script>
-  <script src="editor.js?v=25" defer></script>
+  <script src="pwa.js?v=35" defer></script>
+  <script src="editor.js?v=35" defer></script>
 </body>
 </html>

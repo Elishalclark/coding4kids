@@ -49,6 +49,11 @@ function unitUnlocked(unit, order) {
 }
 function limitReached() { return lessonLimit >= 0 && completed.size >= lessonLimit; }
 function totalXp() { return LESSONS.filter(l => completed.has(l.id)).reduce((s, l) => s + (l.xp || 0), 0); }
+// Bite-sized: a friendly 5-10 minute estimate based on how many steps a lesson has.
+function lessonMins(l) {
+  const steps = (l && Array.isArray(l.steps)) ? l.steps.length : 3;
+  return Math.max(5, Math.min(10, Math.round(steps * 1.5) + 3));
+}
 
 // ───────────────────────── render units ─────────────────────────
 function render() {
@@ -86,7 +91,7 @@ function render() {
         <div class="lesson-num">Lesson ${n + 1}</div>
         <h3>${l.emoji || ''} ${l.title}</h3>
         <p>${l.blurb || ''}</p>
-        <div class="lesson-meta"><span class="lesson-level">${l.level || ''}</span><span class="lesson-xp">⚡ ${l.xp} XP</span></div>
+        <div class="lesson-meta"><span class="lesson-time">⏱️ ~${lessonMins(l)} min</span><span class="lesson-xp">⚡ ${l.xp} XP</span></div>
         ${reason ? `<div class="lock-reason">${reason}</div>` : ''}
       </div>`;
     }).join('');

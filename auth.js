@@ -149,13 +149,21 @@ const C4K = {
         '<p style="color:#bdb6d6;line-height:1.6;">A parent or guardian has to <strong>approve your account</strong> before you can play, ' +
         'do lessons, use the playground, or anything else. Nothing works until then - to keep you safe! 🛡️</p>' +
         '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
-          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Parent / guardian email</label>' +
+          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">👨‍👩‍👧 Is a parent or guardian with you right now?</label>' +
+          '<p style="font-size:0.8rem;color:#8b84a8;margin:4px 0 10px;">They can approve your account in about 30 seconds, right here.</p>' +
+          '<button id="c4kLockApprove" style="width:100%;padding:12px;border:none;border-radius:10px;' +
+            'background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-weight:900;font-size:0.95rem;cursor:pointer;">' +
+            '✅ Yes - approve on this device</button>' +
+          '<p id="c4kLockApproveMsg" style="font-size:0.82rem;margin:8px 0 0;color:#ff8a8a;min-height:1em;"></p>' +
+        '</div>' +
+        '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
+          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Or email a parent the approval link</label>' +
           '<input id="c4kLockEmail" type="email" value="' + this.esc(email) + '" placeholder="grownup@email.com" ' +
             'style="width:100%;margin-top:6px;padding:11px 13px;border-radius:10px;border:1px solid #3a2f63;' +
             'background:#08060f;color:#fff;font-family:inherit;font-weight:700;box-sizing:border-box;" />' +
-          '<button id="c4kLockSend" style="width:100%;margin-top:10px;padding:12px;border:none;border-radius:10px;' +
-            'background:linear-gradient(135deg,#7c5cff,#b14cff);color:#fff;font-weight:900;font-size:0.95rem;cursor:pointer;">' +
-            '📨 Send approval email to my parent</button>' +
+          '<button id="c4kLockSend" style="width:100%;margin-top:10px;padding:11px;border:1px solid #3a2f63;border-radius:10px;' +
+            'background:none;color:#bdb6d6;font-weight:800;font-size:0.9rem;cursor:pointer;">' +
+            '📨 Send approval email instead</button>' +
           '<p id="c4kLockMsg" style="font-size:0.82rem;margin:8px 0 0;color:#7ee0a0;min-height:1em;"></p>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:10px;color:#6f6890;font-size:0.74rem;font-weight:800;margin:6px 0 14px;">' +
@@ -172,11 +180,20 @@ const C4K = {
         '<button id="c4kLockRefresh" style="background:none;border:1px solid #3a2f63;color:#bdb6d6;font-weight:800;' +
           'padding:9px 16px;border-radius:50px;cursor:pointer;">✅ My parent approved - check again</button>' +
         '<p style="color:#6f6890;font-size:0.78rem;margin-top:16px;">Need help? Email ' +
-          '<a href="mailto:kidvibers.help@outlook.com" style="color:#9b8cff;">kidvibers.help@outlook.com</a></p>' +
+          '<a href="mailto:support@kidvibers.com" style="color:#9b8cff;">support@kidvibers.com</a></p>' +
       '</div>';
     document.body.appendChild(ov);
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
+    // On-device approval: get this kid's consent token, then open the full consent flow on the
+    // home page (parent enters name + card last-4 + attestation). No email needed.
+    const apprMsg = ov.querySelector('#c4kLockApproveMsg');
+    ov.querySelector('#c4kLockApprove').onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true; apprMsg.textContent = '';
+      const { ok, data } = await this.api('/api/consent/self', 'POST', {});
+      if (ok && data.token) { location.href = '/index.html?consent=' + encodeURIComponent(data.token); }
+      else { apprMsg.textContent = (data && data.error) || 'Could not start approval.'; btn.disabled = false; }
+    };
     const msg = ov.querySelector('#c4kLockMsg');
     ov.querySelector('#c4kLockSend').onclick = async (e) => {
       const btn = e.currentTarget; btn.disabled = true;

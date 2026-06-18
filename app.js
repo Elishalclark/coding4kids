@@ -154,26 +154,53 @@ async function consentStep1(token) {
   const { ok, data } = await C4K.api('/api/consent/start', 'POST', { token });
   const body = document.getElementById('consentBody');
   if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'Could not start.'}</p>`; return; }
-  // "Email plus" - a second confirmation step (we surface the confirm link since email is simulated here).
+  renderConsentIdForm(data.confirmToken, data.childName || 'your child');
+}
+
+// Step 2 - verifiable parental consent: confirm the parent's identity (name + card last-4 +
+// a sworn attestation). We never charge the card; only the last 4 digits are kept.
+function renderConsentIdForm(token, childName) {
+  const body = document.getElementById('consentBody');
   body.innerHTML = `
-    <div style="text-align:center;">
-      <div style="font-size:2.4rem;">📧</div>
-      <h3 style="font-weight:900;margin:8px 0;">One more step</h3>
-      <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:16px;">For your security, we send a second confirmation
-        (a "verifiable consent" step). We've emailed it to you - or just confirm now:</p>
-      <button class="btn btn-primary btn-lg btn-full" onclick="consentConfirm('${data.confirmToken}')">Confirm consent for ${data.childName}</button>
-    </div>`;
+    <div style="text-align:center;margin-bottom:8px;"><div style="font-size:2.2rem;">🛡️</div>
+      <h3 style="font-weight:900;margin:6px 0;">Verify you're the parent</h3></div>
+    <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.55;margin-bottom:14px;">
+      To approve <strong>${childName}</strong>, please confirm your identity. We <strong>never charge your card</strong> -
+      we only keep the last 4 digits to verify a grown-up is approving.</p>
+    <label style="display:block;font-weight:800;font-size:0.82rem;margin-bottom:4px;">Parent/guardian full legal name</label>
+    <input id="cName" class="form-input" placeholder="e.g. Alex Johnson" style="width:100%;box-sizing:border-box;margin-bottom:12px;" oninput="consentValid()">
+    <label style="display:block;font-weight:800;font-size:0.82rem;margin-bottom:4px;">Last 4 digits of your payment card</label>
+    <input id="cCard" class="form-input" inputmode="numeric" maxlength="4" placeholder="1234" style="width:100%;box-sizing:border-box;margin-bottom:12px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);consentValid()">
+    <label style="display:flex;gap:10px;align-items:flex-start;font-size:0.88rem;font-weight:700;margin-bottom:14px;">
+      <input type="checkbox" id="cAttest" onchange="consentValid()" style="margin-top:3px;">
+      I am ${childName}'s parent or legal guardian, I am over 18, and I consent to this account.</label>
+    <button class="btn btn-primary btn-lg btn-full" id="cGo" disabled onclick="consentConfirm('${token}')">Verify &amp; approve</button>
+    <div id="cMsg" style="color:#f87171;font-size:0.82rem;font-weight:700;margin-top:8px;min-height:1em;text-align:center;"></div>`;
+}
+
+function consentValid() {
+  const name = (document.getElementById('cName').value || '').trim();
+  const card = (document.getElementById('cCard').value || '').trim();
+  const attest = document.getElementById('cAttest').checked;
+  document.getElementById('cGo').disabled = !(name.length >= 2 && /^\d{4}$/.test(card) && attest);
 }
 
 async function consentConfirm(token) {
-  const { ok, data } = await C4K.api('/api/consent/confirm', 'POST', { token });
   const body = document.getElementById('consentBody');
-  body.innerHTML = ok
-    ? `<div style="text-align:center;"><div style="font-size:2.6rem;">✅</div>
-         <h3 style="font-weight:900;margin:8px 0;">Consent confirmed!</h3>
-         <p style="color:var(--text-dim);">${data.childName} can now use KidVibers. Thank you! 🎉</p>
-         <button class="btn btn-primary" style="margin-top:14px;" onclick="closeConsent()">Done</button></div>`
-    : `<p style="color:#f87171;">${data.error || 'Could not confirm.'}</p>`;
+  const msg = document.getElementById('cMsg');
+  const payload = {
+    token,
+    parentName: (document.getElementById('cName') || {}).value || '',
+    cardLast4: (document.getElementById('cCard') || {}).value || '',
+    attest: !!(document.getElementById('cAttest') || {}).checked,
+  };
+  if (msg) msg.textContent = '';
+  const { ok, data } = await C4K.api('/api/consent/confirm', 'POST', payload);
+  if (!ok) { if (msg) msg.textContent = data.error || 'Could not confirm.'; return; }
+  body.innerHTML = `<div style="text-align:center;"><div style="font-size:2.6rem;">✅</div>
+       <h3 style="font-weight:900;margin:8px 0;">Consent confirmed!</h3>
+       <p style="color:var(--text-dim);">${data.childName} can now use KidVibers. Thank you! 🎉</p>
+       <button class="btn btn-primary" style="margin-top:14px;" onclick="closeConsent()">Done</button></div>`;
 }
 
 // ── Pricing popup (the only place pricing appears) ──
@@ -265,7 +292,8 @@ function finishQuiz() {
   showInvite(quizState.data, quizState.parentEmail);   // continue to the parent-consent invite
 }
 
-// ── Parent invite (QR + email) shown after a kid signs up ──
+// ── Parent invite (QR + on-device approval) shown after a kid signs up ──
+let pendingConsentToken = null;
 function showInvite(data, parentEmail) {
   const url = data.inviteUrl || (location.origin + '/index.html?plink=' + data.inviteToken);
   document.getElementById('inviteQr').src =
@@ -273,7 +301,16 @@ function showInvite(data, parentEmail) {
   document.getElementById('inviteEmail').textContent = parentEmail || 'your parent';
   document.getElementById('inviteKid').textContent = data.user.name;
   document.getElementById('inviteEmailBtn').href = url;
+  // Under-13: offer immediate on-device parent approval (works even if no email is sent).
+  pendingConsentToken = data.consentToken || null;
+  const block = document.getElementById('inviteApproveBlock');
+  if (block) block.style.display = (data.needsConsent && pendingConsentToken) ? '' : 'none';
   document.getElementById('inviteModal').classList.remove('hidden');
+}
+function approveOnDevice() {
+  if (!pendingConsentToken) return;
+  document.getElementById('inviteModal').classList.add('hidden');
+  openConsent(pendingConsentToken);
 }
 function finishInvite() { window.location.href = 'dashboard.html'; }
 
@@ -629,7 +666,7 @@ window.addEventListener('scroll', () => {
 
   // Parental consent links (COPPA) - open the consent flow regardless of who's logged in.
   if (consent) { refreshAuthUI(); openConsent(consent); return; }
-  if (cc) { refreshAuthUI(); document.getElementById('consentModal').classList.remove('hidden'); consentConfirm(cc); return; }
+  if (cc) { refreshAuthUI(); document.getElementById('consentModal').classList.remove('hidden'); renderConsentIdForm(cc, 'your child'); return; }
 
   // Parent invite link → open the parent signup connected to that child
   if (plink && !C4K.isLoggedIn()) {

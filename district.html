@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=35" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -83,7 +83,7 @@
 
     <div class="dd-grid">
       <!-- Branding -->
-      <div class="card">
+      <div class="card" id="brandingCard">
         <h2>🎨 Branding</h2>
         <p class="hint">Your organization name and logo appear on your students' dashboards.</p>
         <div class="field">
@@ -96,6 +96,12 @@
         </div>
         <button class="btn btn-primary" onclick="saveBranding()">Save branding</button>
         <div class="msg" id="brMsg"></div>
+      </div>
+      <!-- Read-only branding note (shown to schools managed by a district) -->
+      <div class="card" id="brandingLocked" style="display:none;">
+        <h2>🎨 Branding</h2>
+        <p class="hint">Your branding is managed by your district - it appears automatically on your students' dashboards.</p>
+        <div id="brLockedView" style="display:flex;align-items:center;gap:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;"></div>
       </div>
 
       <!-- Seats + add student -->
@@ -125,6 +131,27 @@
       </div>
       <p id="rosterEmpty" class="hint" style="display:none;margin-top:14px;">No students yet - add your first one above. 👆</p>
     </div>
+
+    <!-- Schools (District plan only) -->
+    <div class="card" id="schoolsCard" style="display:none;">
+      <h2>🏫 Schools in your district</h2>
+      <p class="hint">Add as many schools as you need - <strong>$25/mo each</strong>. Each school gets its own login, class code, and student roster.</p>
+      <div id="schoolsCost" style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:12px 0;font-weight:800;"></div>
+      <form onsubmit="addSchool(event)" style="margin-bottom:6px;">
+        <div class="field"><label>School name</label><input id="scName" required placeholder="e.g. Lincoln Elementary" /></div>
+        <div class="field"><label>School admin username</label><input id="scUser" required placeholder="3-20 letters/numbers" /></div>
+        <div class="field"><label>School admin password</label><input id="scPass" required type="text" placeholder="min 6 characters" /></div>
+        <button class="btn btn-primary" id="scBtn" type="submit">➕ Add school ($25/mo)</button>
+        <div class="msg" id="scMsg"></div>
+      </form>
+      <div style="overflow-x:auto;margin-top:10px;">
+        <table class="roster">
+          <thead><tr><th>School</th><th>Admin login</th><th>Class code</th><th>Students</th><th>Actions</th></tr></thead>
+          <tbody id="schoolsBody"></tbody>
+        </table>
+      </div>
+      <p id="schoolsEmpty" class="hint" style="display:none;margin-top:14px;">No schools yet - add your first one above. 👆</p>
+    </div>
   </main>
 
   <!-- Gate (wrong account / not logged in) -->
@@ -135,7 +162,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=25"></script>
+  <script src="auth.js?v=35"></script>
   <script>
     let ME = null;
 
@@ -161,9 +188,18 @@
       document.getElementById('ddMain').style.display = '';
       paintHeader();
       document.getElementById('ddCode').textContent = ME.classCode || '------';
-      document.getElementById('brName').value = ME.brandName || '';
-      document.getElementById('brLogo').value = ME.brandLogo || '';
+      // Schools managed by a district can't edit branding - show a read-only view instead.
+      if (ME.partOfDistrict) {
+        document.getElementById('brandingCard').style.display = 'none';
+        document.getElementById('brandingLocked').style.display = '';
+        const logo = ME.brandLogo ? '<img src="' + C4K.esc(ME.brandLogo) + '" alt="logo" style="height:40px;border-radius:6px;background:#fff;padding:3px;" onerror="this.remove()"/>' : '<span style="font-size:1.8rem;">🏫</span>';
+        document.getElementById('brLockedView').innerHTML = logo + '<strong style="font-size:1.05rem;">' + C4K.esc(ME.brandName || ME.school || 'Your district') + '</strong>';
+      } else {
+        document.getElementById('brName').value = ME.brandName || '';
+        document.getElementById('brLogo').value = ME.brandLogo || '';
+      }
       loadRoster();
+      if (ME.isFullDistrict) { document.getElementById('schoolsCard').style.display = ''; loadSchools(); }
     })();
 
     function paintHeader() {
@@ -236,6 +272,48 @@
       }).join('');
     }
 
+    // ───────── Schools (District plan only) ─────────
+    async function loadSchools() {
+      const { ok, data } = await C4K.api('/api/district/schools');
+      if (!ok) return;
+      const schools = data.schools || [];
+      document.getElementById('schoolsCost').innerHTML = schools.length
+        ? '🏫 ' + schools.length + ' school' + (schools.length === 1 ? '' : 's') + ' · $' + data.pricePer + '/mo each = <span style="color:var(--purple);">$' + data.monthlyTotal + '/mo</span> <span style="font-weight:600;color:var(--text-faint);">(billed when payments go live - not charged yet)</span>'
+        : 'No schools yet. Each school you add is <strong>$' + (data.pricePer || 25) + '/mo</strong> (not charged yet).';
+      const body = document.getElementById('schoolsBody');
+      document.getElementById('schoolsEmpty').style.display = schools.length ? 'none' : '';
+      body.innerHTML = schools.map(s =>
+        '<tr>' +
+          '<td>' + C4K.esc(s.name) + '</td>' +
+          '<td>@' + C4K.esc(s.admin) + '</td>' +
+          '<td><code>' + C4K.esc(s.classCode || '------') + '</code></td>' +
+          '<td>' + s.students + '</td>' +
+          '<td><button class="mini danger" onclick="removeSchool(' + s.id + ",'" + C4K.esc(s.name).replace(/'/g, "\\'") + "')\">Remove</button></td>" +
+        '</tr>').join('');
+    }
+
+    async function addSchool(ev) {
+      ev.preventDefault();
+      const msg = document.getElementById('scMsg'), btn = document.getElementById('scBtn');
+      btn.disabled = true; msg.style.color = 'var(--text-dim)'; msg.textContent = 'Adding…';
+      const body = { schoolName: document.getElementById('scName').value.trim(), username: document.getElementById('scUser').value.trim(), password: document.getElementById('scPass').value };
+      const { ok, data } = await C4K.api('/api/district/add-school', 'POST', body);
+      if (ok) {
+        msg.style.color = 'var(--green,#5ad17e)';
+        msg.textContent = '✅ Added "' + (data.school.name) + '"! Admin logs in with @' + data.school.admin + '. ($25/mo - not charged yet.)';
+        document.getElementById('scName').value = ''; document.getElementById('scUser').value = ''; document.getElementById('scPass').value = '';
+        loadSchools();
+      } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not add the school.'; }
+      btn.disabled = false;
+    }
+
+    async function removeSchool(id, name) {
+      if (!confirm('Remove "' + name + '"? This deletes the school account AND all of its students. This cannot be undone.')) return;
+      const { ok, data } = await C4K.api('/api/district/remove-school', 'POST', { schoolId: id });
+      if (ok) loadSchools();
+      else alert((data && data.error) || 'Could not remove the school.');
+    }
+
     async function addStudent(ev) {
       ev.preventDefault();
       const msg = document.getElementById('addMsg');
@@ -285,7 +363,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=25" defer></script>
-  <script src="editor.js?v=25" defer></script>
+  <script src="pwa.js?v=35" defer></script>
+  <script src="editor.js?v=35" defer></script>
 </body>
 </html>

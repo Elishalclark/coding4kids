@@ -6,7 +6,7 @@
   <title>Code Playground - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=35" />
   <!-- Skulpt: runs real Python in the browser -->
   <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
@@ -19,7 +19,7 @@
     .ex-btn { font-size: 0.8rem; font-weight: 800; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); padding: 7px 14px; border-radius: 50px; cursor: pointer; }
     .ex-btn:hover { color: var(--purple); border-color: var(--border-bright); }
     .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    @media (max-width: 800px) { .pg-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 800px) { .pg-grid { grid-template-columns: 1fr; } .replay-grid { grid-template-columns: 1fr !important; } }
     .pg-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
     .pg-bar { background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 10px 16px; font-weight: 800; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
     #code { width: 100%; min-height: 340px; border: none; outline: none; resize: vertical; background: #06040f; color: #d6e7ff; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95rem; line-height: 1.6; padding: 16px; tab-size: 4; }
@@ -100,8 +100,30 @@ for i in range(1, 4):
 
     <div class="pg-actions">
       <button class="btn btn-primary btn-lg" id="runBtn" onclick="runCode()">Run ▶</button>
+      <button class="btn btn-outline" id="replayBtn" onclick="openReplay()" disabled title="Run your code first, then watch it step by step">🎬 Replay</button>
       <button class="btn btn-outline" onclick="clearOut()">Clear output</button>
       <span style="color:var(--text-faint);font-size:0.82rem;align-self:center;">Tip: use <code>input()</code> to ask questions, <code>print()</code> to show things.</span>
+    </div>
+
+    <!-- Code Replay: step through exactly how the code ran, to spot where things go wrong -->
+    <div id="replayPanel" style="display:none;margin-top:18px;background:var(--surface);border:1px solid var(--border-bright);border-radius:14px;padding:16px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <strong style="font-size:1.05rem;">🎬 Code Replay</strong>
+        <span id="replayStepLabel" style="color:var(--text-dim);font-size:0.85rem;"></span>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button class="btn btn-outline" onclick="replayRestart()">⟲ Restart</button>
+          <button class="btn btn-outline" id="replayBack" onclick="replayStep(-1)">◀ Back</button>
+          <button class="btn btn-primary" id="replayPlay" onclick="replayToggle()">▶️ Play</button>
+          <button class="btn btn-outline" id="replayNext" onclick="replayStep(1)">Step ▶</button>
+          <button class="btn btn-outline" onclick="closeReplay()">✕ Close</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="replay-grid">
+        <div><div class="pg-bar" style="margin-bottom:6px;">📜 Your code (crash line shown in red)</div>
+          <pre id="replayCode" style="margin:0;max-height:300px;overflow:auto;font-size:0.9rem;line-height:1.5;"></pre></div>
+        <div><div class="pg-bar" style="margin-bottom:6px;">▶️ Output so far</div>
+          <pre id="replayOut" style="margin:0;max-height:300px;overflow:auto;font-size:0.9rem;"></pre></div>
+      </div>
     </div>
 
     <!-- My saved projects -->
@@ -111,7 +133,7 @@ for i in range(1, 4):
     </div>
   </main>
 
-  <script src="auth.js?v=25"></script>
+  <script src="auth.js?v=35"></script>
   <script>
     const EXAMPLES = {
       '👋 Hello': `print("Hello, World!")\nprint("I am learning to code!")`,
@@ -140,10 +162,15 @@ for i in range(1, 4):
     }
     function clearOut() { document.getElementById('out').textContent = 'Press “Run ▶” to see your code come to life!'; }
 
+    let replaySteps = [];      // [{line, out}] captured as each line runs
+    let replayProgram = '';
+    let replayErrLine = null;
+
     function runCode() {
       if (typeof Sk === 'undefined') { show('Still loading the Python engine - try again in a second.', true); return; }
       const prog = document.getElementById('code').value;
       outText = '';
+      replaySteps = []; replayProgram = prog; replayErrLine = null;
       const btn = document.getElementById('runBtn'); btn.disabled = true; btn.textContent = 'Running…';
       Sk.configure({
         output: outf,
@@ -152,15 +179,68 @@ for i in range(1, 4):
         inputfun: function (promptTxt) { return window.prompt(promptTxt || '') || ''; },
         inputfunTakesPrompt: true,
       });
+      // Build the replay from the program's output (one step per printed line) + the error
+      // line if it crashed. This works reliably across Skulpt builds.
+      function buildSteps() {
+        replaySteps = [];
+        const lines = outText.length ? outText.replace(/\n$/, '').split('\n') : [];
+        for (let i = 0; i < lines.length; i++) replaySteps.push({ outLines: i + 1, out: lines.slice(0, i + 1).join('\n') });
+        if (replayErrLine) replaySteps.push({ outLines: lines.length, out: outText, err: true });
+        document.getElementById('replayBtn').disabled = replaySteps.length === 0;
+      }
+      function finish() { btn.disabled = false; btn.textContent = 'Run ▶'; buildSteps(); }
       Sk.misceval.asyncToPromise(function () {
         return Sk.importMainWithBody('<stdin>', false, prog, true);
       }).then(function () {
         show(outText || '✅ Done! (no output)');
-        btn.disabled = false; btn.textContent = 'Run ▶';
+        finish();
       }, function (err) {
+        const m = String(err && err.toString ? err.toString() : err).match(/line (\d+)/i);
+        if (m) replayErrLine = parseInt(m[1], 10);
         show((outText ? outText + '\n' : '') + '⚠️ ' + err.toString(), true);
-        btn.disabled = false; btn.textContent = 'Run ▶';
+        finish();
       });
+    }
+
+    // ───────────── Code Replay ─────────────
+    let replayIdx = 0, replayTimer = null;
+    function openReplay() {
+      if (!replaySteps.length) return;
+      document.getElementById('replayPanel').style.display = '';
+      replayIdx = 0; replayRender();
+      document.getElementById('replayPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    function closeReplay() { replayPause(); document.getElementById('replayPanel').style.display = 'none'; }
+    function replayRestart() { replayPause(); replayIdx = 0; replayRender(); }
+    function replayStep(d) { replayPause(); replayIdx = Math.max(0, Math.min(replaySteps.length - 1, replayIdx + d)); replayRender(); }
+    function replayToggle() { replayTimer ? replayPause() : replayPlay(); }
+    function replayPlay() {
+      if (replayIdx >= replaySteps.length - 1) replayIdx = 0;
+      document.getElementById('replayPlay').textContent = '⏸ Pause';
+      replayTimer = setInterval(function () {
+        if (replayIdx >= replaySteps.length - 1) { replayPause(); return; }
+        replayIdx++; replayRender();
+      }, 650);
+    }
+    function replayPause() { if (replayTimer) { clearInterval(replayTimer); replayTimer = null; } const b = document.getElementById('replayPlay'); if (b) b.textContent = '▶️ Play'; }
+    function replayRender() {
+      const step = replaySteps[replayIdx] || { out: '' };
+      const lines = replayProgram.split('\n');
+      const isLast = replayIdx === replaySteps.length - 1;
+      // Show the crash line in red - either on the dedicated error step, or on the final step.
+      const errLine = ((step.err || isLast) && replayErrLine) ? replayErrLine : null;
+      document.getElementById('replayCode').innerHTML = lines.map(function (ln, i) {
+        const no = i + 1;
+        const bad = no === errLine;
+        return '<span style="display:block;padding:0 6px;border-radius:4px;' + (bad ? 'background:rgba(239,68,68,.28);' : '') + '">' +
+          '<span style="color:var(--text-faint);user-select:none;">' + String(no).padStart(2, ' ') + '</span>  ' +
+          C4K.esc(ln || ' ') + (bad ? '  <span style="color:#fca5a5;">⟵ error here</span>' : '') + '</span>';
+      }).join('');
+      document.getElementById('replayOut').textContent = step.out || '(no output yet)';
+      const tail = step.err ? ' · 💥 crashed on line ' + replayErrLine : (errLine ? ' · 💥 line ' + errLine : '');
+      document.getElementById('replayStepLabel').textContent = 'Step ' + (replayIdx + 1) + ' of ' + replaySteps.length + tail;
+      document.getElementById('replayBack').disabled = replayIdx === 0;
+      document.getElementById('replayNext').disabled = isLast;
     }
 
     // Allow Ctrl/Cmd+Enter to run
@@ -273,6 +353,6 @@ for i in range(1, 4):
       }
     })();
   </script>
-  <script src="editor.js?v=25" defer></script>
+  <script src="editor.js?v=35" defer></script>
 </body>
 </html>
