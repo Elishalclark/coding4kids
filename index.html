@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <link rel="canonical" href="https://kidvibers.com/" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KidVibers - Learn to Code Like a Game</title>
   <meta name="description" content="A Duolingo-style coding app for kids 6-16. Explore worlds, beat boss battles, earn rewards, and learn to code with a friendly AI buddy. Safe and ad-free." />
@@ -20,16 +21,55 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content="KidVibers - Learn to Code Like a Game" />
   <meta property="og:description" content="Worlds, boss battles, rewards and an AI buddy. Safe, ad-free coding for kids 6-16." />
-  <meta property="og:image" content="icon-512.png" />
+  <meta property="og:image" content="https://kidvibers.com/icon-512.png" />
   <meta property="og:site_name" content="KidVibers" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="KidVibers - Learn to Code Like a Game" />
   <meta name="twitter:description" content="Worlds, boss battles, rewards and an AI buddy. Safe, ad-free coding for kids." />
-  <meta name="twitter:image" content="icon-512.png" />
+  <meta name="twitter:image" content="https://kidvibers.com/icon-512.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=36" />
+  <link rel="stylesheet" href="styles.css?v=37" />
+  <!-- Structured data: helps Google understand KidVibers is an educational app -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "KidVibers",
+    "url": "https://kidvibers.com",
+    "description": "A Duolingo-style coding platform for kids ages 6-16. Short gamified lessons, boss battles, real Python playground, AI buddy, and certificates. Safe, ad-free, and COPPA-minded.",
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+      "description": "Free to start. Pro plan from $9/mo."
+    },
+    "author": {
+      "@type": "Person",
+      "name": "Elisha Clark"
+    },
+    "audience": {
+      "@type": "EducationalAudience",
+      "educationalRole": "student",
+      "suggestedMinAge": "6",
+      "suggestedMaxAge": "16"
+    },
+    "keywords": "coding for kids, learn Python, kids coding app, coding games, Duolingo coding, STEM for kids, coding education",
+    "screenshot": "https://kidvibers.com/icon-512.png",
+    "featureList": [
+      "152 interactive lessons across 16 themed worlds",
+      "Boss battle unit tests",
+      "Real Python playground",
+      "AI coding buddy (Byte)",
+      "Certificates and badges",
+      "Ad-free and COPPA-minded",
+      "Daily puzzle"
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -762,9 +802,9 @@
     </div>
   </div>
 
-  <script src="auth.js?v=36"></script>
-  <script src="app.js?v=36"></script>
-  <script src="pwa.js?v=36" defer></script>
-  <script src="editor.js?v=36" defer></script>
+  <script src="auth.js?v=37"></script>
+  <script src="app.js?v=37"></script>
+  <script src="pwa.js?v=37" defer></script>
+  <script src="editor.js?v=37" defer></script>
 </body>
 </html>
