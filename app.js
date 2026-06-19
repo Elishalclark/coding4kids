@@ -9,6 +9,23 @@ mobileMenu.querySelectorAll('a').forEach(a => {
 });
 
 // ── Signup (real backend account) ──
+// Load launch-offer slot count and show the banner if spots remain.
+async function loadLaunchBanner() {
+  try {
+    const r = await fetch('/api/launch-slots'); if (!r.ok) return;
+    const d = await r.json();
+    const banner = document.getElementById('launchBanner');
+    const sub = document.getElementById('signupSubtitle');
+    if (!banner) return;
+    if (d.active && d.remaining > 0) {
+      document.getElementById('launchSlotsLeft').textContent = d.remaining;
+      banner.style.display = '';
+      if (sub) sub.innerHTML = 'Sign up now to claim your <strong>free 30-day Pro</strong> — AI buddy, all lessons, boss battles. No credit card.';
+    }
+  } catch(e) {}
+}
+if (document.getElementById('launchBanner')) loadLaunchBanner();
+
 async function handleSignup(e) {
   e.preventDefault();
   const success = document.getElementById('signupSuccess');
@@ -22,10 +39,14 @@ async function handleSignup(e) {
   const { ok, data } = await C4K.signup(payload);
   success.classList.remove('hidden');
   if (ok) {
-    success.style.background = 'rgba(255,255,255,0.2)';
-    success.innerHTML = `🎉 Welcome, ${data.user.name}!`;
+    success.style.background = data.launchPro ? 'rgba(22,163,74,0.35)' : 'rgba(255,255,255,0.2)';
+    success.innerHTML = data.launchPro
+      ? `🎉 You got it, ${C4K.esc(data.user.name)}! <strong>30 days of Pro free</strong> — unlocked! ${data.slotsRemaining} spots left for others.`
+      : `🎉 Welcome, ${C4K.esc(data.user.name)}!`;
     document.getElementById('signupForm').reset();
-    startQuiz(data, payload.parentEmail);   // placement quiz -> then QR + parent invite -> dashboard
+    // Refresh the banner slot count
+    loadLaunchBanner();
+    startQuiz(data, payload.parentEmail);
   } else {
     success.style.background = 'rgba(239,68,68,0.25)';
     success.textContent = '⚠️ ' + (data.error || "Can't reach the server right now - please try again in a moment.");

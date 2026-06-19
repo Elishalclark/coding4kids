@@ -9,6 +9,8 @@ const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
 
 // ───────────────────────── constants (mirror server.py) ─────────────────────────
 const TRIAL_DAYS = 3;
+const PRO_LAUNCH_SLOTS = 100;   // first 100 kids get 30 days of Pro free
+const PRO_LAUNCH_DAYS = 30;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
 const TOKENS_PER_LESSON = 10;
@@ -365,6 +367,16 @@ async function createUser(env, opts) {
   }
 }
 
+async function launchSlotsUsed(env) {
+  const row = await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='kid' AND launch_pro=1").first();
+  return (row && row.c) || 0;
+}
+async function apiLaunchSlots(env) {
+  const used = await launchSlotsUsed(env);
+  const remaining = Math.max(0, PRO_LAUNCH_SLOTS - used);
+  return json({ total: PRO_LAUNCH_SLOTS, used, remaining, active: remaining > 0 });
+}
+
 async function apiSignup(env, request, data) {
   if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
   const name = (data.name || "").trim();
@@ -389,12 +401,18 @@ async function apiSignup(env, request, data) {
     return json({ error: "A parent's email is required so a parent can approve this account." }, 400);
   const consentToken = needsConsent ? randToken(10) : null;
   const consentStatus = needsConsent ? "pending" : "not_required";
-  const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+  // Check if a launch Pro slot is available - first 100 kids get 30 days of Pro free.
+  const slotsUsed = await launchSlotsUsed(env);
+  const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
+  const planDays = getLaunchPro ? PRO_LAUNCH_DAYS : TRIAL_DAYS;
+  const planName = getLaunchPro ? "pro" : "trial";
+  const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
   const r = await createUser(env, {
-    role: "kid", name, username, password, email, age: ageBand, age_years: ageYears, plan: "trial",
+    role: "kid", name, username, password, email, age: ageBand, age_years: ageYears, plan: planName,
     trial_ends: trialEnds, consent_status: consentStatus, consent_token: consentToken,
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
+  if (getLaunchPro) await env.DB.prepare("UPDATE users SET launch_pro=1 WHERE id=?").bind(r.uid).run();
   const origin = new URL(request.url).origin;
   const inviteUrl = `${origin}/index.html?plink=${r.row.link_token}`;
   if (email) {
@@ -413,6 +431,7 @@ async function apiSignup(env, request, data) {
     token, user: await publicUser(env, r.row),
     inviteToken: r.row.link_token, inviteUrl, parentEmail: email,
     needsConsent, consentToken,
+    launchPro: getLaunchPro, slotsRemaining: Math.max(0, PRO_LAUNCH_SLOTS - slotsUsed - 1),
   });
 }
 
@@ -1765,6 +1784,7 @@ async function handleApi(env, request, path) {
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
   // public GETs
+  if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
     return json({ signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins"), stripeEnabled: !!env.STRIPE_SECRET_KEY });
   if (path === "/api/site-message" && method === "GET") {
