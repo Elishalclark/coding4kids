@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=35" />
+  <link rel="stylesheet" href="styles.css?v=36" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -424,7 +424,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=35"></script>
+  <script src="auth.js?v=36"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -755,11 +755,12 @@
 
     // ── Email events: bounces/complaints (Email Issues) + inbound mail (Inbox) ──
     async function loadEmailEvents() {
+      // Inbound mail goes to your real inbox (Cloudflare forwarding), not Resend - keep that panel hidden.
+      const inboxPanel = document.getElementById('inboxPanel');
+      if (inboxPanel) inboxPanel.style.display = 'none';
       const { ok, data } = await C4K.api('/api/admin/email-events');
       if (!ok) return;
-      const all = data.events || [];
-      const issues = all.filter(e => e.direction === 'outbound');
-      const inbound = all.filter(e => e.direction === 'inbound');
+      const issues = (data.events || []).filter(e => e.direction === 'outbound');
       const labels = { bounced: '⛔ Bounced', complained: '🚩 Spam', delivery_delayed: '⏳ Delayed' };
       document.getElementById('emailIssuesCount').textContent = issues.length ? `· ${issues.length}` : '· all clear ✓';
       document.getElementById('emailIssuesRows').innerHTML = issues.length ? issues.map(e =>
@@ -771,15 +772,6 @@
           <td style="color:var(--text-faint);">${C4K.esc(e.at)}</td>
         </tr>`).join('')
         : '<tr><td colspan="5" style="color:var(--text-faint);">No bounced or flagged emails. 🎉</td></tr>';
-      document.getElementById('inboxCount').textContent = inbound.length ? `· ${inbound.length}` : '· empty';
-      document.getElementById('inboxRows').innerHTML = inbound.length ? inbound.map(e =>
-        `<tr style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
-          <td><a href="mailto:${C4K.esc(e.email)}" style="color:var(--purple);" onclick="event.stopPropagation()">${C4K.esc(e.email)}</a></td>
-          <td><strong>${C4K.esc(e.subject) || '(no subject)'}</strong></td>
-          <td style="color:var(--text-faint);">${C4K.esc(e.at)}</td>
-        </tr>
-        <tr style="display:none;"><td colspan="3" style="background:var(--bg);"><div style="white-space:pre-wrap;word-break:break-word;color:var(--text-dim);font-size:0.88rem;padding:6px 2px;">${C4K.esc(e.body) || '(empty)'}</div></td></tr>`).join('')
-        : '<tr><td colspan="3" style="color:var(--text-faint);">No mail received yet.</td></tr>';
     }
 
     // ── Pro interest / waitlist (super admin) ──
@@ -1039,7 +1031,7 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=35" defer></script>
-  <script src="editor.js?v=35" defer></script>
+  <script src="pwa.js?v=36" defer></script>
+  <script src="editor.js?v=36" defer></script>
 </body>
 </html>
