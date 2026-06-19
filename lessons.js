@@ -6,7 +6,7 @@ const LESSONS_SEED = [
 ];
 
 let LESSONS = [], UNIT_NAMES = {}, WORLDS = {}, PASS = 70, ME = null;
-let completed = new Set(), unitsPassed = new Set(), unitTests = {}, lessonLimit = -1;
+let completed = new Set(), unitsPassed = new Set(), unitTests = {}, lessonsPerDay = -1, lessonsUsedToday = 0;
 const LOCAL_KEY = 'c4k_lesson_progress';
 
 function loggedIn() { return !!(typeof C4K !== 'undefined' && C4K.token()); }
@@ -31,10 +31,11 @@ async function load() {
       completed = new Set(pr.data.completed || []);
       unitsPassed = new Set((pr.data.unitsPassed || []));
       unitTests = pr.data.unitTests || {};
-      lessonLimit = pr.data.lessonLimit;
+      lessonsPerDay = pr.data.lessonsPerDay !== undefined ? pr.data.lessonsPerDay : -1;
+      lessonsUsedToday = pr.data.lessonsUsedToday || 0;
     }
   } else {
-    completed = localCompleted(); lessonLimit = -1;
+    completed = localCompleted(); lessonsPerDay = -1; lessonsUsedToday = 0;
   }
   render();
 }
@@ -47,7 +48,7 @@ function unitUnlocked(unit, order) {
   if (idx <= 0) return true;
   return unitsPassed.has(order[idx - 1]);  // previous unit's test must be passed
 }
-function limitReached() { return lessonLimit >= 0 && completed.size >= lessonLimit; }
+function limitReached() { return lessonsPerDay >= 0 && lessonsUsedToday >= lessonsPerDay; }
 function totalXp() { return LESSONS.filter(l => completed.has(l.id)).reduce((s, l) => s + (l.xp || 0), 0); }
 // Bite-sized: a friendly 5-10 minute estimate based on how many steps a lesson has.
 function lessonMins(l) {
@@ -83,7 +84,7 @@ function render() {
       const limitLock = !done && limitReached();
       const locked = !unlocked || limitLock;
       const reason = !unlocked ? '🔒 Pass the previous unit test first'
-        : (limitLock ? '🔒 Lesson limit reached' : '');
+        : (limitLock ? `🌙 Daily limit reached - come back tomorrow!` : '');
       const click = !locked ? `onclick="openLesson('${l.id}')"`
         : (limitLock ? `onclick="openUpgrade()"` : '');
       return `<div class="lesson-tile ${done ? 'done' : ''} ${locked ? 'locked' : ''}" ${click}>
@@ -294,11 +295,13 @@ async function finishLessonSave() {
     const { ok, data } = await C4K.api('/api/progress', 'POST', { lessonId: curLesson.id });
     if (ok) {
       completed = new Set(data.completed);
+      if (data.lessonsUsedToday !== undefined) lessonsUsedToday = data.lessonsUsedToday;
       if (data.tokensAwarded && fb) fb.textContent = `🎉 Lesson complete! 🪙 +${data.tokensAwarded} tokens earned!`;
     } else if (data.limitReached) {
       savedThisLesson = false;
+      lessonsUsedToday = lessonsPerDay; // update local count so tiles show as locked
       closeLesson();
-      openUpgrade();   // the only place we mention plans
+      openUpgrade();
     }
   } else {
     completed.add(curLesson.id); saveLocal();
@@ -309,7 +312,8 @@ async function finishLessonSave() {
 function openUpgrade() {
   const acts = document.getElementById('upgradeActions');
   document.getElementById('upgradeDone').classList.add('hidden');
-  document.getElementById('upgradeSub').textContent = "You've reached your lesson limit for now.";
+  const limitTxt = lessonsPerDay > 0 ? `You've done ${lessonsPerDay} lesson${lessonsPerDay===1?'':'s'} today — that's your daily limit.` : "You've reached your daily lesson limit.";
+  document.getElementById('upgradeSub').textContent = limitTxt + ' Upgrade for unlimited daily lessons, or come back tomorrow!';
   // show the pricing (this is the only place pricing appears)
   const pricing = document.getElementById('upgradePricing');
   if (pricing && typeof C4K !== 'undefined') pricing.innerHTML = C4K.pricingHTML({ buy: true });

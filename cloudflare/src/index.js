@@ -20,10 +20,10 @@ const DISTRICT_PLANS = ["school", "district"];
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 
 const DEFAULT_PLAN_SETTINGS = {
-  free:   { ai: false, chatsPerDay: 0,   lessonLimit: 3 },
-  trial:  { ai: false, chatsPerDay: 0,   lessonLimit: 5 },
-  pro:    { ai: true,  chatsPerDay: 100, lessonLimit: -1 },
-  family: { ai: true,  chatsPerDay: -1,  lessonLimit: -1 },
+  free:   { ai: false, chatsPerDay: 0,   lessonsPerDay: 3  },
+  trial:  { ai: false, chatsPerDay: 0,   lessonsPerDay: 5  },
+  pro:    { ai: true,  chatsPerDay: 100, lessonsPerDay: -1 },
+  family: { ai: true,  chatsPerDay: -1,  lessonsPerDay: -1 },
 };
 const TEACHER_PLANS = {
   teacher:  { label: "Teacher Plan",  price: 24,  students: 100 },
@@ -176,6 +176,10 @@ async function chatsUsedToday(env, userId) {
   const row = await env.DB.prepare("SELECT count FROM chat_usage WHERE user_id=? AND day=?").bind(userId, todayStr()).first();
   return row ? row.count : 0;
 }
+async function lessonsUsedToday(env, userId) {
+  const row = await env.DB.prepare("SELECT count FROM lessons_daily WHERE user_id=? AND day=?").bind(userId, todayStr()).first();
+  return row ? row.count : 0;
+}
 async function lessonsDoneCount(env, userId) {
   const row = await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(userId).first();
   return row ? row.c : 0;
@@ -233,7 +237,9 @@ async function publicUser(env, user) {
     plan: user.plan, effectivePlan: eff, trialDaysLeft: trialDaysLeft(user),
     ...teacher,
     hasAI: !!cfg.ai, chatsPerDay: cfg.chatsPerDay | 0, chatsUsedToday: await chatsUsedToday(env, user.id),
-    lessonLimit: cfg.lessonLimit | 0, lessonsDone: await lessonsDoneCount(env, user.id),
+    lessonsPerDay: lessonLimitFor(await getPlanSettings(env), user),
+    lessonsUsedToday: await lessonsUsedToday(env, user.id),
+    lessonsDone: await lessonsDoneCount(env, user.id),
     unitsPassed: up, level: up.length + 1,
     tokens: user.tokens ?? 0, avatar, ownedItems: owned,
     linkToken: user.link_token ?? null, parentEmail: user.parent_email ?? null,
@@ -446,7 +452,12 @@ async function getPassPercent(env) {
   return isNaN(n) ? PASS_PERCENT : n;
 }
 function lessonLimitFor(settings, user) {
-  return planCfg(settings, effectivePlan(user)).lessonLimit | 0;
+  // lessonsPerDay replaces the old lifetime lessonLimit.
+  // -1 means unlimited; otherwise it's the max new lessons per day.
+  const cfg = planCfg(settings, effectivePlan(user));
+  if (cfg.lessonsPerDay !== undefined) return cfg.lessonsPerDay;
+  if (cfg.lessonLimit !== undefined) return cfg.lessonLimit;  // backwards compat
+  return -1;
 }
 function lessonPublic(r) {
   let quiz = {}, steps = [];
@@ -477,7 +488,10 @@ async function apiProgressGet(env, request) {
   return json({
     completed: rows.map((x) => x.lesson_id),
     unitsPassed: await unitsPassed(env, u.id),
-    unitTests, lessonLimit: lessonLimitFor(settings, u), lessonsDone: rows.length,
+    unitTests,
+    lessonsPerDay: lessonLimitFor(settings, u),
+    lessonsUsedToday: await lessonsUsedToday(env, u.id),
+    lessonsDone: rows.length,
   });
 }
 
@@ -493,19 +507,25 @@ async function apiProgressPost(env, request, data) {
   if (!realLesson) return json({ error: "Unknown lesson." }, 404);
   const settings = await getPlanSettings(env);
   const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
-  const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(u.id).first()).c;
   const limit = lessonLimitFor(settings, u);
-  if (!already && limit >= 0 && done >= limit)
-    return json({ error: `Your ${effectivePlan(u)} plan allows ${limit} lessons. Upgrade to unlock more!`, limitReached: true }, 403);
+  // Daily lesson limit: only count against the limit if this is a NEW lesson today.
+  if (!already && limit >= 0) {
+    const usedToday = await lessonsUsedToday(env, u.id);
+    if (usedToday >= limit)
+      return json({ error: `You've done ${limit} new lesson${limit === 1 ? '' : 's'} today! Come back tomorrow for more. 🌙`, limitReached: true }, 403);
+  }
   await env.DB.prepare("INSERT OR IGNORE INTO progress (user_id,lesson_id,completed_at) VALUES (?,?,?)").bind(u.id, lessonId, nowIso()).run();
   let awarded = 0;
   if (!already) {
     awarded = TOKENS_PER_LESSON;
     await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id=?").bind(awarded, u.id).run();
+    // Track daily lesson usage.
+    await env.DB.prepare("INSERT INTO lessons_daily (user_id,day,count) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1")
+      .bind(u.id, todayStr()).run();
   }
   const rows = (await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(u.id).all()).results || [];
   const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens;
-  return json({ completed: rows.map((x) => x.lesson_id), unitsPassed: await unitsPassed(env, u.id), tokensAwarded: awarded, tokens: tok });
+  return json({ completed: rows.map((x) => x.lesson_id), unitsPassed: await unitsPassed(env, u.id), tokensAwarded: awarded, tokens: tok, lessonsUsedToday: await lessonsUsedToday(env, u.id) });
 }
 
 async function apiTestSubmit(env, request, data) {
@@ -1392,7 +1412,8 @@ async function adminSaveSettings(env, request, data) {
   const clean = {};
   for (const plan of ["free", "trial", "pro", "family"]) {
     const p = ps[plan] || {};
-    clean[plan] = { ai: !!p.ai, chatsPerDay: parseInt(p.chatsPerDay, 10) || 0, lessonLimit: p.lessonLimit === undefined ? -1 : (parseInt(p.lessonLimit, 10) || 0) };
+    const lpd = p.lessonsPerDay !== undefined ? p.lessonsPerDay : p.lessonLimit;
+    clean[plan] = { ai: !!p.ai, chatsPerDay: parseInt(p.chatsPerDay, 10) || 0, lessonsPerDay: lpd === undefined ? -1 : (parseInt(lpd, 10) || 0) };
   }
   await setSetting(env, "plan_settings", clean);
   if ("passPercent" in data) await setSetting(env, "pass_percent", Math.max(1, Math.min(100, parseInt(data.passPercent, 10) || PASS_PERCENT)));

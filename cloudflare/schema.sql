@@ -33,6 +33,7 @@ CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created
 CREATE TABLE progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE chat_usage (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
+CREATE TABLE lessons_daily (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
 CREATE TABLE lessons (
             id TEXT PRIMARY KEY, position INTEGER, emoji TEXT, title TEXT, blurb TEXT,
             level TEXT, xp INTEGER, published INTEGER DEFAULT 1, steps TEXT, quiz TEXT,
