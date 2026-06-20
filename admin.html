@@ -231,9 +231,10 @@
         <h3>📭 Email Issues <span id="emailIssuesCount" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
         <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Emails that bounced or were marked as spam (from Resend). If a parent's consent or reset email lands here, they never got it - reach out another way.</p>
         <table class="admin-table">
-          <thead><tr><th>Problem</th><th>To</th><th>Email</th><th>Reason</th><th>When</th></tr></thead>
+          <thead><tr><th>Problem</th><th>To</th><th>Email</th><th>Reason</th><th>When</th><th></th></tr></thead>
           <tbody id="emailIssuesRows"></tbody>
         </table>
+        <button id="emailClearAllBtn" class="btn btn-outline" style="margin-top:12px;display:none;font-size:0.85rem;" onclick="clearAllEmailIssues()">🗑️ Clear all</button>
       </div>
 
       <!-- Inbound mail received at @kidvibers.com (SUPER ADMIN ONLY) -->
@@ -787,15 +788,50 @@
       const issues = (data.events || []).filter(e => e.direction === 'outbound');
       const labels = { bounced: '⛔ Bounced', complained: '🚩 Spam', delivery_delayed: '⏳ Delayed' };
       document.getElementById('emailIssuesCount').textContent = issues.length ? `· ${issues.length}` : '· all clear ✓';
-      document.getElementById('emailIssuesRows').innerHTML = issues.length ? issues.map(e =>
-        `<tr>
+      document.getElementById('emailClearAllBtn').style.display = issues.length ? '' : 'none';
+      document.getElementById('emailIssuesRows').innerHTML = issues.length ? issues.map(e => {
+        // Build the "which kid" detail block from matched accounts.
+        let kidBlock = '';
+        if (e.kids && e.kids.length) {
+          kidBlock = '<tr><td colspan="6" style="background:var(--bg);padding:12px 14px;">' +
+            '<div style="font-weight:800;font-size:0.82rem;margin-bottom:8px;">👦 This email was for ' + e.kids.length + ' account' + (e.kids.length>1?'s':'') + ':</div>' +
+            e.kids.map(k =>
+              '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:0.85rem;line-height:1.7;">' +
+                '<strong>' + C4K.esc(k.name) + '</strong> &nbsp; <span style="color:var(--text-faint);">(#' + k.id + ')</span><br>' +
+                'Username: <code style="color:var(--purple);">@' + C4K.esc(k.username) + '</code><br>' +
+                'Age: ' + (k.ageYears != null ? k.ageYears : '?') + ' &nbsp;·&nbsp; Joined: ' + C4K.esc(k.joined) + '<br>' +
+                'Parent email: <span style="color:var(--text-dim);">' + C4K.esc(k.parentEmail || '(none)') + '</span><br>' +
+                'Consent: ' + (k.consentStatus === 'granted' ? '<span style="color:var(--green,#5ad17e);">✅ granted</span>' : k.consentStatus === 'pending' ? '<span style="color:#f59e0b;">⏳ PENDING (stuck - parent never got the email)</span>' : C4K.esc(k.consentStatus)) +
+                ' &nbsp; <button class="mini-btn" onclick="resetKidPw(' + k.id + ",'" + C4K.esc(k.username).replace(/'/g,"") + "')\">🔑 Reset password</button>" +
+              '</div>'
+            ).join('') + '</td></tr>';
+        }
+        return `<tr>
           <td>${labels[e.kind] || C4K.esc(e.kind)}</td>
           <td><a href="mailto:${C4K.esc(e.email)}" style="color:var(--purple);">${C4K.esc(e.email)}</a></td>
           <td style="color:var(--text-dim);">${C4K.esc(e.subject)}</td>
           <td style="color:var(--text-dim);max-width:240px;"><div style="white-space:pre-wrap;word-break:break-word;">${C4K.esc(e.body)}</div></td>
           <td style="color:var(--text-faint);">${C4K.esc(e.at)}</td>
-        </tr>`).join('')
-        : '<tr><td colspan="5" style="color:var(--text-faint);">No bounced or flagged emails. 🎉</td></tr>';
+          <td><button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteEmailIssue(${e.id})">🗑️</button></td>
+        </tr>${kidBlock}`;
+      }).join('')
+        : '<tr><td colspan="6" style="color:var(--text-faint);">No bounced or flagged emails. 🎉</td></tr>';
+    }
+    async function resetKidPw(id, username) {
+      const np = prompt('New password for @' + username + ' (min 6 chars):');
+      if (!np) return;
+      if (np.length < 6) { alert('Password must be at least 6 characters.'); return; }
+      const { ok, data } = await C4K.api('/api/admin/reset-password', 'POST', { userId: id, password: np });
+      alert(ok ? '✅ Password reset for @' + username + ' to: ' + np : (data && data.error) || 'Could not reset.');
+    }
+    async function deleteEmailIssue(id) {
+      const { ok } = await C4K.api('/api/admin/email-events/delete', 'POST', { id });
+      if (ok) loadEmailEvents();
+    }
+    async function clearAllEmailIssues() {
+      if (!confirm('Delete all bounced/flagged emails from this list?')) return;
+      const { ok } = await C4K.api('/api/admin/email-events/delete', 'POST', { all: true });
+      if (ok) loadEmailEvents();
     }
 
     // ── Pro interest / waitlist (super admin) ──

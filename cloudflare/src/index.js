@@ -455,9 +455,9 @@ async function apiSignup(env, request, data) {
   // If a parent email is given, it must look like a real email so consent/notices can be delivered.
   if (email && !/^\S+@\S+\.\S+$/.test(email))
     return json({ error: "Please enter a valid parent email address." }, 400);
-  const needsConsent = ageYears < COPPA_AGE;
-  // An under-13 account can't be approved without somewhere to send the consent request.
-  if (needsConsent && !email)
+  // EVERY kid needs a parent/guardian to approve before they can play - no exceptions.
+  const needsConsent = true;
+  if (!email)
     return json({ error: "A parent's email is required so a parent can approve this account." }, 400);
   const consentToken = needsConsent ? randToken(10) : null;
   const consentStatus = needsConsent ? "pending" : "not_required";
@@ -1669,6 +1669,7 @@ async function apiResendWebhook(env, rawBody, headers) {
     const to = (Array.isArray(d.to) ? d.to.join(", ") : (d.to || "")).slice(0, 160);
     const reason = (d.bounce && (d.bounce.message || d.bounce.subType || d.bounce.type))
       || (kind === "complained" ? "Recipient marked it as spam" : "Delivery problem");
+    // Saved to email_events - it shows up in the admin's "📭 Email Issues" panel.
     await env.DB.prepare("INSERT INTO email_events (direction,kind,peer_email,subject,body,created_at) VALUES ('outbound',?,?,?,?,?)")
       .bind(kind, to, subject, String(reason).slice(0, 300), now).run();
   } else if (t === "email.received") {
@@ -1683,11 +1684,56 @@ async function apiResendWebhook(env, rawBody, headers) {
 async function apiAdminEmailEvents(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare("SELECT id,direction,kind,peer_email,subject,body,created_at FROM email_events ORDER BY id DESC LIMIT 200").all()).results || [];
-  return json({ events: rows.map((r) => ({
-    id: r.id, direction: r.direction, kind: r.kind, email: r.peer_email || "",
-    subject: r.subject || "", body: (r.body || "").slice(0, 600),
-    at: (r.created_at || "").slice(0, 16).replace("T", " "),
-  })) });
+  const events = [];
+  for (const r of rows) {
+    const ev = {
+      id: r.id, direction: r.direction, kind: r.kind, email: r.peer_email || "",
+      subject: r.subject || "", body: (r.body || "").slice(0, 600),
+      at: (r.created_at || "").slice(0, 16).replace("T", " "),
+      kids: [],
+    };
+    // For a bounced/failed email, find which kid account(s) it was for (matched by parent email).
+    if (r.direction === "outbound" && r.peer_email) {
+      const emails = r.peer_email.split(",").map((e) => e.trim()).filter(Boolean);
+      for (const em of emails) {
+        const kids = (await env.DB.prepare(
+          "SELECT id,name,username,age_years,parent_email,consent_status,created_at,family_id FROM users WHERE role='kid' AND lower(parent_email)=lower(?) ORDER BY id DESC LIMIT 10"
+        ).bind(em).all()).results || [];
+        for (const k of kids) ev.kids.push({
+          id: k.id, name: k.name, username: k.username, ageYears: k.age_years,
+          parentEmail: k.parent_email, consentStatus: k.consent_status || "not_required",
+          joined: (k.created_at || "").slice(0, 10),
+        });
+      }
+    }
+    events.push(ev);
+  }
+  return json({ events });
+}
+
+// Super admin can reset any non-super-admin account's password.
+async function apiAdminResetPassword(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT id, role FROM users WHERE id=?").bind(data && data.userId).first();
+  if (!target) return json({ error: "User not found." }, 404);
+  if (target.role === "super_admin") return json({ error: "Can't reset a super admin here." }, 403);
+  const pw = (data && data.password) || "";
+  if (pw.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+  const { hash, salt } = await hashPassword(pw);
+  await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, target.id).run();
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
+  return json({ ok: true });
+}
+
+async function apiAdminEmailEventDelete(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (data && data.all) {
+    await env.DB.prepare("DELETE FROM email_events WHERE direction='outbound'").run();
+    return json({ ok: true, cleared: true });
+  }
+  if (!data || data.id == null) return json({ error: "id required" }, 400);
+  await env.DB.prepare("DELETE FROM email_events WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
 }
 
 async function apiBillingPortal(env, request) {
@@ -1891,6 +1937,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/site-edits/deny" && method === "POST") return apiPendingDeny(env, request);
   if (path === "/api/admin/interest" && method === "GET") return apiAdminInterest(env, request);
   if (path === "/api/admin/email-events" && method === "GET") return apiAdminEmailEvents(env, request);
+  if (path === "/api/admin/email-events/delete" && method === "POST") return apiAdminEmailEventDelete(env, request, data);
+  if (path === "/api/admin/reset-password" && method === "POST") return apiAdminResetPassword(env, request, data);
   if (path === "/api/me" && method === "GET") return apiMe(env, request);
   if (path === "/api/lessons" && method === "GET") return apiLessons(env);
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
