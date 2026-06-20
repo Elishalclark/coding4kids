@@ -207,6 +207,31 @@ async function familyGroup(env, familyId) {
 // ───────────────────────── public user (faithful port) ─────────────────────────
 async function publicUser(env, user) {
   if (!user) return null;
+  // Preview users: return synthetic public data without any DB lookups.
+  if (user.isPreview) {
+    const settings = await getPlanSettings(env);
+    const eff = effectivePlan(user);
+    const cfg = planCfg(settings, eff);
+    const tp = user.role === "teacher" ? teacherPlanCfg(user.plan) : null;
+    let av; try { av = JSON.parse(user.avatar || "null") || { ...DEFAULT_AVATAR }; } catch { av = { ...DEFAULT_AVATAR }; }
+    let ow; try { ow = JSON.parse(user.owned_items || "null") || [...FREE_ITEMS]; } catch { ow = [...FREE_ITEMS]; }
+    return {
+      id: 0, role: user.role, name: user.name, username: user.username, isPreview: true, previewRole: user.previewRole,
+      plan: user.plan, effectivePlan: eff, trialDaysLeft: null,
+      hasAI: !!cfg.ai, chatsPerDay: cfg.chatsPerDay | 0, chatsUsedToday: 5,
+      lessonsPerDay: -1, lessonsUsedToday: 4, lessonsDone: 12,
+      unitsPassed: [1, 2], level: 3, tokens: 250, avatar: av, ownedItems: ow,
+      parentEmail: user.parent_email || "", ageBand: user.age_band || "", ageYears: user.age_years ?? null,
+      familyId: 1, consentStatus: "not_required", consentMethod: null, needsConsent: false,
+      school: user.school || null, suspended: false, hasBilling: false, quizDone: true,
+      quizLevel: "Adventurer", recommendedPlan: user.plan, startUnit: 1, linkToken: "preview",
+      ...(tp ? { teacherPlan: user.plan, teacherPlanLabel: tp.label, studentLimit: tp.students,
+        studentsUsed: user.plan === "district" ? 342 : user.plan === "school" ? 89 : 23,
+        isDistrict: DISTRICT_PLANS.includes(user.plan), isFullDistrict: user.plan === "district",
+        partOfDistrict: false, classCode: user.class_code || "DEMO12",
+        brandName: user.brand_name || "Preview Organization", brandLogo: null } : {}),
+    };
+  }
   const settings = await getPlanSettings(env);
   const eff = effectivePlan(user);
   const cfg = planCfg(settings, eff);
@@ -263,8 +288,37 @@ function bearer(request) {
   const a = request.headers.get("Authorization") || "";
   return a.startsWith("Bearer ") ? a.slice(7).trim() : null;
 }
+// Synthetic user objects used when the super admin previews a role (no real account needed).
+function mockUserForRole(role) {
+  const base = {
+    id: 0, name: "Preview", username: "preview", role: "kid",
+    plan: "pro", trial_ends: null, family_id: 0,
+    tokens: 250, avatar: JSON.stringify({ face: "face_kid", hat: "hat_cap", background: "bg_purple" }),
+    owned_items: JSON.stringify(["face_kid", "bg_purple", "hat_cap", "acc_glass"]),
+    link_token: "preview", parent_email: "parent@preview.com",
+    age_band: "9-11", age_years: 10, consent_status: "not_required",
+    consent_method: null, consent_by: null, consent_token: null, consent_confirm_token: null,
+    suspended: 0, class_code: "DEMO12", school: "Preview School",
+    brand_name: "Preview District", brand_logo: null, district_id: null,
+    quiz_done: 1, quiz_level: "Adventurer", quiz_plan: "pro", start_unit: 1,
+    stripe_customer_id: null, stripe_subscription_id: null, launch_pro: 0,
+    created_at: nowIso(), isPreview: true, previewRole: role,
+  };
+  if (role === "kid")      return { ...base, role: "kid", plan: "pro" };
+  if (role === "parent")   return { ...base, role: "parent", plan: "family", name: "Preview Parent", username: "preview_parent", age_band: "", age_years: null, parent_email: "" };
+  if (role === "teacher")  return { ...base, role: "teacher", plan: "teacher", name: "Preview Teacher", username: "preview_teacher", age_band: "", age_years: null, parent_email: "", district_id: null };
+  if (role === "school")   return { ...base, role: "teacher", plan: "school",  name: "Preview School Admin", username: "preview_school", age_band: "", age_years: null, parent_email: "", district_id: null };
+  if (role === "district") return { ...base, role: "teacher", plan: "district", name: "Preview District Admin", username: "preview_district", age_band: "", age_years: null, parent_email: "", district_id: null };
+  return base;
+}
 async function userFromToken(env, token) {
   if (!token) return null;
+  // Check for a preview session first (super-admin role previews, no real account).
+  const preview = await env.DB.prepare("SELECT role, expires_at FROM preview_sessions WHERE token=?").bind(token).first();
+  if (preview) {
+    if (preview.expires_at < nowIso()) { await env.DB.prepare("DELETE FROM preview_sessions WHERE token=?").bind(token).run(); return null; }
+    return mockUserForRole(preview.role);
+  }
   return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?").bind(token).first();
 }
 async function createSession(env, userId) {
@@ -1397,6 +1451,22 @@ async function adminResolveRequest(env, request, data) {
   await setStatus("declined");
   return json({ ok: true, status: "declined" });
 }
+// Role preview: super admin can see any dashboard view without a real account.
+// Creates a short-lived (2hr) preview session with synthetic user data.
+async function apiAdminPreview(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const VALID_ROLES = ["kid", "parent", "teacher", "school", "district"];
+  const role = (data.role || "").trim().toLowerCase();
+  if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role. Choose: " + VALID_ROLES.join(", ") }, 400);
+  // Clean up expired previews for tidiness.
+  await env.DB.prepare("DELETE FROM preview_sessions WHERE expires_at < ?").bind(nowIso()).run();
+  const token = randToken(32);
+  const expiresAt = new Date(Date.now() + 2 * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  await env.DB.prepare("INSERT INTO preview_sessions (token, role, expires_at) VALUES (?,?,?)").bind(token, role, expiresAt).run();
+  const redirects = { kid: "dashboard.html", parent: "parent.html", teacher: "parent.html", school: "district.html", district: "district.html" };
+  return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt });
+}
+
 async function adminImpersonate(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
@@ -1922,6 +1992,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/account-requests/resolve" && method === "POST") return adminResolveRequest(env, request, data);
   if (path === "/api/admin/site-message" && method === "POST") return adminSiteMessage(env, request, data);
   if (path === "/api/admin/toggles" && method === "POST") return adminToggles(env, request, data);
+  if (path === "/api/admin/preview" && method === "POST") return apiAdminPreview(env, request, data);
   if (path === "/api/admin/impersonate" && method === "POST") return adminImpersonate(env, request, data);
   if (path === "/api/admin/settings" && method === "POST") return adminSaveSettings(env, request, data);
   if (path === "/api/admin/lesson" && method === "POST") return adminSaveLesson(env, request, data);

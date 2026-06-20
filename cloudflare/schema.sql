@@ -30,6 +30,7 @@ CREATE TABLE email_events (
             subject TEXT, body TEXT, handled INTEGER DEFAULT 0, created_at TEXT
         );
 CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE preview_sessions (token TEXT PRIMARY KEY, role TEXT NOT NULL, expires_at TEXT NOT NULL);
 CREATE TABLE progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE chat_usage (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));

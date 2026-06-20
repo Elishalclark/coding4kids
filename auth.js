@@ -295,7 +295,23 @@ const C4K = {
     if (pet) h += `<span style="position:absolute;bottom:0;right:0;font-size:${Math.round(size*0.26)}px;">${pet.emoji}</span>`;
     h += `</div>`;
     return h;
-  }
+  },
+
+  // ── Role preview (super admin views any dashboard without a real account) ──
+  PREVIEW_KEY: 'c4k_preview_back',
+  startPreview(token, redirectUrl) {
+    localStorage.setItem(this.PREVIEW_KEY, window.location.pathname + window.location.search);
+    this.setToken(token);
+    window.location.href = redirectUrl;
+  },
+  isPreview() { return !!(this.user && this.user.isPreview); },
+  exitPreview() {
+    const back = localStorage.getItem(this.PREVIEW_KEY) || 'admin.html';
+    localStorage.removeItem(this.PREVIEW_KEY);
+    this.setToken(null);
+    this.user = null;
+    window.location.href = back;
+  },
 };
 
 // Floating "Return to Super Admin" banner - appears on any page while impersonating.
@@ -315,6 +331,28 @@ const C4K = {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
+})();
+
+// Floating "👁️ Previewing as [Role]" banner - appears on dashboards during role preview.
+(function () {
+  function mount() {
+    if (document.getElementById('c4kPreviewBar')) return;
+    if (!C4K.user || !C4K.user.isPreview) return;
+    const labels = { kid: '👦 Kid dashboard', parent: '👨‍👩‍👧 Parent dashboard', teacher: '🍎 Teacher dashboard', school: '🏫 School dashboard', district: '🏛️ District dashboard' };
+    const label = labels[C4K.user.previewRole] || '👁️ Preview';
+    const bar = document.createElement('div');
+    bar.id = 'c4kPreviewBar';
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:999;background:linear-gradient(135deg,#0f766e,#0891b2);' +
+      'color:#fff;font-family:Nunito,sans-serif;font-weight:800;font-size:0.9rem;padding:10px 16px;display:flex;' +
+      'align-items:center;justify-content:center;gap:14px;box-shadow:0 -4px 20px rgba(0,0,0,0.4);';
+    bar.innerHTML = '👁️ Previewing: <strong>' + label + '</strong> — this is a demo view, no real data.' +
+      '<button style="background:#fff;color:#0f766e;border:none;border-radius:50px;padding:7px 16px;font-weight:900;cursor:pointer;font-family:Nunito,sans-serif;">← Back to Admin</button>';
+    bar.querySelector('button').onclick = () => C4K.exitPreview();
+    document.body.appendChild(bar);
+    document.body.style.paddingBottom = '52px';
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+  else setTimeout(mount, 800);  // slight delay so C4K.user is loaded
 })();
 
 // Site-wide announcement banner - shown to everyone when the super admin sets one.

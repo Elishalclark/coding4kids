@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=39" />
+  <link rel="stylesheet" href="styles.css?v=40" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -180,6 +180,20 @@
           <thead><tr><th>Type</th><th>Name</th><th>Username</th><th>Email</th><th>Requested by</th><th>When</th><th>Decision</th></tr></thead>
           <tbody id="acctReqRows"></tbody>
         </table>
+      </div>
+
+      <!-- Role Preview (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="previewPanel" style="display:none;">
+        <h3>👁️ Preview Dashboards <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">See exactly what each account type sees — no real account needed. Opens a demo view in the same tab; a banner at the bottom lets you return here.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <button class="btn btn-outline" onclick="previewRole('kid')" style="font-size:0.88rem;">👦 Kid dashboard</button>
+          <button class="btn btn-outline" onclick="previewRole('parent')" style="font-size:0.88rem;">👨‍👩‍👧 Parent dashboard</button>
+          <button class="btn btn-outline" onclick="previewRole('teacher')" style="font-size:0.88rem;">🍎 Teacher dashboard</button>
+          <button class="btn btn-outline" onclick="previewRole('school')" style="font-size:0.88rem;">🏫 School dashboard</button>
+          <button class="btn btn-outline" onclick="previewRole('district')" style="font-size:0.88rem;">🏛️ District dashboard</button>
+        </div>
+        <div id="previewMsg" style="font-size:0.82rem;font-weight:700;margin-top:10px;min-height:1em;"></div>
       </div>
 
       <!-- Website change requests / approval (SUPER ADMIN ONLY) -->
@@ -424,7 +438,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=39"></script>
+  <script src="auth.js?v=40"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -704,6 +718,16 @@
       if (note === null) return;
       const { ok, data } = await C4K.api('/api/admin/consent', 'POST', { kidId, action: 'revoke', note });
       if (ok) loadConsent(); else alert(data.error || 'Failed.');
+    }
+
+    // ── Role preview ──
+    async function previewRole(role) {
+      const msg = document.getElementById('previewMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Opening ' + role + ' preview…';
+      const { ok, data } = await C4K.api('/api/admin/preview', 'POST', { role });
+      if (!ok) { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not start preview.'; return; }
+      msg.textContent = '';
+      C4K.startPreview(data.token, data.redirectUrl);
     }
 
     // ── Website change requests / approval (super admin) ──
@@ -1031,7 +1055,7 @@
       if (me && ADMIN_ROLES.includes(me.role)) showDashboard();
     })();
   </script>
-  <script src="pwa.js?v=39" defer></script>
-  <script src="editor.js?v=39" defer></script>
+  <script src="pwa.js?v=40" defer></script>
+  <script src="editor.js?v=40" defer></script>
 </body>
 </html>
