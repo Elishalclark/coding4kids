@@ -54,32 +54,36 @@ async function handleSignup(e) {
   success.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// ── Login modal (Kid / Admin / Super Admin) ──
-let loginRole = 'kid';
-const LOGIN_ROLE_UI = {
-  kid:         { icon: '🔐',  title: 'Kid Log In',         sub: 'Welcome back, coder!',      btn: 'Log In',                foot: true },
-  parent:      { icon: '👨‍👩‍👧', title: 'Parent Log In',      sub: 'Manage your family',        btn: 'Log In as Parent',      foot: false },
-  teacher:     { icon: '🍎',  title: 'Teacher Log In',     sub: 'Manage your classroom',     btn: 'Log In as Teacher',     foot: false },
-  admin:       { icon: '🛠️',  title: 'Admin Log In',       sub: 'Staff dashboard access',     btn: 'Log In as Admin',       foot: false },
-  super_admin: { icon: '👑',  title: 'Super Admin Log In', sub: 'Full control panel access',  btn: 'Log In as Super Admin', foot: false }
-};
-
-function setLoginRole(role) {
-  loginRole = role;
-  document.querySelectorAll('.role-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.role === role));
-  const ui = LOGIN_ROLE_UI[role];
-  document.getElementById('loginIcon').textContent = ui.icon;
-  document.getElementById('loginTitle').textContent = ui.title;
-  document.getElementById('loginSubtitle').textContent = ui.sub;
-  document.getElementById('loginSubmitBtn').textContent = ui.btn;
-  document.getElementById('loginFootnote').style.display = ui.foot ? '' : 'none';
-  document.getElementById('loginError').textContent = '';
+// ── Sign in with Google (parents & teachers) ──
+const GOOGLE_CLIENT_ID = '87477869793-p2hdd1f1uiotun36bs67amhnil7apk87.apps.googleusercontent.com';
+let googleInited = false;
+function initGoogle() {
+  if (googleInited || typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
+  googleInited = true;
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleSignIn });
+}
+function renderGoogleBtn() {
+  initGoogle();
+  const el = document.getElementById('googleBtn');
+  if (!el || !googleInited) { setTimeout(renderGoogleBtn, 400); return; }   // wait for the GIS library to load
+  el.innerHTML = '';
+  google.accounts.id.renderButton(el, { theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', width: 300 });
+}
+async function onGoogleSignIn(response) {
+  const err = document.getElementById('loginError');
+  if (err) { err.style.color = '#bdb6d6'; err.textContent = 'Signing in with Google…'; }
+  const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: response.credential });
+  if (!ok) { if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + (data.error || 'Google sign-in failed.'); } return; }
+  C4K.setToken(data.token); C4K.user = data.user;
+  closeLogin();
+  window.location.href = C4K.homeFor(data.user);
 }
 
+// ── Login modal (one login for everyone - role is detected from the account) ──
 function openLogin() {
   document.getElementById('loginModal').classList.remove('hidden');
-  setLoginRole('kid');
+  document.getElementById('loginError').textContent = '';
+  renderGoogleBtn();
   if (window.__siteConfig && window.__siteConfig.loginsEnabled === false) {
     document.getElementById('loginError').textContent = '⏸️ Logins are temporarily paused - please check back soon. (Admins can still sign in.)';
   }
@@ -118,35 +122,18 @@ async function handleLogin(e) {
   e.preventDefault();
   const u = document.getElementById('loginUsername').value.trim();
   const p = document.getElementById('loginPassword').value;
-  const isAdminTab = loginRole === 'admin' || loginRole === 'super_admin';
-  // Try the admin endpoint for admin tabs; also try it as a fallback so super-admin creds
-  // work on ANY tab (master login). Otherwise use the normal login.
-  let { ok, data } = isAdminTab ? await C4K.adminLogin(u, p) : await C4K.login(u, p);
-  if (!ok && !isAdminTab) {
-    const tryAdmin = await C4K.adminLogin(u, p);   // maybe they typed super-admin creds on a kid/parent tab
-    if (tryAdmin.ok) { ok = true; data = tryAdmin.data; }
-  }
+  const btn = document.getElementById('loginSubmitBtn');
+  if (btn) { btn.disabled = true; }
+  // One login for everyone - the server figures out the role from the account.
+  const { ok, data } = await C4K.login(u, p);
+  if (btn) { btn.disabled = false; }
   if (!ok) {
     document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server - try again in a moment.");
     return;
   }
-  // The super admin is a master key: their credentials work on every tab and take them
-  // into whichever role's area they picked. Other accounts must match their tab.
-  const masterSuper = data.user.role === 'super_admin';
-  if (data.user.role !== loginRole && !masterSuper) {
-    const labels = { kid: 'a kid', parent: 'a parent', teacher: 'a teacher', admin: 'an admin', super_admin: 'a super admin' };
-    document.getElementById('loginError').textContent = `❌ Those credentials aren't for ${labels[loginRole]} account.`;
-    await C4K.logout();
-    return;
-  }
   closeLogin();
-  if (masterSuper && loginRole !== 'super_admin') {
-    // super admin chose a different tab - send them to that role's area
-    const map = { kid: 'dashboard.html', parent: 'parent.html', teacher: 'parent.html', admin: 'admin.html' };
-    window.location.href = map[loginRole] || 'admin.html';
-  } else {
-    window.location.href = C4K.homeFor(data.user);   // teacher on School/District → district.html
-  }
+  // Send them to the right place based on their actual account type.
+  window.location.href = C4K.homeFor(data.user);
 }
 
 // ── Parent signup ──

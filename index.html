@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=40" />
+  <link rel="stylesheet" href="styles.css?v=43" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -610,10 +610,10 @@
         </div>
         <div class="footer-col">
           <h4>Legal</h4>
+          <a href="trust.html">🛡️ Trust &amp; Safety</a>
           <a href="privacy.html">Privacy Policy</a>
           <a href="terms.html">Terms of Service</a>
           <a href="privacy.html#coppa">COPPA Compliance</a>
-          <a href="privacy.html#cookies">Cookie Policy</a>
         </div>
       </div>
     </div>
@@ -628,23 +628,23 @@
       <div class="chat-header">
         <span class="chat-avatar" id="loginIcon">🔐</span>
         <div style="flex:1;">
-          <div class="chat-name" id="loginTitle">Kid Log In</div>
-          <div class="chat-status" id="loginSubtitle">Welcome back, coder!</div>
+          <div class="chat-name" id="loginTitle">Log In</div>
+          <div class="chat-status" id="loginSubtitle">Welcome back to KidVibers!</div>
         </div>
         <button class="modal-close" onclick="closeLogin()">✕</button>
       </div>
-      <div class="role-tabs">
-        <button type="button" class="role-tab active" data-role="kid" onclick="setLoginRole('kid')">👦 Kid</button>
-        <button type="button" class="role-tab" data-role="parent" onclick="setLoginRole('parent')">👨‍👩‍👧 Parent</button>
-        <button type="button" class="role-tab" data-role="teacher" onclick="setLoginRole('teacher')">🍎 Teacher</button>
-        <button type="button" class="role-tab" data-role="admin" onclick="setLoginRole('admin')">🛠️ Admin</button>
-        <button type="button" class="role-tab" data-role="super_admin" onclick="setLoginRole('super_admin')">👑 Super</button>
-      </div>
-      <form style="padding:8px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleLogin(event)">
+      <form style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleLogin(event)">
         <input type="text" id="loginUsername" placeholder="Username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="password" id="loginPassword" placeholder="Password" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <div id="loginError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
-        <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In</button>
+        <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In →</button>
+        <div id="googleArea">
+          <div style="display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:0.8rem;font-weight:700;margin:2px 0;">
+            <span style="flex:1;height:1px;background:var(--border);"></span>OR<span style="flex:1;height:1px;background:var(--border);"></span>
+          </div>
+          <div id="googleBtn" style="display:flex;justify-content:center;min-height:44px;"></div>
+          <p class="signup-fine" style="text-align:center;color:var(--text-faint);font-size:0.74rem;margin-top:2px;">For parents &amp; teachers (grown-ups). Kids: use your username above.</p>
+        </div>
         <p class="signup-fine" id="forgotLine" style="text-align:center;"><a href="#" onclick="openForgot();return false;" style="color:var(--text-dim);">Forgot password?</a></p>
         <p class="signup-fine" id="loginFootnote" style="color:var(--text-dim);text-align:center;">New here? <a href="#signup" onclick="closeLogin()">Create an account</a></p>
       </form>
@@ -807,9 +807,10 @@
     </div>
   </div>
 
-  <script src="auth.js?v=40"></script>
-  <script src="app.js?v=40"></script>
-  <script src="pwa.js?v=40" defer></script>
-  <script src="editor.js?v=40" defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js?v=43"></script>
+  <script src="app.js?v=43"></script>
+  <script src="pwa.js?v=43" defer></script>
+  <script src="editor.js?v=43" defer></script>
 </body>
 </html>

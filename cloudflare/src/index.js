@@ -121,6 +121,12 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  // Safe CSP directives that don't restrict scripts/styles (so nothing breaks) but block
+  // clickjacking, base-tag injection, plugins, and form-hijacking.
+  "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  // Turn off device APIs the site never uses.
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=()",
+  "X-Permitted-Cross-Domain-Policies": "none",
 };
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -366,6 +372,59 @@ async function apiMe(env, request) {
   return json({ user: await publicUser(env, user) });
 }
 
+// Make a unique, valid username from a display name (for Google sign-ups).
+async function uniqueUsername(env, name) {
+  let base = (name || "user").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 14) || "user";
+  if (base.length < 3) base = "user" + base;
+  for (let i = 0; i < 30; i++) {
+    const candidate = i === 0 ? base : (base.slice(0, 14) + Math.floor(Math.random() * 9000 + 1000));
+    const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(candidate).first();
+    if (!taken) return candidate;
+  }
+  return "user" + randHex(4);
+}
+
+// Sign in / sign up with Google. Verifies the Google ID token, then finds or creates a
+// PARENT account (grown-ups only - kids can't have Google accounts).
+async function apiAuthGoogle(env, request, data) {
+  const idToken = (data.credential || "").trim();
+  if (!idToken) return json({ error: "Missing Google sign-in token." }, 400);
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "Google sign-in isn't configured." }, 500);
+  // Verify the token with Google.
+  let tok;
+  try {
+    const resp = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
+    if (!resp.ok) return json({ error: "Google sign-in failed. Please try again." }, 401);
+    tok = await resp.json();
+  } catch (e) { return json({ error: "Couldn't reach Google. Please try again." }, 502); }
+  // The token MUST be issued for our app, from Google, and verified.
+  if (tok.aud !== env.GOOGLE_CLIENT_ID) return json({ error: "This Google sign-in isn't for KidVibers." }, 401);
+  if (!["accounts.google.com", "https://accounts.google.com"].includes(tok.iss)) return json({ error: "Invalid Google token." }, 401);
+  if (tok.email_verified !== "true" && tok.email_verified !== true) return json({ error: "Your Google email isn't verified yet." }, 401);
+  const sub = tok.sub, email = (tok.email || "").toLowerCase();
+  const name = cleanName(tok.name || tok.given_name || "Parent");
+  if (!sub || !email) return json({ error: "Google didn't return enough info." }, 401);
+  // Find by Google id, then by email (link existing grown-up accounts).
+  let row = await env.DB.prepare("SELECT * FROM users WHERE google_sub=?").bind(sub).first();
+  if (!row) {
+    row = await env.DB.prepare("SELECT * FROM users WHERE lower(parent_email)=? AND role IN ('parent','teacher','admin','super_admin')").bind(email).first();
+    if (row) await env.DB.prepare("UPDATE users SET google_sub=? WHERE id=?").bind(sub, row.id).run();
+  }
+  if (!row) {
+    // New grown-up → create a Family (parent) account.
+    const username = await uniqueUsername(env, name);
+    const r = await createUser(env, { role: "parent", name, username, password: randToken(20), email, age: "", plan: "family", trial_ends: null });
+    if (r.error) return json({ error: r.error }, r.status || 400);
+    await env.DB.prepare("UPDATE users SET family_id=?, google_sub=? WHERE id=?").bind(r.uid, sub, r.uid).run();
+    row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
+  }
+  // Suspended accounts can't sign in.
+  const [active] = suspensionStatus(row);
+  if (active && row.suspended) return json({ error: "This account has been suspended." }, 403);
+  const token = await createSession(env, row.id);
+  return json({ token, user: await publicUser(env, row), isNew: !tok._existing });
+}
+
 async function apiLogin(env, request, data, allow) {
   const username = (data.username || "").trim();
   const password = data.password || "";
@@ -439,6 +498,9 @@ async function apiLaunchSlots(env) {
 
 async function apiSignup(env, request, data) {
   if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
+  // Throttle mass account creation: max 6 new accounts per IP per hour.
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (rateLimited(`signup:${ip}`, 6, 3600)) return json({ error: "Too many sign-ups from here. Please try again later." }, 429);
   const name = (data.name || "").trim();
   const username = (data.username || "").trim();
   const password = data.password || "";
@@ -1980,6 +2042,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/signup" && method === "POST") return apiSignup(env, request, data);
   if (path === "/api/parent/signup" && method === "POST") return apiParentSignup(env, request, data);
   if (path === "/api/teacher/signup" && method === "POST") return apiTeacherSignup(env, request, data);
+  if (path === "/api/auth/google" && method === "POST") return apiAuthGoogle(env, request, data);
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
   if (path === "/api/logout" && method === "POST") return apiLogout(env, request);
