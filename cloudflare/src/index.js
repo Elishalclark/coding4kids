@@ -546,9 +546,14 @@ async function apiSignup(env, request, data) {
       .bind(email, "parent_invite", inviteBody, r.uid, r.row.link_token, nowIso()).run();
     if (needsConsent) {
       const consentUrl = `${origin}/index.html?consent=${consentToken}`;
-      const consentBody = `Parental consent needed: ${name} (under 13) wants to use KidVibers. Please review and approve: ${consentUrl}`;
+      const consentBody = `Parental consent needed: ${name} wants to use KidVibers. Please review and approve: ${consentUrl}`;
       await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
         .bind(email, "consent_request", consentBody, r.uid, consentToken, nowIso()).run();
+      // Actually send the consent email to the parent.
+      await sendEmail(env, email, `Approve ${name}'s KidVibers account`,
+        `<p><strong>${name}</strong> wants to use KidVibers - but no kid can play until a parent or guardian approves.</p>
+         <p><a href="${consentUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;">Review &amp; approve →</a></p>
+         <p style="color:#666;font-size:0.9rem;">If you didn't expect this, you can ignore it - the account stays locked until approved.</p>`);
     }
   }
   const token = await createSession(env, r.uid);
@@ -1242,6 +1247,56 @@ async function apiSchoolSuspend(env, request, data) {
   }
   await logConsent(env, kid.id, kid.username, suspend ? "suspended" : "reinstated", `school owner (${owner.username})`, reason);
   return json({ ok: true, name: kid.name, suspended: suspend, until });
+}
+
+// Account settings: a grown-up changes their OWN username/email. Kids can't (a parent must).
+async function apiAccountUpdate(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Please log in." }, 401);
+  if (u.role === "kid") return json({ error: "Ask a parent or guardian to change your username or email." }, 403);
+  const changed = [];
+  const newUser = (data.username || "").trim();
+  const newEmail = (data.email || "").trim();
+  if (newUser && newUser !== u.username) {
+    if (!USERNAME_RE.test(newUser)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+    const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(newUser, u.id).first();
+    if (dup) return json({ error: "That username is already taken." }, 409);
+    await env.DB.prepare("UPDATE users SET username=? WHERE id=?").bind(newUser, u.id).run();
+    changed.push("username");
+  }
+  if (newEmail && newEmail.toLowerCase() !== (u.parent_email || "").toLowerCase()) {
+    if (!/^\S+@\S+\.\S+$/.test(newEmail)) return json({ error: "Enter a valid email address." }, 400);
+    await env.DB.prepare("UPDATE users SET parent_email=? WHERE id=?").bind(newEmail, u.id).run();
+    changed.push("email");
+  }
+  if (!changed.length) return json({ error: "Nothing changed." }, 400);
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.id).first();
+  return json({ ok: true, changed, user: await publicUser(env, row) });
+}
+
+// A parent/teacher changes a KID's username/email (this is the "with a parent's permission" path).
+async function apiParentUpdateKid(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role) || u.family_id == null) return json({ error: "Only a parent or teacher can do this." }, 403);
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, u.family_id).first();
+  if (!kid) return json({ error: "That kid isn't in your family." }, 403);
+  const changed = [];
+  const newUser = (data.username || "").trim();
+  const newEmail = (data.email || "").trim();
+  if (newUser && newUser !== kid.username) {
+    if (!USERNAME_RE.test(newUser)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+    const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(newUser, kid.id).first();
+    if (dup) return json({ error: "That username is already taken." }, 409);
+    await env.DB.prepare("UPDATE users SET username=? WHERE id=?").bind(newUser, kid.id).run();
+    changed.push("username");
+  }
+  if (newEmail && newEmail.toLowerCase() !== (kid.parent_email || "").toLowerCase()) {
+    if (!/^\S+@\S+\.\S+$/.test(newEmail)) return json({ error: "Enter a valid parent email." }, 400);
+    await env.DB.prepare("UPDATE users SET parent_email=? WHERE id=?").bind(newEmail, kid.id).run();
+    changed.push("email");
+  }
+  if (!changed.length) return json({ error: "Nothing changed." }, 400);
+  return json({ ok: true, changed });
 }
 
 async function apiSchoolCredentials(env, request, data) {
@@ -2064,6 +2119,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/parent/add-kid" && method === "POST") return apiParentAddKid(env, request, data);
   if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
   if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
+  if (path === "/api/account/update" && method === "POST") return apiAccountUpdate(env, request, data);
+  if (path === "/api/parent/update-kid" && method === "POST") return apiParentUpdateKid(env, request, data);
   if (path === "/api/district/schools" && method === "GET") return apiDistrictSchools(env, request);
   if (path === "/api/district/add-school" && method === "POST") return apiDistrictAddSchool(env, request, data);
   if (path === "/api/district/remove-school" && method === "POST") return apiDistrictRemoveSchool(env, request, data);
