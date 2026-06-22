@@ -411,7 +411,10 @@ async function apiAuthGoogle(env, request, data) {
     if (row) await env.DB.prepare("UPDATE users SET google_sub=? WHERE id=?").bind(sub, row.id).run();
   }
   if (!row) {
-    // New grown-up → create a Family (parent) account.
+    // New grown-up → they must first confirm they're the parent/guardian (18+).
+    if (data.attest !== true && data.attest !== "true") {
+      return json({ needsAttestation: true, name, email });
+    }
     const username = await uniqueUsername(env, name);
     const r = await createUser(env, { role: "parent", name, username, password: randToken(20), email, age: "", plan: "family", trial_ends: null });
     if (r.error) return json({ error: r.error }, r.status || 400);

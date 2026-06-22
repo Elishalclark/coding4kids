@@ -7,7 +7,7 @@
   <title>Privacy Policy - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=43" />
+  <link rel="stylesheet" href="styles.css?v=46" />
 </head>
 <body>
   <nav class="nav">
@@ -19,7 +19,7 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <div class="updated">Last updated: June 17, 2026</div>
+    <div class="updated">Last updated: June 21, 2026</div>
     <p class="intro">KidVibers.com is built for children, so protecting privacy is at the heart of what we do. KidVibers is owned and operated by <strong>Elisha Clark</strong> ("KidVibers", "we", "us", "our"). This policy explains what information we collect, how we use it, and the rights parents have. We follow the spirit of children's privacy laws like <strong>COPPA</strong> (the U.S. Children's Online Privacy Protection Act).</p>
 
     <div class="legal-card">
@@ -50,6 +50,7 @@
         <li>Limited technical data: a login token (kept in your browser) and, for security and anti-abuse only, the IP address of requests (handled by our network provider). We do not build advertising profiles.</li>
       </ul>
       <p>For a <strong>parent, teacher, school, or district account</strong>, we collect a name, username, password (hashed), an email address, and (for teachers, schools, and districts) a school, classroom, or organization name, plus any custom branding (display name and logo) a district chooses to add. If a kid joins a classroom, we record which teacher's <strong>class code</strong> they used so the teacher can see their own students.</p>
+      <p><strong>Sign in with Google (grown-ups only):</strong> if a parent or teacher chooses "Continue with Google," Google sends us only your <strong>name and email address</strong> to create or sign in to your account. We don't get your Google password or anything else, and Google's button is meant for adults - kids sign in with a username and password.</p>
 
       <h2 id="use">2. How We Use Information</h2>
       <ul>
@@ -66,7 +67,7 @@
       <div class="callout">🚫 We do <strong>not</strong> show ads, we do <strong>not</strong> sell or rent personal information, we do <strong>not</strong> use children's data for behavioral advertising, and we do <strong>not</strong> send children's AI chats to outside AI companies or use them to train AI. There is no private messaging between users.</div>
 
       <h2 id="coppa">4. Children &amp; COPPA</h2>
-      <p>Because KidVibers is intended for children, we require <strong>verifiable parental consent before a child under 13 can use the account</strong>. When an under-13 child signs up, the account is held in a "pending" state and cannot be used until a parent/guardian approves it - by creating and linking their own Family account, or by confirming the consent link we email to the parent and then completing a short <strong>parent verification</strong> step: the parent enters their full legal name, the <strong>last 4 digits of a payment card</strong>, and confirms they are the child's parent or guardian and over 18. <strong>We never charge the card and only keep those last 4 digits</strong> - we never collect or store the full card number, expiry, or security code. This extra step helps make sure a grown-up - not the child - is giving consent. For classroom use, a <strong>teacher or school</strong> may provide consent on parents' behalf for educational purposes. We record each consent (who approved, how, and when) and collect only the information needed to provide the learning service.</p>
+      <p>Because KidVibers is intended for children, we require <strong>parental consent before <em>any</em> kid can use the account</strong> - not just children under 13, but every kid, to be extra safe. When a kid signs up, the account is held in a "pending" state and the child <strong>cannot play, do lessons, or use any feature</strong> until a parent/guardian approves it - by creating and linking their own Family account, or by confirming the consent link we email to the parent and then completing a short <strong>parent verification</strong> step: the parent enters their full legal name, the <strong>last 4 digits of a payment card</strong>, and confirms they are the child's parent or guardian and over 18. <strong>We never charge the card and only keep those last 4 digits</strong> - we never collect or store the full card number, expiry, or security code. This extra step helps make sure a grown-up - not the child - is giving consent. For classroom use, a <strong>teacher or school</strong> may provide consent on parents' behalf for educational purposes. We record each consent (who approved, how, and when) and collect only the information needed to provide the learning service.</p>
       <p>A parent or guardian can <strong>review, download, or delete</strong> their child's data, sign the child out, or withdraw consent at any time from their dashboard.</p>
 
       <h2 id="rights">5. Parent &amp; Guardian Rights</h2>
@@ -82,6 +83,7 @@
       <ul>
         <li><strong>Hosting, network &amp; delivery (Cloudflare):</strong> KidVibers runs on Cloudflare Workers and stores account data in Cloudflare's D1 database; Cloudflare also routes traffic, provides HTTPS, and helps block abuse;</li>
         <li><strong>Email delivery (Resend / Amazon SES):</strong> sends account emails such as parental-consent links, welcome messages, password resets, and notices;</li>
+        <li><strong>Google Sign-In:</strong> if a parent/teacher chooses "Continue with Google," Google verifies their identity and shares their name and email with us (grown-ups only);</li>
         <li><strong>Payment processing:</strong> if and when paid plans go live, card payments will be handled entirely by a PCI-compliant processor (e.g. Stripe) - we never see or store card numbers. (Paid plans are not currently being charged.)</li>
       </ul>
 
@@ -105,6 +107,7 @@
       <ul>
         <li><strong>Cloudflare</strong> - hosting (Workers + D1 database), network, HTTPS, and abuse protection;</li>
         <li><strong>Resend (Amazon SES)</strong> - delivers our account emails;</li>
+        <li><strong>Google Sign-In</strong> - optional "Continue with Google" for parents &amp; teachers; we receive only name and email;</li>
         <li><strong>QR image service</strong> - generates the parent-invite QR code; the only data sent is the invite link;</li>
         <li><strong>jsDelivr (CDN)</strong> - serves the in-browser Python engine (Skulpt) for the Playground; code kids write runs locally in their browser and is not sent to a server.</li>
       </ul>
@@ -126,7 +129,7 @@
   </main>
 
   <footer class="footer"><div class="footer-bottom" style="padding-top:30px;"><p>© 2026 KidVibers.com - Made by a kid, for kids ❤️<br>Owner: Elisha Clark</p></div></footer>
-  <script src="pwa.js?v=43" defer></script>
-  <script src="editor.js?v=43" defer></script>
+  <script src="pwa.js?v=46" defer></script>
+  <script src="editor.js?v=46" defer></script>
 </body>
 </html>

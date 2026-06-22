@@ -14,17 +14,16 @@ async function loadLaunchBanner() {
   try {
     const r = await fetch('/api/launch-slots'); if (!r.ok) return;
     const d = await r.json();
+    if (!(d.active && d.remaining > 0)) return;
+    // Modal signup banner
     const banner = document.getElementById('launchBanner');
-    const sub = document.getElementById('signupSubtitle');
-    if (!banner) return;
-    if (d.active && d.remaining > 0) {
-      document.getElementById('launchSlotsLeft').textContent = d.remaining;
-      banner.style.display = '';
-      if (sub) sub.innerHTML = 'Sign up now to claim your <strong>free 30-day Pro</strong> — AI buddy, all lessons, boss battles. No credit card.';
-    }
+    if (banner) { document.getElementById('launchSlotsLeft').textContent = d.remaining; banner.style.display = ''; }
+    // Homepage "Get Started" banner
+    const homeBanner = document.getElementById('launchBannerHome');
+    if (homeBanner) { document.getElementById('launchSlotsLeftHome').textContent = d.remaining; homeBanner.style.display = ''; }
   } catch(e) {}
 }
-if (document.getElementById('launchBanner')) loadLaunchBanner();
+if (document.getElementById('launchBannerHome') || document.getElementById('launchBanner')) loadLaunchBanner();
 
 async function handleSignup(e) {
   e.preventDefault();
@@ -44,8 +43,8 @@ async function handleSignup(e) {
       ? `🎉 You got it, ${C4K.esc(data.user.name)}! <strong>30 days of Pro free</strong> — unlocked! ${data.slotsRemaining} spots left for others.`
       : `🎉 Welcome, ${C4K.esc(data.user.name)}!`;
     document.getElementById('signupForm').reset();
-    // Refresh the banner slot count
     loadLaunchBanner();
+    closeLogin();                              // close the auth modal before the quiz opens
     startQuiz(data, payload.parentEmail);
   } else {
     success.style.background = 'rgba(239,68,68,0.25)';
@@ -64,30 +63,68 @@ function initGoogle() {
 }
 function renderGoogleBtn() {
   initGoogle();
-  const el = document.getElementById('googleBtn');
-  if (!el || !googleInited) { setTimeout(renderGoogleBtn, 400); return; }   // wait for the GIS library to load
-  el.innerHTML = '';
-  google.accounts.id.renderButton(el, { theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', width: 300 });
+  if (!googleInited) { setTimeout(renderGoogleBtn, 400); return; }   // wait for the GIS library to load
+  // Render the button into whichever container(s) are on the page (login tab + signup tab).
+  ['googleBtn', 'googleBtnSignup'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) { el.innerHTML = ''; google.accounts.id.renderButton(el, { theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', width: 300 }); }
+  });
 }
+let pendingGoogleCred = null;
 async function onGoogleSignIn(response) {
+  pendingGoogleCred = response.credential;
   const err = document.getElementById('loginError');
   if (err) { err.style.color = '#bdb6d6'; err.textContent = 'Signing in with Google…'; }
-  const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: response.credential });
-  if (!ok) { if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + (data.error || 'Google sign-in failed.'); } return; }
+  const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: pendingGoogleCred });
+  if (ok) { finishGoogleLogin(data); return; }
+  // New account → require the "I'm the parent" checkbox first.
+  if (data && data.needsAttestation) { showGoogleAttest(); return; }
+  if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + (data.error || 'Google sign-in failed.'); }
+}
+function showGoogleAttest() {
+  ['loginView', 'signupView', 'authTabs'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  document.getElementById('googleAttest').style.display = '';
+  document.getElementById('attestBox').checked = false;
+  document.getElementById('attestGo').disabled = true;
+  document.getElementById('attestMsg').textContent = '';
+}
+async function confirmGoogleAttest() {
+  if (!document.getElementById('attestBox').checked || !pendingGoogleCred) return;
+  const msg = document.getElementById('attestMsg');
+  msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating your account…';
+  const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: pendingGoogleCred, attest: true });
+  if (!ok) { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not finish. Try again.'; return; }
+  finishGoogleLogin(data);
+}
+function finishGoogleLogin(data) {
   C4K.setToken(data.token); C4K.user = data.user;
+  pendingGoogleCred = null;
   closeLogin();
   window.location.href = C4K.homeFor(data.user);
 }
 
-// ── Login modal (one login for everyone - role is detected from the account) ──
-function openLogin() {
+// ── Login / Sign Up modal (one box, two tabs) ──
+function switchAuthTab(view) {
+  const isSignup = view === 'signup';
+  // Always restore the normal two-tab layout (in case the Google attestation panel was showing).
+  const ga = document.getElementById('googleAttest'); if (ga) ga.style.display = 'none';
+  const tabs = document.getElementById('authTabs'); if (tabs) tabs.style.display = '';
+  document.getElementById('loginView').style.display = isSignup ? 'none' : '';
+  document.getElementById('signupView').style.display = isSignup ? '' : 'none';
+  document.getElementById('tabLogin').classList.toggle('active', !isSignup);
+  document.getElementById('tabSignup').classList.toggle('active', isSignup);
+  closeForgot();
+  renderGoogleBtn();   // both tabs have a Google button
+  if (isSignup) { loadLaunchBanner(); const n = document.getElementById('suName'); if (n) n.focus(); }
+  else { const u = document.getElementById('loginUsername'); if (u) u.focus(); }
+}
+function openLogin(view) {
   document.getElementById('loginModal').classList.remove('hidden');
   document.getElementById('loginError').textContent = '';
-  renderGoogleBtn();
+  switchAuthTab(view === 'signup' ? 'signup' : 'login');
   if (window.__siteConfig && window.__siteConfig.loginsEnabled === false) {
     document.getElementById('loginError').textContent = '⏸️ Logins are temporarily paused - please check back soon. (Admins can still sign in.)';
   }
-  document.getElementById('loginUsername').focus();
 }
 function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); closeForgot(); }
 
@@ -446,8 +483,7 @@ function refreshAuthUI() {
     } else {
       cta.classList.remove('nav-account');
       cta.innerHTML =
-        `<a href="#" class="btn btn-ghost" onclick="openLogin();return false;">Log In</a>` +
-        `<a href="#signup" class="btn btn-primary">Start Free</a>`;
+        `<a href="#" class="btn btn-primary" onclick="openLogin('login');return false;">Log In / Sign Up</a>`;
     }
   }
   // AI gating
@@ -686,7 +722,13 @@ window.addEventListener('scroll', () => {
   // ?login=1 (e.g. from the "Log in to use Lessons" gate) → open the login modal
   if (params.get('login') && !C4K.isLoggedIn()) {
     refreshAuthUI();
-    openLogin();
+    openLogin('login');
+    return;
+  }
+  // #signup or ?signup=1 (links from other pages) → open the modal on the Sign Up tab
+  if ((location.hash === '#signup' || params.get('signup')) && !C4K.isLoggedIn()) {
+    refreshAuthUI();
+    openLogin('signup');
     return;
   }
 

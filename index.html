@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=43" />
+  <link rel="stylesheet" href="styles.css?v=46" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -90,8 +90,7 @@
         <li><a href="#how">How It Works</a></li>
       </ul>
       <div class="nav-cta" id="navCta">
-        <a href="#" class="btn btn-ghost" onclick="openLogin();return false;">Log In</a>
-        <a href="#signup" class="btn btn-primary">Start Free</a>
+        <a href="#" class="btn btn-primary" onclick="openLogin('login');return false;">Log In / Sign Up</a>
       </div>
       <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
     </div>
@@ -103,8 +102,7 @@
       <a href="pricing.html">Pricing</a>
       <a href="#schools">Schools</a>
       <a href="#how">How It Works</a>
-      <a href="#" onclick="openLogin();return false;">Log In</a>
-      <a href="#signup" class="btn btn-primary" style="margin-top:8px;">Start Free</a>
+      <a href="#" class="btn btn-primary" style="margin-top:8px;" onclick="openLogin('login');return false;">Log In / Sign Up</a>
     </div>
   </nav>
 
@@ -121,7 +119,7 @@
       <h1>Learn to Code.<br /><span class="gradient-text">Level Up Your Life.</span></h1>
       <p class="hero-sub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks - just a coding adventure made for kids ages 6-16.</p>
       <div class="hero-btns">
-        <a href="#signup" class="btn btn-primary btn-lg">Start for Free 🚀</a>
+        <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;">Start for Free 🚀</a>
         <a href="#how" class="btn btn-outline btn-lg">See How It Works</a>
       </div>
       <div class="hero-stats">
@@ -540,30 +538,36 @@
     </div>
   </section>
 
-  <section class="signup section" id="signup">
+  <section class="signup section" id="getstarted">
     <div class="signup-inner">
       <div class="section-tag light">Get Started Today</div>
-      <!-- Launch offer banner - hidden until slots are loaded from the API -->
-      <div id="launchBanner" style="display:none;background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:900;color:#fff;">🎁 Launch offer: first 100 kids get <strong>30 days of Pro free!</strong></div>
-        <div style="color:#dcfce7;font-size:0.95rem;margin-top:4px;"><span id="launchSlotsLeft" style="font-weight:900;font-size:1.1rem;color:#fff;">-</span> spots left — sign up below to claim yours.</div>
-      </div>
       <h2>Your Kid's Coding Adventure Starts Now</h2>
-      <p id="signupSubtitle">Create a free account and start a <strong>3-day trial</strong> (no credit card, no AI). Upgrade to Pro any time to unlock AI.</p>
-      <form class="signup-form" id="signupForm" onsubmit="handleSignup(event)">
-        <input type="text" id="suName" placeholder="Child's first name" required class="form-input" />
-        <input type="email" id="suEmail" placeholder="Parent's email address" required class="form-input" />
-        <input type="text" id="suUsername" placeholder="Pick a username (3-20 letters/numbers)" required class="form-input" />
-        <input type="password" id="suPassword" placeholder="Create a password (min 6 characters)" required class="form-input" />
-        <input type="number" id="suAgeYears" min="4" max="18" placeholder="Child's age (in years)" required class="form-input" />
-        <button type="submit" class="btn btn-primary btn-lg">Create Free Account 🚀</button>
-      </form>
-      <p class="signup-fine" style="margin-top:8px;">👨‍👩‍👧 Kids under 13: a parent will be asked to approve the account (it's the law - COPPA).</p>
-      <p class="signup-fine">By signing up you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>. We never sell data or show ads.</p>
-      <div id="signupSuccess" class="signup-success hidden"></div>
-      <p class="signup-fine" style="margin-top:14px;">Already have an account? <a href="#" onclick="openLogin();return false;">Log in here</a></p>
-      <p class="signup-fine" style="margin-top:6px;">👨‍👩‍👧 A parent? <a href="#" onclick="openParentSignup();return false;">Create a Family account</a> to manage your kids (Family plan, AI included).</p>
-      <p class="signup-fine" style="margin-top:6px;">🍎 A teacher? <a href="#" onclick="openTeacherSignup();return false;">Create a Classroom</a> - add students with school consent.</p>
+      <p style="max-width:620px;margin:0 auto 26px;">Join free in under a minute - no credit card, no ads, and a parent approves every account. Then explore 152 lessons across 16 worlds, beat boss battles, and build real projects.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;max-width:760px;margin:0 auto 28px;">
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:20px;">
+          <div style="font-size:1.8rem;">🆓</div>
+          <div style="font-weight:900;margin:6px 0 4px;">Free to start</div>
+          <div style="font-size:0.86rem;opacity:0.9;">Real lessons, no credit card. Upgrade only if you love it.</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:20px;">
+          <div style="font-size:1.8rem;">🛡️</div>
+          <div style="font-weight:900;margin:6px 0 4px;">Safe by design</div>
+          <div style="font-size:0.86rem;opacity:0.9;">Ad-free, no private messaging, parent-approved. <a href="trust.html" style="color:#fff;text-decoration:underline;">See how →</a></div>
+        </div>
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:20px;">
+          <div style="font-size:1.8rem;">💜</div>
+          <div style="font-weight:900;margin:6px 0 4px;">Made by a kid</div>
+          <div style="font-size:0.86rem;opacity:0.9;">Built to feel like a game, not homework - by someone who gets it.</div>
+        </div>
+      </div>
+
+      <div id="launchBannerHome" style="display:none;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:14px;padding:14px 20px;max-width:560px;margin:0 auto 22px;">
+        <span style="font-weight:900;">🎁 Launch offer:</span> the first 100 kids get <strong>30 days of Pro free</strong> — <span id="launchSlotsLeftHome" style="font-weight:900;">-</span> spots left!
+      </div>
+
+      <button class="btn btn-primary btn-lg" onclick="openLogin('signup')" style="font-size:1.05rem;padding:14px 32px;">Log In / Sign Up 🚀</button>
+      <p class="signup-fine" style="margin-top:12px;">Already have an account? <a href="#" onclick="openLogin('login');return false;">Log in here</a></p>
     </div>
   </section>
 
@@ -622,39 +626,93 @@
     </div>
   </footer>
 
-  <!-- LOGIN MODAL -->
+  <!-- LOGIN / SIGN UP MODAL -->
+  <style>
+    .auth-tabs { display:flex; gap:8px; padding:14px 24px 0; }
+    .auth-tab { flex:1; padding:11px; border:1px solid var(--border); background:var(--bg); color:var(--text-dim); font-family:inherit; font-weight:800; font-size:0.95rem; border-radius:12px; cursor:pointer; }
+    .auth-tab.active { background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; border-color:transparent; }
+  </style>
   <div class="modal-overlay hidden" id="loginModal">
-    <div class="modal">
+    <div class="modal" style="max-width:440px;">
       <div class="chat-header">
         <span class="chat-avatar" id="loginIcon">🔐</span>
         <div style="flex:1;">
-          <div class="chat-name" id="loginTitle">Log In</div>
-          <div class="chat-status" id="loginSubtitle">Welcome back to KidVibers!</div>
+          <div class="chat-name" id="loginTitle">Log In / Sign Up</div>
+          <div class="chat-status" id="loginSubtitle">Welcome to KidVibers!</div>
         </div>
         <button class="modal-close" onclick="closeLogin()">✕</button>
       </div>
-      <form style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleLogin(event)">
-        <input type="text" id="loginUsername" placeholder="Username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-        <input type="password" id="loginPassword" placeholder="Password" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-        <div id="loginError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
-        <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In →</button>
-        <div id="googleArea">
-          <div style="display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:0.8rem;font-weight:700;margin:2px 0;">
-            <span style="flex:1;height:1px;background:var(--border);"></span>OR<span style="flex:1;height:1px;background:var(--border);"></span>
+      <div class="auth-tabs" id="authTabs">
+        <button type="button" class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Log In</button>
+        <button type="button" class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
+      </div>
+
+      <!-- LOG IN VIEW -->
+      <div id="loginView">
+        <form style="padding:16px 24px 24px;display:flex;flex-direction:column;gap:14px;" onsubmit="handleLogin(event)">
+          <input type="text" id="loginUsername" placeholder="Username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="password" id="loginPassword" placeholder="Password" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <div id="loginError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
+          <button type="submit" class="btn btn-primary btn-lg" id="loginSubmitBtn">Log In →</button>
+          <div id="googleArea">
+            <div style="display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:0.8rem;font-weight:700;margin:2px 0;">
+              <span style="flex:1;height:1px;background:var(--border);"></span>OR<span style="flex:1;height:1px;background:var(--border);"></span>
+            </div>
+            <div id="googleBtn" style="display:flex;justify-content:center;min-height:44px;"></div>
+            <p class="signup-fine" style="text-align:center;color:var(--text-faint);font-size:0.74rem;margin-top:2px;">For parents &amp; teachers (grown-ups). Kids: use your username above.</p>
           </div>
-          <div id="googleBtn" style="display:flex;justify-content:center;min-height:44px;"></div>
-          <p class="signup-fine" style="text-align:center;color:var(--text-faint);font-size:0.74rem;margin-top:2px;">For parents &amp; teachers (grown-ups). Kids: use your username above.</p>
+          <p class="signup-fine" id="forgotLine" style="text-align:center;"><a href="#" onclick="openForgot();return false;" style="color:var(--text-dim);">Forgot password?</a></p>
+          <p class="signup-fine" id="loginFootnote" style="color:var(--text-dim);text-align:center;">New here? <a href="#" onclick="switchAuthTab('signup');return false;">Create an account</a></p>
+        </form>
+        <!-- Forgot-password mini-form -->
+        <div id="forgotBox" style="display:none;padding:8px 24px 24px;">
+          <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:12px;">Enter your username or email. If it's a parent or teacher account, we'll email a reset link. <em>(Kids: ask a parent to reset for you.)</em></p>
+          <input type="text" id="forgotWho" placeholder="Username or email" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);width:100%;box-sizing:border-box;margin-bottom:12px;" />
+          <button type="button" class="btn btn-primary btn-lg" style="width:100%;" id="forgotBtn" onclick="submitForgot()">Send reset link</button>
+          <p id="forgotMsg" style="color:var(--text-dim);font-weight:700;font-size:0.86rem;margin-top:10px;min-height:1em;"></p>
+          <p class="signup-fine" style="text-align:center;"><a href="#" onclick="closeForgot();return false;" style="color:var(--text-dim);">← Back to log in</a></p>
         </div>
-        <p class="signup-fine" id="forgotLine" style="text-align:center;"><a href="#" onclick="openForgot();return false;" style="color:var(--text-dim);">Forgot password?</a></p>
-        <p class="signup-fine" id="loginFootnote" style="color:var(--text-dim);text-align:center;">New here? <a href="#signup" onclick="closeLogin()">Create an account</a></p>
-      </form>
-      <!-- Forgot-password mini-form (parents & teachers) -->
-      <div id="forgotBox" style="display:none;padding:8px 24px 24px;">
-        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:12px;">Enter your username or email. If it's a parent or teacher account, we'll email a reset link. <em>(Kids: ask a parent to reset for you.)</em></p>
-        <input type="text" id="forgotWho" placeholder="Username or email" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);width:100%;box-sizing:border-box;margin-bottom:12px;" />
-        <button type="button" class="btn btn-primary btn-lg" style="width:100%;" id="forgotBtn" onclick="submitForgot()">Send reset link</button>
-        <p id="forgotMsg" style="color:var(--text-dim);font-weight:700;font-size:0.86rem;margin-top:10px;min-height:1em;"></p>
-        <p class="signup-fine" style="text-align:center;"><a href="#" onclick="closeForgot();return false;" style="color:var(--text-dim);">← Back to log in</a></p>
+      </div>
+
+      <!-- Google parent attestation (shown after a NEW Google sign-in) -->
+      <div id="googleAttest" style="display:none;padding:16px 24px 24px;">
+        <div style="text-align:center;margin-bottom:12px;"><div style="font-size:2rem;">👨‍👩‍👧</div>
+          <div style="font-weight:900;font-size:1.1rem;margin-top:4px;">One quick check</div></div>
+        <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.55;margin-bottom:14px;">KidVibers is for kids, so a grown-up has to set up the account. Please confirm:</p>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;font-weight:700;margin-bottom:14px;cursor:pointer;">
+          <input type="checkbox" id="attestBox" onchange="document.getElementById('attestGo').disabled=!this.checked" style="margin-top:3px;">
+          I confirm I am this child's <strong>parent or legal guardian</strong> and I am <strong>over 18</strong>.
+        </label>
+        <button class="btn btn-primary btn-lg" id="attestGo" disabled onclick="confirmGoogleAttest()" style="width:100%;">Continue ✅</button>
+        <div id="attestMsg" style="color:#f87171;font-size:0.84rem;font-weight:700;margin-top:8px;min-height:1em;text-align:center;"></div>
+      </div>
+
+      <!-- SIGN UP VIEW (the kid signup, moved off the home page) -->
+      <div id="signupView" style="display:none;padding:16px 24px 24px;">
+        <div id="launchBanner" style="display:none;background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:1rem;font-weight:900;color:#fff;">🎁 First 100 kids get <strong>30 days of Pro free!</strong></div>
+          <div style="color:#dcfce7;font-size:0.85rem;margin-top:2px;"><span id="launchSlotsLeft" style="font-weight:900;color:#fff;">-</span> spots left.</div>
+        </div>
+        <p id="signupSubtitle" style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">Create a free account and start a <strong>3-day trial</strong>. No credit card.</p>
+        <!-- Parents can sign up fast with Google -->
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:800;font-size:0.78rem;color:var(--text-faint);margin-bottom:6px;">👨‍👩‍👧 Parent? Sign up in one tap:</div>
+          <div id="googleBtnSignup" style="display:flex;justify-content:center;min-height:44px;"></div>
+          <div style="display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:0.78rem;font-weight:700;margin:10px 0 2px;">
+            <span style="flex:1;height:1px;background:var(--border);"></span>OR SET UP A KID ACCOUNT<span style="flex:1;height:1px;background:var(--border);"></span>
+          </div>
+        </div>
+        <form id="signupForm" onsubmit="handleSignup(event)" style="display:flex;flex-direction:column;gap:12px;">
+          <input type="text" id="suName" placeholder="Child's first name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="email" id="suEmail" placeholder="Parent's email address" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="text" id="suUsername" placeholder="Pick a username (3-20 letters/numbers)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="password" id="suPassword" placeholder="Create a password (min 6 characters)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="number" id="suAgeYears" min="4" max="18" placeholder="Child's age (in years)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <button type="submit" class="btn btn-primary btn-lg">Create Free Account 🚀</button>
+        </form>
+        <div id="signupSuccess" class="signup-success hidden" style="margin-top:10px;"></div>
+        <p class="signup-fine" style="margin-top:10px;font-size:0.76rem;">👨‍👩‍👧 A parent must approve every account before a kid can play (it's the law - COPPA). By signing up you agree to our <a href="terms.html">Terms</a> &amp; <a href="privacy.html">Privacy Policy</a>.</p>
+        <p class="signup-fine" style="margin-top:8px;font-size:0.8rem;">👨‍👩‍👧 A parent? <a href="#" onclick="openParentSignup();return false;">Create a Family account</a> · 🍎 A teacher? <a href="#" onclick="openTeacherSignup();return false;">Create a Classroom</a></p>
       </div>
     </div>
   </div>
@@ -808,9 +866,9 @@
   </div>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=43"></script>
-  <script src="app.js?v=43"></script>
-  <script src="pwa.js?v=43" defer></script>
-  <script src="editor.js?v=43" defer></script>
+  <script src="auth.js?v=46"></script>
+  <script src="app.js?v=46"></script>
+  <script src="pwa.js?v=46" defer></script>
+  <script src="editor.js?v=46" defer></script>
 </body>
 </html>
