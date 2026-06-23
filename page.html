@@ -36,22 +36,31 @@
   <script>
     const PAGES = {
       curriculum: {
-        title: '🗺️ Curriculum', lead: 'A guided journey from first line of code to building real projects - organized into themed worlds with a boss battle at the end of each.',
+        title: '🗺️ Curriculum', lead: '152 interactive lessons across 16 themed worlds - a guided journey from your first line of code to building real games, websites, and AI projects, with a boss battle at the end of every world.',
         body: `
           <h2>How it works</h2>
-          <p>Kids learn through short, interactive lessons - running code, dragging blocks, and answering quick checks with instant feedback. Finish a world's lessons, beat its <strong>boss battle</strong>, and unlock the next world.</p>
-          <h2>The worlds</h2>
+          <p>Kids learn through short, bite-sized lessons - running real code, answering quick checks, and getting instant feedback. Finish a world's lessons, beat its <strong>boss battle</strong>, and unlock the next world. Progress, streaks, XP, and badges keep them coming back.</p>
+          <h2>The 16 worlds</h2>
           <ul>
-            <li>🌱 <strong>Greenwood Basics</strong> - printing, variables, if-statements, loops. Boss: 🐛 Buggle the Glitch.</li>
-            <li>🌊 <strong>Builder's Bay</strong> - functions, a number game, web pages, a chatbot. Boss: 🦑 Krakode.</li>
-            <li>🚀 <strong>Cosmic Code Station</strong> - lists, randomness, dictionaries. Boss: 👾 Glitchoid.</li>
-            <li>🏰 <strong>Algorithm Castle</strong> - sorting, debugging, a capstone quiz game. Boss: 🐉 Recursor the Dragon.</li>
+            <li>🌱 <strong>Greenwood Basics</strong> - printing, variables, if-statements, loops.</li>
+            <li>🌊 <strong>Builder's Bay</strong> - functions and your first mini-projects.</li>
+            <li>🚀 <strong>Cosmic Code Station</strong> - lists, randomness, dictionaries.</li>
+            <li>🏰 <strong>Algorithm Castle</strong> - sorting, searching, and debugging.</li>
+            <li>🎮 <strong>Game Arcade</strong> - build playable games.</li>
+            <li>🌐 <strong>Web Wizard Woods</strong> - make real web pages.</li>
+            <li>⚡ <strong>JavaScript Junction</strong> - a second language to grow with.</li>
+            <li>🤖 <strong>AI Island</strong> - how smart programs think.</li>
+            <li>🔢 <strong>Math Mountain</strong> - code that does the math for you.</li>
+            <li>🏆 <strong>Master's Summit</strong> - put it all together.</li>
+            <li>🛠️ <strong>Function Forge</strong>, 🥋 <strong>Data Structures Dojo</strong>, 🪐 <strong>Object Orbit</strong>, ⛰️ <strong>Pro Coder Peak</strong> - deeper, pro-level skills.</li>
+            <li>🔆 <strong>Spark Lab</strong> &amp; 🏔️ <strong>Capstone Quests</strong> - creative bonus tracks and big final builds.</li>
           </ul>
           <h2>What kids master</h2>
           <ul>
-            <li>Core programming ideas: variables, conditionals, loops, functions, lists & dictionaries;</li>
-            <li>Problem-solving and debugging;</li>
-            <li>Building real things - games, a web page, and a chatbot.</li>
+            <li>Core programming: variables, conditionals, loops, functions, lists &amp; dictionaries, and objects;</li>
+            <li>Two languages - Python and JavaScript;</li>
+            <li>Problem-solving, debugging, and computational thinking;</li>
+            <li>Building real things - games, web pages, a chatbot, and AI-flavored projects.</li>
           </ul>
           <p style="margin-top:14px;"><a href="lessons.html">Explore the lessons →</a></p>`
       },
@@ -94,19 +103,23 @@
         body: `
           <h2>Getting started</h2>
           <ol style="margin:0 0 14px 22px;display:flex;flex-direction:column;gap:8px;">
-            <li>Your child creates an account and gets a 3-day trial.</li>
-            <li>You'll receive an invite (QR code or email) to create your own <strong>Family</strong> account and connect to your child.</li>
-            <li>From your Family Dashboard you can add more kids, see progress, and manage the account.</li>
+            <li>Tap <strong>Log In / Sign Up</strong> and create your child's account (first name, username, password, your email, and age).</li>
+            <li><strong>You must approve the account before your child can play</strong> - this is required for <em>every</em> kid. Approve in seconds by signing in with Google (grown-ups only) and confirming you're the parent, or by clicking the consent link we email you and verifying you're an adult.</li>
+            <li>Once approved, your child can start coding. From your dashboard you can add more kids, see progress, and manage everything.</li>
           </ol>
+          <div class="callout">🔒 <strong>Parental consent is mandatory.</strong> Until you approve, the account is held in a "pending" state and your child can't play, do lessons, or use any feature - not just for kids under 13, but for all kids, to be extra safe.</div>
+          <h2>Changing a username or email</h2>
+          <p>Open <strong>Settings</strong> from your dashboard. Grown-ups can change their own username and email there, and <strong>parents/guardians can change their kids'</strong> username or email too - kids can't change their own without you.</p>
           <h2>Safety &amp; controls</h2>
           <ul>
             <li>No ads, no private messaging, no data selling;</li>
             <li>Kids can't sign themselves out - only you (or an admin) can;</li>
-            <li>You can sign your kids out of their devices anytime from the Family Dashboard.</li>
+            <li>You can sign your kids out of their devices anytime from your dashboard;</li>
+            <li>Review, download, or delete your child's data, or withdraw consent, whenever you like.</li>
           </ul>
           <h2>Plans &amp; AI</h2>
-          <p>AI features (the Byte buddy) are a Pro/Family perk. Pricing only appears when your child reaches a lesson limit, or via your upgrade link - we never push it during normal use.</p>
-          <p style="margin-top:14px;">Questions? See the <a href="page.html?p=help">Help Center</a> or <a href="page.html?p=contact">contact us</a>.</p>`
+          <p>The first 100 kids get <strong>30 days of Pro free</strong>; after that, new accounts get a short free trial. AI features (the Byte buddy) and the full curriculum are a Pro/Family perk. Pricing only appears when your child reaches a lesson limit, or via your upgrade link - we never push it during normal use. (Paid plans aren't being charged yet while we finish setting up payments.)</p>
+          <p style="margin-top:14px;">Questions? See the <a href="page.html?p=help">Help Center</a>, our <a href="trust.html">Trust &amp; Safety Center</a>, or <a href="page.html?p=contact">contact us</a>.</p>`
       },
       teachers: {
         title: '🍎 Teacher Resources', lead: 'Free resources to bring KidVibers into your lessons.',
@@ -126,15 +139,19 @@
         title: '💬 Help Center', lead: 'Quick answers to common questions.',
         body: `
           <h2>How do I create an account?</h2>
-          <p>Tap "Start Free" on the home page. Kids enter a first name, username, password, parent email, and age range.</p>
-          <h2>How does a parent connect to a child?</h2>
-          <p>After a child signs up, scan the QR code or use the emailed "Sign My Kid and Myself Up" link to create a Family account that's linked to the child.</p>
+          <p>Tap <strong>Log In / Sign Up</strong> in the top corner, then choose <strong>Sign Up</strong>. Kids enter a first name, username, password, a parent's email, and their age.</p>
+          <h2>Why can't my child play yet?</h2>
+          <p>Every kid account needs a parent or guardian to <strong>approve it first</strong> - this applies to all kids. Until then it's "pending" and locked. A grown-up can approve by signing in with Google and confirming they're the parent, or by clicking the consent link we email and verifying they're an adult.</p>
+          <h2>Can I sign in with Google?</h2>
+          <p>Yes - parents and teachers can tap <strong>"Continue with Google"</strong> on the Log In / Sign Up box. It's for grown-ups (kids use a username and password), and Google shares only your name and email. When you sign up with Google, we'll ask for your child's details and your confirmation that you're the parent, then take you straight to the account.</p>
+          <h2>How do I change my username or email?</h2>
+          <p>Open <strong>Settings</strong> from your dashboard. Grown-ups can edit their own username/email; parents can edit their kids' - kids can't change their own without a parent.</p>
           <h2>Why can't my child log out?</h2>
-          <p>For safety, kids don't have a logout button. A parent (from the Family Dashboard) or an admin can sign a child out.</p>
+          <p>For safety, kids don't have a logout button. A parent (from your dashboard) or an admin can sign a child out.</p>
           <h2>How do I unlock the AI buddy?</h2>
-          <p>The AI buddy (Byte) is included on Pro and Family plans. You can upgrade from the checkout page.</p>
+          <p>The AI buddy (Byte) is included on Pro and Family plans. You can upgrade from the checkout page. (Paid plans aren't being charged yet.)</p>
           <h2>How do I get more lessons?</h2>
-          <p>Free and trial accounts have a lesson limit. When you reach it, you'll see upgrade options. Pro & Family have unlimited lessons.</p>
+          <p>Free and trial accounts have a daily lesson limit. When you reach it, you'll see upgrade options. Pro &amp; Family have unlimited lessons - 152 in all, across 16 worlds.</p>
           <p style="margin-top:14px;">Still stuck? <a href="page.html?p=contact">Contact support</a>.</p>`
       },
       about: {
@@ -149,7 +166,7 @@
             <li><strong>Mastery, not memorization</strong> - kids prove what they learned to level up.</li>
           </ul>
           <h2>The story</h2>
-          <p>KidVibers started with a simple question: what if learning to code felt as fun as your favorite game? Worlds, bosses, tokens, and an AI buddy are our answer.</p>`
+          <p>KidVibers was built by <strong>Elisha Clark</strong> - a young coder who wanted to learn but found most tools felt like homework. So the answer became a game: <strong>152 lessons across 16 themed worlds</strong>, boss battles, XP, tokens, certificates, and an AI buddy named Byte that gives hints without handing over the answer. It's ad-free, safe, COPPA-minded, and free to start.</p>`
       },
       careers: {
         title: '💼 Careers', lead: 'Help us teach the next generation to build.',
@@ -172,7 +189,7 @@
         title: '📰 Press', lead: 'News, brand assets, and media contact.',
         body: `
           <h2>About us (for media)</h2>
-          <p>KidVibers.com is a Duolingo-style coding platform for kids ages 6-16, featuring themed worlds, boss-battle assessments, an AI helper, and strong parental controls.</p>
+          <p>KidVibers.com is a Duolingo-style coding platform for kids ages 6-16, with <strong>152 lessons across 16 themed worlds</strong>, boss-battle assessments, an AI helper ("Byte"), certificates, and strong parental controls. Mandatory parental consent, ad-free, no data selling, and COPPA-minded. Founded and built by <strong>Elisha Clark</strong>.</p>
           <h2>Press kit</h2>
           <ul>
             <li>Logo &amp; brand colors (purple/pink gradient on dark);</li>
