@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=46" />
+  <link rel="stylesheet" href="styles.css?v=48" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -674,16 +674,22 @@
         </div>
       </div>
 
-      <!-- Google parent attestation (shown after a NEW Google sign-in) -->
+      <!-- After a NEW Google sign-in: collect the child's details + parent confirmation -->
       <div id="googleAttest" style="display:none;padding:16px 24px 24px;">
-        <div style="text-align:center;margin-bottom:12px;"><div style="font-size:2rem;">👨‍👩‍👧</div>
-          <div style="font-weight:900;font-size:1.1rem;margin-top:4px;">One quick check</div></div>
-        <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.55;margin-bottom:14px;">KidVibers is for kids, so a grown-up has to set up the account. Please confirm:</p>
-        <label style="display:flex;gap:10px;align-items:flex-start;font-size:0.92rem;font-weight:700;margin-bottom:14px;cursor:pointer;">
+        <div style="text-align:center;margin-bottom:10px;"><div style="font-size:2rem;">👨‍👩‍👧</div>
+          <div style="font-weight:900;font-size:1.1rem;margin-top:4px;">Set up your child's account</div></div>
+        <p style="color:var(--text-dim);font-size:0.84rem;margin-bottom:14px;text-align:center;">Signed in as <span id="gParentEmail" style="font-weight:800;"></span>. Now set up your child:</p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <input type="text" id="gKidName" placeholder="Child's first name" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="number" id="gKidAge" min="4" max="18" placeholder="Child's age (in years)" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="text" id="gKidUser" placeholder="Pick a username (3-20 letters/numbers)" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="password" id="gKidPass" placeholder="Create a password (min 6 characters)" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+        </div>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:0.9rem;font-weight:700;margin:14px 0;cursor:pointer;">
           <input type="checkbox" id="attestBox" onchange="document.getElementById('attestGo').disabled=!this.checked" style="margin-top:3px;">
           I confirm I am this child's <strong>parent or legal guardian</strong> and I am <strong>over 18</strong>.
         </label>
-        <button class="btn btn-primary btn-lg" id="attestGo" disabled onclick="confirmGoogleAttest()" style="width:100%;">Continue ✅</button>
+        <button class="btn btn-primary btn-lg" id="attestGo" disabled onclick="confirmGoogleAttest()" style="width:100%;">Create account ✅</button>
         <div id="attestMsg" style="color:#f87171;font-size:0.84rem;font-weight:700;margin-top:8px;min-height:1em;text-align:center;"></div>
       </div>
 
@@ -866,9 +872,9 @@
   </div>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=46"></script>
-  <script src="app.js?v=46"></script>
-  <script src="pwa.js?v=46" defer></script>
-  <script src="editor.js?v=46" defer></script>
+  <script src="auth.js?v=48"></script>
+  <script src="app.js?v=48"></script>
+  <script src="pwa.js?v=48" defer></script>
+  <script src="editor.js?v=48" defer></script>
 </body>
 </html>

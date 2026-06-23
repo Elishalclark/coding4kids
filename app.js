@@ -76,23 +76,31 @@ async function onGoogleSignIn(response) {
   const err = document.getElementById('loginError');
   if (err) { err.style.color = '#bdb6d6'; err.textContent = 'Signing in with Google…'; }
   const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: pendingGoogleCred });
-  if (ok) { finishGoogleLogin(data); return; }
-  // New account → require the "I'm the parent" checkbox first.
-  if (data && data.needsAttestation) { showGoogleAttest(); return; }
+  if (ok) { finishGoogleLogin(data); return; }                 // returning user → straight in
+  if (data && data.needsDetails) { showGoogleAttest(data.email); return; }  // new → ask for child's details
   if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + (data.error || 'Google sign-in failed.'); }
 }
-function showGoogleAttest() {
+function showGoogleAttest(parentEmail) {
   ['loginView', 'signupView', 'authTabs'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
   document.getElementById('googleAttest').style.display = '';
+  document.getElementById('gParentEmail').textContent = parentEmail || 'your Google account';
   document.getElementById('attestBox').checked = false;
   document.getElementById('attestGo').disabled = true;
   document.getElementById('attestMsg').textContent = '';
+  const n = document.getElementById('gKidName'); if (n) n.focus();
 }
 async function confirmGoogleAttest() {
   if (!document.getElementById('attestBox').checked || !pendingGoogleCred) return;
   const msg = document.getElementById('attestMsg');
-  msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating your account…';
-  const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: pendingGoogleCred, attest: true });
+  msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating the account…';
+  const payload = {
+    credential: pendingGoogleCred, attest: true,
+    kidName: document.getElementById('gKidName').value.trim(),
+    age: document.getElementById('gKidAge').value,
+    username: document.getElementById('gKidUser').value.trim(),
+    password: document.getElementById('gKidPass').value,
+  };
+  const { ok, data } = await C4K.api('/api/auth/google', 'POST', payload);
   if (!ok) { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not finish. Try again.'; return; }
   finishGoogleLogin(data);
 }

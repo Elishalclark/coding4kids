@@ -410,22 +410,50 @@ async function apiAuthGoogle(env, request, data) {
     row = await env.DB.prepare("SELECT * FROM users WHERE lower(parent_email)=? AND role IN ('parent','teacher','admin','super_admin')").bind(email).first();
     if (row) await env.DB.prepare("UPDATE users SET google_sub=? WHERE id=?").bind(sub, row.id).run();
   }
-  if (!row) {
-    // New grown-up → they must first confirm they're the parent/guardian (18+).
-    if (data.attest !== true && data.attest !== "true") {
-      return json({ needsAttestation: true, name, email });
-    }
-    const username = await uniqueUsername(env, name);
-    const r = await createUser(env, { role: "parent", name, username, password: randToken(20), email, age: "", plan: "family", trial_ends: null });
-    if (r.error) return json({ error: r.error }, r.status || 400);
-    await env.DB.prepare("UPDATE users SET family_id=?, google_sub=? WHERE id=?").bind(r.uid, sub, r.uid).run();
-    row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
+  if (row) {
+    // Returning Google user → log in.
+    const [active] = suspensionStatus(row);
+    if (active && row.suspended) return json({ error: "This account has been suspended." }, 403);
+    const token = await createSession(env, row.id);
+    return json({ token, user: await publicUser(env, row) });
   }
-  // Suspended accounts can't sign in.
-  const [active] = suspensionStatus(row);
-  if (active && row.suspended) return json({ error: "This account has been suspended." }, 403);
-  const token = await createSession(env, row.id);
-  return json({ token, user: await publicUser(env, row), isNew: !tok._existing });
+  // New → collect the child's details + the parent's confirmation, then make the account.
+  const kidName = (data.kidName || "").trim();
+  const username = (data.username || "").trim();
+  const password = data.password || "";
+  let ageYears = null;
+  if (data.age !== undefined && data.age !== "" && data.age !== null) { const n = parseInt(data.age, 10); if (!isNaN(n)) ageYears = n; }
+  const attest = data.attest === true || data.attest === "true";
+  if (!kidName || !username || !password || ageYears === null || !attest) {
+    // Ask the frontend to show the details form (prefill the parent's email from Google).
+    return json({ needsDetails: true, parentName: name, email });
+  }
+  const err = validateCredentials(kidName, username, password);
+  if (err) return json({ error: err }, 400);
+  if (ageYears < 4 || ageYears > 18) return json({ error: "Please enter the child's age (between 4 and 18)." }, 400);
+  // First 100 kids get 30 days of Pro free.
+  const slotsUsed = await launchSlotsUsed(env);
+  const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
+  const planDays = getLaunchPro ? PRO_LAUNCH_DAYS : TRIAL_DAYS;
+  const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+  // The parent signed in with their own (Google-verified) email AND confirmed they're the
+  // parent/guardian, so consent is GRANTED right away - the kid can play immediately.
+  const r = await createUser(env, {
+    role: "kid", name: kidName, username, password, email, age: "", age_years: ageYears,
+    plan: getLaunchPro ? "pro" : "trial", trial_ends: trialEnds,
+    consent_status: "granted", consent_method: "google_parent", consent_by: email,
+  });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  if (getLaunchPro) await env.DB.prepare("UPDATE users SET launch_pro=1 WHERE id=?").bind(r.uid).run();
+  await env.DB.prepare("UPDATE users SET google_sub=? WHERE id=?").bind(sub, r.uid).run();
+  await logConsent(env, r.uid, username, "google_parent", email, "Parent signed in with Google and confirmed they are the parent/guardian (18+)");
+  // Send the parent a confirmation/notice email.
+  await sendEmail(env, email, `${kidName}'s KidVibers account is ready 🎉`,
+    `<p>You set up <strong>${kidName}</strong>'s KidVibers account and confirmed you're the parent/guardian. They're all set to start coding!</p>
+     <p>You can manage the account anytime - and if this wasn't you, reply to let us know.</p>`);
+  const newRow = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
+  const token = await createSession(env, r.uid);
+  return json({ token, user: await publicUser(env, newRow), launchPro: getLaunchPro });
 }
 
 async function apiLogin(env, request, data, allow) {

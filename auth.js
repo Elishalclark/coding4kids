@@ -23,7 +23,13 @@ const C4K = {
 
   async loadMe() {
     if (!this.token()) { this.user = null; return null; }
-    const res = await this.api('/api/me');
+    let res = await this.api('/api/me');
+    // A fresh session can 401 for a second while the database replicates the new login.
+    // Retry once before deciding the token is really bad - so new sign-ins aren't logged out.
+    if (!res.ok && res.status === 401) {
+      await new Promise(r => setTimeout(r, 900));
+      res = await this.api('/api/me');
+    }
     if (res.ok) { this.user = res.data.user; }
     else if (res.status === 401) { this.user = null; this.setToken(null); }  // only a real 401 logs you out
     // transient errors (network/500): keep the token, keep prior user
