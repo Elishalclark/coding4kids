@@ -90,21 +90,44 @@ function showGoogleAttest(parentEmail) {
   const n = document.getElementById('gKidName'); if (n) n.focus();
 }
 async function confirmGoogleAttest() {
-  if (!document.getElementById('attestBox').checked || !pendingGoogleCred) return;
   const msg = document.getElementById('attestMsg');
+  const kidName = document.getElementById('gKidName').value.trim();
+  const age = document.getElementById('gKidAge').value.trim();
+  const username = document.getElementById('gKidUser').value.trim();
+  const password = document.getElementById('gKidPass').value;
+  // Validate everything on the page BEFORE sending - an incomplete request makes the
+  // server ask for details again (no token), which must never be treated as a login.
+  if (!pendingGoogleCred) { msg.style.color = '#f87171'; msg.textContent = 'Please tap "Continue with Google" again.'; return; }
+  if (!kidName) { msg.style.color = '#f87171'; msg.textContent = "Enter your child's first name."; return; }
+  const ageNum = parseInt(age, 10);
+  if (!age || isNaN(ageNum) || ageNum < 4 || ageNum > 18) { msg.style.color = '#f87171'; msg.textContent = "Enter your child's age (4-18)."; return; }
+  if (username.length < 3) { msg.style.color = '#f87171'; msg.textContent = 'Pick a username (at least 3 characters).'; return; }
+  if ((password || '').length < 6) { msg.style.color = '#f87171'; msg.textContent = 'Create a password (at least 6 characters).'; return; }
+  if (!document.getElementById('attestBox').checked) { msg.style.color = '#f87171'; msg.textContent = 'Please check the box to confirm you are the parent/guardian.'; return; }
+
+  const btn = document.getElementById('attestGo');
+  if (btn) btn.disabled = true;
   msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating the account…';
-  const payload = {
-    credential: pendingGoogleCred, attest: true,
-    kidName: document.getElementById('gKidName').value.trim(),
-    age: document.getElementById('gKidAge').value,
-    username: document.getElementById('gKidUser').value.trim(),
-    password: document.getElementById('gKidPass').value,
-  };
+  const payload = { credential: pendingGoogleCred, attest: true, kidName, age, username, password };
   const { ok, data } = await C4K.api('/api/auth/google', 'POST', payload);
+  if (btn) btn.disabled = false;
   if (!ok) { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not finish. Try again.'; return; }
+  // The server only returns a token once the account actually exists. If it asks for details
+  // again, something was missing - show a message instead of silently logging out.
+  if (!data || !data.token) {
+    msg.style.color = '#f87171';
+    msg.textContent = (data && data.needsDetails) ? 'Please fill in all the details above.' : 'Something went wrong - please try again.';
+    return;
+  }
   finishGoogleLogin(data);
 }
 function finishGoogleLogin(data) {
+  // Never wipe the session: only sign in if we actually got a token back.
+  if (!data || !data.token) {
+    const err = document.getElementById('loginError');
+    if (err) { err.style.color = '#f87171'; err.textContent = '❌ Sign-in did not complete. Please try again.'; }
+    return;
+  }
   C4K.setToken(data.token); C4K.user = data.user;
   pendingGoogleCred = null;
   closeLogin();
