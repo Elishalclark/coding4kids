@@ -76,9 +76,13 @@ async function onGoogleSignIn(response) {
   const err = document.getElementById('loginError');
   if (err) { err.style.color = '#bdb6d6'; err.textContent = 'Signing in with Google…'; }
   const { ok, data } = await C4K.api('/api/auth/google', 'POST', { credential: pendingGoogleCred });
-  if (ok) { finishGoogleLogin(data); return; }                 // returning user → straight in
-  if (data && data.needsDetails) { showGoogleAttest(data.email); return; }  // new → ask for child's details
-  if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + (data.error || 'Google sign-in failed.'); }
+  // New parent → the server asks for the child's details. This comes back as HTTP 200,
+  // so it MUST be checked before the "ok" login branch, or the form never shows.
+  if (data && data.needsDetails) { if (err) err.textContent = ''; showGoogleAttest(data.email); return; }
+  // Returning user with a real session token → straight in.
+  if (ok && data && data.token) { finishGoogleLogin(data); return; }
+  // Anything else is a real error.
+  if (err) { err.style.color = '#f87171'; err.textContent = '❌ ' + ((data && data.error) || 'Google sign-in failed.'); }
 }
 function showGoogleAttest(parentEmail) {
   ['loginView', 'signupView', 'authTabs'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
