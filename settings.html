@@ -28,7 +28,7 @@
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:8px;">
         <a href="#" class="btn btn-ghost" id="homeLink">Dashboard</a>
-        <button class="btn btn-outline" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
+        <button class="btn btn-outline" id="logoutBtn" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
       </div>
     </div>
   </nav>
@@ -69,6 +69,8 @@
       if (!ME) { document.getElementById('stGate').style.display = ''; return; }
       document.getElementById('stMain').style.display = '';
       document.getElementById('homeLink').href = C4K.homeFor(ME);
+      // Kids can't log themselves out — only a parent/guardian can.
+      if (ME.role === 'kid') document.getElementById('logoutBtn').style.display = 'none';
       document.getElementById('meName').value = ME.name || '';
       document.getElementById('meUser').value = ME.username || '';
       document.getElementById('meEmail').value = ME.parentEmail || '';

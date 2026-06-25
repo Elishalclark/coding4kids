@@ -496,7 +496,7 @@
       document.querySelector('#userRows').closest('table').querySelector('thead th:last-child').textContent = sup ? 'Change Plan' : 'Plan Control';
       document.getElementById('userRows').innerHTML = users.length ? users.map(u =>
         `<tr>
-           <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
+           <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${(sup && u.parentEmail) ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
            <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
            <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
            <td>${sup ? `
@@ -525,7 +525,7 @@
         return `<tr${a.suspended ? ' style="opacity:.6;"' : ''}>
            <td>${i + 1}</td>
            <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}</td>
-           <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span>${(a.role === 'kid' && a.parentEmail) ? `<br><span style="color:var(--text-faint);font-size:0.72rem;">📧 ${C4K.esc(a.parentEmail)}</span>` : ''}</td>
+           <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span>${(sup && a.role === 'kid' && a.parentEmail) ? `<br><span style="color:var(--text-faint);font-size:0.72rem;">📧 ${C4K.esc(a.parentEmail)}</span>` : ''}</td>
            <td>${roleTag(a.role)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
            <td style="color:var(--text-dim);">${a.joined || '-'}</td>
