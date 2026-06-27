@@ -976,10 +976,13 @@ async function apiCommentsGet(env, request, pid) {
   if (!proj || (!proj.shared && proj.user_id !== u.id && u.role !== "super_admin")) return json({ error: "Project not found" }, 404);
   const rows = (await env.DB.prepare("SELECT * FROM comments WHERE project_id=? ORDER BY id").bind(pid).all()).results || [];
   const isMod = u.role === "super_admin", ownsProject = proj.user_id === u.id;
-  return json({ comments: rows.map((c) => ({
-    id: c.id, author: c.author_name, body: c.body, at: (c.created_at || "").slice(0, 16).replace("T", " "),
-    reported: isMod ? !!c.reported : false, canDelete: isMod || ownsProject || c.user_id === u.id,
-  })) });
+  return json({ comments: rows
+    // Hide reported comments from everyone except the super admin and the comment's own author
+    .filter(c => !c.reported || isMod || c.user_id === u.id)
+    .map((c) => ({
+      id: c.id, author: c.author_name, body: c.body, at: (c.created_at || "").slice(0, 16).replace("T", " "),
+      reported: isMod ? !!c.reported : false, canDelete: isMod || ownsProject || c.user_id === u.id,
+    })) });
 }
 
 async function apiProjectSave(env, request, data) {
