@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=57" />
+  <link rel="stylesheet" href="styles.css?v=58" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -141,7 +141,7 @@
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
-  <script src="auth.js?v=57"></script>
+  <script src="auth.js?v=58"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -346,7 +346,7 @@
               </div>
             </div>
             ${nav}
-            <button onclick="document.getElementById('srPopup').remove();document.body.style.overflow='';" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
+            <button onclick="openActionPopup(${r.id},'${C4K.esc(r.kidName).replace(/'/g,"\\'")}','${C4K.esc(r.kidUsername).replace(/'/g,"\\'")}')" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
               ✅ Understood — I will take action
             </button>
             <p style="text-align:center;font-size:0.76rem;color:#6f6890;margin-top:10px;">This report stays in your dashboard for your records.</p>
@@ -356,6 +356,84 @@
       document.body.style.overflow = 'hidden';
     }
     loadSchoolReports();
+
+    function openActionPopup(reportId, kidName, kidUsername) {
+      document.getElementById('srPopup').remove();
+      document.body.style.overflow = 'hidden';
+      const existing = document.getElementById('srActionPopup');
+      if (existing) existing.remove();
+      const ov = document.createElement('div');
+      ov.id = 'srActionPopup';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(6,4,14,0.93);backdrop-filter:blur(6px);overflow-y:auto;padding:20px;font-family:\'Nunito\',system-ui,sans-serif;';
+      ov.innerHTML = `
+        <div style="max-width:520px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#1e3a5f,#1d4ed8);border:1px solid rgba(59,130,246,.4);border-radius:18px 18px 0 0;padding:20px 24px;display:flex;align-items:center;gap:14px;">
+            <span style="font-size:2rem;">⚖️</span>
+            <div>
+              <div style="font-size:1.1rem;font-weight:900;color:#fff;">What action are you taking?</div>
+              <div style="font-size:0.82rem;color:#bfdbfe;margin-top:2px;">Student: ${C4K.esc(kidName)} (@${C4K.esc(kidUsername)})</div>
+            </div>
+          </div>
+          <div style="background:#0f1a2e;border:1px solid rgba(59,130,246,.3);border-top:none;border-radius:0 0 18px 18px;padding:22px;">
+            <p style="color:#93c5fd;font-size:0.88rem;margin:0 0 16px;">Select the action you are taking. This will be sent to KidVibers so we know the situation is being handled.</p>
+
+            <div id="srActionList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+              ${[
+                ['⚠️ Verbal warning', 'Gave the student a verbal warning about their behaviour'],
+                ['📧 Contacted parent/guardian', 'Reached out to the student\'s parent or guardian'],
+                ['📝 Written warning on file', 'Issued a formal written warning and kept it on record'],
+                ['⏸️ Suspended from KidVibers (1 day)', 'Suspended the student\'s access for 1 day'],
+                ['⏸️ Suspended from KidVibers (1 week)', 'Suspended the student\'s access for 1 week'],
+                ['🚫 Removed from the platform', 'Permanently removed the student from KidVibers'],
+                ['🔍 Under investigation', 'The situation is being investigated before action is taken'],
+              ].map(([label, val]) => `
+                <label style="display:flex;align-items:center;gap:12px;background:#0a1628;border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(59,130,246,.5)'" onmouseout="this.style.borderColor='rgba(59,130,246,.2)'">
+                  <input type="radio" name="srAction" value="${C4K.esc(val)}" style="width:16px;height:16px;accent-color:#3b82f6;">
+                  <span style="font-weight:800;color:#e0f0ff;font-size:0.9rem;">${label}</span>
+                </label>`).join('')}
+            </div>
+
+            <label style="display:block;margin-bottom:14px;">
+              <div style="font-size:0.75rem;font-weight:900;color:#60a5fa;margin-bottom:6px;">📝 ADDITIONAL NOTES <span style="color:#4a6380;font-weight:600;">(optional)</span></div>
+              <textarea id="srActionNotes" rows="2" placeholder="Any extra details about the action taken…" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid rgba(59,130,246,.3);background:#0a1628;color:#e0f0ff;font-family:inherit;font-weight:700;font-size:0.88rem;resize:vertical;"></textarea>
+            </label>
+
+            <div id="srActionErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;margin-bottom:8px;"></div>
+            <button onclick="submitAction(${reportId})" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
+              📨 Submit my action
+            </button>
+            <button onclick="document.getElementById('srActionPopup').remove();document.body.style.overflow='';" style="width:100%;margin-top:8px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:none;color:#6f6890;font-weight:800;font-size:0.88rem;cursor:pointer;font-family:inherit;">
+              Skip — I'll handle this later
+            </button>
+          </div>
+        </div>`;
+      document.body.appendChild(ov);
+    }
+
+    async function submitAction(reportId) {
+      const selected = document.querySelector('input[name="srAction"]:checked');
+      const err = document.getElementById('srActionErr');
+      if (!selected) { err.textContent = 'Please select an action.'; return; }
+      const notes = document.getElementById('srActionNotes').value.trim();
+      const btn = document.querySelector('#srActionPopup button');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      const { ok, data } = await C4K.api('/api/school/reports/respond', 'POST', {
+        reportId, action: selected.value, notes
+      });
+      if (ok) {
+        document.getElementById('srActionPopup').remove();
+        document.body.style.overflow = '';
+        // Show a brief confirmation
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-weight:900;padding:14px 26px;border-radius:50px;z-index:9999;font-family:inherit;font-size:0.95rem;box-shadow:0 8px 30px rgba(0,0,0,.4);';
+        toast.textContent = '✅ Action recorded — KidVibers has been notified.';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+      } else {
+        err.textContent = (data && data.error) || 'Could not submit. Try again.';
+        btn.disabled = false; btn.textContent = '📨 Submit my action';
+      }
+    }
 
     // ── School Hours Schedule ──────────────────────────
     function scheduleChanged() {
@@ -401,7 +479,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=57" defer></script>
-  <script src="editor.js?v=57" defer></script>
+  <script src="pwa.js?v=58" defer></script>
+  <script src="editor.js?v=58" defer></script>
 </body>
 </html>

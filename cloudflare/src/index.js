@@ -1626,6 +1626,19 @@ async function apiSchoolReportsCount(env, request) {
   const row = await env.DB.prepare("SELECT COUNT(*) c FROM school_reports WHERE school_id=? AND status='unread'").bind(u.id).first();
   return json({ count: row?.c || 0 });
 }
+
+async function apiSchoolReportRespond(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const { reportId, action, notes } = data;
+  if (!reportId || !action) return json({ error: "Report ID and action are required." }, 400);
+  const report = await env.DB.prepare("SELECT * FROM school_reports WHERE id=? AND school_id=?").bind(reportId, u.id).first();
+  if (!report) return json({ error: "Report not found." }, 404);
+  const fullAction = notes ? `${action} — ${notes}` : action;
+  await env.DB.prepare("UPDATE school_reports SET school_action=?, status='actioned' WHERE id=?").bind(fullAction, reportId).run();
+  await sendSlack(env, `🏫 *School took action on report!*\n• School: ${u.school || u.username}\n• Student: ${report.kid_name} (@${report.kid_username})\n• Reason: ${report.reason}\n• Action taken: ${fullAction}`);
+  return json({ ok: true });
+}
 async function adminTakedowns(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare("SELECT t.*, p.title AS project_title, p.author_name AS project_author, p.shared AS project_shared FROM takedowns t LEFT JOIN projects p ON p.id=t.project_id WHERE t.status='pending' ORDER BY t.id DESC").all()).results || [];
@@ -2400,6 +2413,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/send-school-report" && method === "POST") return adminSendSchoolReport(env, request, data);
   if (path === "/api/school/reports" && method === "GET") return apiSchoolReports(env, request);
   if (path === "/api/school/reports/count" && method === "GET") return apiSchoolReportsCount(env, request);
+  if (path === "/api/school/reports/respond" && method === "POST") return apiSchoolReportRespond(env, request, data);
   if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
 
   if (path === "/api/contact" && method === "POST") {
