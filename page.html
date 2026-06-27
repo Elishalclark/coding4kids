@@ -203,23 +203,43 @@
         body: `
           <h2>Reach us</h2>
           <ul>
-            <li>📬 Email us anytime: <a href="mailto:support@kidvibers.com">support@kidvibers.com</a></li>
+            <li>📬 Email: <a href="mailto:support@kidvibers.com">support@kidvibers.com</a></li>
+            <li>💬 Chat with us on Slack: <a href="https://join.slack.com/t/kidviberscommunity/shared_invite/zt-42c5812o4-fYR6zj_0_sxYcGNvcdM~4w" target="_blank" rel="noopener" style="font-weight:800;color:var(--purple);">Join the KidVibers Community →</a></li>
           </ul>
           <h2>Send a message</h2>
           <form onsubmit="sendContact(event)" style="display:flex;flex-direction:column;gap:12px;max-width:460px;">
             <input id="cName" placeholder="Your name" required style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;" />
             <input id="cEmail" type="email" placeholder="Your email" required style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;" />
             <textarea id="cMsg" placeholder="How can we help?" required rows="4" style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-weight:700;resize:vertical;"></textarea>
-            <button type="submit" class="btn btn-primary">Send message</button>
-            <div id="cDone" style="color:var(--green);font-weight:800;min-height:18px;"></div>
+            <button type="submit" class="btn btn-primary" id="cBtn">Send message</button>
+            <div id="cDone" style="font-weight:800;min-height:18px;"></div>
           </form>`
       }
     };
 
-    function sendContact(e) {
+    async function sendContact(e) {
       e.preventDefault();
-      document.getElementById('cDone').textContent = "✅ Thanks! We'll reply to " + document.getElementById('cEmail').value + " soon.";
-      e.target.reset();
+      const btn = document.getElementById('cBtn');
+      const done = document.getElementById('cDone');
+      btn.disabled = true; done.style.color = 'var(--text-dim)'; done.textContent = 'Sending…';
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('cName').value.trim(),
+          email: document.getElementById('cEmail').value.trim(),
+          message: document.getElementById('cMsg').value.trim(),
+        }),
+      });
+      btn.disabled = false;
+      if (res.ok) {
+        done.style.color = 'var(--green, #22c55e)';
+        done.textContent = "✅ Sent! We'll reply to " + document.getElementById('cEmail').value + " soon.";
+        e.target.reset();
+      } else {
+        done.style.color = '#f87171';
+        done.textContent = '❌ Could not send — try emailing support@kidvibers.com directly.';
+      }
     }
 
     const key = new URLSearchParams(location.search).get('p');

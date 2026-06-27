@@ -585,6 +585,7 @@ async function apiSignup(env, request, data) {
     }
   }
   const token = await createSession(env, r.uid);
+  await sendSlack(env, `🧒 *New kid signed up!*\n• Name: ${name}\n• Username: @${username}\n• Age: ${ageYears}\n• Parent email: ${email || "none"}\n• Plan: ${planName}${getLaunchPro ? " (Launch Pro 🎉)" : ""}`);
   return json({
     token, user: await publicUser(env, r.row),
     inviteToken: r.row.link_token, inviteUrl, parentEmail: email,
@@ -1082,6 +1083,7 @@ async function apiParentSignup(env, request, data) {
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)").bind(email, "welcome", welcome, nowIso()).run();
   }
   const token = await createSession(env, r.uid);
+  await sendSlack(env, `👨‍👩‍👧 *New parent signed up!*\n• Name: ${name}\n• Username: @${username}\n• Email: ${email || "none"}${linked ? `\n• Linked to kid: ${linked}` : ""}`);
   return json({ token, user: await publicUser(env, row), linkedChild: linked });
 }
 
@@ -1096,6 +1098,7 @@ async function apiTeacherSignup(env, request, data) {
   await env.DB.prepare("UPDATE users SET family_id=?, class_code=? WHERE id=?").bind(r.uid, await genClassCode(env), r.uid).run();
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
   const token = await createSession(env, r.uid);
+  await sendSlack(env, `🏫 *New teacher/library signed up!*\n• Name: ${name}\n• Username: @${username}\n• School/Org: ${school}\n• Email: ${email || "none"}`);
   return json({ token, user: await publicUser(env, row) });
 }
 
@@ -1686,6 +1689,18 @@ async function adminTakedownResolve(env, request, data) {
 // ───────────────────────── email (Resend) ─────────────────────────
 // `from` is optional - pass it to send from a specific address (e.g. password@kidvibers.com
 // for reset emails). Everything else sends from support@kidvibers.com.
+// ── Slack notifications ──────────────────────────────────────
+async function sendSlack(env, text) {
+  if (!env.SLACK_WEBHOOK) return;
+  try {
+    await fetch(env.SLACK_WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch (_) {}
+}
+
 async function sendEmail(env, to, subject, html, from) {
   if (!to || !env.RESEND_API_KEY) return false;
   try {
@@ -2198,6 +2213,17 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/lesson/delete" && method === "POST") return adminDeleteLesson(env, request, data);
   if (path === "/api/admin/comment-dismiss" && method === "POST") return adminCommentDismiss(env, request, data);
   if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
+
+  if (path === "/api/contact" && method === "POST") {
+    const cname = (data.name || "").trim().slice(0, 100);
+    const cemail = (data.email || "").trim().slice(0, 200);
+    const cmsg = (data.message || "").trim().slice(0, 2000);
+    if (!cname || !cemail || !cmsg) return json({ error: "Name, email and message are required." }, 400);
+    await sendSlack(env, `📬 *New contact form message!*\n• From: ${cname} (${cemail})\n• Message: ${cmsg}`);
+    await sendEmail(env, "support@kidvibers.com", `Contact form: ${cname}`,
+      `<p><strong>From:</strong> ${cname} (${cemail})</p><p><strong>Message:</strong></p><p>${cmsg.replace(/\n/g,"<br>")}</p>`);
+    return json({ ok: true });
+  }
 
   // Unknown API route or method.
   return json({ error: "Not found." }, 404);
