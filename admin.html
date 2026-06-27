@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=54" />
+  <link rel="stylesheet" href="styles.css?v=55" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -501,7 +501,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=54"></script>
+  <script src="auth.js?v=55"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -918,10 +918,13 @@
       if (!ok) return;
       const rows = data.comments || [];
       document.getElementById('reportsCount').textContent = rows.length ? `· ${rows.length} to review` : '· all clear ✓';
+      // Store comment data in a map so onclick can pass just the id (no JSON in HTML attrs)
+      window._reportMap = {};
+      rows.forEach(c => { window._reportMap[c.id] = c; });
       document.getElementById('reportRows').innerHTML = rows.length ? rows.map(c => {
         const nm = (c.authorUsername || c.author || '').replace(/'/g,"\\'").replace(/[<>]/g,'');
         const schoolBtn = c.schoolId
-          ? `<button class="mini-btn" style="color:#a78bfa;border-color:rgba(167,139,250,.4);" onclick="openSchoolReport(${JSON.stringify(c).replace(/'/g,"\\'")})">🏫 Send to school</button>`
+          ? `<button class="mini-btn" style="color:#a78bfa;border-color:rgba(167,139,250,.4);" onclick="openSchoolReport(${c.id})">🏫 Send to school</button>`
           : '';
         return `<tr>
           <td style="max-width:280px;"><div style="white-space:pre-wrap;word-break:break-word;">${C4K.esc(c.body)}</div></td>
@@ -952,8 +955,8 @@
 
     // ── Send report to school ──
     let _srData = null;
-    function openSchoolReport(c) {
-      _srData = typeof c === 'string' ? JSON.parse(c) : c;
+    function openSchoolReport(id) {
+      _srData = window._reportMap && window._reportMap[id];
       document.getElementById('srSchoolName').textContent = _srData.schoolName || 'School';
       document.getElementById('srKidInfo').textContent = (_srData.author || '?') + ' (@' + (_srData.authorUsername || '?') + ')';
       document.getElementById('srCommentPreview').textContent = '"' + (_srData.body || '') + '"';
@@ -1196,7 +1199,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=54" defer></script>
-  <script src="editor.js?v=54" defer></script>
+  <script src="pwa.js?v=55" defer></script>
+  <script src="editor.js?v=55" defer></script>
 </body>
 </html>
