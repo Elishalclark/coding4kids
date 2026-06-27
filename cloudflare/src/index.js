@@ -1566,8 +1566,65 @@ async function adminSettingsGet(env, request) {
 }
 async function adminReportedComments(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const rows = (await env.DB.prepare("SELECT c.*, p.title AS project_title, us.username AS author_username, us.id AS author_id FROM comments c LEFT JOIN projects p ON p.id=c.project_id LEFT JOIN users us ON us.id=c.user_id WHERE c.reported > 0 ORDER BY c.reported DESC, c.id DESC").all()).results || [];
-  return json({ comments: rows.map((r) => ({ id: r.id, body: r.body, author: r.author_name, authorUsername: r.author_username ?? null, authorId: r.author_id ?? null, projectId: r.project_id, projectTitle: r.project_title || "(deleted project)", reports: r.reported, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+  const rows = (await env.DB.prepare(
+    "SELECT c.*, p.title AS project_title, us.username AS author_username, us.id AS author_id, " +
+    "us.family_id AS author_family_id, us.school AS author_school " +
+    "FROM comments c LEFT JOIN projects p ON p.id=c.project_id LEFT JOIN users us ON us.id=c.user_id " +
+    "WHERE c.reported > 0 ORDER BY c.reported DESC, c.id DESC"
+  ).all()).results || [];
+  // For each author, find their school (teacher account with same family_id)
+  const enriched = [];
+  for (const r of rows) {
+    let schoolId = null, schoolName = null;
+    if (r.author_family_id) {
+      const school = await env.DB.prepare("SELECT id,school FROM users WHERE (family_id=? OR id=?) AND role='teacher' LIMIT 1").bind(r.author_family_id, r.author_family_id).first();
+      if (school) { schoolId = school.id; schoolName = school.school || school.name; }
+    }
+    enriched.push({
+      id: r.id, body: r.body, author: r.author_name,
+      authorUsername: r.author_username ?? null, authorId: r.author_id ?? null,
+      projectId: r.project_id, projectTitle: r.project_title || "(deleted project)",
+      reports: r.reported, at: (r.created_at || "").slice(0, 16).replace("T", " "),
+      schoolId, schoolName,
+    });
+  }
+  return json({ comments: enriched });
+}
+
+async function adminSendSchoolReport(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const { schoolId, kidId, kidName, kidUsername, reason, commentBody, adminMessage } = data;
+  if (!schoolId || !kidName || !reason) return json({ error: "School, kid name, and reason are required." }, 400);
+  const school = await env.DB.prepare("SELECT id,school FROM users WHERE id=? AND role='teacher'").bind(schoolId).first();
+  if (!school) return json({ error: "School not found." }, 404);
+  const actionsSchool = "• Review the student's account and comments\n• Suspend the student if needed\n• Talk to the student and their guardian\n• Remove them from the platform if the behaviour continues";
+  const actionsAdmin = "• Remove the reported comment\n• Suspend or ban the student from KidVibers\n• Escalate to guardians via email\n• Permanently delete the account if required";
+  await env.DB.prepare(
+    "INSERT INTO school_reports (school_id,kid_id,kid_name,kid_username,reason,comment_body,admin_message,actions_school,actions_admin,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(schoolId, kidId || null, kidName, kidUsername || "", reason, commentBody || "", adminMessage || "", actionsSchool, actionsAdmin, "unread", nowIso()).run();
+  await sendSlack(env, `🚩 *Report sent to school!*\n• School: ${school.school}\n• Student: ${kidName} (@${kidUsername})\n• Reason: ${reason}`);
+  return json({ ok: true });
+}
+
+async function apiSchoolReports(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const rows = (await env.DB.prepare("SELECT * FROM school_reports WHERE school_id=? ORDER BY id DESC").bind(u.id).all()).results || [];
+  // Mark unread as read
+  await env.DB.prepare("UPDATE school_reports SET status='read' WHERE school_id=? AND status='unread'").bind(u.id).run();
+  return json({ reports: rows.map(r => ({
+    id: r.id, kidName: r.kid_name, kidUsername: r.kid_username, reason: r.reason,
+    commentBody: r.comment_body, adminMessage: r.admin_message,
+    actionsSchool: r.actions_school, actionsAdmin: r.actions_admin,
+    status: r.status, at: (r.created_at || "").slice(0, 16).replace("T", " "),
+  })) });
+}
+
+async function apiSchoolReportsCount(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ count: 0 });
+  const row = await env.DB.prepare("SELECT COUNT(*) c FROM school_reports WHERE school_id=? AND status='unread'").bind(u.id).first();
+  return json({ count: row?.c || 0 });
 }
 async function adminTakedowns(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
@@ -2340,6 +2397,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/lesson" && method === "POST") return adminSaveLesson(env, request, data);
   if (path === "/api/admin/lesson/delete" && method === "POST") return adminDeleteLesson(env, request, data);
   if (path === "/api/admin/comment-dismiss" && method === "POST") return adminCommentDismiss(env, request, data);
+  if (path === "/api/admin/send-school-report" && method === "POST") return adminSendSchoolReport(env, request, data);
+  if (path === "/api/school/reports" && method === "GET") return apiSchoolReports(env, request);
+  if (path === "/api/school/reports/count" && method === "GET") return apiSchoolReportsCount(env, request);
   if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
 
   if (path === "/api/contact" && method === "POST") {

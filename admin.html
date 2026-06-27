@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=53" />
+  <link rel="stylesheet" href="styles.css?v=54" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -418,6 +418,68 @@
     </div>
   </div>
 
+  <!-- Send report to school modal -->
+  <div class="modal-overlay hidden" id="schoolReportModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="chat-header">
+        <span class="chat-avatar">🏫</span>
+        <div style="flex:1;"><div class="chat-name">Send Report to School</div><div class="chat-status" id="srSchoolName">-</div></div>
+        <button class="modal-close" onclick="closeSchoolReport()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:14px;">
+        <!-- Kid info (read-only) -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:0.75rem;font-weight:800;color:var(--text-dim);margin-bottom:4px;">REPORTED STUDENT</div>
+          <div id="srKidInfo" style="font-weight:800;font-size:0.95rem;"></div>
+          <div id="srCommentPreview" style="margin-top:6px;font-size:0.82rem;color:var(--text-dim);white-space:pre-wrap;word-break:break-word;max-height:80px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:8px;"></div>
+        </div>
+
+        <!-- Reason -->
+        <label class="le-lbl">What was the student reported for?
+          <select id="srReason" class="le-in" style="padding:10px 12px;">
+            <option value="Inappropriate comment">Inappropriate comment</option>
+            <option value="Bullying or harassment">Bullying or harassment</option>
+            <option value="Hate speech or slurs">Hate speech or slurs</option>
+            <option value="Sharing personal information">Sharing personal information</option>
+            <option value="Spam or advertising">Spam or advertising</option>
+            <option value="Inappropriate project content">Inappropriate project content</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+
+        <!-- What school can do -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:0.75rem;font-weight:800;color:#a78bfa;margin-bottom:6px;">📋 WHAT THE SCHOOL CAN DO <span style="color:var(--text-faint);font-weight:600;">(shown to school)</span></div>
+          <ul style="margin:0;padding:0 0 0 16px;display:flex;flex-direction:column;gap:4px;font-size:0.83rem;color:var(--text-dim);">
+            <li>Review the student's account and comments</li>
+            <li>Suspend the student from the platform</li>
+            <li>Talk to the student and their guardian</li>
+            <li>Remove them if the behaviour continues</li>
+          </ul>
+        </div>
+
+        <!-- What admin might do -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:0.75rem;font-weight:800;color:#f59e0b;margin-bottom:6px;">⚠️ WHAT KIDVIBERS MAY DO <span style="color:var(--text-faint);font-weight:600;">(shown to school)</span></div>
+          <ul style="margin:0;padding:0 0 0 16px;display:flex;flex-direction:column;gap:4px;font-size:0.83rem;color:var(--text-dim);">
+            <li>Remove the reported comment immediately</li>
+            <li>Suspend or ban the student from KidVibers</li>
+            <li>Notify guardians via email</li>
+            <li>Permanently delete the account if required</li>
+          </ul>
+        </div>
+
+        <!-- Custom message -->
+        <label class="le-lbl">Custom message to the school <span style="color:var(--text-faint);font-weight:600;">(optional)</span>
+          <textarea id="srMessage" class="le-in" rows="3" placeholder="Add any extra context, instructions, or notes for the school admin…" style="resize:vertical;"></textarea>
+        </label>
+
+        <div id="srErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;"></div>
+        <button class="btn btn-primary btn-lg" onclick="sendSchoolReport()">📨 Send report to school</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Set username / password modal -->
   <div class="modal-overlay hidden" id="credsModal">
     <div class="modal">
@@ -439,7 +501,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=53"></script>
+  <script src="auth.js?v=54"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -858,9 +920,12 @@
       document.getElementById('reportsCount').textContent = rows.length ? `· ${rows.length} to review` : '· all clear ✓';
       document.getElementById('reportRows').innerHTML = rows.length ? rows.map(c => {
         const nm = (c.authorUsername || c.author || '').replace(/'/g,"\\'").replace(/[<>]/g,'');
+        const schoolBtn = c.schoolId
+          ? `<button class="mini-btn" style="color:#a78bfa;border-color:rgba(167,139,250,.4);" onclick="openSchoolReport(${JSON.stringify(c).replace(/'/g,"\\'")})">🏫 Send to school</button>`
+          : '';
         return `<tr>
           <td style="max-width:280px;"><div style="white-space:pre-wrap;word-break:break-word;">${C4K.esc(c.body)}</div></td>
-          <td>${C4K.esc(c.author || '?')}<br><span style="color:var(--text-faint);font-size:0.75rem;">@${C4K.esc(c.authorUsername || '')}</span></td>
+          <td>${C4K.esc(c.author || '?')}<br><span style="color:var(--text-faint);font-size:0.75rem;">@${C4K.esc(c.authorUsername || '')}</span>${c.schoolName ? `<br><span style="font-size:0.72rem;color:var(--purple);">🏫 ${C4K.esc(c.schoolName)}</span>` : ''}</td>
           <td><a href="gallery.html" style="color:var(--purple);">${C4K.esc(c.projectTitle)}</a></td>
           <td><span style="font-weight:900;color:#f59e0b;">⚑ ${c.reports}</span></td>
           <td style="color:var(--text-dim);">${C4K.esc(c.at)}</td>
@@ -868,6 +933,7 @@
             <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="removeReportedComment(${c.id})">🗑️ Remove</button>
             <button class="mini-btn" onclick="dismissReport(${c.id})">✓ Dismiss</button>
             ${c.authorId ? `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="suspendUser(${c.authorId},'${nm}',true)">⏸️ Suspend author</button>` : ''}
+            ${schoolBtn}
           </div></td>
         </tr>`; }).join('')
         : '<tr><td colspan="6" style="color:var(--text-faint);">No reported comments. 🎉</td></tr>';
@@ -882,6 +948,42 @@
     async function dismissReport(id) {
       const { ok, data } = await C4K.api('/api/admin/comment-dismiss', 'POST', { id });
       if (ok) loadReports(); else alert(data.error || 'Could not dismiss.');
+    }
+
+    // ── Send report to school ──
+    let _srData = null;
+    function openSchoolReport(c) {
+      _srData = typeof c === 'string' ? JSON.parse(c) : c;
+      document.getElementById('srSchoolName').textContent = _srData.schoolName || 'School';
+      document.getElementById('srKidInfo').textContent = (_srData.author || '?') + ' (@' + (_srData.authorUsername || '?') + ')';
+      document.getElementById('srCommentPreview').textContent = '"' + (_srData.body || '') + '"';
+      document.getElementById('srMessage').value = '';
+      document.getElementById('srErr').textContent = '';
+      document.getElementById('schoolReportModal').classList.remove('hidden');
+    }
+    function closeSchoolReport() { document.getElementById('schoolReportModal').classList.add('hidden'); _srData = null; }
+    async function sendSchoolReport() {
+      const err = document.getElementById('srErr');
+      err.textContent = '';
+      const reason = document.getElementById('srReason').value;
+      const message = document.getElementById('srMessage').value.trim();
+      const { ok, data } = await C4K.api('/api/admin/send-school-report', 'POST', {
+        schoolId: _srData.schoolId,
+        kidId: _srData.authorId,
+        kidName: _srData.author,
+        kidUsername: _srData.authorUsername,
+        reason,
+        commentBody: _srData.body,
+        adminMessage: message,
+      });
+      if (ok) {
+        closeSchoolReport();
+        loadReports();
+        alert('✅ Report sent to ' + (_srData.schoolName || 'the school') + ' successfully!');
+      } else {
+        err.style.color = '#f87171';
+        err.textContent = (data && data.error) || 'Could not send report.';
+      }
     }
 
     // ── Takedown requests (super admin) ──
@@ -1094,7 +1196,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=53" defer></script>
-  <script src="editor.js?v=53" defer></script>
+  <script src="pwa.js?v=54" defer></script>
+  <script src="editor.js?v=54" defer></script>
 </body>
 </html>

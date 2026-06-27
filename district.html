@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=53" />
+  <link rel="stylesheet" href="styles.css?v=54" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -159,6 +159,14 @@
       </div>
       <p id="schoolsEmpty" class="hint" style="display:none;margin-top:14px;">No schools yet - add your first one above. 👆</p>
     </div>
+
+    <!-- Reports from KidVibers admin -->
+    <div class="card" id="reportsCard" style="display:none;">
+      <h2>🚩 Reports from KidVibers <span id="reportsUnread" style="display:none;background:#ef4444;color:#fff;font-size:0.7rem;font-weight:900;padding:2px 8px;border-radius:50px;margin-left:6px;vertical-align:middle;"></span></h2>
+      <p class="hint">When a student in your school is reported and reviewed by the KidVibers team, a notice will appear here with details and suggested actions.</p>
+      <div id="reportsList" style="display:flex;flex-direction:column;gap:14px;"></div>
+      <p id="reportsEmpty" class="hint" style="display:none;margin-top:8px;">✅ No reports — your school is in good standing!</p>
+    </div>
   </main>
 
   <!-- Gate (wrong account / not logged in) -->
@@ -169,7 +177,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=53"></script>
+  <script src="auth.js?v=54"></script>
   <script>
     let ME = null;
 
@@ -206,6 +214,7 @@
         document.getElementById('brLogo').value = ME.brandLogo || '';
       }
       loadRoster();
+      loadSchoolReports();
       if (ME.isFullDistrict) { document.getElementById('schoolsCard').style.display = ''; loadSchools(); }
     })();
 
@@ -386,6 +395,59 @@
       else alert('❌ ' + (data.error || 'Could not move student.'));
     }
 
+    async function loadSchoolReports() {
+      const { ok, data } = await C4K.api('/api/school/reports');
+      if (!ok) return;
+      const reports = data.reports || [];
+      const card = document.getElementById('reportsCard');
+      card.style.display = '';
+      const unread = reports.filter(r => r.status === 'unread').length;
+      const badge = document.getElementById('reportsUnread');
+      if (unread > 0) { badge.style.display = ''; badge.textContent = unread + ' new'; }
+      const empty = document.getElementById('reportsEmpty');
+      const list = document.getElementById('reportsList');
+      empty.style.display = reports.length ? 'none' : '';
+      list.innerHTML = reports.map(r => `
+        <div style="background:var(--surface-2);border:1px solid ${r.status==='unread'?'#f59e0b':'var(--border)'};border-radius:12px;padding:18px 20px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-size:1.3rem;">🚩</span>
+            <div style="flex:1;">
+              <strong style="font-size:1rem;">${C4K.esc(r.kidName)} (@${C4K.esc(r.kidUsername)}) has been reported</strong>
+              ${r.status==='unread' ? '<span style="background:#ef4444;color:#fff;font-size:0.65rem;font-weight:900;padding:2px 7px;border-radius:50px;margin-left:6px;">NEW</span>' : ''}
+              <div style="color:var(--text-faint);font-size:0.78rem;margin-top:2px;">${C4K.esc(r.at)}</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="font-size:0.72rem;font-weight:900;color:#f59e0b;margin-bottom:4px;">REPORTED FOR</div>
+            <div style="font-weight:800;">${C4K.esc(r.reason)}</div>
+            ${r.commentBody ? `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-dim);font-style:italic;">"${C4K.esc(r.commentBody)}"</div>` : ''}
+          </div>
+
+          ${r.adminMessage ? `
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="font-size:0.72rem;font-weight:900;color:#a78bfa;margin-bottom:4px;">💬 MESSAGE FROM KIDVIBERS</div>
+            <div style="color:var(--text-dim);font-size:0.88rem;">${C4K.esc(r.adminMessage)}</div>
+          </div>` : ''}
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.25);border-radius:8px;padding:10px 12px;">
+              <div style="font-size:0.72rem;font-weight:900;color:#a78bfa;margin-bottom:6px;">✅ WHAT YOU CAN DO</div>
+              <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:var(--text-dim);display:flex;flex-direction:column;gap:4px;">
+                ${(r.actionsSchool||'').split('\n').filter(Boolean).map(a => `<li>${C4K.esc(a.replace(/^•\s*/,''))}</li>`).join('')}
+              </ul>
+            </div>
+            <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 12px;">
+              <div style="font-size:0.72rem;font-weight:900;color:#f59e0b;margin-bottom:6px;">⚠️ WHAT KIDVIBERS MAY DO</div>
+              <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:var(--text-dim);display:flex;flex-direction:column;gap:4px;">
+                ${(r.actionsAdmin||'').split('\n').filter(Boolean).map(a => `<li>${C4K.esc(a.replace(/^•\s*/,''))}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
     async function setSuspend(kidId, on) {
       let days = 0, reason = '';
       if (on) {
@@ -417,7 +479,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=53" defer></script>
-  <script src="editor.js?v=53" defer></script>
+  <script src="pwa.js?v=54" defer></script>
+  <script src="editor.js?v=54" defer></script>
 </body>
 </html>
