@@ -60,6 +60,7 @@ function lessonMins(l) {
 function render() {
   // COPPA: under-13 kids awaiting a parent's approval are fully locked out.
   if (C4K.consentLock(ME)) return;
+  if (C4K.scheduleLock(ME)) return;
   // banner
   const level = unitsPassed.size + 1;
   document.getElementById('pbLevel').textContent = level;

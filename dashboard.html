@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=51" />
+  <link rel="stylesheet" href="styles.css?v=52" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -122,10 +122,6 @@
           <div id="worldsMap" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
 
-        <div class="card">
-          <h3>📚 All Lessons</h3>
-          <div class="lesson-list" id="lessonList"></div>
-        </div>
       </div>
 
       <div>
@@ -177,7 +173,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=51"></script>
+  <script src="auth.js?v=52"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -333,13 +329,14 @@
     }
 
     function renderLessons() {
-      document.getElementById('lessonList').innerHTML = LESSONS.map(l => {
+      const ll = document.getElementById('lessonList');
+      if (ll) { ll.innerHTML = LESSONS.map(l => {
         const done = COMPLETED.includes(l.id);
         return `<div class="ll-row ${done?'done':''}">
           <span class="ll-check">${done?'✅':'⚪'}</span>
           <span class="ll-title">${l.emoji||''} ${l.title}</span>
           <span class="ll-xp">⚡ ${l.xp}</span></div>`;
-      }).join('') || '<p style="color:var(--text-dim);">No lessons yet.</p>';
+      }).join('') || '<p style="color:var(--text-dim);">No lessons yet.</p>'; }
 
       const next = LESSONS.find(l => !COMPLETED.includes(l.id));
       if (next) {
@@ -458,6 +455,7 @@
       }
       // COPPA: under-13 accounts are fully locked until a grown-up approves - nothing works.
       if (C4K.consentLock(ME)) return;
+      if (C4K.scheduleLock(ME)) return;
       schoolBrandBar();
       document.getElementById('dAv').innerHTML = C4K.renderAvatar(ME.avatar, 70);
       document.getElementById('avPreview').innerHTML = C4K.renderAvatar(ME.avatar, 80);
@@ -588,7 +586,7 @@
 
     load();
   </script>
-  <script src="pwa.js?v=51" defer></script>
-  <script src="editor.js?v=51" defer></script>
+  <script src="pwa.js?v=52" defer></script>
+  <script src="editor.js?v=52" defer></script>
 </body>
 </html>

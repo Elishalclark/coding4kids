@@ -263,6 +263,16 @@ async function publicUser(env, user) {
   const kidBrand = user.role === "kid" ? await familyBranding(env, user.family_id) : {};
   const kidGroup = user.role === "kid" ? await familyGroup(env, user.family_id) : {};
 
+  // School schedule check: if the kid's teacher has hours set, enforce them.
+  let scheduleLocked = false, scheduleMsg = "";
+  if (user.role === "kid" && user.family_id) {
+    const sched = await getTeacherSchedule(env, user.family_id);
+    if (sched) {
+      const check = scheduleAllows(sched);
+      if (!check.allowed) { scheduleLocked = true; scheduleMsg = check.reason; }
+    }
+  }
+
   return {
     id: user.id, role: user.role, name: user.name, username: user.username,
     plan: user.plan, effectivePlan: eff, trialDaysLeft: trialDaysLeft(user),
@@ -277,6 +287,7 @@ async function publicUser(env, user) {
     ageBand: user.age_band, ageYears: user.age_years ?? null, familyId: user.family_id,
     consentStatus: cstatus, consentMethod: user.consent_method ?? null,
     needsConsent: user.role === "kid" && cstatus === "pending",
+    scheduleLocked, scheduleMsg,
     school: user.school ?? null,
     suspended: !!(user.suspended),
     hasBilling: !!(user.stripe_customer_id),
@@ -287,6 +298,72 @@ async function publicUser(env, user) {
     ...kidBrand,
     ...kidGroup,
   };
+}
+
+// ── School schedule access control ───────────────────────────
+// Returns {allowed, reason} based on the teacher/school/district schedule JSON.
+function scheduleAllows(schedule) {
+  if (!schedule || !schedule.enabled) return { allowed: true };
+  const tz = schedule.timezone || "America/New_York";
+  try {
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(now).map(p => [p.type, p.value]));
+    const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dayNum = dayMap[parts.weekday] ?? 0;
+    const cur = parseInt(parts.hour) * 60 + parseInt(parts.minute);
+    const days = schedule.days ?? [1, 2, 3, 4, 5];
+    if (!days.includes(dayNum)) {
+      const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const allowedNames = days.map(d => dayNames[d]).join(", ");
+      return { allowed: false, reason: `Not a school day. Access is available on: ${allowedNames}.` };
+    }
+    const [sh, sm] = (schedule.start || "00:00").split(":").map(Number);
+    const [eh, em] = (schedule.end || "23:59").split(":").map(Number);
+    const start = sh * 60 + sm, end = eh * 60 + em;
+    if (cur < start) {
+      return { allowed: false, reason: `School hasn't started yet. Access opens at ${schedule.start} (${tz}).` };
+    }
+    if (cur > end) {
+      return { allowed: false, reason: `School hours are over. Access was until ${schedule.end} (${tz}).` };
+    }
+    return { allowed: true };
+  } catch { return { allowed: true }; }
+}
+
+async function getTeacherSchedule(env, familyId) {
+  if (!familyId) return null;
+  const teacher = await env.DB.prepare("SELECT schedule FROM users WHERE id=? AND role='teacher'").bind(familyId).first();
+  if (!teacher || !teacher.schedule) return null;
+  try { return JSON.parse(teacher.schedule); } catch { return null; }
+}
+
+async function apiTeacherScheduleGet(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["teacher"].includes(u.role)) return json({ error: "Teachers only." }, 403);
+  let schedule = null;
+  try { schedule = u.schedule ? JSON.parse(u.schedule) : null; } catch {}
+  return json({ schedule: schedule || { enabled: false, timezone: "America/New_York", days: [1,2,3,4,5], start: "08:00", end: "15:30" } });
+}
+
+async function apiTeacherScheduleSet(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["teacher"].includes(u.role)) return json({ error: "Teachers only." }, 403);
+  const schedule = {
+    enabled: !!data.enabled,
+    timezone: (data.timezone || "America/New_York").trim(),
+    days: Array.isArray(data.days) ? data.days.map(Number).filter(d => d >= 0 && d <= 6) : [1,2,3,4,5],
+    start: (data.start || "08:00").trim(),
+    end: (data.end || "15:30").trim(),
+  };
+  await env.DB.prepare("UPDATE users SET schedule=? WHERE id=?").bind(JSON.stringify(schedule), u.id).run();
+  // Also apply to any school sub-accounts under a district teacher
+  if (DISTRICT_PLANS.includes(u.plan)) {
+    await env.DB.prepare("UPDATE users SET schedule=? WHERE district_id=? AND role='teacher'").bind(JSON.stringify(schedule), u.id).run();
+  }
+  return json({ ok: true, schedule });
 }
 
 // ───────────────────────── sessions ─────────────────────────
@@ -2171,6 +2248,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/school/student/suspend" && method === "POST") return apiSchoolSuspend(env, request, data);
   if (path === "/api/school/student/credentials" && method === "POST") return apiSchoolCredentials(env, request, data);
   if (path === "/api/teacher/new-code" && method === "POST") return apiTeacherNewCode(env, request);
+  if (path === "/api/teacher/schedule" && method === "GET") return apiTeacherScheduleGet(env, request);
+  if (path === "/api/teacher/schedule" && method === "POST") return apiTeacherScheduleSet(env, request, data);
   if (path === "/api/quiz/submit" && method === "POST") return apiQuizSubmit(env, request, data);
 
   // lessons / progress

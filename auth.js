@@ -231,6 +231,34 @@ const C4K = {
     return true;
   },
 
+  // ── School schedule lock: blocks kids outside school hours ──
+  scheduleLock(me) {
+    me = me || this.user;
+    if (!me || me.role !== 'kid' || !me.scheduleLocked) return false;
+    if (document.getElementById('c4kScheduleLock')) return true;
+    const ov = document.createElement('div');
+    ov.id = 'c4kScheduleLock';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:rgba(8,6,18,0.97);' +
+      'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;' +
+      "font-family:'Nunito',system-ui,sans-serif;");
+    ov.innerHTML =
+      '<div style="max-width:480px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
+        '<div style="font-size:3.5rem;">🏫</div>' +
+        '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">School hours</h1>' +
+        '<p style="color:#bdb6d6;line-height:1.6;margin-bottom:12px;">' + this.esc(me.scheduleMsg || "KidVibers isn't available right now.") + '</p>' +
+        '<p style="color:#7c6faa;font-size:0.88rem;line-height:1.6;">Your teacher controls when you can access KidVibers.<br>Come back during school hours and you\'ll be able to jump right in! 📚</p>' +
+        '<div style="margin-top:24px;padding:14px;background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;">' +
+          '<p style="font-size:0.82rem;color:#9b93c4;font-weight:800;margin:0 0 8px;">👤 Signed in as <strong style="color:#fff;">' + this.esc(me.name) + '</strong></p>' +
+          '<button onclick="C4K.logout().then(()=>location.href=\'index.html\')" style="width:100%;padding:10px;border:1px solid #3a2f63;border-radius:10px;background:none;color:#bdb6d6;font-weight:800;font-size:0.9rem;cursor:pointer;">Switch account</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return true;
+  },
+
   // ── Avatar catalog (mirrors the server shop) for rendering anywhere ──
   SHOP: [
     { id:'face_kid',name:'Classic',cat:'face',emoji:'🧒',price:0 },
