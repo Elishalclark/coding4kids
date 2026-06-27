@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=52" />
+  <link rel="stylesheet" href="styles.css?v=53" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -114,6 +114,12 @@
           <div class="field"><label>Student name</label><input id="stName" required placeholder="First name" /></div>
           <div class="field"><label>Username</label><input id="stUser" required placeholder="3-20 letters/numbers" /></div>
           <div class="field"><label>Password</label><input id="stPass" required type="text" placeholder="min 6 characters" /></div>
+          <div class="field" id="stSchoolField" style="display:none;">
+            <label>Assign to school <span style="color:var(--text-faint);font-weight:600;">(optional)</span></label>
+            <select id="stSchool" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;">
+              <option value="">— District level (no specific school) —</option>
+            </select>
+          </div>
           <button class="btn btn-primary" id="addBtn" type="submit">➕ Add student</button>
           <div class="msg" id="addMsg"></div>
         </form>
@@ -126,7 +132,7 @@
       <p class="hint">Suspend, change a login, or remove any student in your organization.</p>
       <div style="overflow-x:auto;">
         <table class="roster">
-          <thead><tr><th>Student</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Student</th><th>Username</th><th>School</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="rosterBody"></tbody>
         </table>
       </div>
@@ -163,7 +169,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=52"></script>
+  <script src="auth.js?v=53"></script>
   <script>
     let ME = null;
 
@@ -245,11 +251,33 @@
       return { txt: used + ' of ' + limit + ' students used', pct: limit ? Math.round(used / limit * 100) : 0 };
     }
 
+    let SCHOOLS_CACHE = [];
+
     async function loadRoster() {
-      const { ok, data } = await C4K.api('/api/parent/family');
+      // Use district-wide roster so students from all schools show up
+      const useDistrict = ME && ME.isFullDistrict;
+      const endpoint = useDistrict ? '/api/district/roster' : '/api/parent/family';
+      const { ok, data } = await C4K.api(endpoint);
       if (!ok) return;
-      const kids = data.kids || [];
-      const limit = (data.parent && data.parent.studentLimit);
+
+      let kids, limit;
+      if (useDistrict) {
+        kids = data.kids || [];
+        limit = data.limit;
+        // Populate school dropdown with the district's schools
+        SCHOOLS_CACHE = data.schools || [];
+        const sel = document.getElementById('stSchool');
+        const field = document.getElementById('stSchoolField');
+        if (SCHOOLS_CACHE.length > 0) {
+          sel.innerHTML = '<option value="">— District level (no specific school) —</option>' +
+            SCHOOLS_CACHE.map(s => `<option value="${s.id}">${C4K.esc(s.name)}</option>`).join('');
+          field.style.display = '';
+        }
+      } else {
+        kids = data.kids || [];
+        limit = data.parent && data.parent.studentLimit;
+      }
+
       const s = seats(kids.length, limit);
       document.getElementById('seatHint').textContent = s.txt;
       document.getElementById('seatFill').style.width = s.pct + '%';
@@ -258,9 +286,16 @@
       document.getElementById('rosterEmpty').style.display = kids.length ? 'none' : '';
       body.innerHTML = kids.map(k => {
         const susp = k.suspended;
+        const schoolCell = useDistrict
+          ? '<td><span style="font-size:0.82rem;color:var(--text-dim);font-weight:700;">' +
+              (k.schoolName ? '🏫 ' + C4K.esc(k.schoolName) : '<span style="color:var(--text-faint);">District</span>') +
+              (ME.isFullDistrict ? ' <button class="mini" style="font-size:0.7rem;padding:2px 7px;" onclick="reassignStudent(' + k.id + ',\'' + C4K.esc(k.name) + '\')">Move</button>' : '') +
+            '</span></td>'
+          : '<td>—</td>';
         return '<tr>' +
           '<td>' + C4K.esc(k.name) + '</td>' +
           '<td>@' + C4K.esc(k.username) + '</td>' +
+          schoolCell +
           '<td>' + (susp ? '<span class="pill susp">Suspended</span>' : '<span class="pill ok">Active</span>') + '</td>' +
           '<td><div class="rowbtns">' +
             (susp
@@ -320,17 +355,35 @@
       const msg = document.getElementById('addMsg');
       const btn = document.getElementById('addBtn');
       btn.disabled = true;
+      const schoolId = document.getElementById('stSchool') ? document.getElementById('stSchool').value : '';
       const body = {
         name: document.getElementById('stName').value.trim(),
         username: document.getElementById('stUser').value.trim(),
         password: document.getElementById('stPass').value,
-        ageBand: '11-13'
+        ageBand: '11-13',
       };
+      if (schoolId) body.schoolId = parseInt(schoolId);
       const { ok, data } = await C4K.api('/api/parent/add-kid', 'POST', body);
       msg.style.color = ok ? 'var(--green,#4ade80)' : '#f87171';
-      msg.textContent = ok ? '✅ Added ' + body.name + '!' : '❌ ' + (data.error || 'Could not add student.');
+      const schoolName = schoolId ? (SCHOOLS_CACHE.find(s => s.id == schoolId) || {}).name : null;
+      msg.textContent = ok
+        ? '✅ Added ' + body.name + (schoolName ? ' → ' + schoolName : '') + '!'
+        : '❌ ' + (data.error || 'Could not add student.');
       if (ok) { ev.target.reset(); loadRoster(); }
       btn.disabled = false;
+    }
+
+    async function reassignStudent(kidId, kidName) {
+      if (!SCHOOLS_CACHE.length) { alert('No schools in this district yet.'); return; }
+      const opts = SCHOOLS_CACHE.map(s => s.name).join('\n');
+      const pick = prompt(`Move ${kidName} to which school?\n\n${SCHOOLS_CACHE.map((s,i)=>`${i+1}. ${s.name}`).join('\n')}\n\nEnter number (or 0 to cancel):`);
+      if (!pick || pick === '0') return;
+      const idx = parseInt(pick) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= SCHOOLS_CACHE.length) { alert('Invalid selection.'); return; }
+      const school = SCHOOLS_CACHE[idx];
+      const { ok, data } = await C4K.api('/api/district/assign-school', 'POST', { kidId, schoolId: school.id });
+      if (ok) { alert('✅ ' + kidName + ' moved to ' + school.name + '!'); loadRoster(); }
+      else alert('❌ ' + (data.error || 'Could not move student.'));
     }
 
     async function setSuspend(kidId, on) {
@@ -364,7 +417,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=52" defer></script>
-  <script src="editor.js?v=52" defer></script>
+  <script src="pwa.js?v=53" defer></script>
+  <script src="editor.js?v=53" defer></script>
 </body>
 </html>

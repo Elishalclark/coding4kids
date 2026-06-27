@@ -1196,13 +1196,60 @@ async function apiParentAddKid(env, request, data) {
   }
   const method = isTeacher ? "school" : "parent_account";
   const grantedBy = isTeacher ? `${u.school} (teacher: ${u.username})` : (u.parent_email || u.username);
+
+  // District accounts can assign a student directly to a specific school.
+  let assignFamilyId = u.family_id;
+  if (isTeacher && DISTRICT_PLANS.includes(u.plan) && data.schoolId) {
+    const school = await env.DB.prepare("SELECT id,family_id FROM users WHERE id=? AND district_id=? AND role='teacher'").bind(data.schoolId, u.id).first();
+    if (school) assignFamilyId = school.family_id || school.id;
+  }
+
   const r = await createUser(env, {
     role: "kid", name, username, password, email: u.parent_email || "", age, plan: "family", trial_ends: null,
-    family_id: u.family_id, consent_status: "granted", consent_method: method, consent_by: grantedBy,
+    family_id: assignFamilyId, consent_status: "granted", consent_method: method, consent_by: grantedBy,
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
   await logConsent(env, r.uid, username, method, grantedBy, isTeacher ? "School/classroom consent" : "Parent created the account");
   return json({ token: null, user: await publicUser(env, r.row) });
+}
+
+// All students across all schools in the district (for the roster view).
+async function apiDistrictRoster(env, request) {
+  const d = await fullDistrict(env, request);
+  if (!d) return json({ error: "District accounts only." }, 403);
+  // Get all school family_ids in this district
+  const schools = (await env.DB.prepare("SELECT id,school,family_id FROM users WHERE district_id=? AND role='teacher'").bind(d.id).all()).results || [];
+  const schoolMap = {}; // familyId → school name
+  schools.forEach(s => { schoolMap[s.family_id || s.id] = s.school || "Unknown School"; });
+  // Also include the district's own students (family_id = district.family_id)
+  schoolMap[d.family_id] = null; // null = "District level"
+  const allFamilyIds = [d.family_id, ...schools.map(s => s.family_id || s.id)];
+  const uniqueIds = [...new Set(allFamilyIds)];
+  const ph = uniqueIds.map(() => "?").join(",");
+  const kids = (await env.DB.prepare(`SELECT id,name,username,suspended,family_id FROM users WHERE role='kid' AND family_id IN (${ph}) ORDER BY family_id,id`).bind(...uniqueIds).all()).results || [];
+  return json({
+    kids: kids.map(k => ({
+      id: k.id, name: k.name, username: k.username, suspended: !!k.suspended,
+      familyId: k.family_id, schoolName: schoolMap[k.family_id] || null,
+    })),
+    schools: schools.map(s => ({ id: s.id, name: s.school || "School", familyId: s.family_id || s.id })),
+    total: kids.length,
+    limit: teacherPlanCfg(d.plan).students,
+  });
+}
+
+// District can reassign an existing student to a different school.
+async function apiDistrictAssignSchool(env, request, data) {
+  const d = await fullDistrict(env, request);
+  if (!d) return json({ error: "District accounts only." }, 403);
+  const school = await env.DB.prepare("SELECT id,family_id,school FROM users WHERE id=? AND district_id=? AND role='teacher'").bind(data.schoolId, d.id).first();
+  if (!school) return json({ error: "That school isn't in your district." }, 404);
+  // Verify the kid belongs to this district (any of its schools or the district itself)
+  const kid = await env.DB.prepare("SELECT id,name,username FROM users WHERE id=? AND role='kid'").bind(data.kidId).first();
+  if (!kid) return json({ error: "Student not found." }, 404);
+  const targetFamily = school.family_id || school.id;
+  await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(targetFamily, kid.id).run();
+  return json({ ok: true, school: school.school || "School", student: kid.name });
 }
 
 async function apiParentFamily(env, request) {
@@ -2243,6 +2290,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/parent/update-kid" && method === "POST") return apiParentUpdateKid(env, request, data);
   if (path === "/api/district/schools" && method === "GET") return apiDistrictSchools(env, request);
   if (path === "/api/district/add-school" && method === "POST") return apiDistrictAddSchool(env, request, data);
+  if (path === "/api/district/assign-school" && method === "POST") return apiDistrictAssignSchool(env, request, data);
+  if (path === "/api/district/roster" && method === "GET") return apiDistrictRoster(env, request);
   if (path === "/api/district/remove-school" && method === "POST") return apiDistrictRemoveSchool(env, request, data);
   if (path === "/api/school/branding" && method === "POST") return apiSchoolBranding(env, request, data);
   if (path === "/api/school/student/suspend" && method === "POST") return apiSchoolSuspend(env, request, data);
