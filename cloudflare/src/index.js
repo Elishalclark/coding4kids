@@ -1619,6 +1619,7 @@ async function apiSchoolReports(env, request) {
     id: r.id, kidName: r.kid_name, kidUsername: r.kid_username, reason: r.reason,
     commentBody: r.comment_body, adminMessage: r.admin_message,
     actionsSchool: r.actions_school, actionsAdmin: r.actions_admin,
+    schoolAction: r.school_action ?? null,
     status: r.status, at: (r.created_at || "").slice(0, 16).replace("T", " "),
   })) });
 }
