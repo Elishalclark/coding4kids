@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=56" />
+  <link rel="stylesheet" href="styles.css?v=57" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -141,7 +141,7 @@
     <div class="kid-grid" id="kidGrid"></div>
   </main>
 
-  <script src="auth.js?v=56"></script>
+  <script src="auth.js?v=57"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -287,6 +287,76 @@
 
     load();
 
+    // ── School reports popup ───────────────────────────
+    async function loadSchoolReports() {
+      const { ok, data } = await C4K.api('/api/school/reports');
+      if (!ok || !data.reports || !data.reports.length) return;
+      const unread = data.reports.filter(r => r.status === 'unread');
+      if (unread.length) showReportPopup(unread, 0);
+    }
+
+    function showReportPopup(reports, idx) {
+      const r = reports[idx];
+      if (!r) return;
+      const existing = document.getElementById('srPopup');
+      if (existing) existing.remove();
+      const toItems = txt => (txt||'').split('\n').filter(Boolean).map(a => `<li style="margin-bottom:4px;">${C4K.esc(a.replace(/^•\s*/,''))}</li>`).join('');
+      const nav = reports.length > 1
+        ? `<div style="text-align:center;color:#7c6faa;font-size:0.85rem;font-weight:800;margin-bottom:14px;">
+             Report ${idx+1} of ${reports.length} &nbsp;
+             <button onclick="showReportPopup(window._rpList,${idx-1})" ${idx===0?'disabled':''} style="background:none;border:1px solid #3a2f63;color:#bdb6d6;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:800;">← Prev</button>
+             <button onclick="showReportPopup(window._rpList,${idx+1})" ${idx===reports.length-1?'disabled':''} style="background:none;border:1px solid #3a2f63;color:#bdb6d6;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:800;">Next →</button>
+           </div>` : '';
+      window._rpList = reports;
+      const ov = document.createElement('div');
+      ov.id = 'srPopup';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(6,4,14,0.93);backdrop-filter:blur(6px);overflow-y:auto;padding:20px;font-family:\'Nunito\',system-ui,sans-serif;';
+      ov.innerHTML = `
+        <div style="max-width:580px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#7f1d1d,#991b1b);border:1px solid rgba(239,68,68,.4);border-radius:18px 18px 0 0;padding:20px 24px;display:flex;align-items:center;gap:14px;">
+            <span style="font-size:2rem;">🚩</span>
+            <div style="flex:1;">
+              <div style="font-size:1.1rem;font-weight:900;color:#fff;">Student Report from KidVibers</div>
+              <div style="font-size:0.8rem;color:#fca5a5;margin-top:2px;">KidVibers Safety Team · ${C4K.esc(r.at)}</div>
+            </div>
+          </div>
+          <div style="background:#170f1e;border:1px solid rgba(239,68,68,.3);border-top:none;border-radius:0 0 18px 18px;padding:22px;">
+            <div style="background:#0f0a18;border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+              <div style="font-size:0.68rem;font-weight:900;color:#f87171;letter-spacing:0.06em;margin-bottom:5px;">REPORTED STUDENT</div>
+              <div style="font-size:1.05rem;font-weight:900;color:#fff;">${C4K.esc(r.kidName)}</div>
+              <div style="font-size:0.82rem;color:#c4b5fd;margin-top:2px;">@${C4K.esc(r.kidUsername)}</div>
+            </div>
+            <div style="background:#0f0a18;border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+              <div style="font-size:0.68rem;font-weight:900;color:#f59e0b;letter-spacing:0.06em;margin-bottom:5px;">REPORTED FOR</div>
+              <div style="font-size:1rem;font-weight:800;color:#fff;">${C4K.esc(r.reason)}</div>
+              ${r.commentBody ? `<div style="margin-top:8px;font-size:0.82rem;color:#9b93c4;font-style:italic;background:#08060f;border-radius:8px;padding:8px 10px;">"${C4K.esc(r.commentBody)}"</div>` : ''}
+            </div>
+            ${r.adminMessage ? `<div style="background:#0f0a18;border:1px solid rgba(167,139,250,.3);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+              <div style="font-size:0.68rem;font-weight:900;color:#a78bfa;letter-spacing:0.06em;margin-bottom:5px;">💬 MESSAGE FROM KIDVIBERS</div>
+              <div style="color:#e0d4ff;font-size:0.88rem;line-height:1.6;">${C4K.esc(r.adminMessage)}</div>
+            </div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
+              <div style="background:#0a1a12;border:1px solid rgba(34,197,94,.25);border-radius:12px;padding:12px 14px;">
+                <div style="font-size:0.68rem;font-weight:900;color:#4ade80;letter-spacing:0.06em;margin-bottom:6px;">✅ WHAT YOU CAN DO</div>
+                <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:#a7f3c0;">${toItems(r.actionsSchool)}</ul>
+              </div>
+              <div style="background:#1a140a;border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:12px 14px;">
+                <div style="font-size:0.68rem;font-weight:900;color:#f59e0b;letter-spacing:0.06em;margin-bottom:6px;">⚠️ WHAT KIDVIBERS MAY DO</div>
+                <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:#fde68a;">${toItems(r.actionsAdmin)}</ul>
+              </div>
+            </div>
+            ${nav}
+            <button onclick="document.getElementById('srPopup').remove();document.body.style.overflow='';" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
+              ✅ Understood — I will take action
+            </button>
+            <p style="text-align:center;font-size:0.76rem;color:#6f6890;margin-top:10px;">This report stays in your dashboard for your records.</p>
+          </div>
+        </div>`;
+      document.body.appendChild(ov);
+      document.body.style.overflow = 'hidden';
+    }
+    loadSchoolReports();
+
     // ── School Hours Schedule ──────────────────────────
     function scheduleChanged() {
       const enabled = document.getElementById('schedEnabled').checked;
@@ -331,7 +401,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=56" defer></script>
-  <script src="editor.js?v=56" defer></script>
+  <script src="pwa.js?v=57" defer></script>
+  <script src="editor.js?v=57" defer></script>
 </body>
 </html>
