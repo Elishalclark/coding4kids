@@ -295,8 +295,9 @@ document.getElementById('pricingModal')?.addEventListener('click', (e) => {
 });
 
 // ── Placement quiz (after a kid signs up) ──
-// IMPORTANT: option order must match recommend_from_quiz() in server.py.
-const QUIZ_QUESTIONS = [
+// Questions are loaded from the server (editable by the super admin) and fall back to this default.
+// The first 6 questions map by position to the recommendation logic on the server.
+let QUIZ_QUESTIONS = [
   { q: '🎂 How old are you?', opts: ['6 to 8', '9 to 11', '12 to 14', '15 or older'] },
   { q: '💡 Have you coded before?', opts: ['Never tried it', 'A little (Scratch/blocks)', 'Some Python or similar', 'Yes, I build things'] },
   { q: '🚀 What do you most want to make?', opts: ['🎮 Games', '🌐 Websites', '🎨 Art & stories', '🤖 Smart AI stuff'] },
@@ -306,7 +307,12 @@ const QUIZ_QUESTIONS = [
 ];
 let quizState = null;
 
-function startQuiz(data, parentEmail) {
+async function startQuiz(data, parentEmail) {
+  // Pull the latest (admin-editable) quiz; fall back to the built-in default on any error.
+  try {
+    const res = await fetch('/api/quiz/config');
+    if (res.ok) { const j = await res.json(); if (j.quiz && j.quiz.length) QUIZ_QUESTIONS = j.quiz; }
+  } catch (e) {}
   quizState = { data, parentEmail, i: 0, answers: [] };
   document.getElementById('quizModal').classList.remove('hidden');
   renderQuiz();

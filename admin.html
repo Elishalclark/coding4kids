@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=70" />
+  <link rel="stylesheet" href="styles.css?v=71" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -214,6 +214,19 @@
         <div id="siteMsgMsg" style="font-weight:700;font-size:0.85rem;min-height:1em;color:var(--green,#5ad17e);"></div>
         <button class="btn btn-primary" onclick="saveSiteMessage()">Save announcement</button>
         <button class="btn btn-outline" onclick="clearSiteMessage()">Clear</button>
+      </div>
+
+      <!-- Signup placement quiz editor (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="quizPanel" style="display:none;">
+        <h3>🧮 Signup Quiz <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">the quiz a kid takes right after signing up</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Edit the questions and answer choices kids see. <strong>Keep the first 6 questions in this order</strong> (age, experience, what to make, practice, AI buddy, siblings) so the "starting world" recommendation stays smart.</p>
+        <div id="quizEditor" style="display:flex;flex-direction:column;gap:14px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+          <button class="btn btn-outline" onclick="addQuizQuestion()" style="font-size:0.85rem;">➕ Add question</button>
+          <button class="btn btn-primary" onclick="saveQuiz()" style="font-size:0.85rem;">💾 Save quiz</button>
+          <button class="btn btn-outline" onclick="resetQuiz()" style="font-size:0.85rem;color:#f87171;border-color:rgba(239,68,68,.4);">↺ Reset to default</button>
+        </div>
+        <div id="quizMsg" style="font-weight:700;font-size:0.85rem;min-height:1em;margin-top:8px;"></div>
       </div>
 
       <!-- People who asked to be notified about paid plans (SUPER ADMIN ONLY) -->
@@ -501,7 +514,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=70"></script>
+  <script src="auth.js?v=71"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -618,6 +631,7 @@
         loadInterest();
         loadChangeRequest();
         loadEmailEvents();
+        loadQuiz();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -897,6 +911,50 @@
     }
 
     // ── Pro interest / waitlist (super admin) ──
+    // ── Signup quiz editor (super admin) ──
+    let _quiz = [];
+    async function loadQuiz() {
+      const { ok, data } = await C4K.api('/api/admin/quiz');
+      if (!ok) return;
+      _quiz = data.quiz || [];
+      renderQuizEditor();
+    }
+    function renderQuizEditor() {
+      document.getElementById('quizEditor').innerHTML = _quiz.map((q, qi) => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <span style="font-weight:900;font-size:0.78rem;color:var(--text-faint);min-width:24px;">Q${qi+1}</span>
+            <input class="le-in" style="flex:1;" value="${C4K.esc(q.q)}" oninput="_quiz[${qi}].q=this.value" placeholder="Question text" />
+            <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="delQuizQuestion(${qi})">🗑️</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding-left:32px;">
+            ${q.opts.map((o, oi) => `
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="color:var(--text-faint);font-size:0.8rem;">${oi+1}.</span>
+                <input class="le-in" style="flex:1;font-size:0.88rem;" value="${C4K.esc(o)}" oninput="_quiz[${qi}].opts[${oi}]=this.value" placeholder="Answer choice" />
+                <button class="mini-btn" onclick="delQuizOpt(${qi},${oi})" ${q.opts.length<=2?'disabled style="opacity:.4;"':''}>✕</button>
+              </div>`).join('')}
+            <button class="mini-btn" style="align-self:flex-start;margin-top:2px;" onclick="addQuizOpt(${qi})">➕ Add choice</button>
+          </div>
+        </div>`).join('');
+    }
+    function addQuizQuestion() { _quiz.push({ q: 'New question?', opts: ['Choice 1', 'Choice 2'] }); renderQuizEditor(); }
+    function delQuizQuestion(qi) { _quiz.splice(qi, 1); renderQuizEditor(); }
+    function addQuizOpt(qi) { _quiz[qi].opts.push('New choice'); renderQuizEditor(); }
+    function delQuizOpt(qi, oi) { if (_quiz[qi].opts.length > 2) { _quiz[qi].opts.splice(oi, 1); renderQuizEditor(); } }
+    async function saveQuiz() {
+      const msg = document.getElementById('quizMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/admin/quiz', 'POST', { quiz: _quiz });
+      if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Quiz saved! New signups will see it.'; _quiz = data.quiz; renderQuizEditor(); }
+      else { msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not save.'); }
+    }
+    async function resetQuiz() {
+      if (!confirm('Reset the signup quiz back to the default questions?')) return;
+      const { ok, data } = await C4K.api('/api/admin/quiz', 'POST', { reset: true });
+      if (ok) { _quiz = data.quiz; renderQuizEditor(); document.getElementById('quizMsg').style.color = 'var(--green,#5ad17e)'; document.getElementById('quizMsg').textContent = '✅ Reset to default.'; }
+    }
+
     async function loadInterest() {
       const { ok, data } = await C4K.api('/api/admin/interest');
       if (!ok) return;
@@ -1199,7 +1257,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=70" defer></script>
-  <script src="editor.js?v=70" defer></script>
+  <script src="pwa.js?v=71" defer></script>
+  <script src="editor.js?v=71" defer></script>
 </body>
 </html>

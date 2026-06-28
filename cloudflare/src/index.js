@@ -1140,6 +1140,51 @@ async function grantConsent(env, kidId, method, grantedBy) {
   await env.DB.prepare("UPDATE users SET consent_status='granted', consent_method=?, consent_by=?, consent_at=?, consent_token=NULL, consent_confirm_token=NULL WHERE id=?")
     .bind(method, grantedBy, nowIso(), kidId).run();
 }
+// The default signup placement quiz. Super admin can edit it; it's stored in settings.
+// The first 6 questions map (by position) to the recommendation logic:
+//   [age, experience, interest, practice, ai-helper, who] — keep that order for smart recommendations.
+const DEFAULT_QUIZ = [
+  { q: "🎂 How old are you?", opts: ["6 to 8", "9 to 11", "12 to 14", "15 or older"] },
+  { q: "💡 Have you coded before?", opts: ["Never tried it", "A little (Scratch/blocks)", "Some Python or similar", "Yes, I build things"] },
+  { q: "🚀 What do you most want to make?", opts: ["🎮 Games", "🌐 Websites", "🎨 Art & stories", "🤖 Smart AI stuff"] },
+  { q: "⏰ How much will you practice?", opts: ["Here and there", "About 15 min most days", "I want to go deep daily"] },
+  { q: "🤝 Want an AI buddy to explain things & give hints?", opts: ["Yes please!", "Maybe later", "I like figuring it out myself"] },
+  { q: "👨‍👩‍👧 Is it just you, or will siblings learn too?", opts: ["Just me", "Me + my brothers/sisters"] },
+];
+
+async function getQuiz(env) {
+  const saved = await getSetting(env, "signup_quiz", null);
+  if (Array.isArray(saved) && saved.length) return saved;
+  return DEFAULT_QUIZ;
+}
+
+async function apiQuizConfig(env) {
+  return json({ quiz: await getQuiz(env) });
+}
+
+async function adminGetQuiz(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  return json({ quiz: await getQuiz(env), isDefault: !(await getSetting(env, "signup_quiz", null)) });
+}
+
+async function adminSetQuiz(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (data.reset) { await setSetting(env, "signup_quiz", null); return json({ ok: true, quiz: DEFAULT_QUIZ, isDefault: true }); }
+  const quiz = Array.isArray(data.quiz) ? data.quiz : null;
+  if (!quiz || !quiz.length) return json({ error: "The quiz needs at least one question." }, 400);
+  // Sanitize: each question must have text and at least 2 options.
+  const clean = [];
+  for (const item of quiz) {
+    const q = (item.q || "").toString().trim().slice(0, 200);
+    const opts = (Array.isArray(item.opts) ? item.opts : []).map(o => (o || "").toString().trim().slice(0, 100)).filter(Boolean);
+    if (!q || opts.length < 2) return json({ error: "Every question needs text and at least 2 answer choices." }, 400);
+    clean.push({ q, opts });
+  }
+  if (clean.length > 12) return json({ error: "Max 12 questions." }, 400);
+  await setSetting(env, "signup_quiz", clean);
+  return json({ ok: true, quiz: clean, isDefault: false });
+}
+
 function recommendFromQuiz(a) {
   const [age, exp, interest, practice, helper, who] = [...a, 0, 0, 0, 0, 0, 0].slice(0, 6);
   let level, startUnit;
@@ -2440,6 +2485,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/teacher/schedule" && method === "GET") return apiTeacherScheduleGet(env, request);
   if (path === "/api/teacher/schedule" && method === "POST") return apiTeacherScheduleSet(env, request, data);
   if (path === "/api/quiz/submit" && method === "POST") return apiQuizSubmit(env, request, data);
+  if (path === "/api/quiz/config" && method === "GET") return apiQuizConfig(env);
+  if (path === "/api/admin/quiz" && method === "GET") return adminGetQuiz(env, request);
+  if (path === "/api/admin/quiz" && method === "POST") return adminSetQuiz(env, request, data);
 
   // lessons / progress
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
