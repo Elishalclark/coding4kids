@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Blitz ⚡ - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=64" />
+  <style>
+    body { background: #08060f; min-height: 100vh; }
+    .game-wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+
+    .game-title { font-size: 2.4rem; font-weight: 900; text-align: center; margin: 0; }
+    .game-title span { color: #a78bfa; }
+    .game-sub { color: var(--text-dim); text-align: center; margin: 4px 0 20px; }
+
+    /* HUD */
+    .hud { display: flex; justify-content: space-between; align-items: center;
+           background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+           padding: 12px 18px; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
+    .hud-stat .val { font-size: 1.5rem; font-weight: 900; color: var(--purple); line-height: 1; }
+    .hud-stat .lbl { font-size: 0.68rem; font-weight: 800; color: var(--text-dim); }
+
+    /* Combo meter */
+    .combo-wrap { flex: 1; min-width: 120px; }
+    .combo-label { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 800; color: var(--text-dim); margin-bottom: 3px; }
+    .combo-bg { height: 8px; background: var(--surface-2); border-radius: 50px; overflow: hidden; }
+    .combo-fill { height: 100%; border-radius: 50px; background: linear-gradient(90deg,#7c3aed,#db2777);
+                  transition: width 0.2s; }
+
+    /* Timer ring */
+    .timer-ring-wrap { position: relative; width: 54px; height: 54px; flex-shrink: 0; }
+    .timer-ring { transform: rotate(-90deg); }
+    .timer-track { fill: none; stroke: var(--surface-2); stroke-width: 5; }
+    .timer-prog { fill: none; stroke: #7c3aed; stroke-width: 5; stroke-linecap: round;
+                  stroke-dasharray: 132; stroke-dashoffset: 0; transition: stroke-dashoffset 0.1s, stroke 0.3s; }
+    .timer-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                  font-size: 1.1rem; font-weight: 900; }
+
+    /* Start screen */
+    #startScreen { text-align: center; background: var(--surface); border: 1px solid var(--border-bright);
+                   border-radius: 20px; padding: 36px 24px; }
+    .how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; text-align: left; }
+    .how-card { background: var(--surface-2); border-radius: 12px; padding: 14px; }
+    .how-card .ico { font-size: 1.5rem; margin-bottom: 6px; }
+    .how-card p { color: var(--text-dim); font-size: 0.85rem; font-weight: 700; margin: 0; }
+
+    /* Game area */
+    #gameArea { display: none; }
+    .question-card { background: var(--surface); border: 2px solid var(--border-bright);
+                     border-radius: 20px; padding: 24px; margin-bottom: 16px; text-align: center; }
+    .q-context { color: var(--text-dim); font-size: 0.82rem; font-weight: 800;
+                 letter-spacing: 0.04em; margin-bottom: 14px; }
+    .code-display { background: #0a0618; border-radius: 12px; padding: 16px 20px;
+                    font-family: 'Courier New', monospace; font-size: 1.05rem; font-weight: 700;
+                    color: #e0d4ff; margin-bottom: 18px; line-height: 1.7; text-align: left;
+                    border: 1px solid var(--border); }
+    .blank { display: inline-block; background: linear-gradient(135deg,#7c3aed,#db2777);
+             color: transparent; border-radius: 6px; min-width: 80px; padding: 2px 10px;
+             vertical-align: middle; animation: pulse-blank 1s infinite; position: relative; }
+    .blank::after { content: '?'; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+                    color: #fff; font-weight: 900; }
+    @keyframes pulse-blank { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+    /* Answer input */
+    .answer-wrap { position: relative; margin-bottom: 14px; }
+    .answer-input { width: 100%; box-sizing: border-box; padding: 14px 18px; border-radius: 14px;
+                    border: 2px solid var(--border-bright); background: var(--bg); color: var(--text);
+                    font-family: 'Courier New', monospace; font-size: 1.1rem; font-weight: 800;
+                    outline: none; transition: border-color 0.2s; text-align: center; }
+    .answer-input:focus { border-color: #7c3aed; }
+    .answer-input.correct { border-color: #22c55e !important; background: rgba(34,197,94,0.08); }
+    .answer-input.wrong   { border-color: #ef4444 !important; background: rgba(239,68,68,0.08); animation: shake 0.3s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+    /* Options (multiple choice) */
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .opt-btn { padding: 12px 10px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg);
+               color: var(--text); font-family: 'Courier New', monospace; font-size: 0.9rem; font-weight: 800;
+               cursor: pointer; transition: all 0.15s; }
+    .opt-btn:hover { border-color: #7c3aed; background: rgba(124,58,237,0.1); }
+    .opt-btn.correct { border-color: #22c55e; background: rgba(34,197,94,0.15); color: #4ade80; }
+    .opt-btn.wrong   { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #f87171; }
+
+    /* Feedback bar */
+    .feedback-bar { border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
+                    display: flex; align-items: center; gap: 12px; min-height: 48px;
+                    font-weight: 800; font-size: 0.9rem; opacity: 0; transition: opacity 0.2s; }
+    .feedback-bar.show { opacity: 1; }
+    .feedback-bar.ok  { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+    .feedback-bar.bad { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.3); color: #f87171; }
+    .feedback-bar .fb-em { font-size: 1.4rem; flex-shrink: 0; }
+
+    /* Combo popup */
+    .combo-pop { position: fixed; top: 30%; left: 50%; transform: translateX(-50%);
+                 font-size: 2rem; font-weight: 900; color: #f59e0b; pointer-events: none;
+                 animation: float-up 0.8s forwards; z-index: 999; }
+    @keyframes float-up { 0%{opacity:1;transform:translateX(-50%) translateY(0)} 100%{opacity:0;transform:translateX(-50%) translateY(-60px)} }
+
+    /* Result */
+    #resultScreen { display: none; text-align: center; background: var(--surface);
+                    border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .result-score { font-size: 3.5rem; font-weight: 900; color: #a78bfa; }
+    .breakdown-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 20px; }
+    .bd-card { background: var(--surface-2); border-radius: 12px; padding: 14px; }
+    .bd-card .n { font-size: 1.4rem; font-weight: 900; }
+    .bd-card .l { font-size: 0.72rem; color: var(--text-dim); font-weight: 800; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="game-bugzapper.html" class="btn btn-ghost">🐛 Bug Zapper</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="game-wrap">
+    <h1 class="game-title">Code Blitz <span>⚡</span></h1>
+    <p class="game-sub">Fill in the missing code — fast!</p>
+
+    <!-- HUD -->
+    <div class="hud" id="hud" style="display:none;">
+      <div class="hud-stat">
+        <div class="val" id="hudScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="combo-wrap">
+        <div class="combo-label"><span>Combo</span><span id="comboLabel">0x</span></div>
+        <div class="combo-bg"><div class="combo-fill" id="comboFill" style="width:0%"></div></div>
+      </div>
+      <div class="hud-stat" style="text-align:center;">
+        <div class="val" id="hudQ">1/15</div>
+        <div class="lbl">Question</div>
+      </div>
+      <div class="timer-ring-wrap">
+        <svg class="timer-ring" width="54" height="54" viewBox="0 0 54 54">
+          <circle class="timer-track" cx="27" cy="27" r="21"/>
+          <circle class="timer-prog" id="timerProg" cx="27" cy="27" r="21"/>
+        </svg>
+        <div class="timer-text" id="timerText">10</div>
+      </div>
+    </div>
+
+    <!-- Start screen -->
+    <div id="startScreen">
+      <div style="font-size:3.5rem;margin-bottom:8px;">⚡</div>
+      <h2 style="font-size:1.8rem;font-weight:900;margin:0 0 6px;">Code Blitz</h2>
+      <p style="color:var(--text-dim);">Fill in the missing Python code as fast as you can!</p>
+      <div class="how-grid">
+        <div class="how-card"><div class="ico">⏱️</div><p>10 seconds per question</p></div>
+        <div class="how-card"><div class="ico">🔥</div><p>Build combos for bonus points</p></div>
+        <div class="how-card"><div class="ico">⚡</div><p>Faster = more points</p></div>
+        <div class="how-card"><div class="ico">🏆</div><p>15 questions total</p></div>
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">
+        ⚡ Start Blitz!
+      </button>
+    </div>
+
+    <!-- Game area -->
+    <div id="gameArea">
+      <div class="question-card">
+        <div class="q-context" id="qContext">QUESTION 1 OF 15</div>
+        <div class="code-display" id="codeDisplay"></div>
+        <!-- Multiple choice -->
+        <div class="options-grid" id="optionsGrid" style="display:none;"></div>
+        <!-- Type answer -->
+        <div class="answer-wrap" id="answerWrap" style="display:none;">
+          <input class="answer-input" id="answerInput" placeholder="type your answer..." autocomplete="off"
+                 spellcheck="false" onkeydown="handleKey(event)" />
+        </div>
+        <div class="feedback-bar" id="feedbackBar">
+          <span class="fb-em" id="fbEm"></span>
+          <div><div id="fbMain"></div><div id="fbSub" style="font-size:0.78rem;opacity:0.8;margin-top:2px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="resultScreen">
+      <div style="font-size:3rem;margin-bottom:8px;">⚡</div>
+      <div class="result-score" id="resScore">0</div>
+      <div style="font-size:1.4rem;font-weight:900;margin:6px 0 4px;" id="resGrade">Grade</div>
+      <div style="font-size:1.8rem;margin-bottom:16px;" id="resStars">⭐⭐⭐</div>
+      <div style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;padding:8px 20px;border-radius:50px;margin-bottom:18px;" id="resXp">+50 XP!</div>
+      <div class="breakdown-grid">
+        <div class="bd-card"><div class="n" id="resCorrect">0</div><div class="l">Correct</div></div>
+        <div class="bd-card"><div class="n" id="resBestCombo">0x</div><div class="l">Best Combo</div></div>
+        <div class="bd-card"><div class="n" id="resAvg">0s</div><div class="l">Avg Speed</div></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-lg" onclick="startGame()">🔄 Play Again</button>
+        <a href="dashboard.html" class="btn btn-outline btn-lg" id="dashBtn2">Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=64"></script>
+  <script>
+  // ── Questions ─────────────────────────────────────────────────────
+  // type: 'choice' or 'type'
+  const ALL_Q = [
+    { code: '<b>___</b> = "Alex"',        blank:'name',    type:'choice', opts:['name','Name','nam','nane'],    exp:'Variables store data. "name" is the variable here.' },
+    { code: 'print(<b>___</b>)',           blank:'"Hello"', type:'choice', opts:['"Hello"','Hello','"hello"','(Hello)'], exp:'Strings need quotes around them.' },
+    { code: 'x = 5\ny = 3\nprint(x <b>___</b> y)', blank:'+', type:'choice', opts:['+','*','plus','&'], exp:'+ adds two numbers together.' },
+    { code: 'for i in <b>___</b>(5):', blank:'range', type:'choice', opts:['range','loop','list','each'], exp:'range(5) produces numbers 0,1,2,3,4.' },
+    { code: 'if x > 10:\n    <b>___</b>("Big!")', blank:'print', type:'choice', opts:['print','say','show','write'], exp:'print() displays output on the screen.' },
+    { code: 'nums = [1, 2, 3]\nprint(<b>___</b>(nums))', blank:'len', type:'choice', opts:['len','count','size','length'], exp:'len() returns the number of items in a list.' },
+    { code: 'name = "Alex"\nprint(<b>___</b>(name))', blank:'len', type:'choice', opts:['len','count','size','length'], exp:'len() also works on strings — counts characters.' },
+    { code: 'x = "5"\ny = <b>___</b>(x)', blank:'int', type:'choice', opts:['int','num','integer','convert'], exp:'int() converts a string like "5" to the number 5.' },
+    { code: 'def greet():\n    <b>___</b> "Hello!"', blank:'return', type:'choice', opts:['return','give','send','output'], exp:'return sends a value back from a function.' },
+    { code: 'fruits = ["apple","banana"]\nfruits.<b>___</b>("cherry")', blank:'append', type:'choice', opts:['append','add','push','insert'], exp:'append() adds an item to the end of a list.' },
+    { code: 'x = 10\nx <b>___</b> 5\nprint(x)  # 15', blank:'+=', type:'choice', opts:['+=','=+','++','add='], exp:'+= adds to the current value. x += 5 is x = x + 5.' },
+    { code: 'person = {"name": "Sam"}\nprint(person<b>___</b>)', blank:'["name"]', type:'choice', opts:['["name"]','(name)','.name','{name}'], exp:'Dictionaries use square brackets with the key in quotes: person["name"].' },
+    { code: 'word = "hello"\nprint(word.<b>___</b>())', blank:'upper', type:'choice', opts:['upper','caps','big','UPPER'], exp:'upper() converts a string to all uppercase letters.' },
+    { code: 'import <b>___</b>\nprint(random.randint(1,6))', blank:'random', type:'choice', opts:['random','math','numbers','rand'], exp:'import random gives you access to random number tools.' },
+    { code: 'score = 85\n<b>___</b> score >= 90:\n    print("A")', blank:'if', type:'choice', opts:['if','when','check','for'], exp:'if starts a condition check.' },
+    { code: 'x = 4\nif x % 2 <b>___</b> 0:\n    print("even")', blank:'==', type:'choice', opts:['==','=','===','is'], exp:'== checks if two values are equal. Never use = inside if.' },
+    { code: 'nums = [3,1,4,1,5]\nnums.<b>___</b>()\nprint(nums)', blank:'sort', type:'choice', opts:['sort','order','arrange','sorted'], exp:'sort() sorts a list in place (smallest to largest).' },
+    { code: 'text = "Hello World"\nwords = text.<b>___</b>()', blank:'split', type:'choice', opts:['split','divide','break','separate'], exp:'split() breaks a string into a list of words.' },
+    { code: 'x = 7\nif x > 5:\n    print("big")\n<b>___</b>:\n    print("small")', blank:'else', type:'choice', opts:['else','otherwise','default','other'], exp:'else runs when the if condition is False.' },
+    { code: 'count = 0\n<b>___</b> count < 5:\n    count += 1', blank:'while', type:'choice', opts:['while','loop','repeat','until'], exp:'while keeps looping as long as the condition is True.' },
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────
+  let qOrder=[], qIdx=0, score=0, combo=0, bestCombo=0;
+  let correct=0, totalTime=0, timer=null, qStart=0, answered=false;
+  const TOTAL=15, TIME=10;
+
+  // ── Auth ──────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      if (typeof C4K === 'undefined') return;
+      const me = await C4K.loadMe();
+      if (me && me.role === 'kid') {
+        document.getElementById('dashLink').style.display = '';
+        document.getElementById('dashBtn2').style.display = '';
+      }
+    } catch (e) { /* game works fine even if auth fails */ }
+  })();
+
+  // ── Game ──────────────────────────────────────────────────────────
+  function startGame() {
+    qOrder = [...ALL_Q].sort(() => Math.random() - 0.5).slice(0, TOTAL);
+    qIdx=0; score=0; combo=0; bestCombo=0; correct=0; totalTime=0;
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'none';
+    document.getElementById('gameArea').style.display = '';
+    document.getElementById('hud').style.display = '';
+    showQ();
+  }
+
+  function showQ() {
+    if (qIdx >= TOTAL) { endGame(); return; }
+    answered = false;
+    const q = qOrder[qIdx];
+
+    document.getElementById('qContext').textContent = `QUESTION ${qIdx+1} OF ${TOTAL}`;
+    document.getElementById('hudQ').textContent = `${qIdx+1}/${TOTAL}`;
+
+    // Render code — replace <b>___</b> with the blank span
+    const html = q.code.replace(/<b>___<\/b>/g, '<span class="blank"></span>');
+    document.getElementById('codeDisplay').innerHTML = html;
+
+    // Hide feedback
+    const fb = document.getElementById('feedbackBar');
+    fb.className = 'feedback-bar';
+    fb.style.display = 'none';
+
+    // Show options or input
+    if (q.type === 'choice') {
+      document.getElementById('optionsGrid').style.display = 'grid';
+      document.getElementById('answerWrap').style.display = 'none';
+      const shuffled = [...q.opts].sort(() => Math.random() - 0.5);
+      document.getElementById('optionsGrid').innerHTML = shuffled.map(o =>
+        `<button class="opt-btn" onclick="guessChoice('${escH(o)}','${escH(q.blank)}')" id="opt-${escH(o)}">${escHtml(o)}</button>`
+      ).join('');
+    } else {
+      document.getElementById('optionsGrid').style.display = 'none';
+      document.getElementById('answerWrap').style.display = '';
+      const inp = document.getElementById('answerInput');
+      inp.value = ''; inp.className = 'answer-input'; inp.disabled = false; inp.focus();
+    }
+
+    startTimer();
+    qStart = Date.now();
+  }
+
+  function startTimer() {
+    clearInterval(timer);
+    let t = TIME;
+    updateRing(t);
+    timer = setInterval(() => {
+      t -= 0.1;
+      updateRing(t);
+      if (t <= 0) { clearInterval(timer); timeUp(); }
+    }, 100);
+  }
+
+  function updateRing(t) {
+    const pct = Math.max(0, t / TIME);
+    const offset = 132 * (1 - pct);
+    const prog = document.getElementById('timerProg');
+    prog.style.strokeDashoffset = offset;
+    prog.style.stroke = t > 5 ? '#7c3aed' : t > 2 ? '#f59e0b' : '#ef4444';
+    document.getElementById('timerText').textContent = Math.ceil(t);
+  }
+
+  function guessChoice(chosen, correct_ans) {
+    if (answered) return;
+    answered = true;
+    clearInterval(timer);
+    const elapsed = (Date.now() - qStart) / 1000;
+    totalTime += elapsed;
+    const ok = chosen === correct_ans;
+
+    // Style buttons
+    document.querySelectorAll('.opt-btn').forEach(b => { b.disabled = true; });
+    if (ok) {
+      document.getElementById('opt-' + chosen).classList.add('correct');
+    } else {
+      document.getElementById('opt-' + chosen).classList.add('wrong');
+      document.getElementById('opt-' + correct_ans).classList.add('correct');
+    }
+    handleResult(ok, elapsed);
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter') {
+      const val = document.getElementById('answerInput').value.trim();
+      if (!val) return;
+      checkType(val);
+    }
+  }
+
+  function checkType(val) {
+    if (answered) return;
+    answered = true;
+    clearInterval(timer);
+    const elapsed = (Date.now() - qStart) / 1000;
+    totalTime += elapsed;
+    const q = qOrder[qIdx];
+    const ok = val.toLowerCase() === q.blank.toLowerCase();
+    const inp = document.getElementById('answerInput');
+    inp.className = 'answer-input ' + (ok ? 'correct' : 'wrong');
+    inp.disabled = true;
+    handleResult(ok, elapsed);
+  }
+
+  function handleResult(ok, elapsed) {
+    const q = qOrder[qIdx];
+    if (ok) {
+      const timeBonus = Math.round(Math.max(0, TIME - elapsed) * 8);
+      combo++;
+      bestCombo = Math.max(bestCombo, combo);
+      const comboBonus = combo >= 3 ? (combo - 2) * 20 : 0;
+      const pts = 100 + timeBonus + comboBonus;
+      score += pts;
+      correct++;
+      updateCombo();
+      if (combo >= 3) showComboPop();
+      showFeedback(true, `+${pts}` + (comboBonus ? ` (🔥${combo}x combo!)` : ''), q.exp);
+    } else {
+      combo = 0;
+      updateCombo();
+      showFeedback(false, `Answer: ${q.blank}`, q.exp);
+    }
+    document.getElementById('hudScore').textContent = score;
+    setTimeout(() => { qIdx++; showQ(); }, 1800);
+  }
+
+  function timeUp() {
+    if (answered) return;
+    answered = true;
+    combo = 0;
+    updateCombo();
+    const q = qOrder[qIdx];
+    document.querySelectorAll('.opt-btn').forEach(b => {
+      b.disabled = true;
+      if (b.id === 'opt-' + q.blank) b.classList.add('correct');
+    });
+    showFeedback(false, `Time's up! Answer: ${q.blank}`, q.exp);
+    setTimeout(() => { qIdx++; showQ(); }, 1800);
+  }
+
+  function showFeedback(ok, main, sub) {
+    const fb = document.getElementById('feedbackBar');
+    fb.style.display = 'flex';
+    fb.className = 'feedback-bar show ' + (ok ? 'ok' : 'bad');
+    document.getElementById('fbEm').textContent = ok ? '✅' : '❌';
+    document.getElementById('fbMain').textContent = main;
+    document.getElementById('fbSub').textContent = sub;
+  }
+
+  function updateCombo() {
+    const pct = Math.min(100, combo * 20);
+    document.getElementById('comboFill').style.width = pct + '%';
+    document.getElementById('comboLabel').textContent = combo >= 2 ? combo + 'x 🔥' : combo + 'x';
+  }
+
+  function showComboPop() {
+    const pop = document.createElement('div');
+    pop.className = 'combo-pop';
+    pop.textContent = combo + 'x COMBO! 🔥';
+    document.body.appendChild(pop);
+    setTimeout(() => pop.remove(), 900);
+  }
+
+  function endGame() {
+    clearInterval(timer);
+    document.getElementById('gameArea').style.display = 'none';
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('resultScreen').style.display = '';
+
+    const pct = correct / TOTAL;
+    const grade = pct >= 0.9 ? '⚡ Code Master!' : pct >= 0.7 ? '🏆 Great Blitzer!' : pct >= 0.5 ? '💪 Good Work!' : '🌱 Keep Practicing!';
+    const stars = pct >= 0.9 ? '⭐⭐⭐' : pct >= 0.6 ? '⭐⭐' : '⭐';
+    const xp = Math.round(score / 10);
+
+    document.getElementById('resScore').textContent = score;
+    document.getElementById('resGrade').textContent = grade;
+    document.getElementById('resStars').textContent = stars;
+    document.getElementById('resXp').textContent = `+${xp} XP earned!`;
+    document.getElementById('resCorrect').textContent = correct + '/' + TOTAL;
+    document.getElementById('resBestCombo').textContent = bestCombo + 'x';
+    document.getElementById('resAvg').textContent = (totalTime / TOTAL).toFixed(1) + 's';
+
+    try {
+      if (typeof C4K !== 'undefined' && C4K.token()) {
+        C4K.api('/api/game/score', 'POST', { xp: xp, game: 'codeblitz' });
+      }
+    } catch (e) {}
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escH(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+  </script>
+</body>
+</html>

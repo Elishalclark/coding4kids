@@ -758,6 +758,26 @@ async function apiProgressPost(env, request, data) {
   return json({ completed: rows.map((x) => x.lesson_id), unitsPassed: await unitsPassed(env, u.id), tokensAwarded: awarded, tokens: tok, lessonsUsedToday: await lessonsUsedToday(env, u.id) });
 }
 
+// Award tokens for playing the mini-games. Capped per game per day so kids can't farm.
+async function apiGameScore(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!consentOk(u)) return json({ error: "A parent must approve this account first." }, 403);
+  const game = (data.game || "").trim().slice(0, 30) || "game";
+  const xp = Math.max(0, Math.min(50, parseInt(data.xp, 10) || 0)); // cap at 50 tokens
+  // Only award once per game per day (anti-farming).
+  const key = `game:${game}`;
+  const already = await env.DB.prepare("SELECT 1 FROM lessons_daily WHERE user_id=? AND day=?").bind(u.id, `${todayStr()}-${key}`).first();
+  let awarded = 0;
+  if (!already && xp > 0) {
+    awarded = xp;
+    await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id=?").bind(awarded, u.id).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO lessons_daily (user_id,day,count) VALUES (?,?,1)").bind(u.id, `${todayStr()}-${key}`).run();
+  }
+  const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens;
+  return json({ ok: true, tokensAwarded: awarded, tokens: tok, alreadyPlayedToday: !!already });
+}
+
 async function apiTestSubmit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
@@ -2377,6 +2397,7 @@ async function handleApi(env, request, path) {
 
   // lessons / progress
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
+  if (path === "/api/game/score" && method === "POST") return apiGameScore(env, request, data);
   if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
 

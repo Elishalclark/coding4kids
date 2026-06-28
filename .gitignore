@@ -13,3 +13,5 @@ __pycache__/
 # OS / editor
 .DS_Store
 .claude/
+node_modules
+package-lock.json

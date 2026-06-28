@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bug Zapper 🐛⚡ - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=64" />
+  <style>
+    body { background: #08060f; min-height: 100vh; }
+    .game-wrap { max-width: 800px; margin: 0 auto; padding: 20px 16px 60px; }
+
+    /* Header */
+    .game-header { text-align: center; margin-bottom: 24px; }
+    .game-title { font-size: 2.4rem; font-weight: 900; margin: 0; }
+    .game-title span { color: #f59e0b; }
+    .game-sub { color: var(--text-dim); margin: 4px 0 0; }
+
+    /* HUD */
+    .hud { display: flex; justify-content: space-between; align-items: center;
+           background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+           padding: 14px 20px; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .hud-stat { text-align: center; }
+    .hud-stat .val { font-size: 1.6rem; font-weight: 900; color: var(--purple); line-height: 1; }
+    .hud-stat .lbl { font-size: 0.72rem; font-weight: 800; color: var(--text-dim); margin-top: 2px; }
+    .timer-bar-wrap { flex: 1; min-width: 140px; }
+    .timer-bar-bg { height: 10px; background: var(--surface-2); border-radius: 50px; overflow: hidden; }
+    .timer-bar { height: 100%; border-radius: 50px; background: linear-gradient(90deg, #22c55e, #4ade80);
+                 transition: width 0.1s linear, background 0.5s; }
+
+    /* Screen: Start */
+    #startScreen { text-align: center; background: var(--surface); border: 1px solid var(--border-bright);
+                   border-radius: 20px; padding: 40px 28px; }
+    .big-emoji { font-size: 4rem; margin-bottom: 12px; }
+    .instructions { background: var(--surface-2); border-radius: 14px; padding: 18px 20px;
+                    margin: 20px auto; max-width: 460px; text-align: left; }
+    .instructions li { color: var(--text-dim); margin-bottom: 8px; font-weight: 700; }
+
+    /* Game area */
+    #gameArea { display: none; }
+    .round-label { font-size: 0.78rem; font-weight: 900; color: var(--text-dim);
+                   letter-spacing: 0.06em; text-align: center; margin-bottom: 10px; }
+    .question-card { background: var(--surface); border: 2px solid var(--border-bright);
+                     border-radius: 18px; padding: 22px; margin-bottom: 18px; }
+    .question-card h3 { font-size: 1.05rem; font-weight: 900; margin: 0 0 16px; color: #f59e0b; }
+    .code-lines { display: flex; flex-direction: column; gap: 6px; }
+    .code-line { display: flex; align-items: stretch; border-radius: 10px; overflow: hidden;
+                 cursor: pointer; transition: transform 0.1s; border: 2px solid transparent; }
+    .code-line:hover { transform: scale(1.01); border-color: var(--border-bright); }
+    .line-num { background: #1a1030; color: var(--text-faint); font-weight: 900; font-size: 0.8rem;
+                padding: 10px 12px; min-width: 36px; text-align: center; font-family: monospace; }
+    .line-code { background: #0f0a1e; color: #e0d4ff; font-family: 'Courier New', monospace;
+                 font-size: 0.88rem; padding: 10px 14px; flex: 1; font-weight: 700; white-space: pre; }
+    .code-line.correct { border-color: #22c55e !important; background: rgba(34,197,94,0.1); animation: pulse-green 0.4s; }
+    .code-line.wrong   { border-color: #ef4444 !important; background: rgba(239,68,68,0.1); animation: shake 0.3s; }
+    .code-line.reveal  { border-color: #f59e0b !important; background: rgba(245,158,11,0.1); }
+    @keyframes pulse-green { 0%{transform:scale(1)} 50%{transform:scale(1.02)} 100%{transform:scale(1)} }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+    /* Feedback */
+    .feedback { text-align: center; min-height: 60px; display: flex; align-items: center;
+                justify-content: center; flex-direction: column; gap: 6px; }
+    .feedback .fb-emoji { font-size: 2rem; }
+    .feedback .fb-text  { font-size: 1rem; font-weight: 800; }
+    .feedback .fb-exp   { font-size: 0.85rem; color: var(--text-dim); }
+
+    /* Result screen */
+    #resultScreen { display: none; text-align: center; background: var(--surface);
+                    border: 1px solid var(--border-bright); border-radius: 20px; padding: 40px 28px; }
+    .result-score { font-size: 3.5rem; font-weight: 900; color: var(--purple); }
+    .result-grade { font-size: 1.5rem; font-weight: 900; margin: 8px 0 4px; }
+    .star-row { font-size: 2rem; margin: 6px 0 20px; letter-spacing: 4px; }
+    .score-breakdown { display: flex; justify-content: center; gap: 24px; margin: 16px 0 24px; flex-wrap: wrap; }
+    .sc-stat { background: var(--surface-2); border-radius: 12px; padding: 14px 20px; text-align: center; }
+    .sc-stat .n { font-size: 1.5rem; font-weight: 900; }
+    .sc-stat .l { font-size: 0.75rem; color: var(--text-dim); font-weight: 800; }
+    .xp-earned { display: inline-block; background: linear-gradient(135deg,#7c3aed,#db2777);
+                 color: #fff; font-weight: 900; padding: 8px 20px; border-radius: 50px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="game-codeblitz.html" class="btn btn-ghost">⚡ Code Blitz</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="game-wrap">
+    <div class="game-header">
+      <h1 class="game-title">Bug Zapper <span>🐛⚡</span></h1>
+      <p class="game-sub">Find the bug before time runs out!</p>
+    </div>
+
+    <!-- HUD -->
+    <div class="hud" id="hud" style="display:none;">
+      <div class="hud-stat">
+        <div class="val" id="hudScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="timer-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;font-weight:800;color:var(--text-dim);margin-bottom:4px;">
+          <span>Time</span><span id="timerSec">15</span>
+        </div>
+        <div class="timer-bar-bg"><div class="timer-bar" id="timerBar" style="width:100%"></div></div>
+      </div>
+      <div class="hud-stat">
+        <div class="val" id="hudStreak">0🔥</div>
+        <div class="lbl">Streak</div>
+      </div>
+      <div class="hud-stat">
+        <div class="val" id="hudRound">1/10</div>
+        <div class="lbl">Round</div>
+      </div>
+    </div>
+
+    <!-- Start screen -->
+    <div id="startScreen">
+      <div class="big-emoji">🐛</div>
+      <h2 style="font-size:1.8rem;font-weight:900;margin:0 0 8px;">Find the Bug!</h2>
+      <p style="color:var(--text-dim);">Every piece of code has one bug hiding in it. Click the line with the mistake!</p>
+      <ul class="instructions">
+        <li>🕐 You have <strong>15 seconds</strong> per round</li>
+        <li>🐛 One line in each snippet has a <strong>bug</strong></li>
+        <li>🔥 Build a streak for <strong>bonus points</strong></li>
+        <li>⚡ Faster = more points</li>
+        <li>🏆 10 rounds total</li>
+      </ul>
+      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">
+        🐛 Start Zapping!
+      </button>
+    </div>
+
+    <!-- Game area -->
+    <div id="gameArea">
+      <p class="round-label" id="roundLabel">ROUND 1 OF 10</p>
+      <div class="question-card">
+        <h3 id="qPrompt">🔍 Find the bug — click the broken line:</h3>
+        <div class="code-lines" id="codeLines"></div>
+      </div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+
+    <!-- Result -->
+    <div id="resultScreen">
+      <div class="big-emoji">🏆</div>
+      <div class="result-score" id="resScore">0</div>
+      <div class="result-grade" id="resGrade">Grade</div>
+      <div class="star-row" id="resStars">⭐⭐⭐</div>
+      <div class="xp-earned" id="resXp">+50 XP earned!</div>
+      <div class="score-breakdown">
+        <div class="sc-stat"><div class="n" id="resCorrect">0/10</div><div class="l">Correct</div></div>
+        <div class="sc-stat"><div class="n" id="resBest">0🔥</div><div class="l">Best Streak</div></div>
+        <div class="sc-stat"><div class="n" id="resAvgTime">0s</div><div class="l">Avg Speed</div></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-lg" onclick="startGame()">🔄 Play Again</button>
+        <a href="dashboard.html" class="btn btn-outline btn-lg" id="dashBtn2">Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=64"></script>
+  <script>
+  // ── Data ──────────────────────────────────────────────────────────
+  const QUESTIONS = [
+    { prompt: "What's wrong with this print statement?",
+      lines: ['name = "Alex"', 'age = 12', 'print("Hello, " + name)', 'print("You are " + age + " years old")'],
+      bug: 3, exp: "Can't add a string and a number! Use str(age) or an f-string." },
+    { prompt: "Find the bug in this loop:",
+      lines: ['fruits = ["apple","banana","cherry"]', 'for fruit in fruits', '    print(fruit)', ''],
+      bug: 1, exp: 'Missing colon at the end of the for statement: for fruit in fruits:' },
+    { prompt: "Something's wrong with this if statement:",
+      lines: ['score = 85', 'if score = 100:', '    print("Perfect!")', 'else:', '    print("Good try!")'],
+      bug: 1, exp: 'Use == to compare, not = . Single = is for assignment only.' },
+    { prompt: "Spot the bug in this function:",
+      lines: ['def greet(name):', '    massage = "Hello, " + name', '    return message', ''],
+      bug: 1, exp: '"massage" is a typo — the variable should be called "message" (line 2 makes it, line 3 uses the wrong name).' },
+    { prompt: "What's wrong with this list?",
+      lines: ['numbers = [1, 2, 3, 4, 5]', 'total = 0', 'for n in numbers:', '    total = total + n', 'print("Total:", tottal)'],
+      bug: 4, exp: '"tottal" is a typo — it should be "total".' },
+    { prompt: "Find the bug in this input code:",
+      lines: ['age = input("Enter your age: ")', 'if age > 18:', '    print("Adult")', 'else:', '    print("Kid")'],
+      bug: 1, exp: 'input() always returns a string. Use int(input(...)) to convert it to a number before comparing.' },
+    { prompt: "What's the mistake in this while loop?",
+      lines: ['count = 0', 'while count < 5:', '    print(count)', '    count + 1'],
+      bug: 3, exp: '"count + 1" doesn\'t change count. You need count += 1 or count = count + 1.' },
+    { prompt: "Find the bug with the return statement:",
+      lines: ['def double(x):', '    result = x * 2', '', 'print(double(5))'],
+      bug: 2, exp: 'The function never returns anything! Add "return result" on line 3.' },
+    { prompt: "Spot the indentation bug:",
+      lines: ['for i in range(3):', '    x = i * 2', '  print(x)', ''],
+      bug: 2, exp: '"print(x)" has wrong indentation — it should line up with "x = i * 2" (4 spaces, not 2).' },
+    { prompt: "What's wrong with this dictionary lookup?",
+      lines: ['person = {"name": "Sam", "age": 15}', 'print(person["Name"])', '', ''],
+      bug: 1, exp: 'Dictionary keys are case-sensitive. "Name" ≠ "name". Use person["name"].' },
+    { prompt: "Find the bug in this range:",
+      lines: ['for i in range(1, 10):', '    if i % 2 = 0:', '        print(i, "is even")', ''],
+      bug: 1, exp: 'Use == to compare, not = . "i % 2 == 0" checks if i is divisible by 2.' },
+    { prompt: "What's wrong with this string?",
+      lines: ['word = "Hello"', 'print(word[0])   # H', 'print(word[5])   # bug!', 'print(word[-1])  # o'],
+      bug: 2, exp: '"Hello" has indices 0–4. word[5] is out of range! The last index is word[4].' },
+    { prompt: "Find the bug in this boolean:",
+      lines: ['is_raining = True', 'is_sunny = False', 'if is_raining and not is_sunny:', 'print("Bring an umbrella!")'],
+      bug: 3, exp: 'The print is not indented. It needs 4 spaces to be inside the if block.' },
+    { prompt: "What's the mistake here?",
+      lines: ['def add(a, b):', '    return a + b', 'result = add(3, 4, 5)', 'print(result)'],
+      bug: 2, exp: 'add() takes 2 arguments but got 3. Call it with only 2: add(3, 4).' },
+    { prompt: "Find the bug with None:",
+      lines: ['def get_name():', '    name = "Alex"', 'n = get_name()', 'print("Name:", n)'],
+      bug: 1, exp: 'The function never returns name! Add "return name" inside the function.' },
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────
+  let round = 0, score = 0, streak = 0, bestStreak = 0;
+  let totalTime = 0, correctCount = 0;
+  let timerInterval = null, questionStartTime = 0;
+  let roundOrder = [], answered = false;
+  const ROUND_TIME = 15, ROUNDS = 10;
+
+  // ── Auth ──────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      if (typeof C4K === 'undefined') return;
+      const me = await C4K.loadMe();
+      if (me && me.role === 'kid') {
+        document.getElementById('dashLink').style.display = '';
+        document.getElementById('dashBtn2').style.display = '';
+      }
+    } catch (e) { /* game works fine even if auth fails */ }
+  })();
+
+  // ── Game ──────────────────────────────────────────────────────────
+  function startGame() {
+    round = 0; score = 0; streak = 0; bestStreak = 0; totalTime = 0; correctCount = 0;
+    roundOrder = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, ROUNDS);
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'none';
+    document.getElementById('gameArea').style.display = '';
+    document.getElementById('hud').style.display = '';
+    nextRound();
+  }
+
+  function nextRound() {
+    if (round >= ROUNDS) { endGame(); return; }
+    answered = false;
+    const q = roundOrder[round];
+    document.getElementById('roundLabel').textContent = `ROUND ${round + 1} OF ${ROUNDS}`;
+    document.getElementById('hudRound').textContent = `${round + 1}/${ROUNDS}`;
+    document.getElementById('qPrompt').textContent = '🔍 ' + q.prompt;
+    document.getElementById('feedback').innerHTML = '';
+
+    // Render code lines
+    const cl = document.getElementById('codeLines');
+    cl.innerHTML = q.lines.map((line, i) => line.trim() === '' ? '' :
+      `<div class="code-line" id="line-${i}" onclick="guess(${i})">
+        <span class="line-num">${i + 1}</span>
+        <span class="line-code">${escHtml(line)}</span>
+      </div>`
+    ).join('');
+
+    startTimer();
+    questionStartTime = Date.now();
+  }
+
+  function startTimer() {
+    clearInterval(timerInterval);
+    let timeLeft = ROUND_TIME;
+    updateTimer(timeLeft);
+    timerInterval = setInterval(() => {
+      timeLeft -= 0.1;
+      updateTimer(timeLeft);
+      if (timeLeft <= 0) { clearInterval(timerInterval); timeUp(); }
+    }, 100);
+  }
+
+  function updateTimer(t) {
+    const pct = Math.max(0, t / ROUND_TIME * 100);
+    const bar = document.getElementById('timerBar');
+    bar.style.width = pct + '%';
+    bar.style.background = t > 8 ? 'linear-gradient(90deg,#22c55e,#4ade80)' :
+                           t > 4 ? 'linear-gradient(90deg,#f59e0b,#fbbf24)' :
+                                   'linear-gradient(90deg,#ef4444,#f87171)';
+    document.getElementById('timerSec').textContent = Math.ceil(t);
+  }
+
+  function guess(lineIdx) {
+    if (answered) return;
+    answered = true;
+    clearInterval(timerInterval);
+    const q = roundOrder[round];
+    const elapsed = (Date.now() - questionStartTime) / 1000;
+    totalTime += elapsed;
+
+    if (lineIdx === q.bug) {
+      // Correct!
+      const timeBonus = Math.round(Math.max(0, (ROUND_TIME - elapsed)) * 5);
+      const streakBonus = streak >= 2 ? streak * 10 : 0;
+      const pts = 100 + timeBonus + streakBonus;
+      score += pts;
+      streak++;
+      bestStreak = Math.max(bestStreak, streak);
+      correctCount++;
+      document.getElementById('line-' + lineIdx).classList.add('correct');
+      showFeedback('✅', `+${pts} points!`, q.exp, '#22c55e');
+      if (streakBonus > 0) document.getElementById('feedback').innerHTML +=
+        `<div style="color:#f59e0b;font-weight:800;font-size:0.82rem;">🔥 Streak bonus +${streakBonus}!</div>`;
+    } else {
+      // Wrong
+      streak = 0;
+      document.getElementById('line-' + lineIdx).classList.add('wrong');
+      document.getElementById('line-' + q.bug).classList.add('reveal');
+      showFeedback('❌', 'Not quite!', q.exp, '#f87171');
+    }
+
+    updateHud();
+    setTimeout(() => { round++; nextRound(); }, 2200);
+  }
+
+  function timeUp() {
+    if (answered) return;
+    answered = true;
+    streak = 0;
+    const q = roundOrder[round];
+    document.getElementById('line-' + q.bug).classList.add('reveal');
+    showFeedback('⏰', "Time's up!", q.exp, '#f59e0b');
+    updateHud();
+    setTimeout(() => { round++; nextRound(); }, 2200);
+  }
+
+  function showFeedback(emoji, text, exp, color) {
+    document.getElementById('feedback').innerHTML =
+      `<div class="fb-emoji">${emoji}</div>
+       <div class="fb-text" style="color:${color}">${text}</div>
+       <div class="fb-exp">${exp}</div>`;
+  }
+
+  function updateHud() {
+    document.getElementById('hudScore').textContent = score;
+    document.getElementById('hudStreak').textContent = streak + (streak > 0 ? '🔥' : '');
+  }
+
+  function endGame() {
+    clearInterval(timerInterval);
+    document.getElementById('gameArea').style.display = 'none';
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('resultScreen').style.display = '';
+
+    const pct = correctCount / ROUNDS;
+    const grade = pct >= 0.9 ? '🏆 Bug Master!' : pct >= 0.7 ? '⚡ Great Debugger!' : pct >= 0.5 ? '💪 Getting There!' : '🐛 Keep Practicing!';
+    const stars = pct >= 0.9 ? '⭐⭐⭐' : pct >= 0.6 ? '⭐⭐' : '⭐';
+    const xp = Math.round(score / 10);
+
+    document.getElementById('resScore').textContent = score;
+    document.getElementById('resGrade').textContent = grade;
+    document.getElementById('resStars').textContent = stars;
+    document.getElementById('resXp').textContent = `+${xp} XP earned!`;
+    document.getElementById('resCorrect').textContent = correctCount + '/' + ROUNDS;
+    document.getElementById('resBest').textContent = bestStreak + '🔥';
+    document.getElementById('resAvgTime').textContent = (totalTime / ROUNDS).toFixed(1) + 's';
+
+    // Award tokens if logged in (safe — game works without it)
+    try {
+      if (typeof C4K !== 'undefined' && C4K.token()) {
+        C4K.api('/api/game/score', 'POST', { xp: xp, game: 'bugzapper' });
+      }
+    } catch (e) {}
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  </script>
+</body>
+</html>
