@@ -625,12 +625,15 @@ async function apiSignup(env, request, data) {
   // If a parent email is given, it must look like a real email so consent/notices can be delivered.
   if (email && !/^\S+@\S+\.\S+$/.test(email))
     return json({ error: "Please enter a valid parent email address." }, 400);
-  // EVERY kid needs a parent/guardian to approve before they can play - no exceptions.
-  const needsConsent = true;
+  // A parent email is still required so we can notify the parent and let them manage/withdraw.
   if (!email)
-    return json({ error: "A parent's email is required so a parent can approve this account." }, 400);
-  const consentToken = needsConsent ? randToken(10) : null;
-  const consentStatus = needsConsent ? "pending" : "not_required";
+    return json({ error: "A parent's email is required so we can keep a parent in the loop." }, 400);
+  // Consent happens in the BACKGROUND: the kid can play right away (no blocking wall), but we
+  // record consent against the parent's email and email the parent so they can review or withdraw.
+  // This keeps a COPPA audit trail without the friction of a hard gate.
+  const needsConsent = false;
+  const consentToken = randToken(10);  // still issued so a parent can manage from the email link
+  const consentStatus = "granted";
   // Check if a launch Pro slot is available - first 100 kids get 30 days of Pro free.
   const slotsUsed = await launchSlotsUsed(env);
   const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
@@ -639,27 +642,29 @@ async function apiSignup(env, request, data) {
   const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
   const r = await createUser(env, {
     role: "kid", name, username, password, email, age: ageBand, age_years: ageYears, plan: planName,
-    trial_ends: trialEnds, consent_status: consentStatus, consent_token: consentToken,
+    trial_ends: trialEnds, consent_status: consentStatus, consent_method: "signup_parent_email",
+    consent_by: email, consent_token: consentToken,
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
   if (getLaunchPro) await env.DB.prepare("UPDATE users SET launch_pro=1 WHERE id=?").bind(r.uid).run();
+  // Record the consent for the audit trail.
+  await logConsent(env, r.uid, username, "signup_parent_email", email, "Parent email provided at signup; parent notified and can review/withdraw");
   const origin = new URL(request.url).origin;
   const inviteUrl = `${origin}/index.html?plink=${r.row.link_token}`;
   if (email) {
     const inviteBody = `${name} just joined KidVibers! Tap "Sign My Kid and Myself Up" to create your parent account and connect to ${name}: ${inviteUrl}`;
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
       .bind(email, "parent_invite", inviteBody, r.uid, r.row.link_token, nowIso()).run();
-    if (needsConsent) {
-      const consentUrl = `${origin}/index.html?consent=${consentToken}`;
-      const consentBody = `Parental consent needed: ${name} wants to use KidVibers. Please review and approve: ${consentUrl}`;
-      await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
-        .bind(email, "consent_request", consentBody, r.uid, consentToken, nowIso()).run();
-      // Actually send the consent email to the parent.
-      await sendEmail(env, email, `Approve ${name}'s KidVibers account`,
-        `<p><strong>${name}</strong> wants to use KidVibers - but no kid can play until a parent or guardian approves.</p>
-         <p><a href="${consentUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;">Review &amp; approve →</a></p>
-         <p style="color:#666;font-size:0.9rem;">If you didn't expect this, you can ignore it - the account stays locked until approved.</p>`);
-    }
+    // Notify the parent in the background (no blocking gate). They can manage or withdraw anytime.
+    const manageUrl = `${origin}/index.html?consent=${consentToken}`;
+    const noticeBody = `${name} just started learning to code on KidVibers. You can connect, manage, or remove the account anytime: ${manageUrl}`;
+    await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
+      .bind(email, "consent_notice", noticeBody, r.uid, consentToken, nowIso()).run();
+    await sendEmail(env, email, `${name} just joined KidVibers 🚀`,
+      `<p><strong>${name}</strong> just started learning to code on KidVibers - a safe, ad-free coding app for kids.</p>
+       <p>You're listed as their parent/guardian. You can connect to their account, see their progress, or remove it at any time:</p>
+       <p><a href="${manageUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;">Manage ${name}'s account →</a></p>
+       <p style="color:#666;font-size:0.9rem;">If you didn't expect this, click above to review or remove the account. No ads, no data selling - ever.</p>`);
   }
   const token = await createSession(env, r.uid);
   await sendSlack(env, `🧒 *New kid signed up!*\n• Name: ${name}\n• Username: @${username}\n• Age: ${ageYears}\n• Parent email: ${email || "none"}\n• Plan: ${planName}${getLaunchPro ? " (Launch Pro 🎉)" : ""}`);

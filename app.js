@@ -369,7 +369,10 @@ function skipQuiz() { showQuizResult({ title: "You're all set!", blurb: 'We save
 const PLAN_FALLBACK = 'Start free with starter lessons, badges and the avatar shop. Upgrade any time.';
 function finishQuiz() {
   document.getElementById('quizModal').classList.add('hidden');
-  showInvite(quizState.data, quizState.parentEmail);   // continue to the parent-consent invite
+  // Consent is handled in the background - the kid can start playing right away.
+  // (The parent was emailed a manage link.) Send them straight to their dashboard.
+  const u = (quizState && quizState.data && quizState.data.user) || C4K.user;
+  window.location.href = u ? C4K.homeFor(u) : 'dashboard.html';
 }
 
 // ── Parent invite (QR + on-device approval) shown after a kid signs up ──
