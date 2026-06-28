@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Match 🧩 - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=67" />
+  <style>
+    body { background: #08060f; min-height: 100vh; }
+    .game-wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+    .game-title { font-size: 2.4rem; font-weight: 900; text-align: center; margin: 0; }
+    .game-title span { color: #34d399; }
+    .game-sub { color: var(--text-dim); text-align: center; margin: 4px 0 20px; }
+
+    .hud { display: flex; justify-content: space-around; align-items: center;
+           background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+           padding: 12px 18px; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
+    .hud-stat { text-align:center; }
+    .hud-stat .val { font-size: 1.5rem; font-weight: 900; color: #34d399; line-height: 1; }
+    .hud-stat .lbl { font-size: 0.68rem; font-weight: 800; color: var(--text-dim); }
+
+    #startScreen { text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .big-emoji { font-size: 3.6rem; margin-bottom: 10px; }
+    .instructions { background: var(--surface-2); border-radius: 14px; padding: 16px 20px; margin: 18px auto; max-width: 440px; text-align:left; }
+    .instructions li { color: var(--text-dim); margin-bottom: 7px; font-weight: 700; }
+
+    #gameArea { display: none; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 560px){ .grid { grid-template-columns: repeat(3, 1fr); } }
+    .card { aspect-ratio: 3/4; border-radius: 14px; cursor: pointer; position: relative;
+            perspective: 600px; }
+    .card-inner { position: absolute; inset: 0; transition: transform 0.4s; transform-style: preserve-3d; }
+    .card.flipped .card-inner, .card.matched .card-inner { transform: rotateY(180deg); }
+    .card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 14px;
+                 display: flex; align-items: center; justify-content: center; padding: 8px; text-align: center; }
+    .card-front { background: linear-gradient(135deg,#1a1730,#2a1145); border: 2px solid var(--border-bright);
+                  font-size: 1.8rem; color: #34d399; }
+    .card-back { background: var(--surface-2); border: 2px solid var(--border); transform: rotateY(180deg);
+                 font-family: 'Courier New', monospace; font-weight: 800; font-size: 0.78rem; color: #e0d4ff;
+                 line-height: 1.3; word-break: break-word; }
+    .card.matched .card-back { border-color: #34d399; background: rgba(52,211,153,0.12); color: #6ee7b7; }
+    .card.shake .card-inner { animation: shk 0.4s; }
+    @keyframes shk { 0%,100%{transform:rotateY(180deg) translateX(0)} 25%{transform:rotateY(180deg) translateX(-5px)} 75%{transform:rotateY(180deg) translateX(5px)} }
+
+    #resultScreen { display: none; text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .result-score { font-size: 3.5rem; font-weight: 900; color: #34d399; }
+    .breakdown { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 16px 0 20px; }
+    .bd { background: var(--surface-2); border-radius: 12px; padding: 14px; }
+    .bd .n { font-size: 1.4rem; font-weight: 900; }
+    .bd .l { font-size: 0.72rem; color: var(--text-dim); font-weight: 800; }
+    .xp-pill { display:inline-block; background: linear-gradient(135deg,#059669,#34d399); color: #fff; font-weight: 900; padding: 8px 20px; border-radius: 50px; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="games.html" class="btn btn-ghost">🎮 All Games</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="game-wrap">
+    <h1 class="game-title">Code Match <span>🧩</span></h1>
+    <p class="game-sub">Match each Python idea to what it does!</p>
+
+    <div class="hud" id="hud" style="display:none;">
+      <div class="hud-stat"><div class="val" id="hudMatches">0/8</div><div class="lbl">Matches</div></div>
+      <div class="hud-stat"><div class="val" id="hudMoves">0</div><div class="lbl">Flips</div></div>
+      <div class="hud-stat"><div class="val" id="hudTime">0s</div><div class="lbl">Time</div></div>
+    </div>
+
+    <div id="startScreen">
+      <div class="big-emoji">🧩</div>
+      <h2 style="font-size:1.7rem;font-weight:900;margin:0 0 6px;">Code Match</h2>
+      <p style="color:var(--text-dim);">Flip cards to match a coding idea with what it does. Find all 8 pairs!</p>
+      <ul class="instructions">
+        <li>🃏 Flip two cards at a time</li>
+        <li>🧩 Match the idea (like <code>len()</code>) to its meaning</li>
+        <li>⚡ Fewer flips &amp; faster time = more stars</li>
+        <li>🏆 Find all 8 pairs to win</li>
+      </ul>
+      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">🧩 Start Matching!</button>
+    </div>
+
+    <div id="gameArea">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div id="resultScreen">
+      <div style="font-size:3rem;margin-bottom:6px;">🏆</div>
+      <div class="result-score" id="resScore">0</div>
+      <div style="font-size:1.4rem;font-weight:900;margin:6px 0 4px;" id="resGrade">Grade</div>
+      <div style="font-size:1.8rem;margin-bottom:16px;" id="resStars">⭐⭐⭐</div>
+      <div class="xp-pill" id="resXp">+50 XP!</div>
+      <div class="breakdown">
+        <div class="bd"><div class="n" id="resMoves">0</div><div class="l">Flips</div></div>
+        <div class="bd"><div class="n" id="resTime">0s</div><div class="l">Time</div></div>
+        <div class="bd"><div class="n" id="resPairs">8/8</div><div class="l">Pairs</div></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-lg" onclick="startGame()">🔄 Play Again</button>
+        <a href="games.html" class="btn btn-outline btn-lg">🎮 More Games</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=67"></script>
+  <script>
+  const PAIRS = [
+    { a:'print()', b:'shows text on screen' },
+    { a:'len()', b:'counts items' },
+    { a:'for', b:'repeats a number of times' },
+    { a:'if', b:'checks a condition' },
+    { a:'int()', b:'turns text into a number' },
+    { a:'+', b:'adds or joins' },
+    { a:'list []', b:'holds many items' },
+    { a:'def', b:'makes a function' },
+    { a:'input()', b:'asks the user' },
+    { a:'random', b:'picks something by chance' },
+    { a:'==', b:'checks if equal' },
+    { a:'while', b:'loops until done' },
+  ];
+
+  let cards=[], flipped=[], matched=0, moves=0, lock=false, startTime=0, tInterval=null;
+  const NUM_PAIRS=8;
+
+  (async () => { try { if (typeof C4K==='undefined') return; const me=await C4K.loadMe(); if (me && me.role==='kid') document.getElementById('dashLink').style.display=''; } catch(e){} })();
+
+  function startGame() {
+    const chosen=[...PAIRS].sort(()=>Math.random()-0.5).slice(0,NUM_PAIRS);
+    cards=[];
+    chosen.forEach((p,i)=>{ cards.push({id:i,text:p.a,type:'a'}); cards.push({id:i,text:p.b,type:'b'}); });
+    cards.sort(()=>Math.random()-0.5);
+    matched=0; moves=0; flipped=[]; lock=false;
+    document.getElementById('startScreen').style.display='none';
+    document.getElementById('resultScreen').style.display='none';
+    document.getElementById('gameArea').style.display='block';
+    document.getElementById('hud').style.display='flex';
+    document.getElementById('hudMatches').textContent='0/'+NUM_PAIRS;
+    document.getElementById('hudMoves').textContent='0';
+    render();
+    startTime=Date.now();
+    clearInterval(tInterval);
+    tInterval=setInterval(()=>{ document.getElementById('hudTime').textContent=Math.floor((Date.now()-startTime)/1000)+'s'; },500);
+  }
+
+  function render() {
+    document.getElementById('grid').innerHTML = cards.map((c,i)=>
+      `<div class="card" id="card-${i}" onclick="flip(${i})">
+        <div class="card-inner">
+          <div class="card-face card-front">${c.type==='a'?'🟢':'💡'}</div>
+          <div class="card-face card-back">${escHtml(c.text)}</div>
+        </div>
+      </div>`
+    ).join('');
+  }
+
+  function flip(i) {
+    if (lock) return;
+    const el=document.getElementById('card-'+i);
+    if (el.classList.contains('flipped')||el.classList.contains('matched')) return;
+    el.classList.add('flipped');
+    flipped.push(i);
+    if (flipped.length===2) {
+      moves++;
+      document.getElementById('hudMoves').textContent=moves;
+      lock=true;
+      const [a,b]=flipped;
+      if (cards[a].id===cards[b].id && cards[a].type!==cards[b].type) {
+        // match!
+        setTimeout(()=>{
+          document.getElementById('card-'+a).classList.add('matched');
+          document.getElementById('card-'+b).classList.add('matched');
+          matched++;
+          document.getElementById('hudMatches').textContent=matched+'/'+NUM_PAIRS;
+          flipped=[]; lock=false;
+          if (matched===NUM_PAIRS) endGame();
+        },500);
+      } else {
+        // no match
+        setTimeout(()=>{
+          document.getElementById('card-'+a).classList.add('shake');
+          document.getElementById('card-'+b).classList.add('shake');
+        },300);
+        setTimeout(()=>{
+          ['card-'+a,'card-'+b].forEach(id=>{ const e=document.getElementById(id); e.classList.remove('flipped','shake'); });
+          flipped=[]; lock=false;
+        },900);
+      }
+    }
+  }
+
+  function endGame() {
+    clearInterval(tInterval);
+    const secs=Math.floor((Date.now()-startTime)/1000);
+    // Score: base 1000, lose points for extra flips and time
+    const perfect=NUM_PAIRS; // min flips
+    const extraFlips=Math.max(0,moves-perfect);
+    let score=Math.max(100, 1000 - extraFlips*30 - secs*5);
+    setTimeout(()=>{
+      document.getElementById('gameArea').style.display='none';
+      document.getElementById('hud').style.display='none';
+      document.getElementById('resultScreen').style.display='block';
+      const ratio = perfect/moves; // 1.0 = perfect
+      const grade=ratio>=0.8?'🧠 Memory Master!':ratio>=0.55?'⚡ Sharp Mind!':ratio>=0.4?'💪 Nice Work!':'🌱 Keep Practicing!';
+      const stars=ratio>=0.8?'⭐⭐⭐':ratio>=0.5?'⭐⭐':'⭐';
+      const xp=Math.round(score/20);
+      document.getElementById('resScore').textContent=score;
+      document.getElementById('resGrade').textContent=grade;
+      document.getElementById('resStars').textContent=stars;
+      document.getElementById('resXp').textContent=`+${xp} XP earned!`;
+      document.getElementById('resMoves').textContent=moves;
+      document.getElementById('resTime').textContent=secs+'s';
+      document.getElementById('resPairs').textContent=NUM_PAIRS+'/'+NUM_PAIRS;
+      try { if (typeof C4K!=='undefined' && C4K.token()) C4K.api('/api/game/score','POST',{xp:xp,game:'match'}); } catch(e){}
+    },600);
+  }
+  function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  </script>
+</body>
+</html>

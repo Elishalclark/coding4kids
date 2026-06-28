@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Arcade 🎮 - KidVibers</title>
+  <meta name="description" content="Fun, fast coding games for kids — find bugs, predict output, fill in code, and match concepts. Earn tokens while you learn to code." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=67" />
+  <style>
+    body { background: #08060f; min-height: 100vh; }
+    .arc { max-width: 880px; margin: 0 auto; padding: 24px 16px 70px; }
+    .arc-hero { text-align: center; margin-bottom: 28px; }
+    .arc-hero h1 { font-size: 2.6rem; font-weight: 900; margin: 0; }
+    .arc-hero p { color: var(--text-dim); margin-top: 6px; font-size: 1.05rem; }
+    .games-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    @media (max-width: 600px){ .games-grid { grid-template-columns: 1fr; } }
+    .game-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+                 padding: 26px 24px; text-decoration: none; color: var(--text); display: flex;
+                 flex-direction: column; transition: transform .15s, border-color .15s; position: relative; overflow: hidden; }
+    .game-card:hover { transform: translateY(-4px); border-color: var(--border-bright); }
+    .game-card .glow { position: absolute; top: -40px; right: -40px; width: 120px; height: 120px;
+                       border-radius: 50%; filter: blur(40px); opacity: 0.5; }
+    .game-card .ico { font-size: 2.8rem; }
+    .game-card h2 { font-size: 1.3rem; font-weight: 900; margin: 10px 0 4px; }
+    .game-card .tag { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase;
+                      padding: 3px 10px; border-radius: 50px; display: inline-block; width: fit-content; margin-bottom: 8px; }
+    .game-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; flex: 1; }
+    .game-card .play { margin-top: 14px; font-weight: 900; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
+    .arc-note { text-align: center; margin-top: 28px; color: var(--text-dim); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="lessons.html" class="btn btn-ghost">📚 Lessons</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="arc">
+    <div class="arc-hero">
+      <h1>🎮 Game Arcade</h1>
+      <p>Fast, fun coding games — play, earn tokens, and sharpen your skills!</p>
+    </div>
+
+    <div class="games-grid">
+      <a href="game-bugzapper.html" class="game-card">
+        <div class="glow" style="background:#f59e0b;"></div>
+        <div class="ico">🐛⚡</div>
+        <span class="tag" style="background:rgba(245,158,11,0.15);color:#fbbf24;">Debugging</span>
+        <h2>Bug Zapper</h2>
+        <p>Each code snippet has one hidden bug. Click the broken line before the timer runs out!</p>
+        <span class="play" style="color:#fbbf24;">Play now →</span>
+      </a>
+
+      <a href="game-codeblitz.html" class="game-card">
+        <div class="glow" style="background:#a78bfa;"></div>
+        <div class="ico">⚡</div>
+        <span class="tag" style="background:rgba(167,139,250,0.15);color:#a78bfa;">Speed</span>
+        <h2>Code Blitz</h2>
+        <p>Fill in the missing piece of code as fast as you can. Build combos for huge bonus points!</p>
+        <span class="play" style="color:#a78bfa;">Play now →</span>
+      </a>
+
+      <a href="game-output.html" class="game-card">
+        <div class="glow" style="background:#22d3ee;"></div>
+        <div class="ico">🔮</div>
+        <span class="tag" style="background:rgba(34,211,238,0.15);color:#22d3ee;">Logic</span>
+        <h2>Output Oracle</h2>
+        <p>Read the code in your head and predict exactly what it will print. Can you see the future?</p>
+        <span class="play" style="color:#22d3ee;">Play now →</span>
+      </a>
+
+      <a href="game-match.html" class="game-card">
+        <div class="glow" style="background:#34d399;"></div>
+        <div class="ico">🧩</div>
+        <span class="tag" style="background:rgba(52,211,153,0.15);color:#34d399;">Memory</span>
+        <h2>Code Match</h2>
+        <p>Flip cards to match each coding idea with what it does. Find all 8 pairs in the fewest moves!</p>
+        <span class="play" style="color:#34d399;">Play now →</span>
+      </a>
+    </div>
+
+    <p class="arc-note">🪙 Log in to earn tokens for playing — then spend them in the avatar shop!</p>
+  </main>
+
+  <script src="auth.js?v=67"></script>
+  <script>
+    (async () => {
+      try {
+        if (typeof C4K === 'undefined') return;
+        const me = await C4K.loadMe();
+        if (me && me.role === 'kid') document.getElementById('dashLink').style.display = '';
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>
