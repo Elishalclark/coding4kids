@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Printable Card - KidVibers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito', system-ui, sans-serif; background: #0c0a18; color: #fff;
+           min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+           padding: 30px 16px; gap: 22px; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .btn { font-family: inherit; font-weight: 800; font-size: 0.95rem; padding: 11px 22px;
+           border-radius: 50px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn-primary { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; }
+    .btn-outline { background: none; border: 1px solid #3a2f63; color: #cbb8ef; }
+    .hint { color: #8a82ad; font-size: 0.85rem; text-align: center; max-width: 440px; }
+
+    /* ── The card: 5in x 3in postcard ── */
+    .card {
+      width: 5in; height: 3in;
+      background: linear-gradient(150deg, #2a1145 0%, #4c1d95 55%, #9d174d 100%);
+      border-radius: 18px; padding: 0.28in 0.32in; position: relative; overflow: hidden;
+      box-shadow: 0 16px 50px rgba(124,58,237,0.4); color: #fff;
+      display: flex; flex-direction: column;
+    }
+    .card .blob { position: absolute; border-radius: 50%; filter: blur(34px); opacity: 0.5; }
+    .card .blob1 { width: 130px; height: 130px; background: #db2777; top: -40px; right: -30px; }
+    .card .blob2 { width: 110px; height: 110px; background: #7c3aed; bottom: -40px; left: -20px; }
+
+    .card .top { display: flex; align-items: center; gap: 8px; z-index: 1; }
+    .card .logo-ico { font-size: 1.5rem; }
+    .card .brand { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.5px; }
+    .card .brand b { color: #fbcfe8; }
+
+    .card .tagline { font-size: 0.82rem; font-weight: 800; color: #e9d5ff; margin-top: 2px; z-index: 1; }
+
+    .card .mid { display: flex; gap: 14px; align-items: center; flex: 1; z-index: 1; margin-top: 6px; }
+    .card .pitch { flex: 1; }
+    .card .pitch h2 { font-size: 1.05rem; font-weight: 900; line-height: 1.15; margin-bottom: 5px; }
+    .card .pitch ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .card .pitch li { font-size: 0.72rem; font-weight: 700; color: #f3e8ff; }
+
+    .card .qr { background: #fff; border-radius: 10px; padding: 6px; flex-shrink: 0; }
+    .card .qr img { width: 1.05in; height: 1.05in; display: block; }
+    .card .qr .scan { text-align: center; font-size: 0.58rem; font-weight: 900; color: #4c1d95; margin-top: 2px; letter-spacing: 0.5px; }
+
+    .card .offer { background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3);
+                   border-radius: 10px; padding: 5px 10px; font-size: 0.72rem; font-weight: 900;
+                   text-align: center; z-index: 1; margin-top: 4px; }
+    .card .url { text-align: center; font-size: 0.82rem; font-weight: 900; color: #fff; margin-top: 5px; z-index: 1; }
+
+    @media print {
+      body { background: #fff; padding: 0; gap: 0; display: block; }
+      .toolbar, .hint { display: none !important; }
+      .card { margin: 0.4in auto; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <a class="btn btn-outline" href="index.html">← Back to site</a>
+  </div>
+  <p class="hint">Tip: in the print dialog, choose "Save as PDF" to keep a copy, or print on cardstock. The card is sized 5″ × 3″ (postcard).</p>
+
+  <div class="card">
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+
+    <div class="top">
+      <span class="logo-ico">🚀</span>
+      <span class="brand">Kid<b>Vibers</b></span>
+    </div>
+    <div class="tagline">The Duolingo of coding — for kids 🎮</div>
+
+    <div class="mid">
+      <div class="pitch">
+        <h2>Learn to code by playing!</h2>
+        <ul>
+          <li>📚 242 lessons · 19 worlds</li>
+          <li>🤖 AI buddy · 🎮 coding games</li>
+          <li>🏆 Boss battles &amp; certificates</li>
+          <li>🛡️ 100% ad-free &amp; safe</li>
+        </ul>
+      </div>
+      <div class="qr">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://kidvibers.com" alt="Scan to visit kidvibers.com" />
+        <div class="scan">SCAN ME</div>
+      </div>
+    </div>
+
+    <div class="offer">🎁 First 50 kids get 30 days of Pro FREE</div>
+    <div class="url">kidvibers.com</div>
+  </div>
+
+  <script src="pwa.js?v=73" defer></script>
+</body>
+</html>

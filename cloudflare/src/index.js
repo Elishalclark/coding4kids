@@ -9,7 +9,7 @@ const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
 
 // ───────────────────────── constants (mirror server.py) ─────────────────────────
 const TRIAL_DAYS = 3;
-const PRO_LAUNCH_SLOTS = 100;   // first 100 kids get 30 days of Pro free
+const PRO_LAUNCH_SLOTS = 50;   // first 50 kids get 30 days of Pro free
 const PRO_LAUNCH_DAYS = 30;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
@@ -508,7 +508,7 @@ async function apiAuthGoogle(env, request, data) {
   const err = validateCredentials(kidName, username, password);
   if (err) return json({ error: err }, 400);
   if (ageYears < 4 || ageYears > 18) return json({ error: "Please enter the child's age (between 4 and 18)." }, 400);
-  // First 100 kids get 30 days of Pro free.
+  // First 50 kids get 30 days of Pro free.
   const slotsUsed = await launchSlotsUsed(env);
   const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
   const planDays = getLaunchPro ? PRO_LAUNCH_DAYS : TRIAL_DAYS;
@@ -637,7 +637,7 @@ async function apiSignup(env, request, data) {
   const needsConsent = false;
   const consentToken = randToken(10);  // still issued so a parent can manage from the email link
   const consentStatus = "granted";
-  // Check if a launch Pro slot is available - first 100 kids get 30 days of Pro free.
+  // Check if a launch Pro slot is available - first 50 kids get 30 days of Pro free.
   const slotsUsed = await launchSlotsUsed(env);
   const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
   const planDays = getLaunchPro ? PRO_LAUNCH_DAYS : TRIAL_DAYS;
