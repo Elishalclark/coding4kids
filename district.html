@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=67" />
+  <link rel="stylesheet" href="styles.css?v=69" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -167,6 +167,23 @@
       <div id="reportsList" style="display:flex;flex-direction:column;gap:14px;"></div>
       <p id="reportsEmpty" class="hint" style="display:none;margin-top:8px;">✅ No reports — your school is in good standing!</p>
     </div>
+
+    <!-- Progress + Leaderboard -->
+    <div class="card">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+        <h2 style="margin:0;flex:1;min-width:140px;">📊 Student Progress</h2>
+        <button class="mini" id="ddTabProgress" onclick="ddShowTab('progress')">📊 Progress</button>
+        <button class="mini" id="ddTabLeader" onclick="ddShowTab('leader')">🏆 Leaderboard</button>
+      </div>
+      <div id="ddProgPanel" style="overflow-x:auto;">
+        <table class="roster">
+          <thead><tr><th>Student</th><th>Progress</th><th>Worlds</th><th>Avg</th><th>XP</th><th>Last Active</th></tr></thead>
+          <tbody id="ddProgRows"></tbody>
+        </table>
+        <p id="ddProgEmpty" class="hint" style="display:none;margin-top:10px;">No students yet.</p>
+      </div>
+      <div id="ddLeaderPanel" style="display:none;flex-direction:column;gap:8px;"></div>
+    </div>
   </main>
 
   <!-- ── Report popup modal ── -->
@@ -241,7 +258,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=67"></script>
+  <script src="auth.js?v=69"></script>
   <script>
     let ME = null;
 
@@ -279,8 +296,40 @@
       }
       loadRoster();
       loadSchoolReports();
+      loadDDProgress();
       if (ME.isFullDistrict) { document.getElementById('schoolsCard').style.display = ''; loadSchools(); }
     })();
+
+    let _ddProg = null;
+    async function loadDDProgress() {
+      const { ok, data } = await C4K.api('/api/teacher/progress');
+      if (!ok) return;
+      _ddProg = data;
+      const students = data.students || [];
+      document.getElementById('ddProgEmpty').style.display = students.length ? 'none' : '';
+      document.getElementById('ddProgRows').innerHTML = students.map(s => `
+        <tr>
+          <td><strong>${C4K.esc(s.name)}</strong><br><span style="color:var(--text-faint);font-size:0.72rem;">@${C4K.esc(s.username)}</span></td>
+          <td style="min-width:120px;"><div style="display:flex;align-items:center;gap:6px;"><div style="flex:1;height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${s.percent}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div><span style="font-size:0.74rem;font-weight:800;color:var(--text-dim);">${s.lessonsDone}/${s.totalLessons}</span></div></td>
+          <td style="text-align:center;font-weight:800;">${s.worldsCleared}🏆</td>
+          <td style="text-align:center;font-weight:800;color:${s.avgScore>=80?'#4ade80':s.avgScore>=60?'#fbbf24':'var(--text-dim)'};">${s.avgScore?s.avgScore+'%':'—'}</td>
+          <td style="text-align:center;font-weight:800;color:var(--purple);">${s.xp}⚡</td>
+          <td style="color:var(--text-dim);font-size:0.8rem;">${s.lastActive || 'never'}</td>
+        </tr>`).join('');
+      const lb = data.leaderboard || [];
+      const medals = ['🥇','🥈','🥉'];
+      document.getElementById('ddLeaderPanel').innerHTML = lb.map((s,i) => `
+        <div style="display:flex;align-items:center;gap:14px;background:${i<3?'var(--surface-2)':'var(--bg)'};border:1px solid ${i===0?'#fbbf24':'var(--border)'};border-radius:12px;padding:12px 16px;">
+          <div style="font-size:1.3rem;font-weight:900;min-width:36px;text-align:center;">${medals[i]||'#'+(i+1)}</div>
+          <div style="flex:1;"><div style="font-weight:900;">${C4K.esc(s.name)}</div><div style="color:var(--text-faint);font-size:0.76rem;">${s.lessonsDone} lessons · ${s.worldsCleared} worlds</div></div>
+          <div style="text-align:right;"><div style="font-weight:900;color:var(--purple);font-size:1.1rem;">${s.xp}⚡</div><div style="color:var(--text-faint);font-size:0.72rem;">XP</div></div>
+        </div>`).join('') || '<p class="hint">No students yet.</p>';
+    }
+    function ddShowTab(tab) {
+      const isP = tab === 'progress';
+      document.getElementById('ddProgPanel').style.display = isP ? '' : 'none';
+      document.getElementById('ddLeaderPanel').style.display = isP ? 'none' : 'flex';
+    }
 
     function paintHeader() {
       const org = ME.brandName || ME.school || ME.name || 'Your School';
@@ -562,7 +611,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=67" defer></script>
-  <script src="editor.js?v=67" defer></script>
+  <script src="pwa.js?v=69" defer></script>
+  <script src="editor.js?v=69" defer></script>
 </body>
 </html>

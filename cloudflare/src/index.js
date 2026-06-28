@@ -1283,6 +1283,46 @@ async function apiParentFamily(env, request) {
   return json({ parent: await publicUser(env, u), kids: kidsPub });
 }
 
+// Rich per-student progress for teachers/parents: lessons done, worlds cleared,
+// avg boss score, last active, XP. Powers both the progress table and leaderboard.
+async function apiTeacherProgress(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  // For a full district, include students across all its schools; else just this family.
+  let familyIds = [u.family_id];
+  if (u.role === "teacher" && DISTRICT_PLANS.includes(u.plan)) {
+    const schools = (await env.DB.prepare("SELECT family_id,id FROM users WHERE district_id=? AND role='teacher'").bind(u.id).all()).results || [];
+    familyIds = [u.family_id, ...schools.map(s => s.family_id || s.id)];
+  }
+  const uniq = [...new Set(familyIds)];
+  const ph = uniq.map(() => "?").join(",");
+  const kids = (await env.DB.prepare(`SELECT id,name,username,tokens,created_at,suspended FROM users WHERE role='kid' AND family_id IN (${ph}) ORDER BY id`).bind(...uniq).all()).results || [];
+
+  const out = [];
+  const totalLessons = (await env.DB.prepare("SELECT COUNT(*) c FROM lessons WHERE published=1").first()).c || 1;
+  for (const k of kids) {
+    const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(k.id).first()).c || 0;
+    const last = (await env.DB.prepare("SELECT MAX(completed_at) m FROM progress WHERE user_id=?").bind(k.id).first()).m;
+    const passedRows = (await env.DB.prepare("SELECT unit,best_score FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).all()).results || [];
+    const worldsCleared = passedRows.length;
+    const avgScore = passedRows.length ? Math.round(passedRows.reduce((a, r) => a + (r.best_score || 0), 0) / passedRows.length) : 0;
+    // XP = total xp of completed lessons
+    const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
+    out.push({
+      id: k.id, name: k.name, username: k.username,
+      lessonsDone: done, totalLessons,
+      percent: Math.round(done / totalLessons * 100),
+      worldsCleared, avgScore, xp: xpRow.xp || 0,
+      level: worldsCleared + 1, tokens: k.tokens || 0,
+      lastActive: last ? last.slice(0, 10) : null,
+      suspended: !!k.suspended,
+    });
+  }
+  // Leaderboard order: by XP desc, then lessons done
+  const leaderboard = [...out].sort((a, b) => b.xp - a.xp || b.lessonsDone - a.lessonsDone);
+  return json({ students: out, leaderboard, totalLessons });
+}
+
 async function apiParentMessages(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
@@ -2335,6 +2375,7 @@ async function handleApi(env, request, path) {
     return isNaN(pid) ? json({ error: "bad id" }, 400) : apiCommentsGet(env, request, pid);
   }
   if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
+  if (path === "/api/teacher/progress" && method === "GET") return apiTeacherProgress(env, request);
   if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
   if (path.startsWith("/api/parent/kid-data/") && method === "GET") {
     const kid = parseInt(path.split("/").pop(), 10);

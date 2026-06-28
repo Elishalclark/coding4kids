@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=67" />
+  <link rel="stylesheet" href="styles.css?v=69" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -174,7 +174,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=67"></script>
+  <script src="auth.js?v=69"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -488,6 +488,45 @@
       renderBadges();
       renderCerts();
       renderPuzzle();
+      maybeShowTour();
+    }
+
+    // ── First-time welcome tour ──────────────────────────
+    const TOUR = [
+      { emoji:'👋', title:'Welcome to KidVibers!', text:`Hi ${''}! You're about to learn real coding by playing. Let's take 20 seconds to show you around.` },
+      { emoji:'📚', title:'Start with Lessons', text:'Tap <strong>Lessons</strong> to begin your coding adventure. Short, fun lessons across 19 worlds — run real code and get instant feedback!' },
+      { emoji:'⚔️', title:'Beat Boss Battles', text:'Finish a world\'s lessons, then beat its <strong>boss battle</strong> to level up, earn a <strong>certificate</strong>, and unlock the next world.' },
+      { emoji:'🎮', title:'Play Coding Games', text:'Tap <strong>Games</strong> for fast, fun challenges — find bugs, predict output, and more. You earn 🪙 tokens for playing!' },
+      { emoji:'🛝', title:'Build in the Playground', text:'Use the <strong>Playground</strong> to write your own Python and build whatever you imagine. Spend tokens in the avatar shop to customize your look!' },
+      { emoji:'🚀', title:'Ready to code?', text:'That\'s it! Earn XP, keep your streak going, and have fun. Let\'s start your first lesson!' },
+    ];
+    let tourStep = 0;
+    function maybeShowTour() {
+      try {
+        if (localStorage.getItem('c4k_seen_tour')) return;
+        if (!ME || ME.role !== 'kid') return;
+        tourStep = 0;
+        renderTour();
+        document.getElementById('tourOverlay').style.display = 'flex';
+      } catch (e) {}
+    }
+    function renderTour() {
+      const s = TOUR[tourStep];
+      let text = s.text;
+      if (tourStep === 0) text = `Hi ${C4K.esc((ME.name||'').split(' ')[0] || 'coder')}! You're about to learn real coding by playing. Let's take 20 seconds to show you around.`;
+      document.getElementById('tourEmoji').textContent = s.emoji;
+      document.getElementById('tourTitle').textContent = s.title;
+      document.getElementById('tourText').innerHTML = text;
+      document.getElementById('tourDots').innerHTML = TOUR.map((_,i)=>`<span style="width:8px;height:8px;border-radius:50%;background:${i===tourStep?'var(--purple)':'var(--border)'};display:inline-block;"></span>`).join('');
+      document.getElementById('tourNext').textContent = tourStep === TOUR.length-1 ? '📚 Start Lessons!' : 'Next →';
+    }
+    function tourNext() {
+      if (tourStep < TOUR.length-1) { tourStep++; renderTour(); }
+      else { endTour(); location.href = 'lessons.html'; }
+    }
+    function endTour() {
+      try { localStorage.setItem('c4k_seen_tour','1'); } catch(e){}
+      document.getElementById('tourOverlay').style.display = 'none';
     }
 
     function renderCerts() {
@@ -587,7 +626,22 @@
 
     load();
   </script>
-  <script src="pwa.js?v=67" defer></script>
-  <script src="editor.js?v=67" defer></script>
+
+  <!-- First-time welcome tour -->
+  <div id="tourOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(8,6,18,0.9);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:440px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:24px;padding:34px 28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+      <div id="tourEmoji" style="font-size:3.6rem;margin-bottom:8px;">👋</div>
+      <h2 id="tourTitle" style="font-size:1.5rem;font-weight:900;margin:0 0 10px;color:#fff;">Welcome!</h2>
+      <p id="tourText" style="color:var(--text-dim);line-height:1.6;font-size:0.98rem;margin:0 0 20px;"></p>
+      <div id="tourDots" style="display:flex;gap:7px;justify-content:center;margin-bottom:20px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-ghost" onclick="endTour()" style="font-size:0.9rem;">Skip</button>
+        <button class="btn btn-primary btn-lg" id="tourNext" onclick="tourNext()" style="min-width:150px;">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="pwa.js?v=69" defer></script>
+  <script src="editor.js?v=69" defer></script>
 </body>
 </html>

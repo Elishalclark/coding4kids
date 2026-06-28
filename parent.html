@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=67" />
+  <link rel="stylesheet" href="styles.css?v=69" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -150,9 +150,34 @@
 
     <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Your Kids</h2>
     <div class="kid-grid" id="kidGrid"></div>
+
+    <!-- Progress + Leaderboard (teachers/schools) -->
+    <div id="progressSection" style="display:none;margin-top:32px;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="tabProgress" onclick="showProgTab('progress')" style="font-size:0.85rem;padding:8px 16px;">📊 Progress</button>
+        <button class="btn btn-outline" id="tabLeader" onclick="showProgTab('leader')" style="font-size:0.85rem;padding:8px 16px;">🏆 Leaderboard</button>
+      </div>
+
+      <!-- Progress table -->
+      <div id="progPanel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="text-align:left;color:var(--text-dim);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;">
+            <th style="padding:8px;">Student</th><th style="padding:8px;">Progress</th><th style="padding:8px;">Worlds</th><th style="padding:8px;">Avg Score</th><th style="padding:8px;">XP</th><th style="padding:8px;">Last Active</th>
+          </tr></thead>
+          <tbody id="progRows"></tbody>
+        </table>
+        <p id="progEmpty" style="display:none;color:var(--text-dim);font-size:0.88rem;margin:10px 0 0;">No students yet — add some above to track their progress.</p>
+      </div>
+
+      <!-- Leaderboard -->
+      <div id="leaderPanel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;">
+        <div id="leaderList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <p id="leaderEmpty" style="display:none;color:var(--text-dim);font-size:0.88rem;margin:0;">No students yet.</p>
+      </div>
+    </div>
   </main>
 
-  <script src="auth.js?v=67"></script>
+  <script src="auth.js?v=69"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -249,6 +274,9 @@
         // Show school hours control for teachers/schools/districts
         document.getElementById('scheduleCard').classList.remove('hidden');
         loadSchedule();
+        // Progress + leaderboard
+        document.getElementById('progressSection').style.display = 'block';
+        loadProgress();
       }
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
@@ -516,6 +544,57 @@
     }
 
     // ── School Hours Schedule ──────────────────────────
+    // ── Progress + Leaderboard ──────────────────────────
+    let _progData = null;
+    async function loadProgress() {
+      const { ok, data } = await C4K.api('/api/teacher/progress');
+      if (!ok) return;
+      _progData = data;
+      renderProgress();
+      renderLeaderboard();
+    }
+    function showProgTab(tab) {
+      const isP = tab === 'progress';
+      document.getElementById('progPanel').style.display = isP ? '' : 'none';
+      document.getElementById('leaderPanel').style.display = isP ? 'none' : '';
+      document.getElementById('tabProgress').className = 'btn ' + (isP ? 'btn-primary' : 'btn-outline');
+      document.getElementById('tabLeader').className = 'btn ' + (isP ? 'btn-outline' : 'btn-primary');
+      document.getElementById('tabProgress').style.cssText = 'font-size:0.85rem;padding:8px 16px;';
+      document.getElementById('tabLeader').style.cssText = 'font-size:0.85rem;padding:8px 16px;';
+    }
+    function renderProgress() {
+      const students = (_progData && _progData.students) || [];
+      document.getElementById('progEmpty').style.display = students.length ? 'none' : '';
+      document.getElementById('progRows').innerHTML = students.map(s => `
+        <tr style="border-top:1px solid var(--border);">
+          <td style="padding:10px 8px;font-weight:800;">${C4K.esc(s.name)}<br><span style="color:var(--text-faint);font-size:0.75rem;font-weight:600;">@${C4K.esc(s.username)}</span></td>
+          <td style="padding:10px 8px;min-width:130px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="flex:1;height:8px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${s.percent}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div>
+              <span style="font-size:0.78rem;font-weight:800;color:var(--text-dim);">${s.lessonsDone}/${s.totalLessons}</span>
+            </div>
+          </td>
+          <td style="padding:10px 8px;text-align:center;font-weight:800;">${s.worldsCleared} 🏆</td>
+          <td style="padding:10px 8px;text-align:center;font-weight:800;color:${s.avgScore>=80?'#4ade80':s.avgScore>=60?'#fbbf24':'var(--text-dim)'};">${s.avgScore?s.avgScore+'%':'—'}</td>
+          <td style="padding:10px 8px;text-align:center;font-weight:800;color:var(--purple);">${s.xp} ⚡</td>
+          <td style="padding:10px 8px;color:var(--text-dim);font-size:0.82rem;">${s.lastActive || '<span style="color:var(--text-faint);">never</span>'}</td>
+        </tr>`).join('');
+    }
+    function renderLeaderboard() {
+      const lb = (_progData && _progData.leaderboard) || [];
+      document.getElementById('leaderEmpty').style.display = lb.length ? 'none' : '';
+      const medals = ['🥇','🥈','🥉'];
+      document.getElementById('leaderList').innerHTML = lb.map((s, i) => `
+        <div style="display:flex;align-items:center;gap:14px;background:${i<3?'var(--surface-2)':'var(--bg)'};border:1px solid ${i===0?'#fbbf24':'var(--border)'};border-radius:12px;padding:12px 16px;">
+          <div style="font-size:1.3rem;font-weight:900;min-width:36px;text-align:center;">${medals[i] || '#'+(i+1)}</div>
+          <div style="flex:1;">
+            <div style="font-weight:900;">${C4K.esc(s.name)}</div>
+            <div style="color:var(--text-faint);font-size:0.76rem;">${s.lessonsDone} lessons · ${s.worldsCleared} worlds</div>
+          </div>
+          <div style="text-align:right;"><div style="font-weight:900;color:var(--purple);font-size:1.1rem;">${s.xp} ⚡</div><div style="color:var(--text-faint);font-size:0.72rem;">XP</div></div>
+        </div>`).join('');
+    }
+
     function scheduleChanged() {
       const enabled = document.getElementById('schedEnabled').checked;
       document.getElementById('schedDetails').style.display = enabled ? 'grid' : 'none';
@@ -559,7 +638,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=67" defer></script>
-  <script src="editor.js?v=67" defer></script>
+  <script src="pwa.js?v=69" defer></script>
+  <script src="editor.js?v=69" defer></script>
 </body>
 </html>

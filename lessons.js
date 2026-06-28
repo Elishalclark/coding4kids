@@ -113,7 +113,10 @@ function render() {
       const label = passed ? `Defeated! 🏆 best score ${t.bestScore || 0}%` : `Score ${PASS}% to defeat ${boss.name}!`;
       test = `<div class="boss-card ${passed ? 'beaten' : 'ready'}" style="--boss-color:${world.color};"><span class="boss-emoji">${passed ? '🏆' : boss.emoji}</span>
         <div class="utc-txt"><h4>⚔️ Boss Battle: ${boss.name}${passed ? ' - Defeated!' : ''}</h4><p>${label}</p></div>
-        <button class="btn ${passed ? 'btn-outline' : 'btn-primary'}" onclick="openPledge(${unit})">${passed ? 'Rematch' : 'Battle!'}</button></div>`;
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${passed ? `<a class="btn btn-primary" href="certificate.html?unit=${unit}">🏆 Certificate</a>` : ''}
+          <button class="btn ${passed ? 'btn-outline' : 'btn-primary'}" onclick="openPledge(${unit})">${passed ? 'Rematch' : 'Battle!'}</button>
+        </div></div>`;
     }
 
     return `<section id="world-${unit}" class="unit world" style="--world-color:${world.color};scroll-margin-top:90px;">
@@ -419,8 +422,9 @@ async function submitTest() {
                <div style="color:var(--text-faint);font-size:0.8rem;">Review: ${f.review}</div>
              </div>`).join('')}
         </div>` : ''}
-      <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;">
-        ${data.passed ? `<button class="btn btn-primary" onclick="closeTest();render();">Onward! 🗺️</button>`
+      <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        ${data.passed ? `<a class="btn btn-outline" href="certificate.html?unit=${pendingUnit}">🏆 Get Certificate</a>
+             <button class="btn btn-primary" onclick="closeTest();render();">Onward! 🗺️</button>`
           : `<button class="btn btn-outline" onclick="closeTest();render();">Review Lessons</button>
              <button class="btn btn-primary" onclick="openPledge(${pendingUnit})">⚔️ Rematch</button>`}
       </div>
