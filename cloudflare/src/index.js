@@ -576,11 +576,11 @@ async function createUser(env, opts) {
   const owned = JSON.stringify(FREE_ITEMS);
   try {
     const res = await env.DB.prepare(
-      "INSERT INTO users (role,name,username,password_hash,salt,parent_email,age_band,age_years,plan,trial_ends,family_id," +
+      "INSERT INTO users (role,name,username,password_hash,salt,parent_email,kid_email,age_band,age_years,plan,trial_ends,family_id," +
       "tokens,avatar,owned_items,link_token,consent_status,consent_method,consent_by,consent_token,school,created_at) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(
-      opts.role, name, opts.username, hash, salt, opts.email || "", opts.age || "", opts.age_years ?? null,
+      opts.role, name, opts.username, hash, salt, opts.email || "", opts.kid_email ?? null, opts.age || "", opts.age_years ?? null,
       opts.plan, opts.trial_ends ?? null, opts.family_id ?? null, STARTER_TOKENS, avatar, owned, linkToken,
       opts.consent_status || "not_required", opts.consent_method ?? null, opts.consent_by ?? null,
       opts.consent_token ?? null, school, nowIso()
@@ -613,6 +613,7 @@ async function apiSignup(env, request, data) {
   const username = (data.username || "").trim();
   const password = data.password || "";
   const email = (data.parentEmail || "").trim();
+  const kidEmail = (data.kidEmail || "").trim();
   const ageBand = (data.ageBand || "").trim();
   let ageYears = null;
   if (data.age !== undefined && data.age !== "" && data.age !== null) { const n = parseInt(data.age, 10); if (!isNaN(n)) ageYears = n; }
@@ -625,6 +626,8 @@ async function apiSignup(env, request, data) {
   // If a parent email is given, it must look like a real email so consent/notices can be delivered.
   if (email && !/^\S+@\S+\.\S+$/.test(email))
     return json({ error: "Please enter a valid parent email address." }, 400);
+  if (kidEmail && !/^\S+@\S+\.\S+$/.test(kidEmail))
+    return json({ error: "Please enter a valid email address for the child (or leave it blank)." }, 400);
   // A parent email is still required so we can notify the parent and let them manage/withdraw.
   if (!email)
     return json({ error: "A parent's email is required so we can keep a parent in the loop." }, 400);
@@ -641,7 +644,7 @@ async function apiSignup(env, request, data) {
   const planName = getLaunchPro ? "pro" : "trial";
   const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
   const r = await createUser(env, {
-    role: "kid", name, username, password, email, age: ageBand, age_years: ageYears, plan: planName,
+    role: "kid", name, username, password, email, kid_email: kidEmail || null, age: ageBand, age_years: ageYears, plan: planName,
     trial_ends: trialEnds, consent_status: consentStatus, consent_method: "signup_parent_email",
     consent_by: email, consent_token: consentToken,
   });
@@ -1156,6 +1159,62 @@ async function getQuiz(env) {
   const saved = await getSetting(env, "signup_quiz", null);
   if (Array.isArray(saved) && saved.length) return saved;
   return DEFAULT_QUIZ;
+}
+
+// All collected emails in one place (super admin), grouped by parents vs kids.
+async function adminEmails(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT id,name,username,role,parent_email,kid_email FROM users ORDER BY id DESC"
+  ).all()).results || [];
+  const parents = [], kids = [];
+  const seenP = new Set(), seenK = new Set();
+  for (const r of rows) {
+    if (r.role === "kid") {
+      if (r.kid_email && !seenK.has(r.kid_email.toLowerCase())) { seenK.add(r.kid_email.toLowerCase()); kids.push({ email: r.kid_email, name: r.name, username: r.username }); }
+      if (r.parent_email && !seenP.has(r.parent_email.toLowerCase())) { seenP.add(r.parent_email.toLowerCase()); parents.push({ email: r.parent_email, name: r.name + " (parent)", username: r.username }); }
+    } else {
+      // parent/teacher/admin accounts: their own email lives in parent_email
+      if (r.parent_email && !seenP.has(r.parent_email.toLowerCase())) { seenP.add(r.parent_email.toLowerCase()); parents.push({ email: r.parent_email, name: r.name, username: r.username }); }
+    }
+  }
+  return json({ parents, kids, parentCount: parents.length, kidCount: kids.length });
+}
+
+// Send a mass email to all parents, all kids, or everyone (super admin only).
+async function adminMassEmail(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const subject = (data.subject || "").trim().slice(0, 200);
+  const body = (data.body || "").trim().slice(0, 5000);
+  const audience = (data.audience || "").trim(); // 'parents' | 'kids' | 'everyone'
+  if (!subject || !body) return json({ error: "Subject and message are required." }, 400);
+  if (!["parents", "kids", "everyone"].includes(audience)) return json({ error: "Pick who to send to." }, 400);
+
+  // Gather unique recipient emails for the chosen audience.
+  const rows = (await env.DB.prepare("SELECT role,parent_email,kid_email FROM users").all()).results || [];
+  const set = new Set();
+  for (const r of rows) {
+    if ((audience === "parents" || audience === "everyone") && r.parent_email) set.add(r.parent_email.trim().toLowerCase());
+    if ((audience === "kids" || audience === "everyone") && r.role === "kid" && r.kid_email) set.add(r.kid_email.trim().toLowerCase());
+  }
+  const recipients = [...set].filter(e => /^\S+@\S+\.\S+$/.test(e));
+  if (!recipients.length) return json({ error: "No email addresses found for that group yet." }, 400);
+
+  // Wrap the message in a simple branded template.
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
+    <div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div>
+    <div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;color:#222;line-height:1.6;">
+      ${body.replace(/\n/g, "<br>")}
+      <p style="margin-top:24px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="https://kidvibers.com" style="color:#7c3aed;">kidvibers.com</a></p>
+    </div></div>`;
+
+  let sent = 0, failed = 0;
+  for (const to of recipients) {
+    const ok = await sendEmail(env, to, subject, html, "KidVibers <support@kidvibers.com>");
+    if (ok) sent++; else failed++;
+  }
+  await sendSlack(env, `📣 *Mass email sent*\n• To: ${audience} (${recipients.length})\n• Subject: ${subject}\n• Sent: ${sent}, Failed: ${failed}`);
+  return json({ ok: true, sent, failed, total: recipients.length });
 }
 
 async function apiQuizConfig(env) {
@@ -2488,6 +2547,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/quiz/config" && method === "GET") return apiQuizConfig(env);
   if (path === "/api/admin/quiz" && method === "GET") return adminGetQuiz(env, request);
   if (path === "/api/admin/quiz" && method === "POST") return adminSetQuiz(env, request, data);
+  if (path === "/api/admin/emails" && method === "GET") return adminEmails(env, request);
+  if (path === "/api/admin/mass-email" && method === "POST") return adminMassEmail(env, request, data);
 
   // lessons / progress
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);

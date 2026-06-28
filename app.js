@@ -28,9 +28,11 @@ if (document.getElementById('launchBannerHome') || document.getElementById('laun
 async function handleSignup(e) {
   e.preventDefault();
   const success = document.getElementById('signupSuccess');
+  const kidEmailEl = document.getElementById('suKidEmail');
   const payload = {
     name: document.getElementById('suName').value.trim(),
     parentEmail: document.getElementById('suEmail').value.trim(),
+    kidEmail: kidEmailEl ? kidEmailEl.value.trim() : '',
     username: document.getElementById('suUsername').value.trim(),
     password: document.getElementById('suPassword').value,
     age: document.getElementById('suAgeYears').value
