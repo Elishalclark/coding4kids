@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=64" />
+  <link rel="stylesheet" href="styles.css?v=66" />
   <style>
     body { background: #08060f; min-height: 100vh; }
     .game-wrap { max-width: 800px; margin: 0 auto; padding: 20px 16px 60px; }
@@ -165,7 +165,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=64"></script>
+  <script src="auth.js?v=66"></script>
   <script>
   // ── Data ──────────────────────────────────────────────────────────
   const QUESTIONS = [
@@ -241,7 +241,7 @@
     roundOrder = [...QUESTIONS].sort(() => Math.random() - 0.5).slice(0, ROUNDS);
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('resultScreen').style.display = 'none';
-    document.getElementById('gameArea').style.display = '';
+    document.getElementById('gameArea').style.display = 'block';
     document.getElementById('hud').style.display = '';
     nextRound();
   }
@@ -349,7 +349,7 @@
     clearInterval(timerInterval);
     document.getElementById('gameArea').style.display = 'none';
     document.getElementById('hud').style.display = 'none';
-    document.getElementById('resultScreen').style.display = '';
+    document.getElementById('resultScreen').style.display = 'block';
 
     const pct = correctCount / ROUNDS;
     const grade = pct >= 0.9 ? '🏆 Bug Master!' : pct >= 0.7 ? '⚡ Great Debugger!' : pct >= 0.5 ? '💪 Getting There!' : '🐛 Keep Practicing!';
