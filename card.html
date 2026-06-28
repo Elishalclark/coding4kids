@@ -3,98 +3,110 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Printable Card - KidVibers</title>
+  <title>Printable Cards - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Nunito', system-ui, sans-serif; background: #0c0a18; color: #fff;
            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-           padding: 30px 16px; gap: 22px; }
+           padding: 26px 16px 50px; gap: 18px; }
 
     .toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
     .btn { font-family: inherit; font-weight: 800; font-size: 0.95rem; padding: 11px 22px;
            border-radius: 50px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
     .btn-primary { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; }
     .btn-outline { background: none; border: 1px solid #3a2f63; color: #cbb8ef; }
-    .hint { color: #8a82ad; font-size: 0.85rem; text-align: center; max-width: 440px; }
+    .hint { color: #8a82ad; font-size: 0.85rem; text-align: center; max-width: 460px; }
 
-    /* ── The card: 5in x 3in postcard, black background + white text ── */
+    /* ── The sheet (letter page) ── */
+    .sheet {
+      width: 8.5in; min-height: 11in; background: #fff;
+      padding: 0.5in 0.5in; display: flex; flex-direction: column; align-items: center; gap: 0.25in;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.4);
+    }
+    /* each slot has a dashed cut guide around the card */
+    .slot { border: 1px dashed #999; padding: 0; }
+
+    /* ── The card: 5in x 3in, black background + white text ── */
     .card {
-      width: 5in; height: 3in;
-      background: #000; color: #fff;
-      border: 2px solid #000; border-radius: 14px;
+      width: 5in; height: 3in; background: #000; color: #fff;
       padding: 0.28in 0.32in; position: relative; overflow: hidden;
-      box-shadow: 0 16px 50px rgba(0,0,0,0.5);
       display: flex; flex-direction: column;
     }
-
-    .card .top { display: flex; align-items: center; gap: 8px; z-index: 1; }
+    .card .top { display: flex; align-items: center; gap: 8px; }
     .card .logo-ico { font-size: 1.5rem; }
     .card .brand { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.5px; color: #fff; }
-    .card .brand b { color: #fff; }
-
-    .card .tagline { font-size: 0.82rem; font-weight: 800; color: #ddd; margin-top: 2px; z-index: 1; }
+    .card .tagline { font-size: 0.82rem; font-weight: 800; color: #ddd; margin-top: 2px; }
     .card .rule { height: 2px; background: #fff; margin: 6px 0 0; }
-
-    .card .mid { display: flex; gap: 14px; align-items: center; flex: 1; z-index: 1; margin-top: 6px; }
+    .card .mid { display: flex; gap: 14px; align-items: center; flex: 1; margin-top: 6px; }
     .card .pitch { flex: 1; }
     .card .pitch h2 { font-size: 1.05rem; font-weight: 900; line-height: 1.15; margin-bottom: 5px; color: #fff; }
     .card .pitch ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
     .card .pitch li { font-size: 0.72rem; font-weight: 700; color: #eee; }
     .card .pitch li b { font-weight: 900; color: #fff; }
-
-    /* QR stays white-on-black inside a white tile so it scans reliably */
-    .card .qr { background: #fff; border: 1.5px solid #fff; border-radius: 8px; padding: 5px; flex-shrink: 0; }
+    .card .qr { background: #fff; border-radius: 8px; padding: 5px; flex-shrink: 0; }
     .card .qr img { width: 1.05in; height: 1.05in; display: block; filter: grayscale(1) contrast(1.4); }
     .card .qr .scan { text-align: center; font-size: 0.58rem; font-weight: 900; color: #000; margin-top: 2px; letter-spacing: 0.5px; }
-
     .card .offer { background: #fff; color: #000; border-radius: 8px; padding: 5px 10px;
-                   font-size: 0.72rem; font-weight: 900; text-align: center; z-index: 1; margin-top: 4px; }
-    .card .url { text-align: center; font-size: 0.82rem; font-weight: 900; color: #fff; margin-top: 5px; z-index: 1; }
+                   font-size: 0.72rem; font-weight: 900; text-align: center; margin-top: 4px; }
+    .card .url { text-align: center; font-size: 0.82rem; font-weight: 900; color: #fff; margin-top: 5px; }
 
     @media print {
+      @page { size: letter; margin: 0; }
       body { background: #fff; padding: 0; gap: 0; display: block; }
       .toolbar, .hint { display: none !important; }
-      .card { margin: 0.4in auto; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .sheet { box-shadow: none; margin: 0 auto; }
+      .slot { border-color: #bbb; }
+      .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <button class="btn btn-primary" onclick="window.print()">🖨️ Print sheet (3 cards)</button>
     <a class="btn btn-outline" href="index.html">← Back to site</a>
   </div>
-  <p class="hint">Tip: in the print dialog, choose "Save as PDF" to keep a copy, or print on cardstock. The card is sized 5″ × 3″ (postcard).</p>
+  <p class="hint">This is a full letter-size sheet with <strong>3 cards</strong>. Print it, then cut along the dashed lines. Cardstock works best.</p>
 
-  <div class="card">
-    <div class="top">
-      <span class="logo-ico">🚀</span>
-      <span class="brand">Kid<b>Vibers</b></span>
-    </div>
-    <div class="tagline">The Duolingo of coding — for kids</div>
-    <div class="rule"></div>
+  <div class="sheet" id="sheet"></div>
 
-    <div class="mid">
-      <div class="pitch">
-        <h2>Learn to code by playing!</h2>
-        <ul>
-          <li><b>242</b> lessons &middot; <b>19</b> worlds</li>
-          <li>AI coding buddy &amp; coding games</li>
-          <li>Boss battles &amp; certificates</li>
-          <li>100% ad-free &amp; safe for kids</li>
-        </ul>
+  <template id="cardTpl">
+    <div class="slot">
+      <div class="card">
+        <div class="top">
+          <span class="logo-ico">🚀</span>
+          <span class="brand">Kid<b>Vibers</b></span>
+        </div>
+        <div class="tagline">The Duolingo of coding — for kids</div>
+        <div class="rule"></div>
+        <div class="mid">
+          <div class="pitch">
+            <h2>Learn to code by playing!</h2>
+            <ul>
+              <li><b>242</b> lessons &middot; <b>19</b> worlds</li>
+              <li>AI coding buddy &amp; coding games</li>
+              <li>Boss battles &amp; certificates</li>
+              <li>100% ad-free &amp; safe for kids</li>
+            </ul>
+          </div>
+          <div class="qr">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to visit kidvibers.com" />
+            <div class="scan">SCAN ME</div>
+          </div>
+        </div>
+        <div class="offer">FIRST 50 KIDS GET 30 DAYS OF PRO FREE</div>
+        <div class="url">kidvibers.com</div>
       </div>
-      <div class="qr">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to visit kidvibers.com" />
-        <div class="scan">SCAN ME</div>
-      </div>
     </div>
+  </template>
 
-    <div class="offer">FIRST 50 KIDS GET 30 DAYS OF PRO FREE</div>
-    <div class="url">kidvibers.com</div>
-  </div>
-
+  <script>
+    // Fill the sheet with 3 copies of the card.
+    const tpl = document.getElementById('cardTpl');
+    const sheet = document.getElementById('sheet');
+    for (let i = 0; i < 3; i++) sheet.appendChild(tpl.content.cloneNode(true));
+  </script>
   <script src="pwa.js?v=73" defer></script>
 </body>
 </html>
