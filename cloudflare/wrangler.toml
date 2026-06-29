@@ -9,6 +9,10 @@ routes = [
   { pattern = "www.kidvibers.com", custom_domain = true },
 ]
 
+# Daily re-engagement: nudge parents of kids who've gone quiet (runs 16:00 UTC ~ 11am ET).
+[triggers]
+crons = ["0 16 * * *"]
+
 [assets]
 directory = "./public"
 binding = "ASSETS"

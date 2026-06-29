@@ -824,10 +824,46 @@ async function apiTestSubmit(env, request, data) {
     return fb;
   });
   const up = await unitsPassed(env, u.id);
+  // 🎉 First-time boss win → email the parent a celebration + progress + upgrade nudge.
+  const firstWin = passedNow && !(existing && existing.passed);
+  if (firstWin && u.parent_email) {
+    try { await sendCertificateEmail(env, request, u, unit, best); } catch (e) {}
+  }
   return json({
     score, correct, total, passed: passedNow, passPercent: passPct,
     results: feedback.map((f) => f.ok), feedback, unitsPassed: up, level: up.length + 1, attempts,
+    firstWin,
   });
+}
+
+// Celebration email to a parent when their kid earns a certificate (beats a boss).
+async function sendCertificateEmail(env, request, kid, unit, score) {
+  const origin = new URL(request.url).origin;
+  const world = WORLDS[unit] || {};
+  const worldName = world.name ? `${world.emoji || "🏆"} ${world.name}` : `World ${unit}`;
+  const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(kid.id).first()).c || 0;
+  const worlds = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(kid.id).first()).c || 0;
+  const isFree = !["pro", "family"].includes(kid.plan);
+  const upgrade = isFree ? `
+    <div style="background:#f3e8ff;border:1px solid #d8b4fe;border-radius:10px;padding:14px 16px;margin-top:18px;">
+      <div style="font-weight:800;color:#6d28d9;">🚀 Unlock everything for ${kid.name}</div>
+      <p style="margin:6px 0 10px;color:#444;font-size:0.92rem;">Upgrade to <strong>Pro</strong> for all 245 lessons, the AI buddy "Byte", boss battles, and certificates.</p>
+      <a href="${origin}/checkout.html?plan=pro" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;">See Pro →</a>
+    </div>` : "";
+  await sendEmail(env, kid.parent_email, `🎉 ${kid.name} earned a certificate on KidVibers!`,
+    `<div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;color:#222;">
+      <div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div>
+      <div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;line-height:1.6;">
+        <p style="font-size:1.05rem;"><strong>${kid.name}</strong> just conquered <strong>${worldName}</strong> with a score of <strong>${score}%</strong> and earned a certificate! 🏆</p>
+        <div style="display:flex;gap:10px;margin:16px 0;">
+          <div style="flex:1;background:#faf5ff;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4rem;font-weight:900;color:#7c3aed;">${done}</div><div style="font-size:0.78rem;color:#666;">lessons done</div></div>
+          <div style="flex:1;background:#faf5ff;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4rem;font-weight:900;color:#7c3aed;">${worlds}</div><div style="font-size:0.78rem;color:#666;">worlds cleared</div></div>
+        </div>
+        <p style="color:#444;">Way to go, ${kid.name}! Keep the streak alive. 💜</p>
+        ${upgrade}
+        <p style="margin-top:20px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="https://kidvibers.com" style="color:#7c3aed;">kidvibers.com</a></p>
+      </div></div>`,
+    "KidVibers <support@kidvibers.com>");
 }
 
 async function apiNotices(env, request) {
@@ -2694,7 +2730,43 @@ async function handleApi(env, request, path) {
   return json({ error: "Not found." }, 404);
 }
 
+// Daily re-engagement: email parents of kids who haven't coded in a while.
+async function runReengagement(env) {
+  const now = Date.now();
+  const since14 = new Date(now - 14 * 86400000).toISOString();
+  const since7 = new Date(now - 7 * 86400000).toISOString();
+  const nudgeCutoff = new Date(now - 14 * 86400000).toISOString(); // don't nudge more than once / 14 days
+  // Kids: consent granted, have a parent email, last lesson between 7 and 30 days ago, not recently nudged.
+  const kids = (await env.DB.prepare(
+    "SELECT u.id,u.name,u.parent_email,u.plan, (SELECT MAX(completed_at) FROM progress WHERE user_id=u.id) AS last_active " +
+    "FROM users u WHERE u.role='kid' AND u.consent_status='granted' AND u.parent_email IS NOT NULL AND u.parent_email != '' " +
+    "AND (u.last_nudge IS NULL OR u.last_nudge < ?)"
+  ).bind(nudgeCutoff).all()).results || [];
+  let sent = 0;
+  for (const k of kids) {
+    if (!k.last_active) continue;                 // never started — skip (welcome flow covers them)
+    if (k.last_active >= since7) continue;         // active in last 7 days — leave them alone
+    if (k.last_active < new Date(now - 30 * 86400000).toISOString()) continue; // gone >30 days — skip
+    const ok = await sendEmail(env, k.parent_email, `We miss ${k.name}! 👋 Ready for the next world?`,
+      `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#222;line-height:1.6;">
+        <div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div>
+        <div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
+          <p style="font-size:1.05rem;">Hi! <strong>${k.name}</strong> hasn't coded on KidVibers in a little while — there's a whole new world waiting. 🗺️</p>
+          <p style="color:#444;">Just 10 minutes keeps their streak alive and their skills growing.</p>
+          <p><a href="https://kidvibers.com/dashboard.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Jump back in →</a></p>
+          <p style="margin-top:20px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="https://kidvibers.com" style="color:#7c3aed;">kidvibers.com</a><br>Don't want these? Just reply and we'll stop.</p>
+        </div></div>`,
+      "KidVibers <support@kidvibers.com>");
+    if (ok) { sent++; await env.DB.prepare("UPDATE users SET last_nudge=? WHERE id=?").bind(nowIso(), k.id).run(); }
+  }
+  if (sent) await sendSlack(env, `📨 Re-engagement run: nudged ${sent} parent(s).`);
+  return sent;
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runReengagement(env));
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
