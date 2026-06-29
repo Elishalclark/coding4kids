@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=76" />
+  <link rel="stylesheet" href="styles.css?v=77" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -564,7 +564,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=76"></script>
+  <script src="auth.js?v=77"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -1204,12 +1204,14 @@
     function renderPlans(ps, passPercent) {
       const order = ['free', 'trial', 'pro', 'family'];
       document.getElementById('planRows').innerHTML = order.map(p => {
-        const cfg = ps[p] || { ai: false, chatsPerDay: 0, lessonLimit: -1 };
+        const cfg = ps[p] || { ai: false, chatsPerDay: 0, lessonsPerDay: -1 };
+        // The backend stores the daily lesson limit as lessonsPerDay (older data used lessonLimit).
+        const lpd = cfg.lessonsPerDay != null ? cfg.lessonsPerDay : (cfg.lessonLimit != null ? cfg.lessonLimit : -1);
         return `<tr>
           <td><strong style="text-transform:capitalize;">${p}</strong></td>
           <td><input type="checkbox" class="plan-ai-toggle" data-plan="${p}" ${cfg.ai ? 'checked' : ''}></td>
           <td><input type="number" class="chat-limit-in chat-d" data-plan="${p}" value="${cfg.chatsPerDay}"></td>
-          <td><input type="number" class="chat-limit-in lesson-d" data-plan="${p}" value="${cfg.lessonLimit == null ? -1 : cfg.lessonLimit}"></td>
+          <td><input type="number" class="chat-limit-in lesson-d" data-plan="${p}" value="${lpd}"></td>
         </tr>`;
       }).join('');
       if (passPercent != null) document.getElementById('passPercentIn').value = passPercent;
@@ -1220,8 +1222,8 @@
       ['free', 'trial', 'pro', 'family'].forEach(p => {
         const ai = document.querySelector(`.plan-ai-toggle[data-plan="${p}"]`).checked;
         const chatsPerDay = parseInt(document.querySelector(`.chat-d[data-plan="${p}"]`).value, 10) || 0;
-        const lessonLimit = parseInt(document.querySelector(`.lesson-d[data-plan="${p}"]`).value, 10);
-        planSettings[p] = { ai, chatsPerDay, lessonLimit: isNaN(lessonLimit) ? -1 : lessonLimit };
+        const lessonsPerDay = parseInt(document.querySelector(`.lesson-d[data-plan="${p}"]`).value, 10);
+        planSettings[p] = { ai, chatsPerDay, lessonsPerDay: isNaN(lessonsPerDay) ? -1 : lessonsPerDay };
       });
       const passPercent = parseInt(document.getElementById('passPercentIn').value, 10) || 70;
       const { ok } = await C4K.api('/api/admin/settings', 'POST', { planSettings, passPercent });
@@ -1366,7 +1368,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=76" defer></script>
-  <script src="editor.js?v=76" defer></script>
+  <script src="pwa.js?v=77" defer></script>
+  <script src="editor.js?v=77" defer></script>
 </body>
 </html>
