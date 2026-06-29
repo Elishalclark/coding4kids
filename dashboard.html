@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=75" />
+  <link rel="stylesheet" href="styles.css?v=76" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -184,7 +184,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=75"></script>
+  <script src="auth.js?v=76"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -373,8 +373,8 @@
         `<div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
            <span style="font-size:1.2rem;">📨</span>
            <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from KidVibers</div>
-             <div style="color:var(--text);font-size:0.9rem;line-height:1.5;">${n.body}</div>
-             <div style="color:var(--text-faint);font-size:0.72rem;margin-top:4px;">${n.at}</div></div>
+             <div style="color:var(--text);font-size:0.9rem;line-height:1.5;">${C4K.esc(n.body)}</div>
+             <div style="color:var(--text-faint);font-size:0.72rem;margin-top:4px;">${C4K.esc(n.at)}</div></div>
            <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>
          </div>`).join('');
       main.parentNode.insertBefore(wrap, main);
@@ -669,7 +669,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=75" defer></script>
-  <script src="editor.js?v=75" defer></script>
+  <script src="pwa.js?v=76" defer></script>
+  <script src="editor.js?v=76" defer></script>
 </body>
 </html>

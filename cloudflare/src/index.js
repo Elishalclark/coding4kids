@@ -39,7 +39,9 @@ const FREE_ITEMS = ["face_kid", "bg_purple"];
 // ───────────────────────── small utils ─────────────────────────
 function nowIso() { return new Date().toISOString().replace(/\.\d+Z$/, "Z"); }
 function todayStr() { return new Date().toISOString().slice(0, 10); }
-function cleanName(s) { return (s || "").replace(/[<>]/g, "").trim(); }
+// Strip characters that could break out of an HTML tag or attribute (<, >, quotes, backtick, &).
+// Names are shown in many places — some inside onclick="..." handlers — so neutralize at the source.
+function cleanName(s) { return (s || "").replace(/[<>"'`&]/g, "").trim(); }
 
 function hexToBytes(hex) {
   const a = new Uint8Array(hex.length / 2);
@@ -687,6 +689,16 @@ function consentOk(user) {
   if (user.role !== "kid") return true;
   return ["granted", "not_required"].includes(user.consent_status ?? "not_required");
 }
+// Server-side school-hours enforcement. Returns a reason string if the kid is currently
+// blocked by their teacher's schedule, else null. The client lock is convenience only;
+// this is the real gate so a kid can't bypass it via direct API calls.
+async function scheduleBlocks(env, user) {
+  if (!user || user.role !== "kid" || !user.family_id) return null;
+  const sched = await getTeacherSchedule(env, user.family_id);
+  if (!sched) return null;
+  const check = scheduleAllows(sched);
+  return check.allowed ? null : (check.reason || "KidVibers isn't available right now (school hours).");
+}
 async function getPassPercent(env) {
   const v = await getSetting(env, "pass_percent", PASS_PERCENT);
   const n = parseInt(v, 10);
@@ -740,6 +752,7 @@ async function apiProgressPost(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const lessonId = (data.lessonId || "").trim();
   if (!lessonId) return json({ error: "lessonId required" }, 400);
   // Must be a REAL published lesson - otherwise kids could farm tokens and fake progress
@@ -774,6 +787,7 @@ async function apiGameScore(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent must approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const game = (data.game || "").trim().slice(0, 30) || "game";
   const xp = Math.max(0, Math.min(50, parseInt(data.xp, 10) || 0)); // cap at 50 tokens
   // Only award once per game per day (anti-farming).
@@ -793,6 +807,7 @@ async function apiTestSubmit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const unit = parseInt(data.unit, 10);
   if (isNaN(unit)) return json({ error: "bad unit" }, 400);
   const answers = data.answers || [];
@@ -910,6 +925,7 @@ async function apiShopBuy(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const itemId = (data.itemId || "").trim();
   const item = SHOP_BY_ID[itemId];
   if (!item) return json({ error: "Unknown item" }, 400);
@@ -926,6 +942,7 @@ async function apiSaveAvatar(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const av = data.avatar || {};
   const pu = await publicUser(env, u);
   const owned = new Set(pu.ownedItems);
@@ -943,6 +960,7 @@ async function apiAi(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "Log in to use the AI buddy.", locked: true }, 401);
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true, locked: true }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const settings = await getPlanSettings(env);
   const cfg = planCfg(settings, effectivePlan(u));
   if (!cfg.ai) return json({ error: "AI features are a Pro perk. Upgrade to unlock Byte!", locked: true }, 403);
@@ -959,6 +977,7 @@ async function apiRequestUpgrade(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid") return json({ error: "Only a kid can ask a parent to upgrade." }, 403);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const origin = new URL(request.url).origin;
   const body = `Your kid wants to upgrade. If you would like to upgrade their account, go to ${origin}/index.html#pricing. If this is a mistake, please ignore this message. Thank you and have a great day.`;
   if (u.parent_email)
@@ -1056,6 +1075,7 @@ async function apiProjectSave(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const title = cleanName(data.title || "").slice(0, TITLE_MAX) || "Untitled project";
   const code = (data.code || "").slice(0, CODE_MAX);
   let pid = data.id;
@@ -1078,6 +1098,7 @@ async function apiProjectShare(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const shared = data.shared ? 1 : 0;
   const row = await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
   if (!row) return json({ error: "Project not found" }, 404);
@@ -1114,6 +1135,7 @@ async function apiCommentAdd(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   if (rateLimited(`comment:${u.id}`, 6, 60)) return json({ error: "Whoa, slow down a sec! Try again in a moment. 🙂" }, 429);
   const body = cleanName(data.body || "").slice(0, COMMENT_MAX);
   if (!body) return json({ error: "Write something first!" }, 400);
@@ -1150,6 +1172,7 @@ async function apiProjectTakedown(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
+  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const reason = cleanName(data.reason || "").slice(0, 500);
   const proj = await env.DB.prepare("SELECT id,shared FROM projects WHERE id=?").bind(data.projectId).first();
   if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
@@ -1449,9 +1472,13 @@ async function apiDistrictAssignSchool(env, request, data) {
   if (!d) return json({ error: "District accounts only." }, 403);
   const school = await env.DB.prepare("SELECT id,family_id,school FROM users WHERE id=? AND district_id=? AND role='teacher'").bind(data.schoolId, d.id).first();
   if (!school) return json({ error: "That school isn't in your district." }, 404);
-  // Verify the kid belongs to this district (any of its schools or the district itself)
-  const kid = await env.DB.prepare("SELECT id,name,username FROM users WHERE id=? AND role='kid'").bind(data.kidId).first();
+  // The set of family_ids that belong to THIS district: the district itself + every school under it.
+  const schoolRows = (await env.DB.prepare("SELECT id,family_id FROM users WHERE district_id=? AND role='teacher'").bind(d.id).all()).results || [];
+  const ownFamilyIds = new Set([d.family_id, ...schoolRows.map(s => s.family_id || s.id)]);
+  const kid = await env.DB.prepare("SELECT id,name,username,family_id FROM users WHERE id=? AND role='kid'").bind(data.kidId).first();
   if (!kid) return json({ error: "Student not found." }, 404);
+  // IDOR guard: the kid must already belong to this district. No grabbing other orgs' students.
+  if (!ownFamilyIds.has(kid.family_id)) return json({ error: "That student isn't in your district." }, 403);
   const targetFamily = school.family_id || school.id;
   await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(targetFamily, kid.id).run();
   return json({ ok: true, school: school.school || "School", student: kid.name });
@@ -2440,10 +2467,11 @@ async function apiConsentConfirm(env, request, data) {
   // Parent identity verification: full legal name + last 4 of a payment card + a sworn
   // attestation. We NEVER charge the card and only ever keep the last 4 digits (no PCI scope).
   // This raises the bar so a child can't simply self-approve from their own email.
-  const parentName = (data.parentName || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  // Strip any HTML/markup so a name can never carry a script payload into the admin panel.
+  const parentName = (data.parentName || "").replace(/[<>"'`&]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
   const cardLast4 = (data.cardLast4 || "").trim();
   const attest = data.attest === true || data.attest === "true";
-  if (parentName.length < 2 || !/[a-zA-Z]/.test(parentName)) return json({ error: "Please enter the parent or guardian's full legal name." }, 400);
+  if (parentName.length < 2 || !/[a-zA-Z]/.test(parentName)) return json({ error: "Please enter the parent or guardian's full legal name (letters only)." }, 400);
   if (!/^\d{4}$/.test(cardLast4)) return json({ error: "Please enter the last 4 digits of your payment card." }, 400);
   if (!attest) return json({ error: "Please confirm you are the parent or legal guardian and over 18." }, 400);
   await grantConsent(env, kid.id, "verified_parent", parentName);

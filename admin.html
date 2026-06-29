@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=75" />
+  <link rel="stylesheet" href="styles.css?v=76" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -564,7 +564,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=75"></script>
+  <script src="auth.js?v=76"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -815,19 +815,19 @@
         : (s === 'pending' ? '<span class="pill trial">⏳ pending</span>' : '<span class="pill free">n/a (13+)</span>');
       // dropdown of kids needing consent (pending first)
       const sel = document.getElementById('consentKid');
-      sel.innerHTML = kids.map(k => `<option value="${k.id}">${k.name} (@${k.username}${k.ageYears?', age '+k.ageYears:''})</option>`).join('') || '<option>No kids yet</option>';
+      sel.innerHTML = kids.map(k => `<option value="${k.id}">${C4K.esc(k.name)} (@${C4K.esc(k.username)}${k.ageYears?', age '+k.ageYears:''})</option>`).join('') || '<option>No kids yet</option>';
       document.getElementById('consentRows').innerHTML = kids.length ? kids.map(k =>
         `<tr>
            <td><strong>${C4K.esc(k.name)}</strong> <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(k.username)}</span></td>
            <td>${k.ageYears || '-'}</td>
            <td>${badge(k.consentStatus)}</td>
-           <td style="font-size:0.82rem;color:var(--text-dim);">${k.consentMethod || '-'}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+k.consentBy+'</span>' : ''}</td>
+           <td style="font-size:0.82rem;color:var(--text-dim);">${C4K.esc(k.consentMethod || '-')}${k.consentBy ? '<br><span style="color:var(--text-faint);font-size:0.75rem;">'+C4K.esc(k.consentBy)+'</span>' : ''}</td>
            <td>${k.consentStatus === 'granted'
               ? `<button class="mini-btn" style="color:#f87171;" onclick="revokeConsent(${k.id})">Revoke</button>`
               : `<button class="mini-btn" onclick="document.getElementById('consentKid').value=${k.id};document.getElementById('consentNote').focus();">Record ↑</button>`}</td>
          </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No kid accounts yet.</td></tr>';
       document.getElementById('consentLog').innerHTML = (data.log || []).length ? data.log.map(l =>
-        `<tr><td style="color:var(--text-faint);font-size:0.78rem;">${l.at}</td><td>${l.child}</td><td>${l.method}</td><td style="font-size:0.8rem;">${l.by || ''}</td><td style="font-size:0.8rem;color:var(--text-dim);">${l.detail || ''}</td></tr>`
+        `<tr><td style="color:var(--text-faint);font-size:0.78rem;">${C4K.esc(l.at)}</td><td>${C4K.esc(l.child)}</td><td>${C4K.esc(l.method)}</td><td style="font-size:0.8rem;">${C4K.esc(l.by || '')}</td><td style="font-size:0.8rem;color:var(--text-dim);">${C4K.esc(l.detail || '')}</td></tr>`
       ).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No consent events yet.</td></tr>';
     }
 
@@ -1366,7 +1366,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=75" defer></script>
-  <script src="editor.js?v=75" defer></script>
+  <script src="pwa.js?v=76" defer></script>
+  <script src="editor.js?v=76" defer></script>
 </body>
 </html>
