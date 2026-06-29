@@ -14,6 +14,7 @@ const PRO_LAUNCH_DAYS = 30;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
 const TOKENS_PER_LESSON = 10;
+const REFERRAL_BONUS = 50;   // tokens each kid gets when a referral signs up
 const PASS_PERCENT = 70;
 const ADMIN_ROLES = ["admin", "super_admin"];
 const DISTRICT_PLANS = ["school", "district"];
@@ -650,6 +651,8 @@ async function apiSignup(env, request, data) {
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
   if (getLaunchPro) await env.DB.prepare("UPDATE users SET launch_pro=1 WHERE id=?").bind(r.uid).run();
+  // Apply a referral code if one was used (rewards both kids).
+  await applyReferral(env, r.uid, (data.referralCode || data.ref || "").trim());
   // Record the consent for the audit trail.
   await logConsent(env, r.uid, username, "signup_parent_email", email, "Parent email provided at signup; parent notified and can review/withdraw");
   const origin = new URL(request.url).origin;
@@ -1221,6 +1224,40 @@ async function apiQuizConfig(env) {
   return json({ quiz: await getQuiz(env) });
 }
 
+// ── Referrals: each kid has a code; new kids who use it earn both kids tokens ──
+async function ensureReferralCode(env, user) {
+  if (user.referral_code) return user.referral_code;
+  // Short, friendly, unique-ish code.
+  let code;
+  for (let i = 0; i < 10; i++) {
+    code = "KV" + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const taken = await env.DB.prepare("SELECT 1 FROM users WHERE referral_code=?").bind(code).first();
+    if (!taken) break;
+  }
+  await env.DB.prepare("UPDATE users SET referral_code=? WHERE id=?").bind(code, user.id).run();
+  return code;
+}
+
+async function apiReferral(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
+  const code = await ensureReferralCode(env, u);
+  const count = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE referred_by=?").bind(u.id).first()).c || 0;
+  const origin = new URL(request.url).origin;
+  return json({ code, count, bonus: REFERRAL_BONUS, link: `${origin}/index.html?ref=${code}` });
+}
+
+// Apply a referral after a new kid signs up (called from apiSignup).
+async function applyReferral(env, newKidId, refCode) {
+  if (!refCode) return;
+  const referrer = await env.DB.prepare("SELECT id FROM users WHERE referral_code=? AND role='kid'").bind(refCode.trim().toUpperCase()).first();
+  if (!referrer || referrer.id === newKidId) return;
+  await env.DB.prepare("UPDATE users SET referred_by=? WHERE id=?").bind(referrer.id, newKidId).run();
+  // Reward both kids.
+  await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id IN (?,?)").bind(REFERRAL_BONUS, referrer.id, newKidId).run();
+  await env.DB.prepare("UPDATE users SET referral_count = COALESCE(referral_count,0) + 1 WHERE id=?").bind(referrer.id).run();
+}
+
 async function adminGetQuiz(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   return json({ quiz: await getQuiz(env), isDefault: !(await getSetting(env, "signup_quiz", null)) });
@@ -1722,6 +1759,50 @@ async function adminStats(env, request) {
     lessonsCompleted: await c("SELECT COUNT(*) c FROM progress"),
   });
 }
+// Founder analytics: growth, activity, and conversion (super admin).
+async function adminAnalytics(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const c = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).c;
+
+  const totalKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid'");
+  const totalParents = await c("SELECT COUNT(*) c FROM users WHERE role IN ('parent','teacher')");
+  const proKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan IN ('pro','family')");
+  const freeKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan NOT IN ('pro','family')");
+  const paying = await c("SELECT COUNT(*) c FROM users WHERE stripe_subscription_id IS NOT NULL");
+
+  // Active kids = completed a lesson in the last 7 days
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const active7 = await c("SELECT COUNT(DISTINCT user_id) c FROM progress WHERE completed_at >= ?", since7);
+  const active30 = await c("SELECT COUNT(DISTINCT user_id) c FROM progress WHERE completed_at >= ?", since30);
+
+  // Signups per day for the last 14 days
+  const rows = (await env.DB.prepare(
+    "SELECT substr(created_at,1,10) d, COUNT(*) c FROM users WHERE role='kid' AND created_at >= ? GROUP BY d ORDER BY d"
+  ).bind(since30).all()).results || [];
+  const byDay = {};
+  rows.forEach(r => { byDay[r.d] = r.c; });
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    days.push({ day: d.slice(5), count: byDay[d] || 0 });
+  }
+
+  // Lessons completed total + certificates earned (worlds passed)
+  const lessonsCompleted = await c("SELECT COUNT(*) c FROM progress");
+  const certsEarned = await c("SELECT COUNT(*) c FROM unit_tests WHERE passed=1");
+  const gamesPlayed = await c("SELECT COUNT(*) c FROM lessons_daily WHERE day LIKE '%-game:%'");
+
+  const convPct = totalKids ? Math.round((proKids / totalKids) * 100) : 0;
+  return json({
+    totalKids, totalParents, proKids, freeKids, paying,
+    active7, active30, conversionPct: convPct,
+    lessonsCompleted, certsEarned, gamesPlayed,
+    signupsByDay: days,
+    newThisWeek: days.slice(7).reduce((a, d) => a + d.count, 0),
+  });
+}
+
 async function adminConsentGet(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const kids = (await env.DB.prepare("SELECT id,name,username,age_years,parent_email,consent_status,consent_method,consent_by,consent_at FROM users WHERE role='kid' ORDER BY id DESC").all()).results || [];
@@ -2501,6 +2582,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
   if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
   if (path === "/api/admin/stats" && method === "GET") return adminStats(env, request);
+  if (path === "/api/admin/analytics" && method === "GET") return adminAnalytics(env, request);
   if (path === "/api/admin/consent" && method === "GET") return adminConsentGet(env, request);
   if (path === "/api/admin/settings" && method === "GET") return adminSettingsGet(env, request);
   if (path === "/api/admin/reported-comments" && method === "GET") return adminReportedComments(env, request);
@@ -2545,6 +2627,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/teacher/schedule" && method === "POST") return apiTeacherScheduleSet(env, request, data);
   if (path === "/api/quiz/submit" && method === "POST") return apiQuizSubmit(env, request, data);
   if (path === "/api/quiz/config" && method === "GET") return apiQuizConfig(env);
+  if (path === "/api/referral" && method === "GET") return apiReferral(env, request);
   if (path === "/api/admin/quiz" && method === "GET") return adminGetQuiz(env, request);
   if (path === "/api/admin/quiz" && method === "POST") return adminSetQuiz(env, request, data);
   if (path === "/api/admin/emails" && method === "GET") return adminEmails(env, request);

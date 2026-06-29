@@ -29,13 +29,16 @@ async function handleSignup(e) {
   e.preventDefault();
   const success = document.getElementById('signupSuccess');
   const kidEmailEl = document.getElementById('suKidEmail');
+  let ref = '';
+  try { ref = localStorage.getItem('c4k_ref') || ''; } catch (e) {}
   const payload = {
     name: document.getElementById('suName').value.trim(),
     parentEmail: document.getElementById('suEmail').value.trim(),
     kidEmail: kidEmailEl ? kidEmailEl.value.trim() : '',
     username: document.getElementById('suUsername').value.trim(),
     password: document.getElementById('suPassword').value,
-    age: document.getElementById('suAgeYears').value
+    age: document.getElementById('suAgeYears').value,
+    referralCode: ref
   };
   const { ok, data } = await C4K.signup(payload);
   success.classList.remove('hidden');
@@ -752,6 +755,9 @@ window.addEventListener('scroll', () => {
   const plink = params.get('plink');
   const consent = params.get('consent');
   const cc = params.get('consentconfirm');
+  // Capture a friend's referral code so it's applied when this visitor signs up.
+  const ref = params.get('ref');
+  if (ref) { try { localStorage.setItem('c4k_ref', ref.trim().toUpperCase()); } catch (e) {} }
   await C4K.loadMe();
 
   // Parental consent links (COPPA) - open the consent flow regardless of who's logged in.
