@@ -2691,23 +2691,6 @@ async function handleApi(env, request, path) {
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
-  // TEMPORARY read-only diagnostic — aggregate counts only, no personal data; key-gated. Remove after use.
-  if (path === "/api/_diag_counts") {
-    const k = new URL(request.url).searchParams.get("k");
-    if (k !== "d1ag9f3kQ7zR2mXpL8vT6wN4bY0cH5sJ") return json({ error: "forbidden" }, 403);
-    const c = async (sql) => (await env.DB.prepare(sql).first()).c;
-    return json({
-      users: await c("SELECT COUNT(*) c FROM users"),
-      kids: await c("SELECT COUNT(*) c FROM users WHERE role='kid'"),
-      parents: await c("SELECT COUNT(*) c FROM users WHERE role='parent'"),
-      teachers: await c("SELECT COUNT(*) c FROM users WHERE role='teacher'"),
-      admins: await c("SELECT COUNT(*) c FROM users WHERE role IN ('admin','super_admin')"),
-      progress_rows: await c("SELECT COUNT(*) c FROM progress"),
-      sessions: await c("SELECT COUNT(*) c FROM sessions"),
-      newest_roles: ((await env.DB.prepare("SELECT role, substr(created_at,1,10) j FROM users ORDER BY id DESC LIMIT 8").all()).results || []),
-    });
-  }
-
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
