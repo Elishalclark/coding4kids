@@ -120,6 +120,13 @@
 
       <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
 
+      <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
+      <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
+        <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
+        <span id="dashErrorMsg"></span>
+        <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
+      </div>
+
       <div class="stat-grid">
         <div class="stat-box"><div class="big" id="statKids">-</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
         <div class="stat-box"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
@@ -637,8 +644,18 @@
 
     const isSuper = () => C4K.user && C4K.user.role === 'super_admin';
 
+    // Show a dashboard-level "couldn't load" banner instead of leaving boxes silently blank.
+    function showDataError(msg) {
+      const box = document.getElementById('dashError');
+      if (!box) return;
+      document.getElementById('dashErrorMsg').textContent = ' ' + msg;
+      box.style.display = '';
+    }
+
     async function loadData() {
       const sup = isSuper();
+      const dErr = document.getElementById('dashError');
+      if (dErr) dErr.style.display = 'none';   // reset; re-shown only if something actually fails
       // toggle super-admin-only UI
       document.querySelectorAll('.super-only').forEach(el => el.style.display = sup ? '' : 'none');
       document.querySelectorAll('.super-only-col').forEach(el => el.style.display = sup ? '' : 'none');
@@ -647,11 +664,18 @@
       caRoleChanged();
       loadAdminNotices();
 
-      const stats = (await C4K.api('/api/admin/stats')).data;
-      document.getElementById('statKids').textContent = stats.totalKids ?? '-';
-      document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '-';
-      document.getElementById('statPro').textContent = stats.proKids ?? '-';
-      document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
+      // Stat boxes — load in isolation so one failing API call can never blank the whole dashboard.
+      try {
+        const r = await C4K.api('/api/admin/stats');
+        if (!r.ok) throw new Error((r.data && r.data.error) || ('the server returned ' + (r.status || 'no response')));
+        const stats = r.data || {};
+        document.getElementById('statKids').textContent = stats.totalKids ?? '-';
+        document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '-';
+        document.getElementById('statPro').textContent = stats.proKids ?? '-';
+        document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
+      } catch (e) {
+        showDataError('The stat boxes failed to load (' + e.message + '). If you just deployed, give it a moment and tap Retry.');
+      }
 
       const users = (await C4K.api('/api/admin/users')).data.users || [];
       const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
@@ -1025,8 +1049,8 @@
     // ── Pro interest / waitlist (super admin) ──
     // ── Founder analytics (super admin) ──
     async function loadAnalytics() {
-      const { ok, data } = await C4K.api('/api/admin/analytics');
-      if (!ok) return;
+      const { ok, status, data } = await C4K.api('/api/admin/analytics');
+      if (!ok) { showDataError('The Analytics panel failed to load (' + ((data && data.error) || ('server returned ' + (status || 'no response'))) + ').'); return; }
       document.getElementById('anNew').textContent = data.newThisWeek;
       document.getElementById('anActive').textContent = data.active7;
       document.getElementById('anConv').textContent = data.conversionPct + '%';

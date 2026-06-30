@@ -15,7 +15,7 @@ CREATE TABLE users (
             owned_items TEXT,
             link_token TEXT,
             created_at TEXT NOT NULL
-        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0);
+        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0, kid_email TEXT, referral_code TEXT, referred_by TEXT, referral_count INTEGER DEFAULT 0, last_nudge TEXT);
 CREATE TABLE messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
