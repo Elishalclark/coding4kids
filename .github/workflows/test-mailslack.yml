@@ -1,0 +1,37 @@
+name: Test email + Slack (diagnostic)
+
+on:
+  push:
+    branches: [claude/kids-info-restore-ifooan]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build public/ assets
+        run: |
+          mkdir -p public
+          cp ../*.html public/ 2>/dev/null || true
+          cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true
+          cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+          rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
+
+      - name: Deploy worker (carries temp test endpoint)
+        run: npx wrangler@4 deploy
+
+      - name: Fire test email + Slack and show the result
+        run: |
+          echo "Waiting for deploy to propagate..."
+          sleep 8
+          echo "================ EMAIL + SLACK TEST RESULT ================"
+          curl -s "https://kidvibers.com/api/_diag_mailslack?k=mSk7Qz92Lp4Tx8Rb3Wv6Yn1Hc5Jd0Ae&to=elishalclark@icloud.com"
+          echo ""
+          echo "=========================================================="

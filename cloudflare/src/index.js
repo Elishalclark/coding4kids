@@ -2694,6 +2694,40 @@ async function handleApi(env, request, path) {
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
+  // TEMPORARY diagnostic — fires one real email + one real Slack message and reports the result.
+  // Key-gated; remove after use.
+  if (path === "/api/_diag_mailslack") {
+    const u = new URL(request.url);
+    if (u.searchParams.get("k") !== "mSk7Qz92Lp4Tx8Rb3Wv6Yn1Hc5Jd0Ae") return json({ error: "forbidden" }, 403);
+    const to = u.searchParams.get("to") || env.ADMIN_EMAIL || "support@kidvibers.com";
+    const out = {
+      config: {
+        resend_key_set: !!env.RESEND_API_KEY,
+        slack_webhook_set: !!env.SLACK_WEBHOOK,
+        admin_email: env.ADMIN_EMAIL || "(default) support@kidvibers.com",
+        email_from: env.EMAIL_FROM || "(default) KidVibers <support@kidvibers.com>",
+        reply_to: env.REPLY_TO || "(default) support@kidvibers.com",
+      },
+      email: null,
+      slack: null,
+    };
+    if (env.RESEND_API_KEY) {
+      const ok = await sendEmail(env, to, "🧪 KidVibers email test", "<p>This is a test email from the KidVibers diagnostic. If you received it, Resend email delivery is working.</p>");
+      out.email = { attempted: true, to, accepted_by_resend: ok };
+    } else {
+      out.email = { attempted: false, reason: "RESEND_API_KEY is not configured" };
+    }
+    if (env.SLACK_WEBHOOK) {
+      try {
+        const r = await fetch(env.SLACK_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "🧪 KidVibers Slack test — if you see this, Slack notifications are working." }) });
+        out.slack = { attempted: true, status: r.status, ok: r.ok };
+      } catch (e) { out.slack = { attempted: true, ok: false, error: String(e) }; }
+    } else {
+      out.slack = { attempted: false, reason: "SLACK_WEBHOOK is not configured" };
+    }
+    return json(out);
+  }
+
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
