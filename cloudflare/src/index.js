@@ -629,8 +629,11 @@ async function apiSignup(env, request, data) {
   // If a parent email is given, it must look like a real email so consent/notices can be delivered.
   if (email && !/^\S+@\S+\.\S+$/.test(email))
     return json({ error: "Please enter a valid parent email address." }, 400);
-  if (kidEmail && !/^\S+@\S+\.\S+$/.test(kidEmail))
-    return json({ error: "Please enter a valid email address for the child (or leave it blank)." }, 400);
+  // A child's email is now required at signup.
+  if (!kidEmail)
+    return json({ error: "A child's email is required." }, 400);
+  if (!/^\S+@\S+\.\S+$/.test(kidEmail))
+    return json({ error: "Please enter a valid email address for the child." }, 400);
   // A parent email is still required so we can notify the parent and let them manage/withdraw.
   if (!email)
     return json({ error: "A parent's email is required so we can keep a parent in the loop." }, 400);
