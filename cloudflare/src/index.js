@@ -675,7 +675,7 @@ async function apiSignup(env, request, data) {
        <p style="color:#666;font-size:0.9rem;">If you didn't expect this, click above to review or remove the account. No ads, no data selling - ever.</p>`);
   }
   const token = await createSession(env, r.uid);
-  await sendSlack(env, `🧒 *New kid signed up!*\n• Name: ${name}\n• Username: @${username}\n• Age: ${ageYears}\n• Parent email: ${email || "none"}\n• Plan: ${planName}${getLaunchPro ? " (Launch Pro 🎉)" : ""}`);
+  await notifyAdmin(env, `🧒 New kid signed up: ${name}`, `🧒 *New kid signed up!*\n• Name: ${name}\n• Username: @${username}\n• Age: ${ageYears}\n• Parent email: ${email || "none"}\n• Plan: ${planName}${getLaunchPro ? " (Launch Pro 🎉)" : ""}`);
   return json({
     token, user: await publicUser(env, r.row),
     inviteToken: r.row.link_token, inviteUrl, parentEmail: email,
@@ -1388,7 +1388,7 @@ async function apiParentSignup(env, request, data) {
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)").bind(email, "welcome", welcome, nowIso()).run();
   }
   const token = await createSession(env, r.uid);
-  await sendSlack(env, `👨‍👩‍👧 *New parent signed up!*\n• Name: ${name}\n• Username: @${username}\n• Email: ${email || "none"}${linked ? `\n• Linked to kid: ${linked}` : ""}`);
+  await notifyAdmin(env, `👨‍👩‍👧 New parent: ${name}`, `👨‍👩‍👧 *New parent signed up!*\n• Name: ${name}\n• Username: @${username}\n• Email: ${email || "none"}${linked ? `\n• Linked to kid: ${linked}` : ""}`);
   return json({ token, user: await publicUser(env, row), linkedChild: linked });
 }
 
@@ -1403,7 +1403,7 @@ async function apiTeacherSignup(env, request, data) {
   await env.DB.prepare("UPDATE users SET family_id=?, class_code=? WHERE id=?").bind(r.uid, await genClassCode(env), r.uid).run();
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
   const token = await createSession(env, r.uid);
-  await sendSlack(env, `🏫 *New teacher/library signed up!*\n• Name: ${name}\n• Username: @${username}\n• School/Org: ${school}\n• Email: ${email || "none"}`);
+  await notifyAdmin(env, `🏫 New teacher/library: ${name}`, `🏫 *New teacher/library signed up!*\n• Name: ${name}\n• Username: @${username}\n• School/Org: ${school}\n• Email: ${email || "none"}`);
   return json({ token, user: await publicUser(env, row) });
 }
 
@@ -1857,13 +1857,94 @@ async function adminAnalytics(env, request) {
   const gamesPlayed = await c("SELECT COUNT(*) c FROM lessons_daily WHERE day LIKE '%-game:%'");
 
   const convPct = totalKids ? Math.round((proKids / totalKids) * 100) : 0;
+
+  // ── Advanced metrics ──
+  // Plan breakdown (kids by plan)
+  const planRows = (await env.DB.prepare("SELECT plan, COUNT(*) c FROM users WHERE role='kid' GROUP BY plan").all()).results || [];
+  const planBreakdown = {}; planRows.forEach(r => { planBreakdown[r.plan || "free"] = r.c; });
+
+  // Estimated MRR from active paid subscriptions (Stripe-linked), by plan price.
+  const PRICE = { pro: 9, family: 15, teacher: 24, school: 136, district: 150 };
+  const subRows = (await env.DB.prepare("SELECT plan, COUNT(*) c FROM users WHERE stripe_subscription_id IS NOT NULL GROUP BY plan").all()).results || [];
+  let mrr = 0; subRows.forEach(r => { mrr += (PRICE[r.plan] || 0) * r.c; });
+
+  // Retention: % of kids active in last 30 days; stickiness = active7/active30
+  const retention30 = totalKids ? Math.round((active30 / totalKids) * 100) : 0;
+  const stickiness = active30 ? Math.round((active7 / active30) * 100) : 0;
+
+  // Referrals & engagement
+  const referrals = await c("SELECT COUNT(*) c FROM users WHERE referred_by IS NOT NULL");
+  const avgLessons = totalKids ? Math.round((lessonsCompleted / totalKids) * 10) / 10 : 0;
+  const emailsCollected = await c("SELECT COUNT(*) c FROM users WHERE (parent_email IS NOT NULL AND parent_email!='') OR (kid_email IS NOT NULL AND kid_email!='')");
+  const schools = await c("SELECT COUNT(*) c FROM users WHERE role='teacher'");
+
+  // New kids per week, last 6 weeks
+  const weeks = [];
+  for (let w = 5; w >= 0; w--) {
+    const start = new Date(Date.now() - (w + 1) * 7 * 86400000).toISOString();
+    const end = new Date(Date.now() - w * 7 * 86400000).toISOString();
+    const ct = await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND created_at >= ? AND created_at < ?", start, end);
+    weeks.push({ label: w === 0 ? "this wk" : `${w}w ago`, count: ct });
+  }
+
+  // Most-completed lessons (top 5)
+  const topLessons = (await env.DB.prepare(
+    "SELECT l.title, l.emoji, COUNT(*) c FROM progress p JOIN lessons l ON l.id=p.lesson_id GROUP BY p.lesson_id ORDER BY c DESC LIMIT 5"
+  ).all()).results || [];
+
   return json({
     totalKids, totalParents, proKids, freeKids, paying,
     active7, active30, conversionPct: convPct,
     lessonsCompleted, certsEarned, gamesPlayed,
     signupsByDay: days,
     newThisWeek: days.slice(7).reduce((a, d) => a + d.count, 0),
+    // advanced
+    mrr, retention30, stickiness, referrals, avgLessons, emailsCollected, schools,
+    planBreakdown, weeklySignups: weeks,
+    topLessons: topLessons.map(l => ({ title: `${l.emoji || ""} ${l.title}`, count: l.c })),
   });
+}
+
+// Super-admin search: look up a kid by username (partial) and return full info.
+async function adminFindKid(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const q = (new URL(request.url).searchParams.get("q") || "").trim();
+  if (!q) return json({ kids: [] });
+  const rows = (await env.DB.prepare(
+    "SELECT id,name,username,role,plan,parent_email,kid_email,age_years,family_id,consent_status,consent_method,tokens,created_at,suspended,school " +
+    "FROM users WHERE username LIKE ? OR name LIKE ? ORDER BY (role='kid') DESC, id DESC LIMIT 25"
+  ).bind(`%${q}%`, `%${q}%`).all()).results || [];
+  const out = [];
+  for (const r of rows) {
+    const lessons = r.role === "kid" ? (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(r.id).first()).c || 0 : 0;
+    const worlds = r.role === "kid" ? (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(r.id).first()).c || 0 : 0;
+    const last = r.role === "kid" ? (await env.DB.prepare("SELECT MAX(completed_at) m FROM progress WHERE user_id=?").bind(r.id).first()).m : null;
+    out.push({
+      id: r.id, name: r.name, username: r.username, role: r.role, plan: r.plan,
+      parentEmail: r.parent_email, kidEmail: r.kid_email, ageYears: r.age_years,
+      consentStatus: r.consent_status, consentMethod: r.consent_method, tokens: r.tokens,
+      joined: (r.created_at || "").slice(0, 10), suspended: !!r.suspended, school: r.school,
+      lessonsDone: lessons, worldsCleared: worlds, lastActive: last ? last.slice(0, 10) : null,
+    });
+  }
+  return json({ kids: out });
+}
+
+// Class/school groups for the consent panel: one entry per teacher with its students.
+async function adminConsentGroups(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const teachers = (await env.DB.prepare("SELECT id,name,school,class_code,family_id,plan FROM users WHERE role='teacher' ORDER BY id").all()).results || [];
+  const groups = [];
+  for (const t of teachers) {
+    const fam = t.family_id || t.id;
+    const kids = (await env.DB.prepare("SELECT id,name,username,age_years,consent_status FROM users WHERE role='kid' AND family_id=? ORDER BY name").bind(fam).all()).results || [];
+    groups.push({
+      id: t.id, name: t.school || t.name, classCode: t.class_code, plan: t.plan,
+      students: kids.map(k => ({ id: k.id, name: k.name, username: k.username, ageYears: k.age_years, consentStatus: k.consent_status || "not_required" })),
+      count: kids.length,
+    });
+  }
+  return json({ groups });
 }
 
 async function adminConsentGet(env, request) {
@@ -1918,7 +1999,7 @@ async function adminSendSchoolReport(env, request, data) {
   await env.DB.prepare(
     "INSERT INTO school_reports (school_id,kid_id,kid_name,kid_username,reason,comment_body,admin_message,actions_school,actions_admin,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
   ).bind(schoolId, kidId || null, kidName, kidUsername || "", reason, commentBody || "", adminMessage || "", actionsSchool, actionsAdmin, "unread", nowIso()).run();
-  await sendSlack(env, `🚩 *Report sent to school!*\n• School: ${school.school}\n• Student: ${kidName} (@${kidUsername})\n• Reason: ${reason}`);
+  await notifyAdmin(env, `🚩 Report sent to ${school.school}`, `🚩 *Report sent to school!*\n• School: ${school.school}\n• Student: ${kidName} (@${kidUsername})\n• Reason: ${reason}`);
   return json({ ok: true });
 }
 
@@ -1953,7 +2034,7 @@ async function apiSchoolReportRespond(env, request, data) {
   if (!report) return json({ error: "Report not found." }, 404);
   const fullAction = notes ? `${action} — ${notes}` : action;
   await env.DB.prepare("UPDATE school_reports SET school_action=?, status='actioned' WHERE id=?").bind(fullAction, reportId).run();
-  await sendSlack(env, `🏫 *School took action on report!*\n• School: ${u.school || u.username}\n• Student: ${report.kid_name} (@${report.kid_username})\n• Reason: ${report.reason}\n• Action taken: ${fullAction}`);
+  await notifyAdmin(env, `🏫 School action: ${report.kid_name}`, `🏫 *School took action on report!*\n• School: ${u.school || u.username}\n• Student: ${report.kid_name} (@${report.kid_username})\n• Reason: ${report.reason}\n• Action taken: ${fullAction}`);
   return json({ ok: true });
 }
 async function adminTakedowns(env, request) {
@@ -2210,6 +2291,18 @@ async function sendSlack(env, text) {
       body: JSON.stringify({ text }),
     });
   } catch (_) {}
+}
+
+// Operational alerts (new signups, reports) go to the owner's email instead of Slack.
+// Markdown-ish text in -> simple HTML out.
+async function notifyAdmin(env, subject, text) {
+  const to = env.ADMIN_EMAIL || "support@kidvibers.com";
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;color:#222;line-height:1.6;">
+    <div style="background:#7c3aed;color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;font-weight:800;">🚀 KidVibers — Admin Alert</div>
+    <div style="border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:18px 20px;">
+      ${text.replace(/\*(.+?)\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>")}
+    </div></div>`;
+  await sendEmail(env, to, subject, html, "KidVibers <support@kidvibers.com>");
 }
 
 async function sendEmail(env, to, subject, html, from) {
@@ -2647,6 +2740,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
   if (path === "/api/admin/stats" && method === "GET") return adminStats(env, request);
   if (path === "/api/admin/analytics" && method === "GET") return adminAnalytics(env, request);
+  if (path === "/api/admin/find-kid" && method === "GET") return adminFindKid(env, request);
+  if (path === "/api/admin/consent-groups" && method === "GET") return adminConsentGroups(env, request);
   if (path === "/api/admin/consent" && method === "GET") return adminConsentGet(env, request);
   if (path === "/api/admin/settings" && method === "GET") return adminSettingsGet(env, request);
   if (path === "/api/admin/reported-comments" && method === "GET") return adminReportedComments(env, request);
@@ -2748,7 +2843,7 @@ async function handleApi(env, request, path) {
     const cemail = (data.email || "").trim().slice(0, 200);
     const cmsg = (data.message || "").trim().slice(0, 2000);
     if (!cname || !cemail || !cmsg) return json({ error: "Name, email and message are required." }, 400);
-    await sendSlack(env, `📬 *New contact form message!*\n• From: ${cname} (${cemail})\n• Message: ${cmsg}`);
+    await notifyAdmin(env, `📬 Contact form: ${cname}`, `📬 *New contact form message!*\n• From: ${cname} (${cemail})\n• Message: ${cmsg}`);
     await sendEmail(env, "support@kidvibers.com", `Contact form: ${cname}`,
       `<p><strong>From:</strong> ${cname} (${cemail})</p><p><strong>Message:</strong></p><p>${cmsg.replace(/\n/g,"<br>")}</p>`);
     return json({ ok: true });

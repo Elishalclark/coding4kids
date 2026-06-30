@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=77" />
+  <link rel="stylesheet" href="styles.css?v=79" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -615,6 +615,7 @@
           <a href="page.html?p=careers">Careers</a>
           <a href="press.html">Press &amp; Media Kit</a>
           <a href="page.html?p=contact">Contact</a>
+          <a href="#" onclick="openWhatsNew(true);return false;">✨ What's New</a>
           <a href="logo.svg" download="kidvibers-logo.svg">⬇️ Download Logo</a>
         </div>
         <div class="footer-col">
@@ -877,10 +878,54 @@
     </div>
   </div>
 
+  <!-- ✨ What's New popup -->
+  <div id="whatsNew" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(8,6,18,0.88);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:460px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:22px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:1.8rem;">✨</span>
+        <h2 style="font-size:1.4rem;font-weight:900;color:#fff;margin:0;flex:1;">What's New</h2>
+        <span id="wnVersion" style="font-size:0.72rem;font-weight:900;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;padding:3px 10px;border-radius:50px;">v1.5</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Here's the latest on KidVibers 🚀</p>
+      <ul id="wnList" style="list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:12px;"></ul>
+      <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
+    </div>
+  </div>
+
+  <script>
+    // ── What's New: bump WN_VERSION whenever you add new entries. Shows once per version. ──
+    const WN_VERSION = "1.5";
+    const WN_ITEMS = [
+      { emoji: "🎮", title: "4 new coding games", text: "Bug Zapper, Code Blitz, Output Oracle & Code Match — play and earn tokens!" },
+      { emoji: "📚", title: "242 lessons across 19 worlds", text: "New Creative Studio, App Builder & Champions Arena worlds." },
+      { emoji: "🏆", title: "Printable certificates", text: "Earn a certificate every time you beat a world's boss." },
+      { emoji: "🎁", title: "Invite a friend", text: "Share your code — you both get 50 bonus tokens!" },
+      { emoji: "⚡", title: "Start instantly", text: "Jump straight into coding the moment you sign up." },
+    ];
+    function openWhatsNew(force) {
+      try { if (!force && localStorage.getItem('c4k_wn_seen') === WN_VERSION) return; } catch (e) {}
+      const list = document.getElementById('wnList');
+      document.getElementById('wnVersion').textContent = 'v' + WN_VERSION;
+      list.innerHTML = WN_ITEMS.map(i => `
+        <li style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="font-size:1.4rem;flex-shrink:0;">${i.emoji}</span>
+          <div><div style="font-weight:800;color:#fff;font-size:0.95rem;">${i.title}</div>
+          <div style="color:var(--text-dim);font-size:0.84rem;line-height:1.4;">${i.text}</div></div>
+        </li>`).join('');
+      document.getElementById('whatsNew').style.display = 'flex';
+    }
+    function closeWhatsNew() {
+      try { localStorage.setItem('c4k_wn_seen', WN_VERSION); } catch (e) {}
+      document.getElementById('whatsNew').style.display = 'none';
+    }
+    // Show on entry, shortly after load.
+    window.addEventListener('load', () => setTimeout(() => openWhatsNew(false), 800));
+  </script>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=77"></script>
-  <script src="app.js?v=77"></script>
-  <script src="pwa.js?v=77" defer></script>
-  <script src="editor.js?v=77" defer></script>
+  <script src="auth.js?v=79"></script>
+  <script src="app.js?v=79"></script>
+  <script src="pwa.js?v=79" defer></script>
+  <script src="editor.js?v=79" defer></script>
 </body>
 </html>

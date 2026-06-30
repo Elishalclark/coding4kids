@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=77" />
+  <link rel="stylesheet" href="styles.css?v=79" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -56,6 +56,8 @@
     .stat-box .lbl { font-size: 0.82rem; color: var(--text-dim); font-weight: 700; }
     .stat-box .trend { font-size: 0.78rem; color: var(--green); font-weight: 800; margin-top: 4px; }
 
+    .admin-section { font-size: 1.15rem; font-weight: 900; color: var(--purple); margin: 34px 0 4px; padding-bottom: 8px; border-bottom: 2px solid var(--border); letter-spacing: -0.3px; }
+    .admin-section:first-of-type { margin-top: 10px; }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
     .panel h3 { font-size: 1.1rem; font-weight: 900; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .admin-table { width: 100%; border-collapse: collapse; }
@@ -125,6 +127,17 @@
         <div class="stat-box"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
       </div>
 
+      <h2 class="super-only admin-section" style="display:none;">📊 Overview &amp; Growth</h2>
+
+      <!-- Kid search (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="searchPanel" style="display:none;">
+        <h3>🔎 Find a Student <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">search by username or name</span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type a username, e.g. demokid" oninput="searchKids()" />
+        </div>
+        <div id="searchResults"></div>
+      </div>
+
       <!-- Founder analytics (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="analyticsPanel" style="display:none;">
         <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
@@ -136,9 +149,30 @@
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
         </div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
-        <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+        <!-- advanced tiles -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
+            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+          </div>
+          <div>
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
+            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+          </div>
+        </div>
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
+        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
+
+      <h2 class="super-only admin-section" style="display:none;">👥 People &amp; Accounts</h2>
 
       <div class="two-col">
         <!-- Users -->
@@ -217,6 +251,8 @@
         <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">When a change is made on the staging site, it lands here for you to review. Nothing goes live until you approve it.</p>
         <div id="changeReqBody"></div>
       </div>
+
+      <h2 class="super-only admin-section" style="display:none;">📣 Communication</h2>
 
       <!-- Site-wide announcement (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="siteMsgPanel" style="display:none;">
@@ -310,6 +346,8 @@
         </table>
       </div>
 
+      <h2 class="super-only admin-section" style="display:none;">⚙️ Settings</h2>
+
       <!-- Login & sign-up controls (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="togglePanel" style="display:none;">
         <h3>🔧 Login &amp; Sign-up Controls <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">site-wide</span></h3>
@@ -357,10 +395,20 @@
         </div>
       </div>
 
+      <h2 class="super-only admin-section" style="display:none;">🛡️ Safety &amp; Consent</h2>
+
       <!-- Parental Consent (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="consentPanel" style="display:none;">
         <h3>🛡️ Parental Consent (COPPA) <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
         <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Record verifiable parental consent for under-13 kids - including offline methods (phone call, signed form, in person). You can also revoke consent.</p>
+
+        <!-- Class/school groups (click a class code to see its students) -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
+          <div style="font-weight:900;margin-bottom:10px;">🏫 Classes &amp; Schools <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">tap a class code to see its students</span></div>
+          <div id="consentGroupBtns" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+          <div id="consentGroupStudents" style="margin-top:14px;"></div>
+        </div>
+
         <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
           <div style="font-weight:900;margin-bottom:12px;">📝 Record consent</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
@@ -414,17 +462,6 @@
         </table>
       </div>
 
-      <!-- Lessons -->
-      <div class="panel">
-        <h3>📚 Lesson Manager <span id="lessonHint" style="font-size:0.7rem;color:var(--text-faint);font-weight:700;"></span></h3>
-        <table class="admin-table">
-          <thead><tr><th>#</th><th>Lesson</th><th>Unit</th><th>Level</th><th>XP</th><th>Status</th><th class="super-only-col"></th></tr></thead>
-          <tbody id="lessonRows"></tbody>
-        </table>
-        <div class="super-only" id="addLessonWrap" style="display:none;margin-top:16px;">
-          <button class="btn btn-outline" onclick="openLessonEditor()">➕ Add Lesson</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -564,7 +601,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=77"></script>
+  <script src="auth.js?v=79"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -684,6 +721,7 @@
         loadQuiz();
         loadEmails();
         loadAnalytics();
+        loadConsentGroups();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -807,6 +845,28 @@
     }
 
     // ── Parental consent (super admin) ──
+    // ── Consent: class/school groups ──
+    let _groups = [];
+    async function loadConsentGroups() {
+      const { ok, data } = await C4K.api('/api/admin/consent-groups');
+      if (!ok) return;
+      _groups = data.groups || [];
+      const btns = document.getElementById('consentGroupBtns');
+      btns.innerHTML = _groups.length ? _groups.map((g, i) =>
+        `<button class="mini-btn" onclick="showGroup(${i})" style="font-size:0.85rem;padding:8px 14px;">🏫 ${C4K.esc(g.name)} <span style="color:var(--purple);font-weight:900;">${g.classCode || ''}</span> · ${g.count}</button>`
+      ).join('') : '<span style="color:var(--text-faint);font-size:0.85rem;">No classes/schools yet.</span>';
+    }
+    function showGroup(i) {
+      const g = _groups[i];
+      const wrap = document.getElementById('consentGroupStudents');
+      if (!g) return;
+      wrap.innerHTML = `
+        <div style="font-weight:900;margin-bottom:8px;">🏫 ${C4K.esc(g.name)} — ${g.count} student${g.count===1?'':'s'} <span style="color:var(--text-faint);font-weight:700;font-size:0.8rem;">(code ${C4K.esc(g.classCode||'—')})</span></div>
+        ${g.students.length ? `<table class="admin-table"><thead><tr><th>Student</th><th>Username</th><th>Age</th><th>Consent</th></tr></thead><tbody>${
+          g.students.map(s => `<tr><td>${C4K.esc(s.name)}</td><td>@${C4K.esc(s.username)}</td><td>${s.ageYears ?? '—'}</td><td>${badge(s.consentStatus)}</td></tr>`).join('')
+        }</tbody></table>` : '<div style="color:var(--text-faint);font-size:0.85rem;">No students in this class yet.</div>'}`;
+    }
+
     async function loadConsent() {
       const { ok, data } = await C4K.api('/api/admin/consent');
       if (!ok) return;
@@ -973,6 +1033,13 @@
       document.getElementById('anParents').textContent = data.totalParents;
       document.getElementById('anCerts').textContent = data.certsEarned;
       document.getElementById('anGames').textContent = data.gamesPlayed;
+      // advanced tiles
+      document.getElementById('anMrr').textContent = '$' + (data.mrr || 0);
+      document.getElementById('anRet').textContent = (data.retention30 || 0) + '%';
+      document.getElementById('anStick').textContent = (data.stickiness || 0) + '%';
+      document.getElementById('anRef').textContent = data.referrals || 0;
+      document.getElementById('anAvg').textContent = data.avgLessons || 0;
+      document.getElementById('anEmails').textContent = data.emailsCollected || 0;
       const days = data.signupsByDay || [];
       const max = Math.max(1, ...days.map(d => d.count));
       document.getElementById('anChart').innerHTML = days.map(d => `
@@ -980,6 +1047,62 @@
           <div style="font-size:0.6rem;font-weight:800;color:var(--text-dim);">${d.count || ''}</div>
           <div style="width:100%;max-width:18px;height:${Math.round(d.count / max * 56)}px;min-height:${d.count?3:0}px;background:linear-gradient(180deg,#7c3aed,#db2777);border-radius:3px 3px 0 0;"></div>
           <div style="font-size:0.55rem;color:var(--text-faint);">${d.day.split('-')[1]}</div>
+        </div>`).join('');
+      // weekly chart
+      const weeks = data.weeklySignups || [];
+      const wmax = Math.max(1, ...weeks.map(w => w.count));
+      document.getElementById('anWeekChart').innerHTML = weeks.map(w => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;" title="${w.label}: ${w.count}">
+          <div style="font-size:0.6rem;font-weight:800;color:var(--text-dim);">${w.count || ''}</div>
+          <div style="width:100%;max-width:28px;height:${Math.round(w.count / wmax * 56)}px;min-height:${w.count?3:0}px;background:linear-gradient(180deg,#22d3ee,#0891b2);border-radius:3px 3px 0 0;"></div>
+          <div style="font-size:0.55rem;color:var(--text-faint);">${w.label}</div>
+        </div>`).join('');
+      // top lessons
+      const top = data.topLessons || [];
+      const tmax = Math.max(1, ...top.map(t => t.count));
+      document.getElementById('anTopLessons').innerHTML = top.length ? top.map(t => `
+        <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem;">
+          <div style="flex:1;font-weight:700;">${C4K.esc(t.title)}</div>
+          <div style="width:120px;height:8px;background:var(--surface);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(t.count/tmax*100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div>
+          <div style="width:36px;text-align:right;font-weight:800;color:var(--text-dim);">${t.count}</div>
+        </div>`).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No lesson completions yet.</div>';
+    }
+
+    // ── Kid search (super admin) ──
+    let _searchTimer = null;
+    function searchKids() {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(doSearchKids, 300);
+    }
+    async function doSearchKids() {
+      const q = document.getElementById('kidSearch').value.trim();
+      const wrap = document.getElementById('searchResults');
+      if (!q) { wrap.innerHTML = ''; return; }
+      const { ok, data } = await C4K.api('/api/admin/find-kid?q=' + encodeURIComponent(q));
+      if (!ok) return;
+      const kids = data.kids || [];
+      if (!kids.length) { wrap.innerHTML = '<div style="color:var(--text-faint);font-size:0.85rem;">No matches.</div>'; return; }
+      wrap.innerHTML = kids.map(k => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+            <strong style="font-size:1rem;">${C4K.esc(k.name)}</strong>
+            <span style="color:var(--purple);font-weight:800;">@${C4K.esc(k.username)}</span>
+            <span style="font-size:0.7rem;font-weight:900;padding:2px 8px;border-radius:50px;background:var(--surface);color:var(--text-dim);">${C4K.esc(k.role)}</span>
+            ${k.suspended ? '<span style="font-size:0.7rem;font-weight:900;color:#f87171;">⏸️ suspended</span>' : ''}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;font-size:0.8rem;color:var(--text-dim);">
+            <div>📧 Parent: ${C4K.esc(k.parentEmail || '—')}</div>
+            <div>📧 Kid: ${C4K.esc(k.kidEmail || '—')}</div>
+            <div>🎂 Age: ${k.ageYears ?? '—'}</div>
+            <div>💳 Plan: ${C4K.esc(k.plan)}</div>
+            <div>✅ Consent: ${C4K.esc(k.consentStatus || '—')}</div>
+            <div>🪙 Tokens: ${k.tokens ?? 0}</div>
+            <div>📚 Lessons: ${k.lessonsDone}</div>
+            <div>🏆 Worlds: ${k.worldsCleared}</div>
+            <div>📅 Joined: ${C4K.esc(k.joined || '—')}</div>
+            <div>⏱️ Last active: ${C4K.esc(k.lastActive || 'never')}</div>
+            ${k.school ? `<div>🏫 ${C4K.esc(k.school)}</div>` : ''}
+          </div>
         </div>`).join('');
     }
 
@@ -1187,7 +1310,9 @@
     }
 
     function renderLessons(lessons, sup) {
-      document.getElementById('lessonRows').innerHTML = lessons.map((l, i) =>
+      const _lr = document.getElementById('lessonRows');
+      if (!_lr) return;   // Lesson Manager panel removed from the admin UI
+      _lr.innerHTML = lessons.map((l, i) =>
         `<tr>
            <td>${i + 1}</td>
            <td><strong>${l.emoji || ''} ${l.title}</strong></td>
@@ -1368,7 +1493,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=77" defer></script>
-  <script src="editor.js?v=77" defer></script>
+  <script src="pwa.js?v=79" defer></script>
+  <script src="editor.js?v=79" defer></script>
 </body>
 </html>
