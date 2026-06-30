@@ -1,5 +1,5 @@
 // KidVibers service worker - installable + offline, but always fresh when online.
-const CACHE = 'c4k-v2';
+const CACHE = 'c4k-v3';
 const SHELL = ['/index.html', '/styles.css', '/auth.js', '/app.js', '/favicon.svg', '/manifest.json', '/offline.html'];
 
 self.addEventListener('install', e => {
@@ -20,8 +20,11 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;  // let cross-origin (fonts, QR) go straight to network
 
   // Network-first: always serve the freshest code/pages when online; cache is the offline fallback.
+  // For page navigations, bypass the browser's HTTP cache entirely so a new deploy always shows
+  // up immediately (otherwise an old index.html cached by the browser keeps being served).
+  const fetchOpts = e.request.mode === 'navigate' ? { cache: 'no-store' } : undefined;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, fetchOpts).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
       return res;
     }).catch(() =>
