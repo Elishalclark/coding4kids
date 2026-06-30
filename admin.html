@@ -682,8 +682,12 @@
       // toggle super-admin-only UI
       document.querySelectorAll('.super-only').forEach(el => el.style.display = sup ? '' : 'none');
       document.querySelectorAll('.super-only-col').forEach(el => el.style.display = sup ? '' : 'none');
-      document.getElementById('lessonHint').textContent = sup ? 'edit, publish, add or delete' : '(view only)';
-      document.getElementById('createHint').textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
+      // These hint labels live in optional panels that may have been removed — guard against
+      // a missing element, which would otherwise throw and abort the whole dashboard load.
+      const _lh = document.getElementById('lessonHint');
+      if (_lh) _lh.textContent = sup ? 'edit, publish, add or delete' : '(view only)';
+      const _ch = document.getElementById('createHint');
+      if (_ch) _ch.textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
       caRoleChanged();
       loadAdminNotices();
 
