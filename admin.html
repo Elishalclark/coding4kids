@@ -120,6 +120,9 @@
 
       <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
 
+      <!-- At-a-glance confirmation that the panel is reading the real production database. -->
+      <div id="dbStatus" style="display:none;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;border-radius:50px;padding:6px 14px;margin-bottom:16px;width:fit-content;"></div>
+
       <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
       <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
         <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
@@ -644,6 +647,26 @@
 
     const isSuper = () => C4K.user && C4K.user.role === 'super_admin';
 
+    // Confirms which database the panel is reading: green for the real production data,
+    // a loud amber warning if it's pointed at the staging (test) database by mistake.
+    function renderDbStatus(environment, kidCount) {
+      const el = document.getElementById('dbStatus');
+      if (!el) return;
+      const kids = (kidCount ?? '?') + ' kid' + (kidCount === 1 ? '' : 's');
+      if (environment === 'staging') {
+        el.style.background = 'rgba(245,158,11,0.15)';
+        el.style.border = '1px solid #f59e0b';
+        el.style.color = '#fbbf24';
+        el.textContent = '⚠️ Reading the STAGING test database (not your live kids) · ' + kids;
+      } else {
+        el.style.background = 'rgba(52,211,153,0.13)';
+        el.style.border = '1px solid #34d399';
+        el.style.color = '#34d399';
+        el.textContent = '✓ Connected to production · ' + kids;
+      }
+      el.style.display = 'flex';
+    }
+
     // Show a dashboard-level "couldn't load" banner instead of leaving boxes silently blank.
     function showDataError(msg) {
       const box = document.getElementById('dashError');
@@ -673,6 +696,7 @@
         document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '-';
         document.getElementById('statPro').textContent = stats.proKids ?? '-';
         document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
+        renderDbStatus(stats.environment, stats.totalKids);
       } catch (e) {
         showDataError('The stat boxes failed to load (' + e.message + '). If you just deployed, give it a moment and tap Retry.');
       }

@@ -1820,6 +1820,9 @@ async function adminStats(env, request) {
     trialKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan='trial'"),
     parents: await c("SELECT COUNT(*) c FROM users WHERE role='parent'"),
     lessonsCompleted: await c("SELECT COUNT(*) c FROM progress"),
+    // Which database the panel is reading. STAGING_USER is only set in the staging env,
+    // so the admin panel can show a clear "production vs staging" badge.
+    environment: env.STAGING_USER ? "staging" : "production",
   });
 }
 // Founder analytics: growth, activity, and conversion (super admin).
