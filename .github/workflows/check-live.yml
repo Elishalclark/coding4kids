@@ -9,15 +9,15 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Response headers for admin.html
+      - name: Headers for /admin (following redirects)
         run: |
-          echo "================ HEADERS ================"
-          curl -sS -D - -o /dev/null "https://kidvibers.com/admin.html"
+          echo "================ HEADERS (/admin) ================"
+          curl -sSL -D - -o /dev/null "https://kidvibers.com/admin"
 
       - name: Is the new admin page deployed?
         run: |
-          BODY=$(curl -sS "https://kidvibers.com/admin.html")
-          echo "================ MARKERS ================"
+          BODY=$(curl -sSL "https://kidvibers.com/admin")
+          echo "================ MARKERS (/admin) ================"
           echo "dbStatus element present:        $(printf '%s' "$BODY" | grep -c 'id=\"dbStatus\"')"
           echo "renderDbStatus function present: $(printf '%s' "$BODY" | grep -c 'renderDbStatus')"
           echo "'Connected to production' text:  $(printf '%s' "$BODY" | grep -c 'Connected to production')"
