@@ -2930,6 +2930,12 @@ export default {
     const assetRes = await env.ASSETS.fetch(request);
     const out = new Response(assetRes.body, assetRes);
     for (const k in SECURITY_HEADERS) out.headers.set(k, SECURITY_HEADERS[k]);
+    // Never let the browser cache HTML pages, so a normal refresh always loads the
+    // latest version (no private tab / hard-refresh needed). Versioned CSS/JS (?v=NN)
+    // keep their own caching since their URL changes whenever they change.
+    if ((out.headers.get("content-type") || "").includes("text/html")) {
+      out.headers.set("Cache-Control", "no-store, must-revalidate");
+    }
     return out;
   },
 };
