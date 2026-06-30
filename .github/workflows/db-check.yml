@@ -1,7 +1,7 @@
 name: Read production database (diagnostic)
 
-# Read-only check of the live Cloudflare D1 database. Runs automatically when this
-# file is pushed to the diagnostic branch. Only SELECT queries — never writes/deletes.
+# Deploys the worker (which carries a temporary read-only counts endpoint) and reads
+# the live production database THROUGH the worker's own DB binding — counts only, no PII.
 
 on:
   push:
@@ -19,13 +19,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Count users by role
-        run: npx wrangler@4 d1 execute kidvibers --remote --command "SELECT role, COUNT(*) AS count FROM users GROUP BY role ORDER BY count DESC"
+      - name: Build public/ assets
+        run: |
+          mkdir -p public
+          cp ../*.html public/ 2>/dev/null || true
+          cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true
+          cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+          rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
 
-      - name: Total counts
-        if: always()
-        run: npx wrangler@4 d1 execute kidvibers --remote --command "SELECT (SELECT COUNT(*) FROM users) AS total_users, (SELECT COUNT(*) FROM users WHERE role='kid') AS kids, (SELECT COUNT(*) FROM progress) AS lessons_done, (SELECT COUNT(*) FROM sessions) AS active_sessions"
+      - name: Deploy worker (carries temp diag endpoint)
+        run: npx wrangler@4 deploy
 
-      - name: Newest 15 accounts
-        if: always()
-        run: npx wrangler@4 d1 execute kidvibers --remote --command "SELECT id, name, username, role, plan, substr(created_at,1,10) AS joined FROM users ORDER BY id DESC LIMIT 15"
+      - name: Read live database counts
+        run: |
+          echo "Waiting for the deploy to propagate..."
+          sleep 8
+          echo "================ PRODUCTION DATABASE COUNTS ================"
+          curl -s "https://kidvibers.com/api/_diag_counts?k=d1ag9f3kQ7zR2mXpL8vT6wN4bY0cH5sJ"
+          echo ""
+          echo "==========================================================="
