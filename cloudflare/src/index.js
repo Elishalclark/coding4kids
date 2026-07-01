@@ -629,8 +629,11 @@ async function apiSignup(env, request, data) {
   // If a parent email is given, it must look like a real email so consent/notices can be delivered.
   if (email && !/^\S+@\S+\.\S+$/.test(email))
     return json({ error: "Please enter a valid parent email address." }, 400);
-  if (kidEmail && !/^\S+@\S+\.\S+$/.test(kidEmail))
-    return json({ error: "Please enter a valid email address for the child (or leave it blank)." }, 400);
+  // A child's email is now required at signup.
+  if (!kidEmail)
+    return json({ error: "A child's email is required." }, 400);
+  if (!/^\S+@\S+\.\S+$/.test(kidEmail))
+    return json({ error: "Please enter a valid email address for the child." }, 400);
   // A parent email is still required so we can notify the parent and let them manage/withdraw.
   if (!email)
     return json({ error: "A parent's email is required so we can keep a parent in the loop." }, 400);
@@ -1820,6 +1823,9 @@ async function adminStats(env, request) {
     trialKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan='trial'"),
     parents: await c("SELECT COUNT(*) c FROM users WHERE role='parent'"),
     lessonsCompleted: await c("SELECT COUNT(*) c FROM progress"),
+    // Which database the panel is reading. STAGING_USER is only set in the staging env,
+    // so the admin panel can show a clear "production vs staging" badge.
+    environment: env.STAGING_USER ? "staging" : "production",
   });
 }
 // Founder analytics: growth, activity, and conversion (super admin).
@@ -2927,6 +2933,12 @@ export default {
     const assetRes = await env.ASSETS.fetch(request);
     const out = new Response(assetRes.body, assetRes);
     for (const k in SECURITY_HEADERS) out.headers.set(k, SECURITY_HEADERS[k]);
+    // Never let the browser cache HTML pages, so a normal refresh always loads the
+    // latest version (no private tab / hard-refresh needed). Versioned CSS/JS (?v=NN)
+    // keep their own caching since their URL changes whenever they change.
+    if ((out.headers.get("content-type") || "").includes("text/html")) {
+      out.headers.set("Cache-Control", "no-store, must-revalidate");
+    }
     return out;
   },
 };

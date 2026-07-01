@@ -1,0 +1,40 @@
+name: Deploy to Cloudflare (production)
+
+# Publishes the live site automatically.
+#  • Runs every time code lands on the main branch (e.g. when you merge on GitHub).
+#  • Can also be started by hand from the Actions tab ("Run workflow") as a manual deploy button.
+#
+# One-time setup required: add a repository secret named CLOUDFLARE_API_TOKEN
+# (Settings → Secrets and variables → Actions). Without it the deploy step will fail.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      # Mirror cloudflare/deploy.sh: the live site is served from cloudflare/public/,
+      # which is built from the project's root files (it isn't stored in git).
+      - name: Build the public/ assets folder
+        run: |
+          cd cloudflare
+          mkdir -p public
+          cp ../*.html public/ 2>/dev/null || true
+          cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true
+          cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+          # safety: never ship secrets or server-only files
+          rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
+          echo "Built public/ with:" && ls public/
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: cloudflare
+          command: deploy
