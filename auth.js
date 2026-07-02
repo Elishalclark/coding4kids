@@ -88,7 +88,7 @@ const C4K = {
       'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;' +
       "font-family:'Nunito',system-ui,sans-serif;");
     ov.innerHTML =
-      '<div style="max-width:460px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      '<div style="width:min(92vw,520px);text-align:center;background:#171327;border:1px solid #3a2f63;' +
       'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
         '<div style="font-size:3.4rem;">🔒</div>' +
         '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Log in to use ' + f + '</h1>' +
@@ -148,7 +148,7 @@ const C4K = {
       "font-family:'Nunito',system-ui,sans-serif;");
     const email = me.parentEmail || '';
     ov.innerHTML =
-      '<div style="max-width:540px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      '<div style="width:min(92vw,600px);text-align:center;background:#171327;border:1px solid #3a2f63;' +
       'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
         '<div style="font-size:3.4rem;">🔒</div>' +
         '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Hi ' + this.esc(me.name) + '! Your account is locked</h1>' +
@@ -242,7 +242,7 @@ const C4K = {
       'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;' +
       "font-family:'Nunito',system-ui,sans-serif;");
     ov.innerHTML =
-      '<div style="max-width:480px;width:100%;text-align:center;background:#171327;border:1px solid #3a2f63;' +
+      '<div style="width:min(92vw,540px);text-align:center;background:#171327;border:1px solid #3a2f63;' +
       'border-radius:22px;padding:40px 30px;color:#eee;box-shadow:0 20px 60px rgba(0,0,0,.5);">' +
         '<div style="font-size:3.5rem;">🏫</div>' +
         '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">School hours</h1>' +
@@ -286,6 +286,8 @@ const C4K = {
     { id:'bg_green',name:'Jungle',cat:'background',color:'#10b981',price:20 },
     { id:'bg_pink',name:'Bubblegum',cat:'background',color:'#ec4899',price:25 },
     { id:'bg_gold',name:'Gold',cat:'background',color:'#f59e0b',price:60 },
+    { id:'freeze_1',name:'Streak Freeze',cat:'power',emoji:'🧊',price:50,desc:'Protects your streak for 1 missed day. Auto-used when you miss a day.' },
+    { id:'freeze_3',name:'3x Streak Freeze',cat:'power',emoji:'❄️',price:130,desc:'Three streak freezes in one. Never lose your streak again.' },
   ],
   shopItem(id) { return this.SHOP.find(i => i.id === id); },
 
@@ -414,6 +416,49 @@ const C4K = {
     document.body.appendChild(bar);
     document.body.style.paddingBottom = '52px';
   }, 3000);
+})();
+
+// Screen-time limit - enforced on EVERY page (lessons, games, playground, dashboard).
+// A parent sets a daily minute cap; this counts active minutes and locks when reached.
+(function () {
+  function showLock(limit) {
+    if (document.getElementById('c4kScreenLock')) return;
+    const ov = document.createElement('div');
+    ov.id = 'c4kScreenLock';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:rgba(8,6,18,0.97);' +
+      "backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;font-family:'Nunito',system-ui,sans-serif;");
+    ov.innerHTML = '<div style="max-width:440px;text-align:center;background:#171327;border:1px solid #3a2f63;border-radius:22px;padding:40px 30px;color:#eee;">' +
+      '<div style="font-size:3.4rem;">⏰</div>' +
+      '<h1 style="font-size:1.5rem;font-weight:900;margin:12px 0;color:#fff;">Time\'s up for today!</h1>' +
+      '<p style="color:#bdb6d6;line-height:1.6;">You\'ve reached your ' + limit + '-minute daily limit set by your grown-up. Come back tomorrow to keep coding! 🌙</p></div>';
+    document.body.appendChild(ov);
+    document.documentElement.style.overflow = 'hidden';
+  }
+  async function start() {
+    try {
+      if (!C4K.token()) return;                 // logged out — nothing to track
+      const me = C4K.user || await C4K.loadMe();
+      if (!me || me.role !== 'kid') return;     // only kids are limited
+      const r = await C4K.api('/api/screen-limit');
+      if (!r.ok || !r.data.minutes) return;     // 0 = no limit
+      const limit = r.data.minutes;
+      const key = 'c4k_screentime';
+      const today = () => new Date().toISOString().slice(0, 10);
+      function read() { try { const s = JSON.parse(localStorage.getItem(key) || '{}'); return s.date === today() ? (s.mins || 0) : 0; } catch { return 0; } }
+      function write(m) { try { localStorage.setItem(key, JSON.stringify({ date: today(), mins: m })); } catch {} }
+      if (read() >= limit) { showLock(limit); return; }
+      setInterval(function () {
+        // only count time while the tab is visible (not idle in background)
+        if (document.hidden) return;
+        const m = read() + 1;
+        write(m);
+        if (m >= limit) showLock(limit);
+      }, 60000);
+    } catch {}
+  }
+  // delay so C4K.user has a chance to load first
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(start, 1500));
+  else setTimeout(start, 1500);
 })();
 
 // Site-wide announcement banner - shown to everyone when the super admin sets one.

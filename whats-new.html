@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>What's New - KidVibers</title>
+  <meta name="description" content="See every new feature, improvement and fix added to KidVibers." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=114" />
+  <style>
+    .wn { max-width: 780px; margin: 0 auto; padding: 32px 20px 100px; }
+
+    .wn-hero { text-align: center; margin-bottom: 48px; }
+    .wn-hero .badge { display: inline-block; background: var(--purple-light); color: var(--purple);
+      font-weight: 900; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 6px 16px; border-radius: 50px; border: 1px solid var(--border-bright); margin-bottom: 16px; }
+    .wn-hero h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; margin-bottom: 10px; }
+    .wn-hero p { color: var(--text-dim); font-size: 1.05rem; max-width: 500px; margin: 0 auto; }
+
+    /* Timeline */
+    .timeline { position: relative; }
+    .timeline::before { content: ''; position: absolute; left: 28px; top: 0; bottom: 0;
+      width: 2px; background: linear-gradient(to bottom, var(--purple-mid), var(--pink), transparent); }
+
+    .release { display: flex; gap: 24px; margin-bottom: 48px; position: relative; }
+    .release-dot { flex-shrink: 0; width: 58px; height: 58px; border-radius: 50%;
+      background: var(--surface); border: 2px solid var(--border-bright);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; z-index: 1; position: relative; }
+    .release-dot.latest { background: linear-gradient(135deg, var(--purple-mid), var(--pink));
+      border-color: transparent; box-shadow: 0 0 20px rgba(139,92,246,0.5); }
+    .release-dot.part2 { background: linear-gradient(135deg, #7c2d12, #f59e0b);
+      border-color: transparent; box-shadow: 0 0 20px rgba(245,158,11,0.4); }
+
+    .release-body { flex: 1; padding-top: 8px; }
+    .release-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .release-version { font-size: 1.4rem; font-weight: 900; }
+    .release-date { font-size: 0.78rem; font-weight: 800; color: var(--text-faint);
+      background: var(--surface-2); padding: 4px 12px; border-radius: 50px; }
+    .latest-tag { font-size: 0.72rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em;
+      background: linear-gradient(135deg, var(--purple-mid), var(--pink));
+      color: #fff; padding: 4px 12px; border-radius: 50px; }
+
+    .release-title { font-size: 1.15rem; font-weight: 900; margin-bottom: 16px; color: var(--text); }
+
+    .features { display: flex; flex-direction: column; gap: 10px; }
+    .feature { display: flex; gap: 14px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .feature-ico { font-size: 1.4rem; flex-shrink: 0; margin-top: 1px; }
+    .feature-text .ft { font-weight: 800; font-size: 0.95rem; color: var(--text); }
+    .feature-text .fd { color: var(--text-dim); font-size: 0.84rem; line-height: 1.5; margin-top: 2px; }
+
+    .feature.highlight { border-color: var(--border-bright);
+      background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(244,114,182,0.06)); }
+    .feature.gold { border-color: rgba(245,158,11,0.4);
+      background: linear-gradient(135deg, rgba(124,45,18,0.15), rgba(245,158,11,0.06)); }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0 0 48px; }
+
+    .cta-bar { text-align: center; background: linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9);
+      border: 1px solid var(--border-bright); border-radius: var(--radius); padding: 36px 24px; margin-top: 16px; }
+    .cta-bar h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: 8px; }
+    .cta-bar p { color: #e0d4ff; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="index.html" class="btn btn-ghost">← Home</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wn">
+
+    <div class="wn-hero">
+      <div class="badge">✨ Release Notes</div>
+      <h1>What's New on KidVibers</h1>
+      <p>Every feature, improvement, and fix — straight from the builder's desk.</p>
+    </div>
+
+    <div class="timeline">
+
+      <!-- v1.7 -->
+      <div class="release">
+        <div class="release-dot latest">🤖</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.7</span>
+            <span class="release-date">July 2026</span>
+            <span class="latest-tag">Latest</span>
+          </div>
+          <div class="release-title">🤖 AI Skills, Vibe Studio & Teacher Tools</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🤖</span>
+              <div class="feature-text">
+                <div class="ft">Prompt Lab in every lesson</div>
+                <div class="fd">Kids don't just use AI — they learn to prompt it. Every lesson teaches a prompting skill (be specific, give a role, add context…) and kids write their own prompts and get feedback.</div>
+              </div>
+            </div>
+            <div class="feature highlight">
+              <span class="feature-ico">🎨</span>
+              <div class="feature-text">
+                <div class="ft">Vibe Studio — build without code</div>
+                <div class="fd">Tell Byte what you want to make and pick a template: personal website, blog post, fan page, photo album, club page, birthday card, story, recipe & more. Customize the text & colors, then save it.</div>
+              </div>
+            </div>
+            <div class="feature highlight">
+              <span class="feature-ico">🧠</span>
+              <div class="feature-text">
+                <div class="ft">5-question quizzes, 80% to pass</div>
+                <div class="fd">Each lesson ends with a 5-question quiz — no peeking back at answers. Fail 3 times and it uses a daily lesson slot, but you still have to pass to complete it.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🔢</span>
+              <div class="feature-text">
+                <div class="ft">Byte got smarter</div>
+                <div class="fd">The AI buddy now solves math problems, defines coding words, spells words, tells jokes, and helps debug — instantly and safely.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📌</span>
+              <div class="feature-text">
+                <div class="ft">Teacher tools</div>
+                <div class="fd">Assign lessons with due dates, upload class rosters by CSV, print progress reports as PDF, and set daily screen-time limits.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📅</span>
+              <div class="feature-text">
+                <div class="ft">Annual plans</div>
+                <div class="fd">Pay yearly instead of monthly on any plan — pick your billing at checkout.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📴</span>
+              <div class="feature-text">
+                <div class="ft">Works offline</div>
+                <div class="fd">Lessons are cached so kids can keep coding even if the wifi drops — perfect for libraries and classrooms.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.6 -->
+      <div class="release">
+        <div class="release-dot">⚔️</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.6</span>
+            <span class="release-date">July 2026</span>
+          </div>
+          <div class="release-title">⚔️ Part 2, Elite Mode & Major Upgrades</div>
+          <div class="features">
+            <div class="feature gold">
+              <span class="feature-ico">⚔️</span>
+              <div class="feature-text">
+                <div class="ft">World Part 2 — 6 new elite worlds, 48 hard lessons</div>
+                <div class="fd">Recursion Realm, Algorithm Abyss, Data Science Citadel, OOP Omega, Async Nexus & Project Pinnacle. No more basics — real professional-level coding.</div>
+              </div>
+            </div>
+            <div class="feature gold">
+              <span class="feature-ico">🔱</span>
+              <div class="feature-text">
+                <div class="ft">Part 2 Elite Dashboard</div>
+                <div class="fd">Beat Champions Arena and your dashboard transforms — dark gold theme, elite banner, and Part 2 world map. You earned it.</div>
+              </div>
+            </div>
+            <div class="feature highlight">
+              <span class="feature-ico">🔎</span>
+              <div class="feature-text">
+                <div class="ft">Super Admin kid search</div>
+                <div class="fd">Search any student by username or name and see their full info instantly.</div>
+              </div>
+            </div>
+            <div class="feature highlight">
+              <span class="feature-ico">📊</span>
+              <div class="feature-text">
+                <div class="ft">Advanced analytics</div>
+                <div class="fd">MRR, 30-day retention, stickiness, referral count, weekly signups chart, and top lessons — all in the super admin panel.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🏫</span>
+              <div class="feature-text">
+                <div class="ft">Consent class groups</div>
+                <div class="fd">Tap a school or class name in the consent panel to see all its students at once.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📧</span>
+              <div class="feature-text">
+                <div class="ft">Email alerts for new kids & reports</div>
+                <div class="fd">Every new signup and safety report goes straight to your inbox — no more Slack needed.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📩</span>
+              <div class="feature-text">
+                <div class="ft">Branded email footer</div>
+                <div class="fd">Every email KidVibers sends now includes the logo, contact info, and links to Trust & Safety and Privacy Policy.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🖥️</span>
+              <div class="feature-text">
+                <div class="ft">Fully responsive — every screen size</div>
+                <div class="fd">Fluid layout from tiny phones to 30-inch monitors and 4K displays. Everything scales perfectly.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🔒</span>
+              <div class="feature-text">
+                <div class="ft">Security hardening</div>
+                <div class="fd">Schedule gate blocks kids during closed hours at the API level, IDOR fix on district accounts, input sanitization across the board.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.5 -->
+      <div class="release">
+        <div class="release-dot">🎮</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.5</span>
+            <span class="release-date">June 2026</span>
+          </div>
+          <div class="release-title">Games, Certificates & Instant Start</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🎮</span>
+              <div class="feature-text">
+                <div class="ft">4 new coding games</div>
+                <div class="fd">Bug Zapper, Code Blitz, Output Oracle & Code Match — play and earn tokens while you learn.</div>
+              </div>
+            </div>
+            <div class="feature highlight">
+              <span class="feature-ico">📚</span>
+              <div class="feature-text">
+                <div class="ft">293 lessons across 25 worlds</div>
+                <div class="fd">New Creative Studio, App Builder Workshop & Champions Arena worlds added.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🏆</span>
+              <div class="feature-text">
+                <div class="ft">Printable certificates</div>
+                <div class="fd">Earn a certificate every time you beat a world boss — downloadable and printable.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🎁</span>
+              <div class="feature-text">
+                <div class="ft">Invite a friend</div>
+                <div class="fd">Share your referral code — when a friend joins, you both get 50 bonus tokens.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">⚡</span>
+              <div class="feature-text">
+                <div class="ft">Start instantly</div>
+                <div class="fd">Jump straight into coding the moment you sign up. No waiting, no gates.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🛒</span>
+              <div class="feature-text">
+                <div class="ft">Auto-checkout</div>
+                <div class="fd">Visiting the checkout page takes you straight to Stripe — no extra clicks.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.4 -->
+      <div class="release">
+        <div class="release-dot">🤖</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.4</span>
+            <span class="release-date">May 2026</span>
+          </div>
+          <div class="release-title">AI Tutor, Parent Journey & Auto Emails</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🤖</span>
+              <div class="feature-text">
+                <div class="ft">Byte — AI coding buddy</div>
+                <div class="fd">Pro and Family plan kids get unlimited access to Byte, the AI tutor built right into the dashboard.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📬</span>
+              <div class="feature-text">
+                <div class="ft">Automatic re-engagement emails</div>
+                <div class="fd">Parents get a friendly nudge when their kid hasn't coded in 7–30 days — keeps streaks alive.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🎓</span>
+              <div class="feature-text">
+                <div class="ft">Certificate celebration email</div>
+                <div class="fd">When a kid earns a certificate, parents get an email with a Pro upgrade offer.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📊</span>
+              <div class="feature-text">
+                <div class="ft">Founder analytics dashboard</div>
+                <div class="fd">Real-time stats for active kids, conversion rate, MRR, and more in the admin panel.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.3 -->
+      <div class="release">
+        <div class="release-dot">🏫</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.3</span>
+            <span class="release-date">April 2026</span>
+          </div>
+          <div class="release-title">Schools, Districts & Teacher Tools</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🏛️</span>
+              <div class="feature-text">
+                <div class="ft">District & school plans</div>
+                <div class="fd">Full district dashboards with branding, school management, and student tracking. School $105/mo · District $125/mo.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🍎</span>
+              <div class="feature-text">
+                <div class="ft">Teacher progress view</div>
+                <div class="fd">Teachers see every student's lessons done, worlds cleared, XP, and last active date.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">⏰</span>
+              <div class="feature-text">
+                <div class="ft">School hours scheduling</div>
+                <div class="fd">Teachers can lock KidVibers outside school hours so kids stay focused.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🏆</span>
+              <div class="feature-text">
+                <div class="ft">Class leaderboard</div>
+                <div class="fd">Live rankings for every classroom — keeps kids motivated to keep coding.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.2 -->
+      <div class="release">
+        <div class="release-dot">🌍</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.2</span>
+            <span class="release-date">March 2026</span>
+          </div>
+          <div class="release-title">Worlds, Bosses & the Avatar Shop</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🗺️</span>
+              <div class="feature-text">
+                <div class="ft">25 themed worlds with boss battles</div>
+                <div class="fd">From Greenwood Basics to Champions Arena — each world ends with a boss battle you must beat to advance.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🛍️</span>
+              <div class="feature-text">
+                <div class="ft">Avatar shop</div>
+                <div class="fd">Spend your tokens on hats, accessories, companions, and backgrounds to customize your look.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🪙</span>
+              <div class="feature-text">
+                <div class="ft">Token economy</div>
+                <div class="fd">Earn tokens for completing lessons and playing games. Spend them in the avatar shop.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🧩</span>
+              <div class="feature-text">
+                <div class="ft">Daily puzzle</div>
+                <div class="fd">A new coding puzzle every day — build your streak and sharpen your skills.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.0 -->
+      <div class="release">
+        <div class="release-dot">🚀</div>
+        <div class="release-body">
+          <div class="release-header">
+            <span class="release-version">v1.0</span>
+            <span class="release-date">January 2026</span>
+          </div>
+          <div class="release-title">🚀 KidVibers Launches</div>
+          <div class="features">
+            <div class="feature highlight">
+              <span class="feature-ico">🚀</span>
+              <div class="feature-text">
+                <div class="ft">KidVibers goes live</div>
+                <div class="fd">The fun, fast way to learn coding — built by a kid, for kids. Python lessons, real code you can run, and instant feedback.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">📚</span>
+              <div class="feature-text">
+                <div class="ft">100+ bite-sized lessons</div>
+                <div class="fd">Short, fun lessons with drag-and-drop activities, multiple choice, and runnable code snippets.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">🛝</span>
+              <div class="feature-text">
+                <div class="ft">Python Playground</div>
+                <div class="fd">Write and run real Python code right in your browser — no setup needed.</div>
+              </div>
+            </div>
+            <div class="feature">
+              <span class="feature-ico">👨‍👩‍👧</span>
+              <div class="feature-text">
+                <div class="ft">Parent & family plans</div>
+                <div class="fd">Free tier for everyone. Pro $9/mo, Family $15/mo — unlock AI, unlimited lessons, and more.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /timeline -->
+
+    <div class="cta-bar">
+      <h2>More coming soon 🔥</h2>
+      <p>KidVibers is updated constantly. Check back here to see what's new.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="lessons.html" class="btn btn-primary btn-lg">📚 Start Learning</a>
+        <a href="index.html" class="btn btn-outline btn-lg" style="color:#fff;border-color:rgba(255,255,255,0.3);">← Back to Home</a>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-bottom" style="padding-top:30px;">
+      <p>© 2026 KidVibers.com — Made by a kid, for kids ❤️</p>
+    </div>
+  </footer>
+
+  <script src="auth.js?v=114"></script>
+  <script>
+    (async () => {
+      try {
+        if (typeof C4K === 'undefined') return;
+        const me = await C4K.loadMe();
+        if (me) document.getElementById('dashLink').style.display = '';
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

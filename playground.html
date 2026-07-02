@@ -2,358 +2,396 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="canonical" href="https://kidvibers.com/playground.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Code Playground - KidVibers</title>
+  <title>Vibe Studio 🎨 - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
-  <!-- Skulpt: runs real Python in the browser -->
-  <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
-    .pg { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
-    .pg-head { display: flex; align-items: center; gap: 14px; margin: 10px 0 18px; flex-wrap: wrap; }
-    .pg-head h1 { font-size: 1.6rem; font-weight: 900; }
-    .pg-head p { color: var(--text-dim); font-size: 0.95rem; }
-    .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-    .ex-btn { font-size: 0.8rem; font-weight: 800; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); padding: 7px 14px; border-radius: 50px; cursor: pointer; }
-    .ex-btn:hover { color: var(--purple); border-color: var(--border-bright); }
-    .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    @media (max-width: 800px) { .pg-grid { grid-template-columns: 1fr; } .replay-grid { grid-template-columns: 1fr !important; } }
-    .pg-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
-    .pg-bar { background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 10px 16px; font-weight: 800; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
-    #code { width: 100%; min-height: 340px; border: none; outline: none; resize: vertical; background: #06040f; color: #d6e7ff; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95rem; line-height: 1.6; padding: 16px; tab-size: 4; }
-    #out { min-height: 340px; background: #02030a; color: #9be7a0; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95rem; line-height: 1.6; padding: 16px; white-space: pre-wrap; overflow-y: auto; margin: 0; }
-    #out .err { color: #f87171; }
-    .pg-actions { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
-    .run-spin { display:none; }
-    /* save / share bar */
-    .save-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:14px; }
-    .save-bar input[type=text] { flex:1; min-width:160px; background:#06040f; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:9px 12px; font-family:inherit; font-weight:700; }
-    .save-bar label { display:flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:800; color:var(--text-dim); cursor:pointer; }
-    #saveMsg { font-size:0.82rem; font-weight:800; color:var(--green, #5ad17e); }
-    .mine-wrap { margin-top:22px; }
-    .mine-wrap h2 { font-size:1.05rem; font-weight:900; margin-bottom:10px; }
-    .mine-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
-    .mine-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:13px 14px; }
-    .mine-card h3 { font-size:0.95rem; font-weight:800; margin-bottom:6px; word-break:break-word; }
-    .mine-card .meta { font-size:0.75rem; color:var(--text-faint); margin-bottom:10px; }
-    .mine-card .row { display:flex; gap:6px; flex-wrap:wrap; }
-    .mini-btn { font-size:0.74rem; font-weight:800; border:1px solid var(--border); background:var(--surface-2); color:var(--text-dim); padding:5px 10px; border-radius:8px; cursor:pointer; }
-    .mini-btn:hover { color:var(--purple); border-color:var(--border-bright); }
-    .shared-tag { font-size:0.68rem; font-weight:900; color:var(--green,#5ad17e); }
-    .login-note { background:var(--surface); border:1px dashed var(--border); border-radius:14px; padding:14px 16px; color:var(--text-dim); font-size:0.9rem; }
-    .login-note a { color:var(--purple); font-weight:800; }
+    body { background: #07050f; }
+    .vs { display: flex; flex-direction: column; height: calc(100vh - 56px); }
+    .vs-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      background: #0f0c1e; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+    .vs-title-in { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 0.95rem;
+      padding: 7px 12px; flex: 1; min-width: 140px; max-width: 300px; }
+    .vs-status { font-size: 0.78rem; font-weight: 700; color: var(--text-faint); flex: 1; min-width: 80px; }
+    .vs-main { display: grid; grid-template-columns: 360px 1fr; flex: 1; overflow: hidden; }
+    @media (max-width: 820px) { .vs-main { grid-template-columns: 1fr; height: auto; } .vs { height: auto; } }
+    .vs-left { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+    .chat-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 260px; }
+    .chat-msgs { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msg { display: flex; gap: 8px; align-items: flex-start; }
+    .chat-msg.user { flex-direction: row-reverse; }
+    .chat-msg .bubble { max-width: 82%; padding: 10px 13px; border-radius: 16px; font-size: 0.88rem; line-height: 1.5; font-weight: 700; }
+    .chat-msg.ai .bubble { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px 16px 16px 16px; }
+    .chat-msg.user .bubble { background: linear-gradient(135deg,#7c3aed,#db2777); color:#fff; border-radius: 16px 4px 16px 16px; }
+    .chat-msg .avi { font-size: 1.2rem; flex-shrink: 0; margin-top: 2px; }
+    .template-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 10px; }
+    .tchip { background: var(--surface-2); border: 1px solid var(--border); border-radius: 50px;
+      padding: 5px 11px; font-size: 0.76rem; font-weight: 800; cursor: pointer; color: var(--text-dim); transition: all .15s; }
+    .tchip:hover { background: var(--purple-light); border-color: var(--purple-mid); color: var(--purple); }
+    .chat-input-row { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border);
+      background: #0f0c1e; flex-shrink: 0; }
+    .chat-input-row input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 50px;
+      color: var(--text); font-family: 'Nunito', sans-serif; font-size: 0.88rem; padding: 9px 14px; font-weight: 700; }
+    .chat-send { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; border: none; border-radius: 50px;
+      padding: 9px 16px; font-weight: 900; cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 0.85rem; white-space: nowrap; }
+    .editor-panel { border-top: 1px solid var(--border); background: #0a0814; flex-shrink: 0; max-height: 42%; overflow-y: auto; }
+    .editor-panel.hidden { display: none; }
+    .ep-head { padding: 10px 14px 4px; font-size: 0.72rem; font-weight: 900; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.05em; }
+    .ep-field { padding: 5px 14px; }
+    .ep-field label { display: block; font-size: 0.7rem; font-weight: 800; color: var(--text-faint); margin-bottom: 3px; }
+    .ep-field input, .ep-field textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.82rem;
+      padding: 6px 9px; width: 100%; box-sizing: border-box; resize: none; }
+    .ep-colors { display: flex; gap: 8px; flex-wrap: wrap; padding: 5px 14px 8px; }
+    .color-swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all .15s; }
+    .color-swatch.sel { border-color: #fff; transform: scale(1.18); }
+    .vs-right { display: flex; flex-direction: column; overflow: hidden; background: #111; }
+    .preview-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+      background: #0f0c1e; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .preview-bar .url { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 10px; font-size: 0.76rem; color: var(--text-faint); font-weight: 700; }
+    #previewFrame { flex: 1; border: none; background: #fff; width: 100%; min-height: 300px; }
+    .vs-empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
+      flex: 1; gap: 12px; color: var(--text-dim); text-align: center; padding: 24px; }
+    .vs-empty .big { font-size: 3.5rem; }
+    .vs-empty h2 { font-weight: 900; color: var(--text); font-size: 1.2rem; }
   </style>
 </head>
 <body>
   <nav class="nav">
     <div class="nav-inner">
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
-      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
-        <a href="gallery.html" class="btn btn-outline">🎨 Gallery</a>
-        <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
-        <a href="dashboard.html" class="btn btn-ghost" id="dashLink" style="display:none;">📊 Dashboard</a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="lessons.html" class="btn btn-ghost">📚 Lessons</a>
+        <a href="dashboard.html" class="btn btn-ghost" id="dashLink" style="display:none;">Dashboard</a>
       </div>
     </div>
   </nav>
 
-  <main class="pg">
-    <div class="pg-head">
-      <span style="font-size:2rem;">🛝</span>
-      <div><h1>Code Playground</h1><p>Write real Python and run it right here - no setup needed!</p></div>
+  <div class="vs">
+    <div class="vs-bar">
+      <span style="font-size:1.3rem;">🎨</span>
+      <input class="vs-title-in" id="projTitle" placeholder="My awesome project" maxlength="60" />
+      <span class="vs-status" id="vsStatus">Tell Byte what you want to build →</span>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveProject()" style="font-size:0.85rem;padding:8px 16px;display:none;">💾 Save my project</button>
     </div>
 
-    <div class="examples" id="examples"></div>
-
-    <!-- Save / share bar (only for logged-in coders) -->
-    <div class="save-bar" id="saveBar" style="display:none;">
-      <input type="text" id="projTitle" placeholder="Name your project…" maxlength="60" />
-      <button class="btn btn-primary" id="saveBtn" onclick="saveProject()">💾 Save</button>
-      <label title="Let other kids see and run your project in the gallery">
-        <input type="checkbox" id="shareChk" onchange="toggleShare()" /> 📤 Share to gallery
-      </label>
-      <span id="saveMsg"></span>
-    </div>
-    <div class="login-note" id="loginNote" style="display:none;">
-      💡 <a href="index.html">Log in</a> to save your projects and share them in the gallery.
-    </div>
-
-    <div class="pg-grid">
-      <div class="pg-panel">
-        <div class="pg-bar">🐍 Your Python code</div>
-        <textarea id="code" spellcheck="false"># Welcome to the KidVibers playground! 🚀
-# Write Python and press Run.
-
-name = "coder"
-print("Hello, " + name + "!")
-
-for i in range(1, 4):
-    print("Star", i, "⭐")
-</textarea>
-      </div>
-      <div class="pg-panel">
-        <div class="pg-bar">▶️ Output</div>
-        <pre id="out">Press “Run ▶” to see your code come to life!</pre>
-      </div>
-    </div>
-
-    <div class="pg-actions">
-      <button class="btn btn-primary btn-lg" id="runBtn" onclick="runCode()">Run ▶</button>
-      <button class="btn btn-outline" id="replayBtn" onclick="openReplay()" disabled title="Run your code first, then watch it step by step">🎬 Replay</button>
-      <button class="btn btn-outline" onclick="clearOut()">Clear output</button>
-      <span style="color:var(--text-faint);font-size:0.82rem;align-self:center;">Tip: use <code>input()</code> to ask questions, <code>print()</code> to show things.</span>
-    </div>
-
-    <!-- Code Replay: step through exactly how the code ran, to spot where things go wrong -->
-    <div id="replayPanel" style="display:none;margin-top:18px;background:var(--surface);border:1px solid var(--border-bright);border-radius:14px;padding:16px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-        <strong style="font-size:1.05rem;">🎬 Code Replay</strong>
-        <span id="replayStepLabel" style="color:var(--text-dim);font-size:0.85rem;"></span>
-        <div style="margin-left:auto;display:flex;gap:6px;">
-          <button class="btn btn-outline" onclick="replayRestart()">⟲ Restart</button>
-          <button class="btn btn-outline" id="replayBack" onclick="replayStep(-1)">◀ Back</button>
-          <button class="btn btn-primary" id="replayPlay" onclick="replayToggle()">▶️ Play</button>
-          <button class="btn btn-outline" id="replayNext" onclick="replayStep(1)">Step ▶</button>
-          <button class="btn btn-outline" onclick="closeReplay()">✕ Close</button>
+    <div class="vs-main">
+      <!-- LEFT -->
+      <div class="vs-left">
+        <div class="chat-panel">
+          <div class="chat-msgs" id="chatMsgs">
+            <div class="chat-msg ai">
+              <span class="avi">🤖</span>
+              <div class="bubble">Hey! I'm Byte 👋 Tell me what you want to build — a website, blog post, fan page, photo album, and more! Or pick a template below 🎨</div>
+            </div>
+          </div>
+          <div class="template-chips">
+            <span class="tchip" onclick="quickPick('personal website')">🌐 My Website</span>
+            <span class="tchip" onclick="quickPick('blog post')">📝 Blog Post</span>
+            <span class="tchip" onclick="quickPick('fan page')">💖 Fan Page</span>
+            <span class="tchip" onclick="quickPick('photo album')">📸 Photo Album</span>
+            <span class="tchip" onclick="quickPick('club team page')">⚽ Club/Team</span>
+            <span class="tchip" onclick="quickPick('birthday card')">🎂 Birthday Card</span>
+            <span class="tchip" onclick="quickPick('story')">📖 Story</span>
+            <span class="tchip" onclick="quickPick('announcement')">📣 Announcement</span>
+            <span class="tchip" onclick="quickPick('recipe')">🍕 Recipe</span>
+            <span class="tchip" onclick="quickPick('portfolio')">🏆 Portfolio</span>
+          </div>
+          <div class="chat-input-row">
+            <input id="chatIn" placeholder="I want to build…" onkeydown="if(event.key==='Enter')sendChat()" />
+            <button class="chat-send" onclick="sendChat()">Send ✨</button>
+          </div>
+        </div>
+        <div class="editor-panel hidden" id="editorPanel">
+          <div class="ep-head" style="padding-top:12px;">✏️ Customize</div>
+          <div id="editorFields"></div>
+          <div style="height:12px;"></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="replay-grid">
-        <div><div class="pg-bar" style="margin-bottom:6px;">📜 Your code (crash line shown in red)</div>
-          <pre id="replayCode" style="margin:0;max-height:300px;overflow:auto;font-size:0.9rem;line-height:1.5;"></pre></div>
-        <div><div class="pg-bar" style="margin-bottom:6px;">▶️ Output so far</div>
-          <pre id="replayOut" style="margin:0;max-height:300px;overflow:auto;font-size:0.9rem;"></pre></div>
+
+      <!-- RIGHT -->
+      <div class="vs-right">
+        <div class="preview-bar">
+          <span>👁️</span>
+          <div class="url" id="previewUrl">kidvibers.com/vibe-studio</div>
+          <button class="btn btn-ghost" style="font-size:0.78rem;padding:5px 10px;" onclick="refreshPreview()">🔄 Refresh</button>
+        </div>
+        <div class="vs-empty" id="vsEmpty">
+          <div class="big">🎨</div>
+          <h2>Your creation appears here</h2>
+          <p>Tell Byte what you want to build, or tap a template chip above!</p>
+        </div>
+        <iframe id="previewFrame" style="display:none;" sandbox="allow-scripts" title="Preview"></iframe>
       </div>
     </div>
+  </div>
 
-    <!-- My saved projects -->
-    <div class="mine-wrap" id="mineWrap" style="display:none;">
-      <h2>💾 My projects</h2>
-      <div class="mine-list" id="mineList"></div>
-    </div>
-  </main>
-
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
-    const EXAMPLES = {
-      '👋 Hello': `print("Hello, World!")\nprint("I am learning to code!")`,
-      '🔁 Loop': `for i in range(5):\n    print("Count:", i)`,
-      '🎲 Dice': `import random\nroll = random.randint(1, 6)\nprint("You rolled a", roll, "🎲")`,
-      '🤔 Quiz': `answer = input("What is 2 + 2? ")\nif answer == "4":\n    print("Correct! 🎉")\nelse:\n    print("Try again!")`,
-      '🧮 Times table': `n = 3\nfor i in range(1, 6):\n    print(n, "x", i, "=", n * i)`,
-    };
-    const exWrap = document.getElementById('examples');
-    Object.keys(EXAMPLES).forEach(k => {
-      const b = document.createElement('button'); b.className = 'ex-btn'; b.textContent = k;
-      b.onclick = () => { document.getElementById('code').value = EXAMPLES[k]; };
-      exWrap.appendChild(b);
+  const TEMPLATES = [
+    { id:'website', name:'My Website', emoji:'🌐',
+      keywords:['website','personal','homepage','about me','page','my site','web'],
+      fields:[
+        {id:'name',label:'Your name',type:'text',def:'Alex'},
+        {id:'emoji',label:'Your emoji',type:'text',def:'🚀'},
+        {id:'tagline',label:'Your tagline',type:'text',def:'I love coding & making stuff!'},
+        {id:'about',label:'About me',type:'textarea',def:"Hi! I'm learning to code on KidVibers. I love games, music and creating cool things."},
+        {id:'hobby1',label:'Hobby 1',type:'text',def:'🎮 Gaming'},
+        {id:'hobby2',label:'Hobby 2',type:'text',def:'🎵 Music'},
+        {id:'hobby3',label:'Hobby 3',type:'text',def:'💻 Coding'},
+        {id:'color',label:'Color',type:'color',def:'#7c3aed'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0015;color:#f1eefb;min-height:100vh}.hero{background:linear-gradient(135deg,${f.color}33,${f.color}11);border-bottom:1px solid ${f.color}44;padding:60px 24px;text-align:center}.av{width:90px;height:90px;border-radius:50%;background:${f.color};display:flex;align-items:center;justify-content:center;font-size:2.8rem;margin:0 auto 18px;box-shadow:0 0 40px ${f.color}88}h1{font-size:2.2rem;font-weight:900;margin-bottom:6px}.tag{color:#a78bfa;font-size:1rem;font-weight:600}.card{background:#1a1730;border:1px solid #3a2f63;border-radius:16px;padding:22px;margin:18px 24px}h2{font-size:1rem;font-weight:900;color:${f.color};margin-bottom:10px}p{color:#c4b5fd;line-height:1.7;font-size:0.92rem}.hobbies{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.hobby{background:${f.color}22;border:1px solid ${f.color}44;border-radius:50px;padding:7px 16px;font-weight:700;font-size:0.85rem}.footer{text-align:center;padding:24px;color:#6f6890;font-size:0.8rem}</style></head><body><div class="hero"><div class="av">${f.emoji}</div><h1>${e(f.name)}'s Website</h1><p class="tag">${e(f.tagline)}</p></div><div class="card"><h2>About Me</h2><p>${e(f.about)}</p></div><div class="card"><h2>My Hobbies</h2><div class="hobbies"><span class="hobby">${e(f.hobby1)}</span><span class="hobby">${e(f.hobby2)}</span><span class="hobby">${e(f.hobby3)}</span></div></div><div class="footer">Made with 💜 KidVibers.com</div></body></html>`;},
+    },
+    { id:'birthday', name:'Birthday Card', emoji:'🎂',
+      keywords:['birthday','card','happy birthday','celebration','party','congrats','celebrate'],
+      fields:[
+        {id:'name',label:'Who is it for?',type:'text',def:'Alex'},
+        {id:'from',label:'From:',type:'text',def:'Your best friend'},
+        {id:'msg',label:'Your message',type:'textarea',def:'Wishing you the most amazing day filled with joy, laughter and cake! 🎂'},
+        {id:'age',label:'Age (optional)',type:'text',def:''},
+        {id:'color',label:'Color',type:'color',def:'#ec4899'},
+      ],
+      html(f){const age=f.age?`<div style="font-size:3.5rem;font-weight:900;color:${f.color}">${e(f.age)}</div><div style="color:#888;font-size:0.9rem;margin-bottom:10px">years old 🎉</div>`:'';return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a0030,#0a001a);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}.card{background:#fff;border-radius:24px;padding:36px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 80px ${f.color}55,0 0 0 4px ${f.color}22}.emojis{font-size:2.8rem;margin-bottom:14px;display:block;animation:b 1s ease-in-out infinite alternate}@keyframes b{from{transform:translateY(0)}to{transform:translateY(-8px)}}h1{font-size:1.8rem;font-weight:900;color:${f.color};margin-bottom:6px}.sub{color:#888;font-size:0.85rem;margin-bottom:16px}p{color:#333;line-height:1.7;font-size:0.95rem;background:#fdf0f7;border-radius:12px;padding:16px;margin-bottom:16px}.from{color:#888;font-size:0.85rem}</style></head><body><div class="card"><div class="emojis">🎂🎉🎈</div>${age}<h1>Happy Birthday, ${e(f.name)}!</h1><div class="sub">A special card just for you 💝</div><p>${e(f.msg)}</p><div class="from">— with love from ${e(f.from)}</div></div><script>const em=['🎊','🎉','✨','🌟','💫','🎈'];for(let i=0;i<14;i++){setTimeout(()=>{const d=document.createElement('div');d.style.cssText='position:fixed;top:-40px;left:'+Math.random()*100+'%;font-size:'+(1+Math.random())+'rem;pointer-events:none;z-index:999;animation:f '+(2+Math.random()*3)+'s linear forwards';d.textContent=em[~~(Math.random()*em.length)];document.body.appendChild(d)},i*180)}const s=document.createElement('style');s.textContent='@keyframes f{to{transform:translateY(110vh) rotate(720deg);opacity:0}}';document.head.appendChild(s)<\/script></body></html>`;},
+    },
+    { id:'blogpost', name:'Blog Post', emoji:'📝',
+      keywords:['blog','post','article','news','write','journal','diary','story post'],
+      fields:[
+        {id:'title',label:'Post title',type:'text',def:'My First Blog Post!'},
+        {id:'author',label:'Author name',type:'text',def:'Alex'},
+        {id:'date',label:'Date',type:'text',def:'July 2, 2026'},
+        {id:'category',label:'Category',type:'text',def:'My Life'},
+        {id:'intro',label:'Intro paragraph',type:'textarea',def:'Welcome to my very first blog post! Today I want to tell you all about something super cool that happened to me.'},
+        {id:'body',label:'Main text',type:'textarea',def:'This week I started learning how to code, and it has been AMAZING. I built my own website and a birthday card for my friend. Coding is like a superpower — you can make the computer do anything you imagine!'},
+        {id:'ending',label:'Ending',type:'textarea',def:'Thanks for reading! Come back next week for another post. 💜'},
+        {id:'color',label:'Color',type:'color',def:'#0ea5e9'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Georgia,serif;background:#0a0618;color:#f1eefb;padding:0 0 40px}.top{background:linear-gradient(135deg,${f.color}33,${f.color}11);border-bottom:1px solid ${f.color}44;padding:36px 24px;text-align:center}.cat{display:inline-block;background:${f.color};color:#fff;font-family:'Segoe UI',sans-serif;font-size:0.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;padding:4px 14px;border-radius:50px;margin-bottom:14px}h1{font-size:2rem;font-weight:900;margin-bottom:10px;font-family:'Segoe UI',sans-serif;line-height:1.2}.meta{color:#a78bfa;font-size:0.85rem;font-family:'Segoe UI',sans-serif}.article{max-width:620px;margin:32px auto;padding:0 22px}.article p{line-height:1.9;color:#d4caff;font-size:1.02rem;margin-bottom:20px}.article p:first-child{font-size:1.15rem;color:#e6dcff;font-weight:600}.end{border-top:1px solid ${f.color}44;padding-top:20px;font-style:italic;color:#a78bfa}.foot{text-align:center;color:#4a4060;font-size:0.78rem;font-family:'Segoe UI',sans-serif;margin-top:10px}</style></head><body><div class="top"><span class="cat">${e(f.category)}</span><h1>${e(f.title)}</h1><div class="meta">by ${e(f.author)} · ${e(f.date)}</div></div><div class="article"><p>${e(f.intro)}</p><p>${e(f.body)}</p><p class="end">${e(f.ending)}</p><div class="foot">Made with 💜 KidVibers.com</div></div></body></html>`;},
+    },
+    { id:'fanpage', name:'Fan Page', emoji:'💖',
+      keywords:['fan','fanpage','favorite','favourite','love','game','singer','team','show','idol','celebrity'],
+      fields:[
+        {id:'name',label:'What is it about? (game, singer, team…)',type:'text',def:'Minecraft'},
+        {id:'emoji',label:'Big emoji',type:'text',def:'⛏️'},
+        {id:'tagline',label:'Tagline',type:'text',def:'The best game ever made!'},
+        {id:'about',label:'Why you love it',type:'textarea',def:"Minecraft is my favorite game because you can build ANYTHING. I've made castles, roller coasters, and even a working computer inside the game!"},
+        {id:'fact1',label:'Cool fact 1',type:'text',def:'🌍 Over 300 million copies sold'},
+        {id:'fact2',label:'Cool fact 2',type:'text',def:'🧱 Released in 2011'},
+        {id:'fact3',label:'Cool fact 3',type:'text',def:'🎮 Playable on almost every device'},
+        {id:'rating',label:'Your rating',type:'text',def:'⭐⭐⭐⭐⭐'},
+        {id:'color',label:'Color',type:'color',def:'#10b981'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:40px}.hero{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:50px 24px;text-align:center}.big{font-size:4.5rem;display:block;margin-bottom:12px;animation:b 2s ease-in-out infinite}@keyframes b{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}h1{font-size:2.4rem;font-weight:900;margin-bottom:6px}.tag{color:#a78bfa;font-size:1.05rem;font-weight:600}.rating{font-size:1.4rem;margin-top:12px}.card{background:#1a1730;border:1px solid ${f.color}44;border-radius:16px;padding:22px;margin:18px 24px}h2{font-size:1rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}p{color:#c4b5fd;line-height:1.7;font-size:0.95rem}.facts{display:flex;flex-direction:column;gap:8px;margin-top:10px}.fact{background:${f.color}22;border:1px solid ${f.color}44;border-radius:10px;padding:11px 16px;font-weight:700;font-size:0.9rem}.foot{text-align:center;color:#4a4060;font-size:0.78rem;margin-top:20px}</style></head><body><div class="hero"><span class="big">${f.emoji}</span><h1>${e(f.name)}</h1><p class="tag">${e(f.tagline)}</p><div class="rating">${e(f.rating)}</div></div><div class="card"><h2>Why I Love It</h2><p>${e(f.about)}</p></div><div class="card"><h2>Cool Facts</h2><div class="facts"><div class="fact">${e(f.fact1)}</div><div class="fact">${e(f.fact2)}</div><div class="fact">${e(f.fact3)}</div></div></div><div class="foot">A fan page made with 💜 KidVibers.com</div></body></html>`;},
+    },
+    { id:'story', name:'Story', emoji:'📖',
+      keywords:['story','tale','fiction','book','adventure','write','novel','once upon'],
+      fields:[
+        {id:'title',label:'Story title',type:'text',def:'The Adventure Begins'},
+        {id:'author',label:'Author name',type:'text',def:'Alex'},
+        {id:'intro',label:'Opening line',type:'textarea',def:'Once upon a time, in a world where anything was possible...'},
+        {id:'p1',label:'Chapter 1',type:'textarea',def:"Our hero set off on a journey through the Enchanted Forest, where the trees sparkled with golden light and mysterious creatures peeked from behind ancient oaks."},
+        {id:'p2',label:'Chapter 2',type:'textarea',def:"Suddenly, a friendly dragon appeared. \"I've been waiting for you,\" it said with a warm smile. \"The kingdom needs your help!\""},
+        {id:'p3',label:'The ending',type:'textarea',def:'And so our hero saved the day, earning the title of Champion of the Realm. The adventure had only just begun...'},
+        {id:'emoji1',label:'Scene emoji 1',type:'text',def:'🌲'},
+        {id:'emoji2',label:'Scene emoji 2',type:'text',def:'🐉'},
+        {id:'emoji3',label:'Scene emoji 3',type:'text',def:'⭐'},
+        {id:'color',label:'Color',type:'color',def:'#0ea5e9'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Georgia,serif;background:#0a0618;color:#f1eefb;padding:28px 16px}.book{max-width:640px;margin:0 auto}.cover{text-align:center;padding:36px 20px;background:linear-gradient(135deg,${f.color}33,${f.color}11);border-radius:18px;margin-bottom:26px;border:1px solid ${f.color}44}h1{font-size:2rem;font-weight:900;margin-bottom:6px;font-family:'Segoe UI',sans-serif}.by{color:#a78bfa;font-size:0.9rem;margin-bottom:10px;font-family:'Segoe UI',sans-serif}.intro{font-style:italic;color:#c4b5fd;font-size:0.95rem;line-height:1.8}.chapter{background:#1a1730;border-left:4px solid ${f.color};border-radius:0 12px 12px 0;padding:22px 24px;margin-bottom:18px}.ch-e{font-size:2rem;margin-bottom:10px;display:block}p{line-height:1.8;color:#d4caff;font-size:0.95rem}.fin{text-align:center;color:${f.color};font-size:0.85rem;font-family:'Segoe UI',sans-serif;margin-top:20px}</style></head><body><div class="book"><div class="cover"><h1>📖 ${e(f.title)}</h1><div class="by">by ${e(f.author)}</div><p class="intro">${e(f.intro)}</p></div><div class="chapter"><span class="ch-e">${f.emoji1}</span><p>${e(f.p1)}</p></div><div class="chapter"><span class="ch-e">${f.emoji2}</span><p>${e(f.p2)}</p></div><div class="chapter"><span class="ch-e">${f.emoji3}</span><p>${e(f.p3)}</p></div><div class="fin">✨ The End · Made with KidVibers</div></div></body></html>`;},
+    },
+    { id:'announcement', name:'Announcement', emoji:'📣',
+      keywords:['announcement','event','flyer','notice','invite','poster','news','party'],
+      fields:[
+        {id:'title',label:'Title',type:'text',def:'BIG NEWS! 🎉'},
+        {id:'subtitle',label:'Subtitle',type:'text',def:"You're invited to something special"},
+        {id:'details',label:'Details',type:'textarea',def:'Join us for an amazing event! Bring your friends, family, and good vibes. Everyone is welcome!'},
+        {id:'date',label:'Date & Time',type:'text',def:'Saturday, July 12th at 3:00 PM'},
+        {id:'location',label:'Where?',type:'text',def:'The Backyard'},
+        {id:'emoji',label:'Main emoji',type:'text',def:'🎉'},
+        {id:'color',label:'Color',type:'color',def:'#f59e0b'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}.poster{background:linear-gradient(135deg,#1a1730,#0f0c1e);border:3px solid ${f.color};border-radius:22px;padding:36px 28px;max-width:460px;width:100%;text-align:center;box-shadow:0 0 60px ${f.color}44}.big-e{font-size:3.5rem;margin-bottom:14px;display:block;animation:p 2s ease-in-out infinite}@keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}h1{font-size:1.8rem;font-weight:900;color:${f.color};margin-bottom:6px}.sub{color:#a78bfa;font-size:0.9rem;margin-bottom:16px}p{color:#d4caff;line-height:1.7;margin-bottom:20px;font-size:0.92rem}.info{background:${f.color}22;border:1px solid ${f.color}44;border-radius:12px;padding:13px;margin-bottom:8px;display:flex;gap:10px;align-items:center;text-align:left}.ii{font-size:1.2rem;flex-shrink:0}.it{color:#f1eefb;font-weight:700;font-size:0.88rem}.made{color:#4a4060;font-size:0.75rem;margin-top:16px}</style></head><body><div class="poster"><span class="big-e">${f.emoji}</span><h1>${e(f.title)}</h1><p class="sub">${e(f.subtitle)}</p><p>${e(f.details)}</p><div class="info"><span class="ii">📅</span><div class="it">${e(f.date)}</div></div><div class="info"><span class="ii">📍</span><div class="it">${e(f.location)}</div></div><div class="made">Made with 💜 KidVibers</div></div></body></html>`;},
+    },
+    { id:'recipe', name:'Recipe Card', emoji:'🍕',
+      keywords:['recipe','food','cook','bake','meal','ingredients','kitchen','how to make'],
+      fields:[
+        {id:'name',label:'Recipe name',type:'text',def:"Mom's Famous Cookies 🍪"},
+        {id:'author',label:'Chef name',type:'text',def:'Chef Alex'},
+        {id:'time',label:'Cook time',type:'text',def:'30 minutes'},
+        {id:'serves',label:'Serves',type:'text',def:'12 cookies'},
+        {id:'emoji',label:'Food emoji',type:'text',def:'🍪'},
+        {id:'ing',label:'Ingredients (one per line)',type:'textarea',def:'2 cups flour\n1 cup sugar\n1/2 cup butter\n2 eggs\n1 tsp vanilla\nChocolate chips'},
+        {id:'steps',label:'Steps (one per line)',type:'textarea',def:'Mix butter and sugar until fluffy\nAdd eggs and vanilla\nStir in flour\nFold in chocolate chips\nBake at 350°F for 12 minutes'},
+        {id:'color',label:'Color',type:'color',def:'#f97316'},
+      ],
+      html(f){const ings=f.ing.split('\n').filter(Boolean),steps=f.steps.split('\n').filter(Boolean);return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding:20px 14px}.card{max-width:540px;margin:0 auto;background:#1a1730;border-radius:18px;overflow:hidden;border:1px solid ${f.color}44}.ch{background:linear-gradient(135deg,${f.color},${f.color}aa);padding:24px 20px;text-align:center}.fe{font-size:3rem;display:block;margin-bottom:10px}h1{font-size:1.5rem;font-weight:900;margin-bottom:4px}.by{opacity:.85;font-size:0.85rem}.meta{display:flex;border-top:1px solid ${f.color}44;border-bottom:1px solid ${f.color}44}.mi{flex:1;text-align:center;padding:11px;border-right:1px solid ${f.color}22}.mi:last-child{border-right:none}.ml{font-size:0.65rem;color:#a78bfa;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}.mv{font-weight:900;font-size:0.88rem}.sec{padding:18px 20px}h2{font-size:0.9rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.05em;margin-bottom:11px}.il{list-style:none;display:flex;flex-direction:column;gap:5px}.il li{padding:6px 10px;background:#0f0c1e;border-radius:8px;font-size:0.85rem;display:flex;gap:8px}.il li::before{content:"✓";color:${f.color};font-weight:900;flex-shrink:0}.sl{list-style:none;display:flex;flex-direction:column;gap:9px;counter-reset:s}.sl li{display:flex;gap:11px;align-items:flex-start;font-size:0.88rem;line-height:1.5;counter-increment:s}.sl li::before{content:counter(s);background:${f.color};color:#fff;font-weight:900;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;flex-shrink:0;margin-top:1px}</style></head><body><div class="card"><div class="ch"><span class="fe">${f.emoji}</span><h1>${e(f.name)}</h1><div class="by">by ${e(f.author)}</div></div><div class="meta"><div class="mi"><div class="ml">⏱ Time</div><div class="mv">${e(f.time)}</div></div><div class="mi"><div class="ml">🍽 Serves</div><div class="mv">${e(f.serves)}</div></div></div><div class="sec"><h2>Ingredients</h2><ul class="il">${ings.map(i=>`<li>${e(i)}</li>`).join('')}</ul></div><div class="sec" style="padding-top:0"><h2>Steps</h2><ol class="sl">${steps.map(s=>`<li>${e(s)}</li>`).join('')}</ol></div></div></body></html>`;},
+    },
+    { id:'album', name:'Photo Album', emoji:'📸',
+      keywords:['photo','album','gallery','pictures','memories','scrapbook','photos','collage'],
+      fields:[
+        {id:'title',label:'Album title',type:'text',def:'My Summer Memories 🌞'},
+        {id:'subtitle',label:'Subtitle',type:'text',def:'The best days of the year!'},
+        {id:'e1',label:'Photo 1 emoji/icon',type:'text',def:'🏖️'},
+        {id:'c1',label:'Photo 1 caption',type:'text',def:'Beach day with friends'},
+        {id:'e2',label:'Photo 2 emoji/icon',type:'text',def:'🍦'},
+        {id:'c2',label:'Photo 2 caption',type:'text',def:'Ice cream in the park'},
+        {id:'e3',label:'Photo 3 emoji/icon',type:'text',def:'🎡'},
+        {id:'c3',label:'Photo 3 caption',type:'text',def:'The fair was amazing'},
+        {id:'e4',label:'Photo 4 emoji/icon',type:'text',def:'🏕️'},
+        {id:'c4',label:'Photo 4 caption',type:'text',def:'Camping under the stars'},
+        {id:'e5',label:'Photo 5 emoji/icon',type:'text',def:'🚲'},
+        {id:'c5',label:'Photo 5 caption',type:'text',def:'Bike ride adventure'},
+        {id:'e6',label:'Photo 6 emoji/icon',type:'text',def:'🌅'},
+        {id:'c6',label:'Photo 6 caption',type:'text',def:'Sunset at the lake'},
+        {id:'color',label:'Color',type:'color',def:'#ec4899'},
+      ],
+      html(f){const ph=[[f.e1,f.c1],[f.e2,f.c2],[f.e3,f.c3],[f.e4,f.c4],[f.e5,f.c5],[f.e6,f.c6]];return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:40px}.top{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:36px 24px;text-align:center}h1{font-size:2rem;font-weight:900;margin-bottom:6px}.sub{color:#a78bfa;font-size:0.95rem}.grid{max-width:720px;margin:24px auto;padding:0 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}.photo{background:#1a1730;border:1px solid ${f.color}44;border-radius:14px;overflow:hidden}.pic{background:linear-gradient(135deg,${f.color}33,${f.color}11);height:120px;display:flex;align-items:center;justify-content:center;font-size:3rem}.cap{padding:10px 12px;font-size:0.82rem;font-weight:700;color:#c4b5fd;text-align:center}.foot{text-align:center;color:#4a4060;font-size:0.78rem;margin-top:20px}</style></head><body><div class="top"><h1>📸 ${e(f.title)}</h1><div class="sub">${e(f.subtitle)}</div></div><div class="grid">${ph.map(p=>`<div class="photo"><div class="pic">${e(p[0])}</div><div class="cap">${e(p[1])}</div></div>`).join('')}</div><div class="foot">My photo album · Made with 💜 KidVibers.com</div></body></html>`;},
+    },
+    { id:'club', name:'Club / Team Page', emoji:'⚽',
+      keywords:['club','team','group','sports','league','organization','society','crew','squad'],
+      fields:[
+        {id:'name',label:'Club/Team name',type:'text',def:'The Coding Crew'},
+        {id:'emoji',label:'Logo emoji',type:'text',def:'💻'},
+        {id:'motto',label:'Motto / slogan',type:'text',def:'Build cool stuff together!'},
+        {id:'about',label:'What is your club about?',type:'textarea',def:'We are a group of young coders who meet up to build websites, games and apps. Everyone is welcome — beginners too!'},
+        {id:'member1',label:'Member 1',type:'text',def:'👑 Alex — Leader'},
+        {id:'member2',label:'Member 2',type:'text',def:'🎨 Sam — Designer'},
+        {id:'member3',label:'Member 3',type:'text',def:'🧠 Jordan — Ideas'},
+        {id:'member4',label:'Member 4',type:'text',def:'⚡ Riley — Coder'},
+        {id:'join',label:'How to join',type:'text',def:'Meet us Fridays at 3pm in the library!'},
+        {id:'color',label:'Color',type:'color',def:'#6366f1'},
+      ],
+      html(f){const mem=[f.member1,f.member2,f.member3,f.member4].filter(Boolean);return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:40px}.hero{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:44px 24px;text-align:center}.logo{width:90px;height:90px;border-radius:24px;background:${f.color};display:flex;align-items:center;justify-content:center;font-size:3rem;margin:0 auto 16px;box-shadow:0 0 40px ${f.color}66}h1{font-size:2.2rem;font-weight:900;margin-bottom:6px}.motto{color:#a78bfa;font-size:1.05rem;font-weight:600;font-style:italic}.card{background:#1a1730;border:1px solid ${f.color}44;border-radius:16px;padding:22px;margin:18px 24px}h2{font-size:1rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}p{color:#c4b5fd;line-height:1.7;font-size:0.95rem}.members{display:grid;grid-template-columns:1fr 1fr;gap:10px}.member{background:${f.color}22;border:1px solid ${f.color}44;border-radius:10px;padding:12px 14px;font-weight:700;font-size:0.88rem}.join{background:linear-gradient(135deg,${f.color},${f.color}aa);border:none;text-align:center;font-weight:800;font-size:1rem;color:#fff}.foot{text-align:center;color:#4a4060;font-size:0.78rem;margin-top:16px}</style></head><body><div class="hero"><div class="logo">${e(f.emoji)}</div><h1>${e(f.name)}</h1><div class="motto">"${e(f.motto)}"</div></div><div class="card"><h2>About Us</h2><p>${e(f.about)}</p></div><div class="card"><h2>Our Members</h2><div class="members">${mem.map(m=>`<div class="member">${e(m)}</div>`).join('')}</div></div><div class="card join">🙌 ${e(f.join)}</div><div class="foot">Made with 💜 KidVibers.com</div></body></html>`;},
+    },
+    { id:'portfolio', name:'Portfolio', emoji:'🏆',
+      keywords:['portfolio','showcase','projects','skills','resume','achievements','work','about me'],
+      fields:[
+        {id:'name',label:'Your name',type:'text',def:'Alex Rivera'},
+        {id:'title',label:'Your title',type:'text',def:'Young Coder & Creator'},
+        {id:'bio',label:'Short bio',type:'textarea',def:"I'm learning to code on KidVibers! I love building cool stuff and solving puzzles."},
+        {id:'skill1',label:'Skill 1',type:'text',def:'Python coding'},
+        {id:'skill2',label:'Skill 2',type:'text',def:'Web design'},
+        {id:'skill3',label:'Skill 3',type:'text',def:'Problem solving'},
+        {id:'proj1',label:'Project 1 title',type:'text',def:'My First Website'},
+        {id:'proj1d',label:'Project 1 description',type:'text',def:'A personal website I built using HTML & CSS'},
+        {id:'proj2',label:'Project 2 title',type:'text',def:'Quiz App'},
+        {id:'proj2d',label:'Project 2 description',type:'text',def:'A fun quiz with 10 questions about science'},
+        {id:'color',label:'Color',type:'color',def:'#6366f1'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:36px}.hd{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:36px 20px;text-align:center}.av{width:78px;height:78px;border-radius:50%;background:${f.color};display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 14px;box-shadow:0 0 30px ${f.color}66}h1{font-size:1.8rem;font-weight:900;margin-bottom:4px}.ti{color:#a78bfa;font-size:0.9rem;font-weight:600;margin-bottom:10px}.bio{color:#c4b5fd;max-width:480px;margin:0 auto;line-height:1.6;font-size:0.88rem}.sec{max-width:640px;margin:24px auto;padding:0 18px}h2{font-size:0.88rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}.sk{display:flex;gap:9px;flex-wrap:wrap}.s{background:${f.color}22;border:1px solid ${f.color}44;border-radius:50px;padding:6px 14px;font-size:0.82rem;font-weight:700}.pr{background:#1a1730;border:1px solid #3a2f63;border-radius:13px;padding:16px 18px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start}.pn{background:${f.color};color:#fff;font-weight:900;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.82rem}.pt{font-weight:900;margin-bottom:3px}.pd{color:#a78bfa;font-size:0.82rem}.ft{text-align:center;color:#4a4060;font-size:0.75rem;margin-top:26px}</style></head><body><div class="hd"><div class="av">🏆</div><h1>${e(f.name)}</h1><div class="ti">${e(f.title)}</div><p class="bio">${e(f.bio)}</p></div><div class="sec"><h2>Skills</h2><div class="sk"><span class="s">✅ ${e(f.skill1)}</span><span class="s">✅ ${e(f.skill2)}</span><span class="s">✅ ${e(f.skill3)}</span></div></div><div class="sec"><h2>Projects</h2><div class="pr"><div class="pn">1</div><div><div class="pt">${e(f.proj1)}</div><div class="pd">${e(f.proj1d)}</div></div></div><div class="pr"><div class="pn">2</div><div><div class="pt">${e(f.proj2)}</div><div class="pd">${e(f.proj2d)}</div></div></div></div><div class="ft">Made with 💜 KidVibers.com</div></body></html>`;},
+    },
+  ];
+
+  const COLORS=['#7c3aed','#db2777','#0ea5e9','#10b981','#f59e0b','#ef4444','#6366f1','#ec4899','#14b8a6','#f97316'];
+
+  function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+  let ME=null, curTmpl=null, curF={}, projId=null;
+
+  (async()=>{
+    ME=await C4K.loadMe();
+    if(ME) document.getElementById('dashLink').style.display='';
+    // Auto-load a template from URL param: playground.html?template=birthday
+    const autoId=new URLSearchParams(location.search).get('template');
+    if(autoId){
+      const t=TEMPLATES.find(x=>x.id===autoId);
+      if(t){
+        setTimeout(()=>{
+          addMsg('I want to build a '+t.name,'user');
+          setTimeout(()=>{
+            addMsg(`Perfect! Here's your <strong>${t.name}</strong> template ${t.emoji} — customize it below and save it! 🚀`,'ai');
+            loadTemplate(t);
+          },400);
+        },300);
+      }
+    }
+  })();
+
+  function addMsg(txt,who){
+    const w=document.getElementById('chatMsgs'),d=document.createElement('div');
+    d.className='chat-msg '+who;
+    d.innerHTML=`<span class="avi">${who==='ai'?'🤖':'😊'}</span><div class="bubble">${txt}</div>`;
+    w.appendChild(d); w.scrollTop=w.scrollHeight;
+  }
+
+  function matchTmpl(q){
+    q=q.toLowerCase(); let best=null,bs=0;
+    for(const t of TEMPLATES){const sc=t.keywords.filter(k=>q.includes(k)).length; if(sc>bs){bs=sc;best=t;}}
+    return best;
+  }
+
+  function sendChat(){
+    const inp=document.getElementById('chatIn'), msg=inp.value.trim(); if(!msg)return;
+    inp.value=''; addMsg(msg,'user'); setTimeout(()=>processChat(msg),350);
+  }
+
+  function quickPick(d){document.getElementById('chatIn').value=d; sendChat();}
+
+  function processChat(msg){
+    const match=matchTmpl(msg);
+    if(match){
+      addMsg(`Perfect! I have a <strong>${match.name}</strong> template ready for you ${match.emoji}<br>Customize it in the editor panel below — change the text, colors, and content. Then save it! 🚀`,'ai');
+      setTimeout(()=>loadTemplate(match),500);
+    } else {
+      addMsg(`Hmm, let me suggest some ideas! Try saying:<br>🌐 <strong>"personal website"</strong><br>📝 <strong>"blog post"</strong><br>💖 <strong>"fan page"</strong><br>📸 <strong>"photo album"</strong><br>⚽ <strong>"club page"</strong><br>Or tap one of the chips above! 🎨`,'ai');
+    }
+  }
+
+  function loadTemplate(t){
+    curTmpl=t; curF={};
+    t.fields.forEach(f=>{ curF[f.id]=f.def; });
+    document.getElementById('editorPanel').classList.remove('hidden');
+    buildEditor();
+    refreshPreview();
+    document.getElementById('saveBtn').style.display='';
+    document.getElementById('vsStatus').textContent=t.emoji+' '+t.name+' — customize it!';
+    document.getElementById('projTitle').value=t.name;
+  }
+
+  function buildEditor(){
+    const c=document.getElementById('editorFields');
+    let h='<div class="ep-head">🎨 Colors</div><div class="ep-colors">';
+    COLORS.forEach(col=>{h+=`<div class="color-swatch ${curF.color===col?'sel':''}" style="background:${col}" onclick="setColor('${col}')" title="${col}"></div>`;});
+    h+='</div><div class="ep-head">✏️ Edit content</div>';
+    curTmpl.fields.filter(f=>f.type!=='color').forEach(f=>{
+      const v=e(curF[f.id]||'');
+      h+=`<div class="ep-field"><label>${f.label}</label>`;
+      if(f.type==='textarea') h+=`<textarea rows="2" oninput="sf('${f.id}',this.value)">${v}</textarea>`;
+      else h+=`<input type="text" value="${v}" oninput="sf('${f.id}',this.value)"/>`;
+      h+='</div>';
     });
+    c.innerHTML=h;
+  }
 
-    let outText = '';
-    function outf(text) { outText += text; }
-    function builtinRead(x) {
-      if (Sk.builtinFiles === undefined || Sk.builtinFiles['files'][x] === undefined)
-        throw "File not found: '" + x + "'";
-      return Sk.builtinFiles['files'][x];
-    }
-    function show(text, isErr) {
-      const out = document.getElementById('out');
-      out.innerHTML = isErr ? `<span class="err">${C4K.esc(text)}</span>` : C4K.esc(text);
-    }
-    function clearOut() { document.getElementById('out').textContent = 'Press “Run ▶” to see your code come to life!'; }
+  function sf(id,val){curF[id]=val; refreshPreview();}
+  function setColor(c){curF.color=c; buildEditor(); refreshPreview();}
 
-    let replaySteps = [];      // [{line, out}] captured as each line runs
-    let replayProgram = '';
-    let replayErrLine = null;
+  function refreshPreview(){
+    if(!curTmpl)return;
+    const fr=document.getElementById('previewFrame'), em=document.getElementById('vsEmpty');
+    fr.style.display=''; em.style.display='none';
+    fr.srcdoc=curTmpl.html(curF);
+    document.getElementById('previewUrl').textContent='kidvibers.com/vibe/'+curTmpl.id;
+  }
 
-    function runCode() {
-      if (typeof Sk === 'undefined') { show('Still loading the Python engine - try again in a second.', true); return; }
-      const prog = document.getElementById('code').value;
-      outText = '';
-      replaySteps = []; replayProgram = prog; replayErrLine = null;
-      const btn = document.getElementById('runBtn'); btn.disabled = true; btn.textContent = 'Running…';
-      Sk.configure({
-        output: outf,
-        read: builtinRead,
-        __future__: Sk.python3,
-        inputfun: function (promptTxt) { return window.prompt(promptTxt || '') || ''; },
-        inputfunTakesPrompt: true,
-      });
-      // Build the replay from the program's output (one step per printed line) + the error
-      // line if it crashed. This works reliably across Skulpt builds.
-      function buildSteps() {
-        replaySteps = [];
-        const lines = outText.length ? outText.replace(/\n$/, '').split('\n') : [];
-        for (let i = 0; i < lines.length; i++) replaySteps.push({ outLines: i + 1, out: lines.slice(0, i + 1).join('\n') });
-        if (replayErrLine) replaySteps.push({ outLines: lines.length, out: outText, err: true });
-        document.getElementById('replayBtn').disabled = replaySteps.length === 0;
-      }
-      function finish() { btn.disabled = false; btn.textContent = 'Run ▶'; buildSteps(); }
-      Sk.misceval.asyncToPromise(function () {
-        return Sk.importMainWithBody('<stdin>', false, prog, true);
-      }).then(function () {
-        show(outText || '✅ Done! (no output)');
-        finish();
-      }, function (err) {
-        const m = String(err && err.toString ? err.toString() : err).match(/line (\d+)/i);
-        if (m) replayErrLine = parseInt(m[1], 10);
-        show((outText ? outText + '\n' : '') + '⚠️ ' + err.toString(), true);
-        finish();
-      });
-    }
-
-    // ───────────── Code Replay ─────────────
-    let replayIdx = 0, replayTimer = null;
-    function openReplay() {
-      if (!replaySteps.length) return;
-      document.getElementById('replayPanel').style.display = '';
-      replayIdx = 0; replayRender();
-      document.getElementById('replayPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-    function closeReplay() { replayPause(); document.getElementById('replayPanel').style.display = 'none'; }
-    function replayRestart() { replayPause(); replayIdx = 0; replayRender(); }
-    function replayStep(d) { replayPause(); replayIdx = Math.max(0, Math.min(replaySteps.length - 1, replayIdx + d)); replayRender(); }
-    function replayToggle() { replayTimer ? replayPause() : replayPlay(); }
-    function replayPlay() {
-      if (replayIdx >= replaySteps.length - 1) replayIdx = 0;
-      document.getElementById('replayPlay').textContent = '⏸ Pause';
-      replayTimer = setInterval(function () {
-        if (replayIdx >= replaySteps.length - 1) { replayPause(); return; }
-        replayIdx++; replayRender();
-      }, 650);
-    }
-    function replayPause() { if (replayTimer) { clearInterval(replayTimer); replayTimer = null; } const b = document.getElementById('replayPlay'); if (b) b.textContent = '▶️ Play'; }
-    function replayRender() {
-      const step = replaySteps[replayIdx] || { out: '' };
-      const lines = replayProgram.split('\n');
-      const isLast = replayIdx === replaySteps.length - 1;
-      // Show the crash line in red - either on the dedicated error step, or on the final step.
-      const errLine = ((step.err || isLast) && replayErrLine) ? replayErrLine : null;
-      document.getElementById('replayCode').innerHTML = lines.map(function (ln, i) {
-        const no = i + 1;
-        const bad = no === errLine;
-        return '<span style="display:block;padding:0 6px;border-radius:4px;' + (bad ? 'background:rgba(239,68,68,.28);' : '') + '">' +
-          '<span style="color:var(--text-faint);user-select:none;">' + String(no).padStart(2, ' ') + '</span>  ' +
-          C4K.esc(ln || ' ') + (bad ? '  <span style="color:#fca5a5;">⟵ error here</span>' : '') + '</span>';
-      }).join('');
-      document.getElementById('replayOut').textContent = step.out || '(no output yet)';
-      const tail = step.err ? ' · 💥 crashed on line ' + replayErrLine : (errLine ? ' · 💥 line ' + errLine : '');
-      document.getElementById('replayStepLabel').textContent = 'Step ' + (replayIdx + 1) + ' of ' + replaySteps.length + tail;
-      document.getElementById('replayBack').disabled = replayIdx === 0;
-      document.getElementById('replayNext').disabled = isLast;
-    }
-
-    // Allow Ctrl/Cmd+Enter to run
-    document.getElementById('code').addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runCode();
-    });
-
-    // ───────────── save / share / my projects ─────────────
-    let currentId = null;        // id of the project currently being edited (null = new)
-    let currentShared = false;
-    const $ = id => document.getElementById(id);
-
-    function flash(msg, isErr) {
-      const m = $('saveMsg'); m.textContent = msg;
-      m.style.color = isErr ? '#f87171' : 'var(--green,#5ad17e)';
-      if (msg) setTimeout(() => { if (m.textContent === msg) m.textContent = ''; }, 3000);
-    }
-
-    async function saveProject() {
-      const title = $('projTitle').value.trim() || 'Untitled project';
-      const code = $('code').value;
-      const btn = $('saveBtn'); btn.disabled = true;
-      const { ok, data } = await C4K.api('/api/projects/save', 'POST', { id: currentId, title, code });
-      btn.disabled = false;
-      if (ok) { currentId = data.id; flash('Saved! ✅'); loadMine(); }
-      else flash(data.error || 'Could not save.', true);
-    }
-
-    async function toggleShare() {
-      if (!currentId) {  // must save first
-        $('shareChk').checked = false;
-        flash('Save your project first, then share it.', true);
-        return;
-      }
-      const shared = $('shareChk').checked;
-      const { ok, data } = await C4K.api('/api/projects/share', 'POST', { id: currentId, shared });
-      if (ok) { currentShared = data.shared; flash(data.shared ? 'Shared to the gallery! 🎨' : 'Removed from gallery.'); loadMine(); }
-      else { $('shareChk').checked = currentShared; flash(data.error || 'Could not change sharing.', true); }
-    }
-
-    function openProject(p) {
-      currentId = p.id; currentShared = p.shared;
-      $('projTitle').value = p.title;
-      $('code').value = p.code;
-      $('shareChk').checked = !!p.shared;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      flash('Loaded “' + p.title + '”.');
-    }
-
-    function newProject() {
-      currentId = null; currentShared = false;
-      $('projTitle').value = ''; $('shareChk').checked = false;
-    }
-
-    async function deleteProject(id, title) {
-      if (!confirm('Delete “' + title + '”? This cannot be undone.')) return;
-      const { ok } = await C4K.api('/api/projects/delete', 'POST', { id });
-      if (ok) { if (currentId === id) newProject(); loadMine(); flash('Deleted.'); }
-    }
-
-    async function loadMine() {
-      const { ok, data } = await C4K.api('/api/projects/mine');
-      if (!ok) return;
-      const list = $('mineList'); list.innerHTML = '';
-      if (!data.projects.length) {
-        $('mineWrap').style.display = '';
-        list.innerHTML = '<p style="color:var(--text-faint);font-size:0.88rem;">No saved projects yet - write something and press 💾 Save!</p>';
-        return;
-      }
-      $('mineWrap').style.display = '';
-      data.projects.forEach(p => {
-        const card = document.createElement('div'); card.className = 'mine-card';
-        card.innerHTML = `
-          <h3>${C4K.esc(p.title)} ${p.shared ? '<span class="shared-tag">● shared</span>' : ''}</h3>
-          <div class="meta">❤️ ${p.likes} · ${C4K.esc(p.updatedAt)}</div>
-          <div class="row">
-            <button class="mini-btn" data-act="open">✏️ Open</button>
-            <button class="mini-btn" data-act="del">🗑️ Delete</button>
-          </div>`;
-        card.querySelector('[data-act=open]').onclick = () => openProject(p);
-        card.querySelector('[data-act=del]').onclick = () => deleteProject(p.id, p.title);
-        list.appendChild(card);
-      });
-    }
-
-    // ───────────── boot ─────────────
-    (async () => {
-      const me = await C4K.loadMe();
-      // Playground requires an account - show the friendly sign-in gate.
-      if (C4K.loginGate('the Playground')) return;
-      // COPPA: lock the whole playground for under-13 kids until a parent approves.
-      if (C4K.consentLock(me)) return;
-      if (me) {
-        if (me.role === 'kid') $('dashLink').style.display = '';
-        $('saveBar').style.display = '';
-        loadMine();
-        // Deep link: ?project=<id> loads a project (yours or a shared one) to view/remix
-        const wantId = new URLSearchParams(location.search).get('project');
-        if (wantId) {
-          const { ok, data } = await C4K.api('/api/project/' + encodeURIComponent(wantId));
-          if (ok) {
-            $('code').value = data.project.code;
-            $('projTitle').value = (data.project.author && data.project.author + "'s ") + data.project.title;
-            // If it's not mine I keep currentId null so "Save" creates my own copy (remix)
-            flash('Loaded “' + data.project.title + '” - press Save to keep your own copy!');
-          }
-        }
-      } else {
-        $('loginNote').style.display = '';
-      }
-    })();
+  async function saveProject(){
+    if(!ME){addMsg('Log in to save your project! 🔒','ai');return;}
+    if(!curTmpl)return;
+    const title=document.getElementById('projTitle').value.trim()||curTmpl.name;
+    const code='VIBE:'+JSON.stringify({templateId:curTmpl.id,fields:curF,html:curTmpl.html(curF)});
+    const sb=document.getElementById('saveBtn'); sb.textContent='💾 Saving…';
+    const {ok,data}=await C4K.api('/api/projects/save','POST',{id:projId,title,code});
+    if(ok){projId=data.id; addMsg('🎉 Saved! Your project is safe — come back anytime to keep working on it.','ai'); document.getElementById('vsStatus').textContent='✅ Saved!'; setTimeout(()=>document.getElementById('vsStatus').textContent=curTmpl.emoji+' '+curTmpl.name,2000);}
+    else alert(data.error||'Could not save.');
+    sb.textContent='💾 Save my project';
+  }
   </script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
 </body>
 </html>

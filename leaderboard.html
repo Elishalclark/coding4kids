@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leaderboard 🏆 - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=114" />
+  <style>
+    .lb { max-width: 680px; margin: 0 auto; padding: 28px 20px 90px; }
+    .lb-hero { text-align: center; margin-bottom: 32px; }
+    .lb-hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 900; }
+    .lb-hero p { color: var(--text-dim); margin-top: 6px; }
+    .lb-tabs { display: flex; gap: 8px; margin-bottom: 24px; justify-content: center; }
+    .lb-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .lb-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-top: 1px solid var(--border); transition: background .15s; }
+    .lb-row:first-child { border-top: none; }
+    .lb-row:hover { background: var(--surface-2); }
+    .lb-rank { font-size: 1.3rem; font-weight: 900; width: 36px; text-align: center; flex-shrink: 0; }
+    .lb-name { flex: 1; font-weight: 900; font-size: 0.95rem; }
+    .lb-sub { color: var(--text-dim); font-size: 0.78rem; font-weight: 700; }
+    .lb-xp { font-weight: 900; color: var(--purple); font-size: 1.05rem; white-space: nowrap; }
+    .lb-row.me { background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(219,39,119,0.08)); border-left: 3px solid var(--purple-mid); }
+    .medal-1 { color: #fbbf24; }
+    .medal-2 { color: #94a3b8; }
+    .medal-3 { color: #b45309; }
+    .empty { text-align: center; padding: 48px 20px; color: var(--text-dim); }
+    .you-card { background: linear-gradient(135deg,#2e1457,#4c1d95); border: 1px solid var(--border-bright); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .you-card .big { font-size: 2rem; font-weight: 900; color: #fbbf24; }
+    .refresh-note { text-align: center; color: var(--text-faint); font-size: 0.8rem; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="dashboard.html" class="btn btn-ghost">← Dashboard</a>
+        <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="lb">
+    <div class="lb-hero">
+      <h1>🏆 Weekly Leaderboard</h1>
+      <p>Top coders by XP earned this week. Resets every Monday.</p>
+    </div>
+
+    <div id="youCard"></div>
+    <div class="lb-card" id="board"><div class="empty">Loading leaderboard…</div></div>
+    <p class="refresh-note">Updates every few minutes · Opt out in ⚙️ Settings</p>
+
+    <div style="text-align:center;margin-top:32px;">
+      <a href="lessons.html" class="btn btn-primary btn-lg">📚 Go earn XP now →</a>
+    </div>
+  </main>
+
+  <script src="auth.js?v=114"></script>
+  <script>
+    const MEDALS = ['🥇','🥈','🥉'];
+    let ME = null;
+
+    async function load() {
+      ME = await C4K.loadMe();
+      const { ok, data } = await C4K.api('/api/leaderboard');
+      const board = document.getElementById('board');
+      const rows = ok ? (data.leaderboard || []) : [];
+
+      if (!rows.length) {
+        board.innerHTML = '<div class="empty"><div style="font-size:2.5rem;margin-bottom:8px;">🌱</div><p>No one\'s earned XP this week yet — be the first! Go complete a lesson now.</p></div>';
+        return;
+      }
+
+      // Show the logged-in kid's own card if they're on the board
+      const myRow = ME ? rows.find(r => r.id === ME.id) : null;
+      const myRank = myRow ? rows.indexOf(myRow) + 1 : null;
+      if (myRow) {
+        document.getElementById('youCard').innerHTML =
+          `<div class="you-card">
+            <div style="font-size:2rem;">${MEDALS[myRank-1] || myRank + '.'}</div>
+            <div style="flex:1;">
+              <div style="font-weight:900;color:#fff;font-size:1.1rem;">You're #${myRank} this week! 🎉</div>
+              <div style="color:#c4b5fd;font-size:0.88rem;">⚡ ${myRow.week_xp} XP · 📚 ${myRow.week_lessons} lessons this week</div>
+            </div>
+            <a href="lessons.html" class="btn btn-primary" style="background:#fbbf24;color:#1a1730;border:none;">Keep going →</a>
+          </div>`;
+      }
+
+      board.innerHTML = rows.map((r, i) => {
+        const isMe = ME && r.id === ME.id;
+        const rank = i + 1;
+        const medal = MEDALS[i] || rank + '.';
+        const medalClass = i === 0 ? 'medal-1' : i === 1 ? 'medal-2' : i === 2 ? 'medal-3' : '';
+        return `<div class="lb-row ${isMe ? 'me' : ''}">
+          <div class="lb-rank ${medalClass}">${medal}</div>
+          <div style="flex:1;">
+            <div class="lb-name">${C4K.esc(r.name)} ${isMe ? '<span style="font-size:0.7rem;background:var(--purple-light);color:var(--purple);padding:2px 8px;border-radius:50px;font-weight:900;">you</span>' : ''}</div>
+            <div class="lb-sub">@${C4K.esc(r.username)} · 📚 ${r.week_lessons} lesson${r.week_lessons===1?'':'s'}</div>
+          </div>
+          <div class="lb-xp">⚡ ${r.week_xp}</div>
+        </div>`;
+      }).join('');
+    }
+
+    load();
+  </script>
+</body>
+</html>

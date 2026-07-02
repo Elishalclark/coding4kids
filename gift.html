@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gift KidVibers Pro 🎁</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=114" />
+  <style>
+    .gf { max-width: 620px; margin: 0 auto; padding: 28px 20px 90px; }
+    .gf-hero { text-align: center; margin-bottom: 36px; }
+    .gf-hero .badge { display: inline-block; background: rgba(251,191,36,0.15); color: #fbbf24;
+      font-weight: 900; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 6px 16px; border-radius: 50px; border: 1px solid rgba(251,191,36,0.4); margin-bottom: 14px; }
+    .gf-hero h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 900; }
+    .gf-hero p { color: var(--text-dim); max-width: 480px; margin: 8px auto 0; }
+    .plan-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; }
+    @media(max-width:480px) { .plan-cards { grid-template-columns: 1fr; } }
+    .plan-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius);
+      padding: 20px; cursor: pointer; transition: all .15s; }
+    .plan-card:hover, .plan-card.selected { border-color: var(--purple-mid); background: rgba(124,58,237,0.08); }
+    .plan-card .plan-name { font-size: 1.1rem; font-weight: 900; margin-bottom: 4px; }
+    .plan-card .plan-price { font-size: 1.6rem; font-weight: 900; color: var(--purple); }
+    .plan-card .plan-sub { color: var(--text-dim); font-size: 0.82rem; margin-top: 4px; }
+    .plan-card ul { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 5px; }
+    .plan-card li { font-size: 0.84rem; color: var(--text-dim); padding-left: 18px; position: relative; }
+    .plan-card li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 900; }
+    .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+    .form-card h2 { font-size: 1rem; font-weight: 900; margin-bottom: 16px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 0.78rem; font-weight: 800; color: var(--text-dim); margin-bottom: 5px; }
+    .field input, .field textarea { width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-weight: 700; resize: none; }
+    .success-card { text-align: center; background: linear-gradient(135deg,#0f3d2e,#15803d); border: 1px solid #22c55e;
+      border-radius: var(--radius); padding: 40px 24px; display: none; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;">
+        <a href="index.html" class="btn btn-ghost">← Home</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="gf">
+    <div class="gf-hero">
+      <div class="badge">🎁 Gift a Subscription</div>
+      <h1>Give the gift of coding</h1>
+      <p>Gift Pro or Family access to a child you love. They'll get instant access to AI tutoring, unlimited lessons, and more.</p>
+    </div>
+
+    <div id="successCard" class="success-card">
+      <div style="font-size:3rem;margin-bottom:10px;">🎉</div>
+      <h2 style="font-size:1.5rem;font-weight:900;color:#fff;">Gift sent!</h2>
+      <p style="color:#dcfce7;margin:8px 0 20px;">The recipient will get an email with access instructions.</p>
+      <a href="index.html" class="btn btn-primary">← Back to KidVibers</a>
+    </div>
+
+    <div id="mainForm">
+      <div style="font-size:0.82rem;font-weight:900;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">1. Choose a plan</div>
+      <div class="plan-cards">
+        <div class="plan-card selected" id="card-pro" onclick="selectPlan('pro')">
+          <div class="plan-name">🤖 Pro</div>
+          <div class="plan-price">$9<span style="font-size:0.9rem;font-weight:700;color:var(--text-dim);">/mo</span></div>
+          <div class="plan-sub">For one kid</div>
+          <ul>
+            <li>AI coding buddy (Byte)</li>
+            <li>Unlimited lessons</li>
+            <li>All 25 worlds</li>
+            <li>Certificates</li>
+          </ul>
+        </div>
+        <div class="plan-card" id="card-family" onclick="selectPlan('family')">
+          <div class="plan-name">👨‍👩‍👧 Family</div>
+          <div class="plan-price">$15<span style="font-size:0.9rem;font-weight:700;color:var(--text-dim);">/mo</span></div>
+          <div class="plan-sub">For the whole family</div>
+          <ul>
+            <li>Everything in Pro</li>
+            <li>Up to 4 kids</li>
+            <li>AI for everyone</li>
+            <li>One bill</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="font-size:0.82rem;font-weight:900;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">2. Recipient details</div>
+      <div class="form-card">
+        <div class="field">
+          <label>Recipient's email (the parent's email) *</label>
+          <input id="recipientEmail" type="email" placeholder="parent@example.com" required />
+        </div>
+        <div class="field">
+          <label>Your name (so they know who it's from)</label>
+          <input id="senderName" type="text" placeholder="Grandma, Uncle Joe, etc." />
+        </div>
+        <div class="field">
+          <label>Personal message (optional)</label>
+          <textarea id="giftMsg" rows="3" placeholder="Happy birthday! I got you KidVibers Pro so you can learn to code. Have fun! 🚀"></textarea>
+        </div>
+      </div>
+
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:0.84rem;color:var(--text-dim);">
+        🔒 Secure checkout via <strong>Stripe</strong>. Your payment info is never stored on our servers.
+      </div>
+
+      <button class="btn btn-primary btn-lg" style="width:100%;font-size:1.05rem;" onclick="checkout()" id="buyBtn">
+        🎁 Continue to payment
+      </button>
+      <p style="text-align:center;color:var(--text-faint);font-size:0.8rem;margin-top:10px;">Subscription starts immediately. Cancel anytime.</p>
+    </div>
+  </main>
+
+  <script src="auth.js?v=114"></script>
+  <script>
+    let selectedPlan = 'pro';
+    function selectPlan(p) {
+      selectedPlan = p;
+      document.getElementById('card-pro').classList.toggle('selected', p === 'pro');
+      document.getElementById('card-family').classList.toggle('selected', p === 'family');
+    }
+
+    // Handle success redirect from Stripe
+    const params = new URLSearchParams(location.search);
+    if (params.get('status') === 'success') {
+      document.getElementById('mainForm').style.display = 'none';
+      document.getElementById('successCard').style.display = '';
+    }
+
+    async function checkout() {
+      const email = document.getElementById('recipientEmail').value.trim();
+      if (!email) { alert('Please enter the recipient\'s email.'); return; }
+      const btn = document.getElementById('buyBtn');
+      btn.textContent = 'Redirecting to payment…'; btn.disabled = true;
+      const { ok, data } = await C4K.api('/api/gift/checkout', 'POST', {
+        plan: selectedPlan,
+        recipientEmail: email,
+        senderName: document.getElementById('senderName').value.trim(),
+        message: document.getElementById('giftMsg').value.trim(),
+      });
+      if (ok && data.url) { window.location.href = data.url; }
+      else { btn.textContent = '🎁 Continue to payment'; btn.disabled = false; alert(data.error || 'Could not start checkout. Try again.'); }
+    }
+  </script>
+</body>
+</html>

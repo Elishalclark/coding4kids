@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -24,6 +24,24 @@
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 16px; margin-bottom: 28px; }
     .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
     .stat-box .big { font-size: 2rem; font-weight: 900; color: var(--purple); }
+
+    /* ── Part 2 Elite Mode ─────────────────────────────────── */
+    body.part2 { background: #040208; }
+    body.part2 .nav { background: rgba(10,4,20,0.97); border-bottom: 1px solid rgba(180,83,9,0.5); }
+    body.part2 .dash-hero {
+      background: linear-gradient(135deg, #1a0505 0%, #7c2d12 40%, #92400e 100%);
+      border-color: rgba(251,191,36,0.5);
+    }
+    body.part2 .stat-box .big { color: #f59e0b; }
+    body.part2 .stat-box { border-color: rgba(180,83,9,0.4); background: #0d0608; }
+    body.part2 .card { background: #0d0608; border-color: rgba(180,83,9,0.35); }
+    body.part2 .xp-fill { background: linear-gradient(90deg,#b45309,#f59e0b); }
+    .p2-banner { background: linear-gradient(135deg,#1a0505,#7c2d12,#92400e); border: 1px solid rgba(251,191,36,0.6);
+      border-radius: var(--radius); padding: 24px 28px; margin-bottom: 24px; text-align: center; }
+    .p2-banner h2 { font-size: 1.8rem; font-weight: 900; color: #fbbf24; margin-bottom: 6px; }
+    .p2-banner p { color: #fcd34d; font-size: 0.95rem; max-width: 560px; margin: 0 auto; }
+    .p2-world { border-left-color: #f59e0b !important; }
+    .p2-world-lock { opacity: 0.45; }
     .stat-box .lbl { font-size: 0.82rem; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
 
     .dash-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start; }
@@ -63,11 +81,11 @@
     <div class="nav-inner">
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
-        <a href="playground.html" class="btn btn-ghost">🛝 Playground</a>
-        <a href="gallery.html" class="btn btn-ghost">🎨 Gallery</a>
+        <a href="playground.html" class="btn btn-ghost">🎨 Vibe Studio</a>
         <a href="games.html" class="btn btn-ghost">🎮 Games</a>
         <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
         <a href="settings.html" class="btn btn-ghost" title="Settings">⚙️</a>
+        <button id="demoLogout" class="btn btn-outline" style="display:none;" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
       </div>
     </div>
   </nav>
@@ -88,11 +106,29 @@
     <div id="recoPath" style="display:none;margin-bottom:18px;"></div>
     <div id="classJoin" style="margin-bottom:18px;"></div>
 
+    <!-- Daily goal -->
+    <div id="dailyGoal" style="display:none;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:16px 22px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <span id="dgIcon" style="font-size:1.8rem;">🎯</span>
+      <div style="flex:1;min-width:160px;">
+        <strong id="dgTitle" style="font-size:1rem;">Today's goal: do 1 lesson</strong>
+        <div id="dgSub" style="color:var(--text-dim);font-size:0.84rem;">Keep your streak alive! 🔥</div>
+      </div>
+      <a href="lessons.html" class="btn btn-primary" id="dgBtn" style="font-size:0.88rem;">Start a lesson →</a>
+    </div>
+
+    <!-- Teacher assignments -->
+    <div id="assignments" style="display:none;margin-bottom:18px;"></div>
+
     <div class="stat-grid">
       <div class="stat-box"><div class="big" id="sLevel">1</div><div class="lbl">Level</div></div>
       <div class="stat-box"><div class="big" id="sXp">0</div><div class="lbl">Total XP ⚡</div></div>
       <div class="stat-box"><div class="big" id="sDone">0</div><div class="lbl">Lessons Done</div></div>
-      <div class="stat-box"><div class="big" id="sStreak">1</div><div class="lbl">Day Streak 🔥</div></div>
+      <div class="stat-box" style="position:relative;">
+        <div class="big" id="sStreak">1</div>
+        <div class="lbl">Day Streak 🔥</div>
+        <div id="freezeCount" style="font-size:0.7rem;font-weight:800;color:#22d3ee;margin-top:3px;"></div>
+        <div id="freezeUsedNote" style="display:none;position:absolute;top:-36px;left:50%;transform:translateX(-50%);background:#0891b2;color:#fff;font-size:0.72rem;font-weight:900;padding:5px 12px;border-radius:50px;white-space:nowrap;">🧊 Freeze used!</div>
+      </div>
       <div class="stat-box"><div class="big" id="sTokens">0</div><div class="lbl">Tokens 🪙</div></div>
     </div>
 
@@ -142,6 +178,12 @@
           </div>
         </div>
 
+        <div class="card" style="border:1px solid rgba(251,191,36,0.4);">
+          <h3>🏆 Leaderboard</h3>
+          <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">See how you rank against other coders this week — top 10 by XP earned.</p>
+          <a href="leaderboard.html" class="btn btn-outline" style="font-size:0.88rem;">View Leaderboard →</a>
+        </div>
+
         <div class="card" id="referCard" style="border:1px solid var(--border-bright);">
           <h3>🎁 Invite a Friend</h3>
           <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">Share your code — when a friend joins, <strong>you both get <span id="refBonus">50</span> 🪙 tokens!</strong></p>
@@ -167,7 +209,7 @@
 
   <!-- AVATAR SHOP -->
   <div class="modal-overlay hidden" id="shopModal">
-    <div class="modal" style="max-width:640px;width:100%;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="modal" style="width:min(92vw,680px);max-height:88vh;display:flex;flex-direction:column;">
       <div class="chat-header">
         <span class="chat-avatar">🛍️</span>
         <div style="flex:1;"><div class="chat-name">Avatar Shop</div><div class="chat-status"><span id="shopTokens">0</span> 🪙 tokens</div></div>
@@ -184,7 +226,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -196,14 +238,47 @@
       if (d) d.textContent = ok ? (data.parentEmail ? `✅ Asked your parent (${data.parentEmail})!` : '✅ Message sent!') : '⚠️ Try again later.';
     }
 
+    function getFreezesOwned() {
+      try { return parseInt(localStorage.getItem('c4k_freezes') || '0') || 0; } catch { return 0; }
+    }
+    function setFreezesOwned(n) {
+      try { localStorage.setItem('c4k_freezes', Math.max(0, n)); } catch {}
+    }
+    // Called by shop when a freeze is purchased
+    function grantFreeze(qty) { setFreezesOwned(getFreezesOwned() + qty); renderFreezeCount(); }
+    function renderFreezeCount() {
+      const el = document.getElementById('freezeCount');
+      if (el) { const n = getFreezesOwned(); el.textContent = n > 0 ? `🧊 ${n} freeze${n===1?'':'s'}` : ''; }
+    }
+
     function streak() {
       const today = new Date().toISOString().slice(0,10);
+      const yest  = new Date(Date.now() - 86400000).toISOString().slice(0,10);
       let s = {};
       try { s = JSON.parse(localStorage.getItem('c4k_streak')) || {}; } catch {}
-      if (s.date === today) { /* same day */ }
-      else {
-        const yest = new Date(Date.now() - 86400000).toISOString().slice(0,10);
-        s = { date: today, count: (s.date === yest ? (s.count || 0) + 1 : 1) };
+      if (s.date === today) { /* same day — no change */ }
+      else if (s.date === yest) {
+        // consecutive day — keep streak going
+        s = { date: today, count: (s.count || 0) + 1 };
+        localStorage.setItem('c4k_streak', JSON.stringify(s));
+      } else if (s.date) {
+        // missed day(s) — try to use a freeze
+        const freezes = getFreezesOwned();
+        if (freezes > 0) {
+          setFreezesOwned(freezes - 1);
+          s = { date: today, count: s.count || 1, froze: true };
+          localStorage.setItem('c4k_streak', JSON.stringify(s));
+          // Show freeze used notification
+          setTimeout(() => {
+            const el = document.getElementById('freezeUsedNote');
+            if (el) { el.style.display = ''; setTimeout(() => el.style.display = 'none', 4000); }
+          }, 600);
+        } else {
+          s = { date: today, count: 1 };
+          localStorage.setItem('c4k_streak', JSON.stringify(s));
+        }
+      } else {
+        s = { date: today, count: 1 };
         localStorage.setItem('c4k_streak', JSON.stringify(s));
       }
       return s.count || 1;
@@ -294,7 +369,7 @@
           <input class="chat-input" id="byteIn" placeholder="Ask Byte anything…" onkeydown="if(event.key==='Enter')askByte()" />
           <button class="chat-send" onclick="askByte()">➤</button>
         </div></div>`;
-      addByteMsg(document.getElementById('byteMsgs'), `Hi ${ME.name}! 🎉 I'm Byte. Ask me about variables, loops, functions - anything!`, 'ai');
+      addByteMsg(document.getElementById('byteMsgs'), `Hi ${ME.name}! 🎉 I'm Byte. Ask me about variables, loops, functions — or even math problems!`, 'ai');
     }
 
     async function askByte() {
@@ -459,8 +534,9 @@
       ME = await C4K.loadMe();
       if (!ME) { location.href = 'index.html'; return; }
       showNotices();
-      // Super admin can preview the kid dashboard (master login). Others go to their own area.
-      if (ME.role !== 'kid' && ME.role !== 'super_admin') {
+      // Super admin only stays here during a role preview — otherwise send them to their panel.
+      if (ME.role === 'super_admin' && !ME.isPreview) { location.href = 'admin.html'; return; }
+      if (ME.role !== 'kid' && !ME.isPreview) {
         location.href = (ME.role === 'parent' || ME.role === 'teacher') ? 'parent.html' : (ME.role === 'admin' ? 'admin.html' : 'index.html');
         return;
       }
@@ -482,8 +558,10 @@
       document.getElementById('dPlanSub').textContent = planSub;
       classJoinCard();
       document.getElementById('sTokens').textContent = ME.tokens || 0;
+      if (ME.username && ME.username.toLowerCase().includes('demo')) document.getElementById('demoLogout').style.display = '';
 
       document.getElementById('sStreak').textContent = streak();
+      renderFreezeCount();
       const ld = await (await fetch('/api/lessons')).json();
       LESSONS = ld.lessons || [];
       recommendedPathBar(ld.worlds || {});
@@ -493,13 +571,81 @@
 
       renderProgress();
       renderLessons();
-      renderWorlds();
+
+      // ── Part 2 detection: Champions Arena (unit 19) cleared ──
+      const passed = new Set((pr.ok ? pr.data.unitsPassed : []) || []);
+      const inPart2 = passed.has(19);
+      if (inPart2) activatePart2();
+
+      renderWorlds(inPart2);
       renderByte();
       renderBadges();
       renderCerts();
       renderPuzzle();
       loadReferral();
+      renderDailyGoal();
+      loadAssignments();
       maybeShowTour();
+    }
+
+    // ── Daily goal ──
+    function renderDailyGoal() {
+      const el = document.getElementById('dailyGoal');
+      if (!el) return;
+      const today = new Date().toISOString().slice(0,10);
+      let doneToday = 0;
+      try { const d = JSON.parse(localStorage.getItem('c4k_lessons_today')||'{}'); doneToday = d.date===today ? (d.count||0) : 0; } catch {}
+      el.style.display = 'flex';
+      if (doneToday >= 1) {
+        document.getElementById('dgIcon').textContent = '✅';
+        document.getElementById('dgTitle').textContent = 'Goal complete! 🎉';
+        document.getElementById('dgSub').textContent = `You did ${doneToday} lesson${doneToday===1?'':'s'} today. Streak safe! 🔥`;
+        document.getElementById('dgBtn').textContent = 'Do more →';
+      } else {
+        document.getElementById('dgIcon').textContent = '🎯';
+        document.getElementById('dgTitle').textContent = "Today's goal: do 1 lesson";
+        document.getElementById('dgSub').textContent = 'Keep your streak alive! 🔥';
+        document.getElementById('dgBtn').textContent = 'Start a lesson →';
+      }
+    }
+
+    // ── Teacher assignments ──
+    async function loadAssignments() {
+      const { ok, data } = await C4K.api('/api/assignments');
+      if (!ok || !data.assignments || !data.assignments.length) return;
+      const el = document.getElementById('assignments');
+      el.style.display = '';
+      el.innerHTML = `<div class="card" style="border:1px solid #f59e0b;margin:0;">
+        <h3 style="color:#fbbf24;">📌 Assigned by your teacher</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${data.assignments.map(a => `
+            <a href="lessons.html${a.unit?('#world-'+a.unit):''}" style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-decoration:none;color:var(--text);">
+              <span style="font-size:1.2rem;">📌</span>
+              <div style="flex:1;"><strong style="font-size:0.92rem;">${C4K.esc(a.title)}</strong>
+                ${a.dueDate ? `<div style="color:var(--text-dim);font-size:0.78rem;">Due ${C4K.esc(a.dueDate)}</div>` : ''}</div>
+              <span style="color:var(--purple);font-weight:800;font-size:0.85rem;">Start →</span>
+            </a>`).join('')}
+        </div></div>`;
+    }
+
+    function activatePart2() {
+      document.body.classList.add('part2');
+      document.getElementById('dHi').textContent = `Welcome to Part 2, ${ME.name}! ⚔️`;
+      document.getElementById('dTagline').textContent = 'You conquered all 25 worlds. This is the elite level.';
+      // Insert Part 2 banner above stat grid
+      const banner = document.createElement('div');
+      banner.className = 'p2-banner';
+      banner.innerHTML =
+        '<div style="font-size:3rem;margin-bottom:8px;">🔱</div>' +
+        '<h2>⚔️ Part 2 — Elite Coder Mode</h2>' +
+        '<p>You cleared every world in Part 1. Most coders never make it this far.<br>' +
+        'Part 2 covers recursion, algorithms, data science, advanced OOP, async, and real projects.<br>' +
+        '<strong style="color:#fbbf24;">This is where professional developers live.</strong></p>' +
+        '<div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' +
+          '<a href="lessons.html" class="btn btn-primary" style="background:linear-gradient(135deg,#b45309,#f59e0b);border:none;">⚔️ Enter Part 2 →</a>' +
+        '</div>';
+      const statGrid = document.querySelector('.stat-grid');
+      if (statGrid) statGrid.parentNode.insertBefore(banner, statGrid);
     }
 
     let _refLink = '';
@@ -522,10 +668,10 @@
     // ── First-time welcome tour ──────────────────────────
     const TOUR = [
       { emoji:'👋', title:'Welcome to KidVibers!', text:`Hi ${''}! You're about to learn real coding by playing. Let's take 20 seconds to show you around.` },
-      { emoji:'📚', title:'Start with Lessons', text:'Tap <strong>Lessons</strong> to begin your coding adventure. Short, fun lessons across 19 worlds — run real code and get instant feedback!' },
+      { emoji:'📚', title:'Start with Lessons', text:'Tap <strong>Lessons</strong> to begin your coding adventure. Short, fun lessons across 25 worlds — run real code and get instant feedback!' },
       { emoji:'⚔️', title:'Beat Boss Battles', text:'Finish a world\'s lessons, then beat its <strong>boss battle</strong> to level up, earn a <strong>certificate</strong>, and unlock the next world.' },
       { emoji:'🎮', title:'Play Coding Games', text:'Tap <strong>Games</strong> for fast, fun challenges — find bugs, predict output, and more. You earn 🪙 tokens for playing!' },
-      { emoji:'🛝', title:'Build in the Playground', text:'Use the <strong>Playground</strong> to write your own Python and build whatever you imagine. Spend tokens in the avatar shop to customize your look!' },
+      { emoji:'🎨', title:'Build in the Vibe Studio', text:'Go to <strong>Vibe Studio</strong>, tell Byte what you want to build, and get a ready-made template — customize it and make it your own!' },
       { emoji:'🚀', title:'Ready to code?', text:'That\'s it! Earn XP, keep your streak going, and have fun. Let\'s start your first lesson!' },
     ];
     let tourStep = 0;
@@ -566,36 +712,61 @@
       }
       wrap.innerHTML = passed.map(u => {
         const w = WORLDS[u] || { name: 'World ' + u, emoji: '🗺️' };
-        return `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;">
-          <span style="font-weight:800;">${w.emoji || '🏆'} ${C4K.esc(w.name || ('World ' + u))}</span>
-          <a class="btn btn-outline" style="padding:6px 12px;font-size:0.8rem;" href="certificate.html?unit=${u}" target="_blank">🏆 View / Print</a>
+        return `<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;flex-wrap:wrap;">
+          <span style="font-weight:800;flex:1;min-width:120px;">${w.emoji || '🏆'} ${C4K.esc(w.name || ('World ' + u))}</span>
+          <div style="display:flex;gap:6px;">
+            <a class="btn btn-outline" style="padding:6px 10px;font-size:0.78rem;" href="certificate.html?unit=${u}" target="_blank">🏆 View</a>
+            <button class="btn btn-outline" style="padding:6px 10px;font-size:0.78rem;" onclick="shareCert(${u},this)">📧 Send to parent</button>
+          </div>
         </div>`;
       }).join('');
     }
+    async function shareCert(unit, btn) {
+      const orig = btn.textContent; btn.textContent = '📧 Sending…'; btn.disabled = true;
+      const { ok, data } = await C4K.api('/api/certificate/email', 'POST', { unit });
+      if (ok) { btn.textContent = '✅ Sent!'; }
+      else { btn.textContent = orig; btn.disabled = false; alert(data.error || 'Could not send.'); }
+    }
 
     let WORLDS = {};
-    function renderWorlds() {
+    function renderWorlds(inPart2) {
       const order = [...new Set(LESSONS.map(l => l.unit || 1))].sort((a, b) => a - b);
       const passed = new Set((ME && ME.unitsPassed) || []);
       const map = document.getElementById('worldsMap');
-      map.innerHTML = order.map((u, i) => {
+
+      const part1 = order.filter(u => !WORLDS[u]?.part2);
+      const part2 = order.filter(u => WORLDS[u]?.part2);
+
+      function worldRow(u, i, list, isPart2) {
         const w = WORLDS[u] || { name: 'World ' + u, emoji: '🗺️', color: 'var(--purple)', boss: { name: 'Boss', emoji: '👾' } };
         const cleared = passed.has(u);
-        const unlocked = i === 0 || passed.has(order[i - 1]);
+        const unlocked = i === 0 || passed.has(list[i - 1]);
         const status = cleared ? '🏆 Cleared' : (unlocked ? '⚔️ In progress' : '🔒 Locked');
-        const col = cleared ? 'var(--green)' : (unlocked ? w.color : 'var(--text-faint)');
-        return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border);border-left:4px solid ${col};${unlocked ? '' : 'opacity:.55;'}">
+        const col = cleared ? (isPart2 ? '#f59e0b' : 'var(--green)') : (unlocked ? w.color : 'var(--text-faint)');
+        const bg = isPart2 ? (cleared ? 'rgba(180,83,9,0.18)' : unlocked ? 'rgba(180,83,9,0.08)' : '#0d0608') : 'var(--surface-2)';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:${bg};border:1px solid var(--border);border-left:4px solid ${col};${unlocked ? '' : 'opacity:.55;'}">
           <span style="font-size:1.6rem;">${w.emoji}</span>
-          <div style="flex:1;"><div style="font-weight:900;font-size:0.95rem;">${w.name}</div>
-            <div style="font-size:0.78rem;color:var(--text-dim);">Boss: ${w.boss.emoji} ${w.boss.name}</div></div>
+          <div style="flex:1;"><div style="font-weight:900;font-size:0.95rem;">${w.name}${isPart2 ? ' <span style="font-size:0.6rem;font-weight:900;background:rgba(251,191,36,0.2);color:#fbbf24;border-radius:50px;padding:2px 7px;vertical-align:middle;">PART 2</span>' : ''}</div>
+            <div style="font-size:0.78rem;color:var(--text-dim);">Boss: ${w.boss?.emoji || '👾'} ${w.boss?.name || 'Boss'}</div></div>
           <span style="font-size:0.76rem;font-weight:800;color:${col};white-space:nowrap;">${status}</span>
         </div>`;
-      }).join('');
+      }
+
+      let html = '';
+      if (part1.length) {
+        if (inPart2) html += '<div style="font-size:0.72rem;font-weight:900;color:var(--text-faint);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">✅ Part 1 — Completed</div>';
+        html += part1.map((u, i) => worldRow(u, i, part1, false)).join('');
+      }
+      if (part2.length) {
+        html += '<div style="font-size:0.72rem;font-weight:900;color:#f59e0b;letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 6px;">⚔️ Part 2 — Elite</div>';
+        html += part2.map((u, i) => worldRow(u, i, part2, true)).join('');
+      }
+      map.innerHTML = html;
     }
 
     // ── Avatar shop ──
     let shopOwned = [], shopAvatar = {}, shopTokens = 0, shopCat = 'face';
-    const CATS = [['face','😀 Face'],['hat','🎩 Hats'],['accessory','👓 Extras'],['clothing','👕 Clothes'],['companion','🐱 Buddies'],['background','🎨 Background']];
+    const CATS = [['face','😀 Face'],['hat','🎩 Hats'],['accessory','👓 Extras'],['clothing','👕 Clothes'],['companion','🐱 Buddies'],['background','🎨 Background'],['power','⚡ Powers']];
 
     function openShop() {
       shopOwned = (ME.ownedItems || []).slice();
@@ -633,11 +804,25 @@
       renderShop();
     }
     async function buy(id) {
+      const it = C4K.shopItem(id);
+      // Power items (streak freeze) are consumable — don't go to DB inventory
+      if (it && it.cat === 'power') {
+        const { ok, data } = await C4K.api('/api/shop/buy', 'POST', { itemId: id });
+        if (ok) {
+          shopTokens = data.tokens; ME.tokens = data.tokens;
+          document.getElementById('sTokens').textContent = data.tokens;
+          const qty = id === 'freeze_3' ? 3 : 1;
+          grantFreeze(qty);
+          renderShop();
+          alert(`🧊 Streak Freeze${qty>1?'s':''} added! Your streak is now protected for ${qty} missed day${qty>1?'s':''}.`);
+        } else alert('🪙 ' + (data.error || 'Could not buy.'));
+        return;
+      }
       const { ok, data } = await C4K.api('/api/shop/buy', 'POST', { itemId: id });
       if (ok) {
         shopOwned = data.owned; shopTokens = data.tokens; ME.tokens = data.tokens; ME.ownedItems = data.owned;
         document.getElementById('sTokens').textContent = data.tokens;
-        const it = C4K.shopItem(id); shopAvatar[it.cat] = id;   // auto-equip what you buy
+        if (it) shopAvatar[it.cat] = id;   // auto-equip what you buy
         renderShop();
       } else alert('🪙 ' + (data.error || 'Could not buy.'));
     }
@@ -669,7 +854,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>

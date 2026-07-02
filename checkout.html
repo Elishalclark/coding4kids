@@ -6,7 +6,7 @@
   <title>Checkout - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     .co-wrap { max-width: 860px; margin: 0 auto; padding: 30px 20px 80px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; }
     @media (max-width: 760px) { .co-wrap { grid-template-columns: 1fr; } }
@@ -53,6 +53,13 @@
     <!-- Order summary -->
     <div class="co-card">
       <h2>Your plan</h2>
+
+      <!-- Billing interval toggle -->
+      <div style="display:flex;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:4px;margin-bottom:16px;">
+        <button id="btnMonthly" onclick="setInterval2('month')" style="flex:1;padding:9px;border:none;border-radius:50px;background:var(--purple-mid);color:#fff;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.85rem;">Monthly</button>
+        <button id="btnAnnual" onclick="setInterval2('year')" style="flex:1;padding:9px;border:none;border-radius:50px;background:none;color:var(--text-dim);font-weight:900;cursor:pointer;font-family:inherit;font-size:0.85rem;">Annual</button>
+      </div>
+
       <div class="summary-row">
         <div><div class="summary-plan" id="planName">Pro</div><div class="lbl" style="font-size:0.82rem;" id="planDesc">Billed monthly</div></div>
         <div class="summary-plan" id="planPrice">$9</div>
@@ -136,12 +143,35 @@
     <button class="btn btn-primary btn-lg" id="successBtn" onclick="goHome()">Go to my dashboard →</button>
   </div>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
-    const PRICES = { pro: 9, family: 15, teacher: 24, school: 136, district: 150 };
+    const PRICES = { pro: 9, family: 15, teacher: 24, school: 105, district: 125 };
+    const ANNUAL = { pro: 108, family: 180, teacher: 288, school: 1260, district: 1500 };
+    let billingInterval = 'month';
+    function setInterval2(iv) {
+      billingInterval = iv;
+      const m = document.getElementById('btnMonthly'), a = document.getElementById('btnAnnual');
+      m.style.background = iv === 'month' ? 'var(--purple-mid)' : 'none';
+      m.style.color = iv === 'month' ? '#fff' : 'var(--text-dim)';
+      a.style.background = iv === 'year' ? 'var(--purple-mid)' : 'none';
+      a.style.color = iv === 'year' ? '#fff' : 'var(--text-dim)';
+      updatePriceDisplay();
+    }
+    function updatePriceDisplay() {
+      const amt = billingInterval === 'year' ? ANNUAL[plan] : PRICES[plan];
+      const per = billingInterval === 'year' ? '/yr' : '/mo';
+      const label = billingInterval === 'year' ? 'Billed yearly' : 'Billed monthly';
+      const s = '$' + amt.toFixed(2);
+      document.getElementById('planPrice').textContent = '$' + amt;
+      document.getElementById('planPrice2').textContent = s;
+      document.getElementById('planTotal').textContent = s;
+      document.getElementById('planDesc').textContent = label;
+      const pa = document.getElementById('payAmt'); if (pa) pa.textContent = s;
+      const ap = document.getElementById('applePayBtn'); if (ap) ap.innerHTML = ' Apple Pay · ' + s;
+    }
     // Educator tiers aren't in the kid pricing list - describe them here.
     const EDU = {
-      teacher:  { name: 'Teacher Plan',  features: ['Up to 100 students', 'Full curriculum (19 worlds, 242 lessons)', 'AI buddy for students', 'Classroom dashboard & progress'] },
+      teacher:  { name: 'Teacher Plan',  features: ['Up to 100 students', 'Full curriculum (25 worlds, 293 lessons)', 'AI buddy for students', 'Classroom dashboard & progress'] },
       school:   { name: 'School Plan',   features: ['Up to 550 students', 'Everything in Teacher', 'District dashboard - branding & management', 'School-wide consent'] },
       district: { name: 'District Plan', features: ['Unlimited students', 'Everything in School', 'Custom branding (name & logo)', 'Suspend / edit logins / remove students', 'Priority support'] },
     };
@@ -185,13 +215,9 @@
         }
         document.getElementById('comingSoon').classList.add('hidden');
         document.getElementById('payStripe').classList.remove('hidden');
+        // Show the plan/interval choice — no auto-redirect so they can pick monthly vs annual.
         if (status === 'cancel') {
-          // Came back from a canceled payment — show the button, don't loop them back to Stripe.
           document.getElementById('e-stripe').textContent = 'Payment canceled - you have not been charged.';
-        } else {
-          // Auto-send them straight to Stripe checkout (no extra click).
-          document.getElementById('stripeBtn').textContent = 'Taking you to secure checkout…';
-          startStripeCheckout();
         }
       }
       // else: #comingSoon stays visible (works for everyone, no login needed)
@@ -213,7 +239,7 @@
     async function startStripeCheckout() {
       const btn = document.getElementById('stripeBtn');
       btn.disabled = true; btn.textContent = 'Starting secure checkout…';
-      const { ok, data } = await C4K.api('/api/checkout/session', 'POST', { plan });
+      const { ok, data } = await C4K.api('/api/checkout/session', 'POST', { plan, interval: billingInterval });
       if (ok && data.url) { window.location.href = data.url; return; }   // off to Stripe
       if (ok && data.simulated) {   // keys not set up -> use the simulated flow instead
         document.getElementById('payStripe').classList.add('hidden');
@@ -309,7 +335,7 @@
       location.href = C4K.homeFor(C4K.user);
     }
   </script>
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>

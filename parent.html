@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -56,6 +56,12 @@
       <h1>👨‍👩‍👧 Family Dashboard</h1>
     </div>
 
+    <!-- Weekly digest banner -->
+    <div id="weeklyDigest" style="display:none;background:linear-gradient(135deg,#2e1457,#4c1d95);border:1px solid var(--border-bright);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
+      <div style="font-size:0.72rem;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:#c4b5fd;margin-bottom:10px;">📊 This week</div>
+      <div id="digestCards" style="display:flex;gap:16px;flex-wrap:wrap;"></div>
+    </div>
+
     <div class="plan-banner">
       <span class="pb-emoji">👑</span>
       <div>
@@ -69,8 +75,8 @@
       <span style="font-weight:800;" id="teacherPlanInfo"></span>
       <span style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
         <a href="checkout.html?plan=teacher" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Teacher · $24 / 100 students</a>
-        <a href="checkout.html?plan=school" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">School · $136 / 550 students</a>
-        <a href="checkout.html?plan=district" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">District · $150 / unlimited</a>
+        <a href="checkout.html?plan=school" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">School · $105 / 550 students</a>
+        <a href="checkout.html?plan=district" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;">District · $125 / unlimited</a>
       </span>
     </div>
 
@@ -148,7 +154,51 @@
       <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
     </div>
 
-    <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Your Kids</h2>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin:0;">Your Kids</h2>
+      <span id="rosterTools" style="display:none;margin-left:auto;">
+        <input type="file" id="rosterFile" accept=".csv,.txt" style="display:none;" onchange="onRosterFile(event)" />
+        <a href="report.html" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;">📄 Progress Report (PDF)</a>
+        <button id="rosterUploadBtn" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;" onclick="triggerRosterUpload()">📋 Upload Roster (CSV)</button>
+        <a href="data:text/plain,Name,Username,Password%0AJane Smith,jsmith,pass123%0ABob Jones,bjones,secret99" download="roster-template.csv" class="btn btn-ghost" style="font-size:0.82rem;padding:7px 14px;">⬇️ Template</a>
+      </span>
+      <span id="parentReportTool" style="display:none;margin-left:auto;">
+        <a href="report.html" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;">📄 Progress Report (PDF)</a>
+      </span>
+    </div>
+
+    <!-- Teacher: assign lessons -->
+    <div id="assignCard" style="display:none;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">📌</span>
+        <div style="flex:1;min-width:160px;"><strong style="font-size:1.05rem;">Assign lessons</strong>
+          <div style="color:var(--text-dim);font-size:0.85rem;">Set homework for your students. They'll see it on their dashboard.</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="asgTitle" placeholder="Assignment title (e.g. Finish World 1)" style="flex:1;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <select id="asgWorld" style="padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;font-family:inherit;"><option value="">Any world</option></select>
+        <input id="asgDue" type="date" style="padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:700;font-family:inherit;" />
+        <button class="btn btn-primary" onclick="createAssignment()">Assign</button>
+      </div>
+      <div id="asgList" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="asgMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+    </div>
+
+    <!-- Screen time limit (parents) -->
+    <div id="screenTimeCard" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">⏱️</span>
+        <div style="flex:1;min-width:160px;"><strong style="font-size:1.05rem;">Daily screen-time limit</strong>
+          <div style="color:var(--text-dim);font-size:0.85rem;">Cap how many minutes your kids can use KidVibers each day. Set 0 for no limit.</div></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="screenMins" type="number" min="0" max="600" step="5" style="width:80px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;font-family:inherit;text-align:center;" />
+          <span style="color:var(--text-dim);font-size:0.85rem;">min/day</span>
+          <button class="btn btn-primary" style="font-size:0.85rem;padding:8px 16px;" onclick="saveScreenLimit()">Save</button>
+        </div>
+      </div>
+      <div id="screenMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+    </div>
+
     <div class="kid-grid" id="kidGrid"></div>
 
     <!-- Progress + Leaderboard (teachers/schools) -->
@@ -177,7 +227,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -228,14 +278,100 @@
 
     function addKidCard() {
       return `<div class="add-card">
-        <div class="lbl">➕ Add a kid</div>
-        <input id="akName" placeholder="Kid's name" />
+        <div class="lbl">➕ Add a student</div>
+        <input id="akName" placeholder="Name" />
         <input id="akUser" placeholder="Username" />
         <input id="akPass" type="password" placeholder="Password (min 6)" />
         <input id="akAge" placeholder="Age (e.g. 8-10)" />
         <div class="add-err" id="akErr"></div>
-        <button class="btn btn-primary" onclick="addKid()">Add to Family</button>
+        <button class="btn btn-primary" onclick="addKid()">Add student</button>
       </div>`;
+    }
+
+    // ── Roster CSV upload ────────────────────────────────────────────────────
+    function triggerRosterUpload() { document.getElementById('rosterFile').click(); }
+    function onRosterFile(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+        // Skip header row if it looks like a header (contains "name" or "username")
+        const rows = lines[0] && /name|username|student/i.test(lines[0]) ? lines.slice(1) : lines;
+        if (!rows.length) { alert('No students found in the file.'); return; }
+        const students = rows.map((row, i) => {
+          const cols = row.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+          const name = cols[0] || ''; const username = cols[1] || ''; const password = cols[2] || '';
+          return { name, username, password };
+        }).filter(s => s.name);
+        // Preview
+        const preview = students.slice(0, 5).map(s => `• ${s.name} (@${s.username || 'auto'})`).join('\n');
+        const more = students.length > 5 ? `\n… and ${students.length - 5} more` : '';
+        if (!confirm(`Upload ${students.length} student${students.length===1?'':'s'}?\n\n${preview}${more}\n\nMissing usernames/passwords will be auto-generated.`)) return;
+        const btn = document.getElementById('rosterUploadBtn');
+        btn.textContent = '⏳ Uploading…'; btn.disabled = true;
+        const { ok, data } = await C4K.api('/api/teacher/upload-roster', 'POST', { students });
+        btn.textContent = '📋 Upload Roster (CSV)'; btn.disabled = false;
+        if (ok) {
+          const list = (data.created || []).map(s => `${s.name} — @${s.username} / pw: ${s.password}`).join('\n');
+          alert(`✅ ${data.created.length} student${data.created.length===1?'':'s'} added!\n\nSave these logins:\n${list}`);
+          location.reload();
+        } else { alert('❌ ' + (data.error || 'Upload failed.')); }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    // ── Assignments (teachers) ──
+    const WORLD_NAMES = {1:'🌱 Greenwood Basics',2:'🌊 Builder\'s Bay',3:'🚀 Cosmic Code',4:'🏰 Algorithm Castle',5:'🎮 Game Arcade',6:'🌐 Web Wizard',7:'⚡ JavaScript',8:'🤖 AI Island',9:'🔢 Math Mountain',10:'🏆 Master\'s Summit'};
+    async function initAssignments() {
+      const sel = document.getElementById('asgWorld');
+      for (let u = 1; u <= 25; u++) sel.innerHTML += `<option value="${u}">${WORLD_NAMES[u] || 'World ' + u}</option>`;
+      loadAssignments();
+    }
+    async function loadAssignments() {
+      const { ok, data } = await C4K.api('/api/assignments');
+      if (!ok) return;
+      const list = document.getElementById('asgList');
+      const items = data.assignments || [];
+      list.innerHTML = items.length ? items.map(a => `
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+          <span style="font-size:1.1rem;">📌</span>
+          <div style="flex:1;"><strong style="font-size:0.9rem;">${C4K.esc(a.title)}</strong>
+            <div style="color:var(--text-dim);font-size:0.78rem;">${a.unit ? (WORLD_NAMES[a.unit] || 'World ' + a.unit) : 'Any world'}${a.dueDate ? ' · due ' + a.dueDate : ''}</div></div>
+          <button class="btn btn-ghost" style="font-size:0.75rem;padding:5px 10px;" onclick="deleteAssignment(${a.id})">🗑️</button>
+        </div>`).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
+    }
+    async function createAssignment() {
+      const title = document.getElementById('asgTitle').value.trim();
+      const msg = document.getElementById('asgMsg');
+      if (!title) { msg.style.color = '#f87171'; msg.textContent = 'Enter an assignment title.'; return; }
+      const unit = document.getElementById('asgWorld').value || null;
+      const dueDate = document.getElementById('asgDue').value || null;
+      const { ok, data } = await C4K.api('/api/assignments/create', 'POST', { title, unit, dueDate });
+      if (ok) {
+        msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Assigned!';
+        document.getElementById('asgTitle').value = ''; document.getElementById('asgDue').value = '';
+        loadAssignments();
+        setTimeout(() => msg.textContent = '', 2000);
+      } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not assign.'; }
+    }
+    async function deleteAssignment(id) {
+      if (!confirm('Remove this assignment?')) return;
+      const { ok } = await C4K.api('/api/assignments/delete', 'POST', { id });
+      if (ok) loadAssignments();
+    }
+
+    // ── Screen-time limit (parents) ──
+    async function loadScreenLimit() {
+      const { ok, data } = await C4K.api('/api/screen-limit');
+      if (ok) document.getElementById('screenMins').value = data.minutes || 0;
+    }
+    async function saveScreenLimit() {
+      const mins = parseInt(document.getElementById('screenMins').value, 10) || 0;
+      const msg = document.getElementById('screenMsg');
+      const { ok, data } = await C4K.api('/api/screen-limit', 'POST', { minutes: mins });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = mins > 0 ? `✅ Limit set to ${mins} min/day` : '✅ No limit set'; setTimeout(() => msg.textContent = '', 2500); }
+      else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not save.'; }
     }
 
     function copyTeacherCode() {
@@ -262,6 +398,15 @@
       document.getElementById('planPill').textContent = isTeacher ? (hasPlan ? me.teacherPlan.toUpperCase() : 'NO PLAN') : 'FAMILY';
       document.getElementById('kidsHeading').textContent = isTeacher ? 'Your Students' : 'Your Kids';
       if (isTeacher) {
+        document.getElementById('rosterTools').style.display = '';
+        document.getElementById('assignCard').style.display = '';
+        initAssignments();
+      } else {
+        document.getElementById('parentReportTool').style.display = '';
+        document.getElementById('screenTimeCard').style.display = '';
+        loadScreenLimit();
+      }
+      if (isTeacher) {
         document.getElementById('teacherUpgrade').classList.remove('hidden');
         document.getElementById('teacherPlanInfo').textContent =
           me.teacherPlan === 'school' ? '🏫 You\'re on the School Plan (550 students).'
@@ -281,6 +426,25 @@
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
       const kids = (ok && data.kids) ? data.kids : [];
+
+      // Weekly digest: show this-week activity summary if any kids have coded recently
+      try {
+        const since = new Date(Date.now() - 7 * 86400000).toISOString().slice(0,10);
+        const { ok: po, data: pd } = await C4K.api('/api/teacher/progress');
+        const students = po ? (pd.students || []) : [];
+        const active = students.filter(s => s.lastActive && s.lastActive >= since);
+        if (active.length > 0) {
+          document.getElementById('weeklyDigest').style.display = '';
+          document.getElementById('digestCards').innerHTML = active.map(s => `
+            <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:14px 18px;min-width:150px;">
+              <div style="font-weight:900;color:#fff;font-size:0.95rem;">${C4K.esc(s.name)}</div>
+              <div style="color:#c4b5fd;font-size:0.82rem;margin-top:4px;">📚 ${s.lessonsDone} lessons total</div>
+              <div style="color:#c4b5fd;font-size:0.82rem;">🌍 ${s.worldsCleared} worlds cleared</div>
+              <div style="color:#c4b5fd;font-size:0.82rem;">⚡ ${s.xp} XP</div>
+              <div style="color:#a78bfa;font-size:0.78rem;margin-top:4px;">Last active: ${s.lastActive || 'never'}</div>
+            </div>`).join('');
+        }
+      } catch(e) {}
       grid.innerHTML = kids.map(kidCard).join('') + addKidCard();
       if (kids.length === 0) {
         grid.insertAdjacentHTML('afterbegin', `<div class="empty">No ${isTeacher?'students':'kids'} yet - add your first one! 🎉</div>`);
@@ -638,7 +802,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>

@@ -28,8 +28,8 @@ const DEFAULT_PLAN_SETTINGS = {
 };
 const TEACHER_PLANS = {
   teacher:  { label: "Teacher Plan",  price: 24,  students: 100 },
-  school:   { label: "School Plan",   price: 136, students: 550 },
-  district: { label: "District Plan", price: 150, students: -1 },
+  school:   { label: "School Plan",   price: 105, students: 550 },
+  district: { label: "District Plan", price: 125, students: -1 },
 };
 const NO_TEACHER_PLAN = { label: "No plan yet", price: 0, students: 0 };
 const SCHOOL_ADDON_PRICE = 25;   // a District can add extra schools at $25/mo each
@@ -736,6 +736,24 @@ async function apiLessons(env) {
 async function apiProgressGet(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
+  // Preview mode: return synthetic progress so all worlds are unlocked and lessons are playable.
+  if (u.isPreview) {
+    const settings = await getPlanSettings(env);
+    const allLessons = (await env.DB.prepare("SELECT id FROM lessons WHERE published=1").all()).results || [];
+    const allUnits = [...new Set(allLessons.map(l => l.unit).filter(Boolean))].sort((a,b)=>a-b);
+    // Mark every lesson as completed and every unit as passed so nothing is locked.
+    const previewCompleted = allLessons.map(l => l.id);
+    const unitTestsPreview = {};
+    allUnits.forEach(u => { unitTestsPreview[u] = { passed: true, bestScore: 100, attempts: 1 }; });
+    return json({
+      completed: previewCompleted,
+      unitsPassed: allUnits,
+      unitTests: unitTestsPreview,
+      lessonsPerDay: -1,
+      lessonsUsedToday: 0,
+      lessonsDone: previewCompleted.length,
+    });
+  }
   const rows = (await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(u.id).all()).results || [];
   const tests = (await env.DB.prepare("SELECT unit,passed,best_score,attempts FROM unit_tests WHERE user_id=?").bind(u.id).all()).results || [];
   const settings = await getPlanSettings(env);
@@ -754,6 +772,12 @@ async function apiProgressGet(env, request) {
 async function apiProgressPost(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
+  // Preview mode: simulate completion without touching the real DB.
+  if (u.isPreview) {
+    const allLessons = (await env.DB.prepare("SELECT id FROM lessons WHERE published=1").all()).results || [];
+    const allUnits = [...new Set(allLessons.map(l => l.unit).filter(Boolean))].sort((a,b)=>a-b);
+    return json({ completed: allLessons.map(l => l.id), unitsPassed: allUnits, tokensAwarded: 10, tokens: 260, lessonsUsedToday: 1 });
+  }
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const lessonId = (data.lessonId || "").trim();
@@ -785,10 +809,37 @@ async function apiProgressPost(env, request, data) {
   return json({ completed: rows.map((x) => x.lesson_id), unitsPassed: await unitsPassed(env, u.id), tokensAwarded: awarded, tokens: tok, lessonsUsedToday: await lessonsUsedToday(env, u.id) });
 }
 
+// Failing a lesson quiz 3 times uses one of today's lesson slots (anti-farming),
+// but does NOT mark the lesson complete — the kid still has to pass it.
+async function apiCountAttempt(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (u.isPreview) return json({ ok: true, lessonsUsedToday: 0 });
+  if (!consentOk(u)) return json({ error: "consent required" }, 403);
+  const lessonId = (data.lessonId || "").trim();
+  // Only count if this lesson isn't already completed (no charge for done lessons).
+  const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
+  if (already) return json({ ok: true, lessonsUsedToday: await lessonsUsedToday(env, u.id), alreadyDone: true });
+  // Guard: only count once per lesson per day, so re-opening the same failed lesson doesn't stack.
+  const key = `${todayStr()}-fail:${lessonId}`;
+  const counted = await env.DB.prepare("SELECT 1 FROM lessons_daily WHERE user_id=? AND day=?").bind(u.id, key).first();
+  if (!counted) {
+    await env.DB.prepare("INSERT OR IGNORE INTO lessons_daily (user_id,day,count) VALUES (?,?,1)").bind(u.id, key).run();
+    await env.DB.prepare("INSERT INTO lessons_daily (user_id,day,count) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1")
+      .bind(u.id, todayStr()).run();
+  }
+  return json({ ok: true, lessonsUsedToday: await lessonsUsedToday(env, u.id) });
+}
+
 // Award tokens for playing the mini-games. Capped per game per day so kids can't farm.
 async function apiGameScore(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
+  // Preview mode: simulate a token award without touching the real DB.
+  if (u.isPreview) {
+    const xp = Math.max(0, Math.min(50, parseInt(data.xp, 10) || 0));
+    return json({ ok: true, tokensAwarded: xp, tokens: 250 + xp, alreadyPlayedToday: false });
+  }
   if (!consentOk(u)) return json({ error: "A parent must approve this account first." }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const game = (data.game || "").trim().slice(0, 30) || "game";
@@ -809,6 +860,12 @@ async function apiGameScore(env, request, data) {
 async function apiTestSubmit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
+  // Preview mode: always return a perfect score without writing to DB.
+  if (u.isPreview) {
+    const unit = parseInt(data.unit, 10) || 1;
+    const allUnits = (await env.DB.prepare("SELECT DISTINCT unit FROM lessons WHERE published=1").all()).results.map(r => r.unit).sort((a,b)=>a-b);
+    return json({ score: 100, passed: true, correct: 5, total: 5, best: 100, attempts: 1, firstWin: false, unitsPassed: allUnits });
+  }
   if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const unit = parseInt(data.unit, 10);
@@ -904,17 +961,116 @@ async function logConsent(env, childId, childUsername, method, grantedBy, detail
     .bind(childId, childUsername, method, grantedBy, detail, nowIso()).run();
 }
 
+// ── Byte's brain: math solver + definitions + coding help + fun ──
+// Kid-safe, runs instantly, no external API needed.
+const BYTE_DEFS = {
+  variable: "A <strong>variable</strong> is like a labeled box that stores a value 📦. Example: <code>score = 10</code> puts 10 in a box called <code>score</code>.",
+  loop: "A <strong>loop</strong> repeats code so you don't have to write it over and over 🔄. Example: <code>for i in range(3): print('hi')</code> prints 'hi' three times.",
+  function: "A <strong>function</strong> is a reusable mini-program 🛠️. You make one with <code>def hello():</code> and run it by writing <code>hello()</code>.",
+  list: "A <strong>list</strong> holds many things in order 📋. Example: <code>fruits = ['apple', 'banana']</code>. Get the first one with <code>fruits[0]</code>.",
+  dictionary: "A <strong>dictionary</strong> stores pairs of keys and values 🗂️. Example: <code>ages = {'Sam': 10}</code>. Look up Sam's age with <code>ages['Sam']</code>.",
+  string: "A <strong>string</strong> is text inside quotes 🔤. Example: <code>name = 'Alex'</code>. You can join strings with <code>+</code>.",
+  integer: "An <strong>integer</strong> is a whole number 🔢 like 5, 42, or -3 (no decimal point).",
+  float: "A <strong>float</strong> is a number with a decimal point 🔢, like 3.14 or 0.5.",
+  boolean: "A <strong>boolean</strong> is either <code>True</code> or <code>False</code> ✅❌ — like a light switch that's on or off.",
+  print: "<strong>print()</strong> shows text on the screen 🖨️. Example: <code>print('Hello!')</code> displays Hello!",
+  input: "<strong>input()</strong> asks the user a question and waits for them to type ⌨️. Example: <code>name = input('Your name? ')</code>.",
+  algorithm: "An <strong>algorithm</strong> is a step-by-step set of instructions to solve a problem 🧭 — like a recipe for the computer!",
+  bug: "A <strong>bug</strong> is a mistake in your code 🐛. Debugging means finding and fixing it. Every coder gets bugs — even the pros!",
+  syntax: "<strong>Syntax</strong> is the grammar rules of code 📝. A tiny mistake like a missing <code>:</code> or <code>)</code> is a syntax error.",
+  index: "An <strong>index</strong> is a position number in a list 📍. Lists start at 0, so <code>list[0]</code> is the first item.",
+  condition: "A <strong>condition</strong> is a question that's True or False 🤔, like <code>score > 10</code>. It's used with <code>if</code> statements.",
+  comment: "A <strong>comment</strong> is a note for humans that the computer ignores 💬. In Python you start it with <code>#</code>.",
+  html: "<strong>HTML</strong> is the language that builds web pages 🌐. It uses tags like <code>&lt;h1&gt;</code> for headings.",
+  css: "<strong>CSS</strong> makes websites look pretty 🎨 — it sets colors, fonts, and layouts.",
+  python: "<strong>Python</strong> 🐍 is a friendly, popular coding language. It's great for beginners and used by pros at Google, Netflix, and NASA!",
+  javascript: "<strong>JavaScript</strong> ⚡ makes websites interactive — buttons, games, animations. It runs right in your web browser.",
+  recursion: "<strong>Recursion</strong> 🌀 is when a function calls itself to solve a smaller version of a problem. Powerful but tricky!",
+};
+
+function byteSolveMath(text) {
+  let s = " " + text.toLowerCase() + " ";
+  // word operators → symbols
+  s = s.replace(/\bplus\b|\band\b|\badd(ed)?( to)?\b/g, "+")
+       .replace(/\bminus\b|\bsubtract(ed)?( from)?\b|\btake away\b/g, "-")
+       .replace(/\btimes\b|\bmultiplied by\b|\bmultiply\b/g, "*")
+       .replace(/\bdivided by\b|\bdivide\b|\bover\b/g, "/")
+       .replace(/\bto the power of\b|\bpower\b/g, "^")
+       .replace(/\bsquared\b/g, "^2").replace(/\bcubed\b/g, "^3")
+       .replace(/\bpercent of\b|% of\b/g, "%of%")
+       .replace(/×/g, "*").replace(/÷/g, "/").replace(/\bx\b/g, "*");
+  // percent of:  "20 %of% 50"  → 20/100*50
+  const pm = s.match(/(-?\d+(?:\.\d+)?)\s*%of%\s*(-?\d+(?:\.\d+)?)/);
+  if (pm) { const r = (parseFloat(pm[1]) / 100) * parseFloat(pm[2]); return { q: `${pm[1]}% of ${pm[2]}`, a: +r.toFixed(4) }; }
+  // sqrt
+  const sq = s.match(/(?:square root of|sqrt)\s*\(?\s*(-?\d+(?:\.\d+)?)/);
+  if (sq) { const n = parseFloat(sq[1]); if (n < 0) return null; return { q: `√${n}`, a: +Math.sqrt(n).toFixed(4) }; }
+  // keep only math chars
+  const cleaned = s.replace(/[^0-9+\-*/^().]/g, "");
+  // must contain at least one operator and two numbers-ish
+  if (!/[+\-*/^]/.test(cleaned) || !/\d/.test(cleaned)) return null;
+  if (!/\d[\s]*[+\-*/^]/.test(cleaned)) return null;
+  try {
+    let i = 0; const str = cleaned;
+    const peek = () => str[i];
+    function base() {
+      if (peek() === "(") { i++; const v = expr(); if (peek() === ")") i++; return v; }
+      if (peek() === "-") { i++; return -base(); }
+      if (peek() === "+") { i++; return base(); }
+      let start = i; while (i < str.length && /[0-9.]/.test(str[i])) i++;
+      if (start === i) throw "bad";
+      return parseFloat(str.slice(start, i));
+    }
+    function factor() { let v = base(); while (peek() === "^") { i++; v = Math.pow(v, factor()); } return v; }
+    function term() { let v = factor(); while (peek() === "*" || peek() === "/") { const o = str[i++]; const f = factor(); v = o === "*" ? v * f : v / f; } return v; }
+    function expr() { let v = term(); while (peek() === "+" || peek() === "-") { const o = str[i++]; const t = term(); v = o === "+" ? v + t : v - t; } return v; }
+    const result = expr();
+    if (i !== str.length || !isFinite(result)) return null;
+    return { q: cleaned.replace(/\*/g, "×").replace(/\//g, "÷"), a: +result.toFixed(6) };
+  } catch { return null; }
+}
+
 function byteReply(q) {
-  q = (q || "").toLowerCase();
-  if (/variable/.test(q)) return "A variable is like a labeled box that stores a value! 📦 Example: <code>score = 10</code> puts 10 in a box called <code>score</code>.";
-  if (/loop|repeat/.test(q)) return "A loop repeats code so you don't have to write it 100 times! 🔄 Try: <code>for i in range(3):<br>&nbsp;&nbsp;print('hi')</code>";
-  if (/\bif\b|condition/.test(q)) return "An <code>if</code> statement makes choices! 🤔 <code>if score > 10:<br>&nbsp;&nbsp;print('You win!')</code> - don't forget the colon!";
-  if (/function/.test(q)) return "A function is a reusable mini-program! 🛠️ <code>def hello():<br>&nbsp;&nbsp;print('Hi!')</code> - call it with <code>hello()</code>.";
-  if (/error|bug|broken|not work/.test(q)) return "Every coder gets errors! 🐛 Read the last line, check for a missing <code>:</code> or <code>)</code>, and try again. You've got this!";
-  if (/python|javascript|language/.test(q)) return "Great question! 🐍 Python is super beginner-friendly. You start with blocks, then move to real Python on KidVibers!";
-  if (/\b(hi|hello|hey)\b/.test(q)) return "Hey there, coder! 👋 What do you want to learn today? Loops, variables, functions - just ask!";
-  if (/thank/.test(q)) return "You're so welcome! 🌟 Keep up the awesome coding - I'm always here to help!";
-  return "Ooh, good question! 🤖 I'm best at coding basics - try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!";
+  const raw = (q || "").trim();
+  q = raw.toLowerCase();
+  if (!q) return "Ask me anything! 🤖 I can do math, explain coding words, help with bugs, and more!";
+
+  // 1) Math
+  const math = byteSolveMath(raw);
+  if (math) return `🧮 <strong>${math.q} = ${math.a}</strong><br>Want me to explain how? Just ask!`;
+
+  // 2) Definitions — "what is X", "define X", "what does X mean"
+  const defMatch = q.match(/(?:what(?:'s| is| are)|define|meaning of|what does)\s+(?:an?\s+|the\s+)?([a-z ]+?)(?:\s+mean)?[?.!]*$/);
+  if (defMatch) {
+    const term = defMatch[1].trim().replace(/\bstatements?\b|\bin (python|code|coding)\b/g, "").trim();
+    for (const key in BYTE_DEFS) { if (term === key || term === key + "s" || term.includes(key)) return BYTE_DEFS[key] + "<br>Want an example? Just ask! 😊"; }
+  }
+  // direct keyword definition (e.g. they just type "loops")
+  for (const key in BYTE_DEFS) { if (new RegExp("\\b" + key + "s?\\b").test(q)) {
+    if (/error|bug|broken|not work|fix/.test(q) && key !== "bug") continue;
+    return BYTE_DEFS[key];
+  } }
+
+  // 3) Coding help
+  if (/error|bug|broken|not work|won'?t run|fix my/.test(q))
+    return "Every coder gets errors! 🐛 Here's how to squash them:<br>1️⃣ Read the <strong>last line</strong> of the error<br>2️⃣ Check for a missing <code>:</code> <code>)</code> or <code>\"</code><br>3️⃣ Make sure your spelling & indenting match<br>Paste the error and I'll help more!";
+  if (/how do i|how to|how can i/.test(q))
+    return "Great question! 💡 Break it into tiny steps: What do you want to happen first? Then next? Tell me the small steps and we'll code them one at a time. Try the Vibe Studio too — just describe what you want to build! 🎨";
+
+  // 4) Spelling — "how do you spell X"
+  const spell = q.match(/(?:how do you |how to )?spell\s+([a-z]+)/);
+  if (spell) return `The word <strong>"${spell[1]}"</strong> is spelled: ${spell[1].toUpperCase().split("").join("-")} ✏️`;
+
+  // 5) Fun & social
+  if (/\b(hi|hello|hey|yo|sup)\b/.test(q)) return "Hey there, coder! 👋 I can solve math, explain coding words, help fix bugs, and more. What do you want to know?";
+  if (/how are you|how'?s it going/.test(q)) return "I'm running great — 100% bug-free today! 🤖✨ How can I help you learn?";
+  if (/thank/.test(q)) return "You're so welcome! 🌟 Keep up the awesome work — I'm always here to help!";
+  if (/joke|funny|make me laugh/.test(q)) { const j = ["Why do coders prefer dark mode? Because light attracts bugs! 🐛", "Why was the math book sad? It had too many problems! 📖", "What's a computer's favorite snack? Microchips! 🍟", "Why did the function break up with the loop? It needed some space! 😂"]; return j[Math.floor(Math.random() * j.length)]; }
+  if (/who (are|made) you|your name/.test(q)) return "I'm <strong>Byte</strong> 🤖 — your coding buddy on KidVibers! I help you learn to code, solve math, and answer questions. Made by a kid, for kids! 💜";
+  if (/bored|what should i do|what can i do/.test(q)) return "Let's have fun! 🎉 Try:<br>📚 A new lesson<br>🎮 A coding game<br>🎨 Build something in the Vibe Studio<br>Or ask me a math or coding question!";
+
+  // 6) Fallback
+  return "Ooh, good question! 🤖 I can help with:<br>🧮 <strong>Math</strong> — try \"15 × 7\" or \"20% of 50\"<br>📖 <strong>Definitions</strong> — try \"what is a loop?\"<br>🐛 <strong>Bug help</strong> — paste your error<br>🎨 <strong>Building</strong> — head to the Vibe Studio!";
 }
 
 async function apiShop(env, request) {
@@ -1444,7 +1600,117 @@ async function apiParentAddKid(env, request, data) {
   return json({ token: null, user: await publicUser(env, r.row) });
 }
 
+// Bulk roster upload: teachers/schools upload a CSV and get accounts created in one shot.
+async function apiUploadRoster(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "Only a teacher or school can upload a roster." }, 403);
+  const students = Array.isArray(data.students) ? data.students : [];
+  if (!students.length) return json({ error: "No students provided." }, 400);
+  if (students.length > 200) return json({ error: "Max 200 students per upload." }, 400);
+
+  const isTeacher = u.role === "teacher";
+  const method = isTeacher ? "school" : "parent_account";
+  const grantedBy = isTeacher ? `${u.school || "school"} (teacher: ${u.username})` : u.username;
+
+  const created = [];
+  const errors = [];
+
+  for (const s of students) {
+    let name = cleanName(s.name || "").slice(0, 60);
+    if (!name) { errors.push("Skipped a row with no name."); continue; }
+
+    // Auto-generate username if missing: first name + random 4 digits
+    let username = (s.username || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (!username || username.length < 3) {
+      const base = name.split(" ")[0].toLowerCase().replace(/[^a-z]/g, "").slice(0, 10) || "student";
+      username = base + Math.floor(1000 + Math.random() * 9000);
+    }
+    // Check duplicate — append digits until unique
+    let finalUser = username;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(finalUser).first();
+      if (!dup) break;
+      finalUser = username + Math.floor(100 + Math.random() * 900);
+    }
+
+    // Auto-generate password if missing
+    const pw = (s.password || "").trim() || Math.random().toString(36).slice(2, 10);
+    if (pw.length < 6) { errors.push(`Password too short for ${name}.`); continue; }
+
+    const r = await createUser(env, {
+      role: "kid", name, username: finalUser, password: pw,
+      email: u.parent_email || "", age: s.ageBand || "", plan: "family", trial_ends: null,
+      family_id: u.family_id, consent_status: "granted", consent_method: method, consent_by: grantedBy,
+    });
+    if (r.error) { errors.push(`${name}: ${r.error}`); continue; }
+    await logConsent(env, r.uid, finalUser, method, grantedBy, "Roster upload");
+    created.push({ name, username: finalUser, password: pw });
+  }
+  return json({ ok: true, created, errors, total: students.length });
+}
+
 // All students across all schools in the district (for the roster view).
+// ── Teacher assignments ──────────────────────────────────────────────────
+async function apiCreateAssignment(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only teachers can assign lessons." }, 403);
+  const title = cleanName(data.title || "").slice(0, 100) || "Assignment";
+  const unit = data.unit ? parseInt(data.unit, 10) : null;
+  const lessonIds = Array.isArray(data.lessonIds) ? JSON.stringify(data.lessonIds.slice(0, 50)) : null;
+  const dueDate = (data.dueDate || "").slice(0, 20) || null;
+  await env.DB.prepare("INSERT INTO assignments (family_id,teacher_id,title,unit,lesson_ids,due_date,created_at) VALUES (?,?,?,?,?,?,?)")
+    .bind(u.family_id, u.id, title, unit, lessonIds, dueDate, nowIso()).run();
+  return json({ ok: true });
+}
+async function apiListAssignments(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  // Kids see assignments for their family; teachers see ones they created
+  const rows = u.role === "teacher"
+    ? (await env.DB.prepare("SELECT * FROM assignments WHERE teacher_id=? ORDER BY created_at DESC LIMIT 50").bind(u.id).all()).results
+    : (await env.DB.prepare("SELECT * FROM assignments WHERE family_id=? ORDER BY created_at DESC LIMIT 20").bind(u.family_id).all()).results;
+  return json({ assignments: (rows || []).map(a => ({
+    id: a.id, title: a.title, unit: a.unit,
+    lessonIds: a.lesson_ids ? JSON.parse(a.lesson_ids) : [],
+    dueDate: a.due_date, createdAt: a.created_at,
+  })) });
+}
+async function apiDeleteAssignment(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  await env.DB.prepare("DELETE FROM assignments WHERE id=? AND teacher_id=?").bind(data.id, u.id).run();
+  return json({ ok: true });
+}
+
+// ── Parent screen-time limit (minutes per day) ──────────────────────────────
+async function apiSetScreenLimit(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "Only a parent or teacher can set this." }, 403);
+  const mins = Math.max(0, Math.min(600, parseInt(data.minutes, 10) || 0)); // 0 = no limit
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?")
+    .bind(`screenlimit:${u.family_id}`, String(mins), String(mins)).run();
+  return json({ ok: true, minutes: mins });
+}
+async function apiGetScreenLimit(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const fid = u.family_id;
+  const row = fid != null ? await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`screenlimit:${fid}`).first() : null;
+  return json({ minutes: row ? parseInt(row.value, 10) : 0 });
+}
+
+// Email a certificate to the parent on demand (share button).
+async function apiEmailCertificate(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only kids can share certificates." }, 403);
+  if (!u.parent_email) return json({ error: "No parent email on file — ask a grown-up to add one in Settings." }, 400);
+  const unit = parseInt(data.unit, 10);
+  const passed = await env.DB.prepare("SELECT best_score FROM unit_tests WHERE user_id=? AND unit=? AND passed=1").bind(u.id, unit).first();
+  if (!passed) return json({ error: "You haven't earned that certificate yet." }, 400);
+  await sendCertificateEmail(env, request, u, unit, passed.best_score || 100);
+  return json({ ok: true, sentTo: u.parent_email });
+}
+
 async function apiDistrictRoster(env, request) {
   const d = await fullDistrict(env, request);
   if (!d) return json({ error: "District accounts only." }, 403);
@@ -1870,7 +2136,7 @@ async function adminAnalytics(env, request) {
   const planBreakdown = {}; planRows.forEach(r => { planBreakdown[r.plan || "free"] = r.c; });
 
   // Estimated MRR from active paid subscriptions (Stripe-linked), by plan price.
-  const PRICE = { pro: 9, family: 15, teacher: 24, school: 136, district: 150 };
+  const PRICE = { pro: 9, family: 15, teacher: 24, school: 105, district: 125 };
   const subRows = (await env.DB.prepare("SELECT plan, COUNT(*) c FROM users WHERE stripe_subscription_id IS NOT NULL GROUP BY plan").all()).results || [];
   let mrr = 0; subRows.forEach(r => { mrr += (PRICE[r.plan] || 0) * r.c; });
 
@@ -2311,6 +2577,37 @@ async function notifyAdmin(env, subject, text) {
   await sendEmail(env, to, subject, html, "KidVibers <support@kidvibers.com>");
 }
 
+const EMAIL_FOOTER = `
+<div style="margin-top:40px;padding-top:24px;border-top:2px solid #ede9fe;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;">
+    <tr>
+      <td style="padding-bottom:10px;">
+        <span style="font-size:22px;font-weight:900;color:#7c3aed;letter-spacing:-0.5px;">🚀 Kid<strong>Vibers</strong></span>
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size:13px;color:#6b7280;line-height:1.7;">
+        <strong style="color:#374151;">Made by a kid, for kids ❤️</strong><br/>
+        The fun, fast way to learn coding — 242+ lessons, games &amp; real projects.<br/><br/>
+        📧 <a href="mailto:support@kidvibers.com" style="color:#7c3aed;text-decoration:none;">support@kidvibers.com</a>
+        &nbsp;·&nbsp;
+        🌐 <a href="https://kidvibers.com" style="color:#7c3aed;text-decoration:none;">kidvibers.com</a>
+        &nbsp;·&nbsp;
+        🛡️ <a href="https://kidvibers.com/trust.html" style="color:#7c3aed;text-decoration:none;">Trust &amp; Safety</a>
+        &nbsp;·&nbsp;
+        📄 <a href="https://kidvibers.com/privacy.html" style="color:#7c3aed;text-decoration:none;">Privacy Policy</a>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding-top:12px;font-size:11px;color:#9ca3af;">
+        © 2026 KidVibers.com · Owner: Elisha Clark<br/>
+        You're receiving this because you or your child has a KidVibers account.
+        <a href="https://kidvibers.com" style="color:#9ca3af;">Unsubscribe</a>
+      </td>
+    </tr>
+  </table>
+</div>`;
+
 async function sendEmail(env, to, subject, html, from) {
   if (!to || !env.RESEND_API_KEY) return false;
   try {
@@ -2320,7 +2617,7 @@ async function sendEmail(env, to, subject, html, from) {
       body: JSON.stringify({
         from: from || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
         to: [to], subject,
-        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222">${html}</div>`,
+        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px 20px;">${html}${EMAIL_FOOTER}</div>`,
         reply_to: env.REPLY_TO || "support@kidvibers.com",
       }),
     });
@@ -2331,9 +2628,14 @@ const FROM_PASSWORD = "KidVibers <password@kidvibers.com>";
 
 // ───────────────────────── Stripe ─────────────────────────
 function stripeEnabled(env) { return !!env.STRIPE_SECRET_KEY; }
-function stripePrices(env) {
+function stripePrices(env, interval) {
+  if (interval === "year") {
+    return { pro: env.STRIPE_PRICE_PRO_ANNUAL, family: env.STRIPE_PRICE_FAMILY_ANNUAL, teacher: env.STRIPE_PRICE_TEACHER_ANNUAL, school: env.STRIPE_PRICE_SCHOOL_ANNUAL, district: env.STRIPE_PRICE_DISTRICT_ANNUAL };
+  }
   return { pro: env.STRIPE_PRICE_PRO, family: env.STRIPE_PRICE_FAMILY, teacher: env.STRIPE_PRICE_TEACHER, school: env.STRIPE_PRICE_SCHOOL, district: env.STRIPE_PRICE_DISTRICT };
 }
+// Annual price = 12 × monthly (no discount, per owner's choice)
+const ANNUAL_PRICE = { pro: 108, family: 180, teacher: 288, school: 1260, district: 1500 };
 function siteUrl(env, request) { return (env.SITE_URL || new URL(request.url).origin).replace(/\/$/, ""); }
 function stripePlanRoleOk(plan, role) {
   if (["teacher", "school", "district"].includes(plan)) return ["teacher", "super_admin"].includes(role);
@@ -2376,15 +2678,16 @@ async function apiCheckoutSession(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "Please log in to upgrade." }, 401);
   const plan = (data.plan || "").trim();
+  const interval = data.interval === "year" ? "year" : "month";
   if (!["pro", "family", "teacher", "school", "district"].includes(plan)) return json({ error: "Unknown plan." }, 400);
   if (!stripePlanRoleOk(plan, u.role)) return json({ error: "This account type can't purchase that plan." }, 403);
-  const price = stripePrices(env)[plan];
+  const price = stripePrices(env, interval)[plan];
   if (!stripeEnabled(env) || !price) return json({ simulated: true });
   const base = siteUrl(env, request);
   const params = {
     mode: "subscription", "line_items[0][price]": price, "line_items[0][quantity]": 1,
     success_url: `${base}/checkout.html?status=success&plan=${plan}`, cancel_url: `${base}/checkout.html?plan=${plan}&status=cancel`,
-    client_reference_id: String(u.id), "metadata[user_id]": String(u.id), "metadata[plan]": plan, allow_promotion_codes: "true",
+    client_reference_id: String(u.id), "metadata[user_id]": String(u.id), "metadata[plan]": plan, "metadata[interval]": interval, allow_promotion_codes: "true",
   };
   if (u.parent_email) params.customer_email = u.parent_email;
   try { const session = await stripeRequest(env, "/checkout/sessions", params); return json({ url: session.url }); }
@@ -2775,6 +3078,13 @@ async function handleApi(env, request, path) {
 
   // parent / teacher / district
   if (path === "/api/parent/add-kid" && method === "POST") return apiParentAddKid(env, request, data);
+  if (path === "/api/teacher/upload-roster" && method === "POST") return apiUploadRoster(env, request, data);
+  if (path === "/api/assignments" && method === "GET") return apiListAssignments(env, request);
+  if (path === "/api/assignments/create" && method === "POST") return apiCreateAssignment(env, request, data);
+  if (path === "/api/assignments/delete" && method === "POST") return apiDeleteAssignment(env, request, data);
+  if (path === "/api/screen-limit" && method === "GET") return apiGetScreenLimit(env, request);
+  if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
+  if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
   if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
   if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
   if (path === "/api/account/update" && method === "POST") return apiAccountUpdate(env, request, data);
@@ -2800,6 +3110,7 @@ async function handleApi(env, request, path) {
 
   // lessons / progress
   if (path === "/api/progress" && method === "POST") return apiProgressPost(env, request, data);
+  if (path === "/api/lesson/count-attempt" && method === "POST") return apiCountAttempt(env, request, data);
   if (path === "/api/game/score" && method === "POST") return apiGameScore(env, request, data);
   if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
@@ -2855,6 +3166,60 @@ async function handleApi(env, request, path) {
     return json({ ok: true });
   }
 
+  // ── Leaderboard (public top 10 by XP this week) ──
+  if (path === "/api/leaderboard" && method === "GET") {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const rows = (await env.DB.prepare(
+      "SELECT u.id, u.name, u.username, u.tokens, " +
+      "COALESCE(SUM(l.xp),0) AS week_xp, COUNT(p.lesson_id) AS week_lessons " +
+      "FROM users u " +
+      "JOIN progress p ON p.user_id = u.id AND p.completed_at >= ? " +
+      "JOIN lessons l ON l.id = p.lesson_id " +
+      "WHERE u.role='kid' " +
+      "GROUP BY u.id ORDER BY week_xp DESC LIMIT 10"
+    ).bind(since).all()).results || [];
+    return json({ leaderboard: rows, since });
+  }
+
+  // ── Report a lesson (content flag) ──
+  if (path === "/api/report-lesson" && method === "POST") {
+    const u = await userFromToken(env, bearer(request));
+    const lessonId = (data.lessonId || "").trim().slice(0, 50);
+    const reason = (data.reason || "").trim().slice(0, 500) || "No reason given";
+    const who = u ? `@${u.username} (${u.role})` : "anonymous";
+    await notifyAdmin(env, `🚩 Lesson flagged: ${lessonId}`,
+      `🚩 *Lesson content report*\nLesson: ${lessonId}\nFrom: ${who}\nReason: ${reason}`);
+    return json({ ok: true });
+  }
+
+  // ── Gift Pro checkout ──
+  if (path === "/api/gift/checkout" && method === "POST") {
+    if (!stripeEnabled(env)) return json({ error: "Payments not configured." }, 503);
+    const recipientEmail = (data.recipientEmail || "").trim().slice(0, 200);
+    const senderName = cleanName(data.senderName || "A friend");
+    const plan = ["pro","family"].includes(data.plan) ? data.plan : "pro";
+    const priceId = stripePrices(env)[plan];
+    if (!priceId) return json({ error: "Plan not available." }, 400);
+    const origin = siteUrl(env, request);
+    const session = await stripeRequest(env, "/checkout/sessions", {
+      mode: "subscription",
+      line_items: JSON.stringify([{ price: priceId, quantity: 1 }]),
+      success_url: `${origin}/gift.html?status=success&plan=${plan}`,
+      cancel_url:  `${origin}/gift.html?status=cancel`,
+      customer_email: recipientEmail || undefined,
+      metadata: JSON.stringify({ gift: "1", senderName, plan }),
+    });
+    if (!session || !session.url) return json({ error: "Could not create checkout session." }, 500);
+    return json({ url: session.url });
+  }
+
+  // ── Parent weekly digest (manual trigger / test) ──
+  if (path === "/api/admin/send-weekly-digest" && method === "POST") {
+    const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+    const sent = await runWeeklyDigest(env);
+    return json({ ok: true, sent });
+  }
+
   // Unknown API route or method.
   return json({ error: "Not found." }, 404);
 }
@@ -2892,8 +3257,53 @@ async function runReengagement(env) {
   return sent;
 }
 
+// Weekly parent digest: every Monday, send parents a summary of their kid's week.
+async function runWeeklyDigest(env) {
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const parents = (await env.DB.prepare(
+    "SELECT u.id, u.name, u.username, u.parent_email, u.family_id FROM users u " +
+    "WHERE u.role='parent' AND u.parent_email IS NOT NULL AND u.parent_email != ''"
+  ).all()).results || [];
+  let sent = 0;
+  for (const p of parents) {
+    const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=?").bind(p.family_id).all()).results || [];
+    if (!kids.length) continue;
+    let anyActive = false;
+    let kidsHtml = "";
+    for (const k of kids) {
+      const lessonsThisWeek = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=? AND completed_at>=?").bind(k.id, since).first()).c || 0;
+      const totalLessons = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(k.id).first()).c || 0;
+      const worldsCleared = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).first()).c || 0;
+      const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
+      const xp = xpRow ? xpRow.xp : 0;
+      if (lessonsThisWeek > 0) anyActive = true;
+      kidsHtml += `<div style="background:#f9f7ff;border:1px solid #ede9fe;border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+        <div style="font-weight:900;font-size:1.05rem;color:#6d28d9;">${k.name}</div>
+        <table style="width:100%;margin-top:8px;">
+          <tr><td style="color:#555;font-size:0.9rem;">📚 Lessons this week</td><td style="font-weight:800;text-align:right;">${lessonsThisWeek}</td></tr>
+          <tr><td style="color:#555;font-size:0.9rem;">🏆 Total lessons done</td><td style="font-weight:800;text-align:right;">${totalLessons}</td></tr>
+          <tr><td style="color:#555;font-size:0.9rem;">🌍 Worlds cleared</td><td style="font-weight:800;text-align:right;">${worldsCleared}</td></tr>
+          <tr><td style="color:#555;font-size:0.9rem;">⚡ Total XP</td><td style="font-weight:800;text-align:right;">${xp}</td></tr>
+        </table>
+      </div>`;
+    }
+    if (!anyActive) continue; // only send if at least one kid coded this week
+    const subject = kids.length === 1 ? `${kids[0].name}'s KidVibers week in review 📊` : `Your kids' KidVibers week in review 📊`;
+    const ok = await sendEmail(env, p.parent_email, subject,
+      `<p style="font-size:1.05rem;">Hi <strong>${p.name}</strong>! Here's what happened on KidVibers this week:</p>
+       ${kidsHtml}
+       <p><a href="https://kidvibers.com/parent.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">View full progress →</a></p>
+       <p style="color:#888;font-size:0.85rem;margin-top:16px;">Keep encouraging them — every lesson counts! 🚀</p>`);
+    if (ok) sent++;
+  }
+  return sent;
+}
+
 export default {
   async scheduled(event, env, ctx) {
+    const now = new Date();
+    // Run weekly digest on Mondays (day 1), re-engagement every day.
+    if (now.getUTCDay() === 1) ctx.waitUntil(runWeeklyDigest(env));
     ctx.waitUntil(runReengagement(env));
   },
   async fetch(request, env, ctx) {

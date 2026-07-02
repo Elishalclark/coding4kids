@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -530,7 +530,7 @@
 
   <!-- Send report to school modal -->
   <div class="modal-overlay hidden" id="schoolReportModal">
-    <div class="modal" style="max-width:560px;">
+    <div class="modal" style="width:min(92vw,600px);">
       <div class="chat-header">
         <span class="chat-avatar">🏫</span>
         <div style="flex:1;"><div class="chat-name">Send Report to School</div><div class="chat-status" id="srSchoolName">-</div></div>
@@ -611,7 +611,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -1267,7 +1267,7 @@
         return `<tr>
           <td style="max-width:280px;"><div style="white-space:pre-wrap;word-break:break-word;">${C4K.esc(c.body)}</div></td>
           <td>${C4K.esc(c.author || '?')}<br><span style="color:var(--text-faint);font-size:0.75rem;">@${C4K.esc(c.authorUsername || '')}</span>${c.schoolName ? `<br><span style="font-size:0.72rem;color:var(--purple);">🏫 ${C4K.esc(c.schoolName)}</span>` : ''}</td>
-          <td><a href="gallery.html" style="color:var(--purple);">${C4K.esc(c.projectTitle)}</a></td>
+          <td style="color:var(--purple);">${C4K.esc(c.projectTitle)}</td>
           <td><span style="font-weight:900;color:#f59e0b;">⚑ ${c.reports}</span></td>
           <td style="color:var(--text-dim);">${C4K.esc(c.at)}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -1541,7 +1541,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>

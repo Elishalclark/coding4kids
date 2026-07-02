@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -258,7 +258,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
     let ME = null;
 
@@ -278,7 +278,7 @@
       if (ME.role === 'admin' || ME.role === 'super_admin') return location.href = 'admin.html';
       if (ME.role !== 'teacher' || !ME.isDistrict) {
         return showGate('No District plan yet',
-          'The District Dashboard (branding + student management) is included with the School ($136/mo) and District ($150/mo) plans.',
+          'The District Dashboard (branding + student management) is included with the School ($105/mo) and District ($125/mo) plans.',
           'See school plans', 'index.html#schools');
       }
       document.getElementById('ddMain').style.display = '';
@@ -611,7 +611,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>

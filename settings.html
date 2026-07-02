@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=114" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -61,7 +61,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=81"></script>
+  <script src="auth.js?v=114"></script>
   <script>
     let ME = null;
     (async () => {
@@ -69,8 +69,9 @@
       if (!ME) { document.getElementById('stGate').style.display = ''; return; }
       document.getElementById('stMain').style.display = '';
       document.getElementById('homeLink').href = C4K.homeFor(ME);
-      // Kids can't log themselves out — only a parent/guardian can.
-      if (ME.role === 'kid') document.getElementById('logoutBtn').style.display = 'none';
+      // Kids can't log themselves out — only a parent/guardian can (except demo accounts).
+      const isDemo = ME.username && ME.username.toLowerCase().includes('demo');
+      if (ME.role === 'kid' && !isDemo) document.getElementById('logoutBtn').style.display = 'none';
       document.getElementById('meName').value = ME.name || '';
       document.getElementById('meUser').value = ME.username || '';
       document.getElementById('meEmail').value = ME.parentEmail || '';
@@ -118,7 +119,7 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=81" defer></script>
-  <script src="editor.js?v=81" defer></script>
+  <script src="pwa.js?v=114" defer></script>
+  <script src="editor.js?v=114" defer></script>
 </body>
 </html>
