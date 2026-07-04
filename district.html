@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=123" />
+  <link rel="stylesheet" href="styles.css?v=124" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -67,6 +67,9 @@
         <div class="sub" id="ddSub">District &amp; Library Dashboard</div>
       </div>
     </div>
+
+    <!-- Messages from KidVibers -->
+    <div id="noticesCard" style="display:none;margin-bottom:18px;display:flex;flex-direction:column;gap:10px;"></div>
 
     <!-- Class join code -->
     <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
@@ -276,7 +279,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=123"></script>
+  <script src="auth.js?v=124"></script>
   <script>
     let ME = null;
 
@@ -313,6 +316,7 @@
         document.getElementById('brLogo').value = ME.brandLogo || '';
       }
       loadRoster();
+      loadNotices();
       loadDDProgress();
       loadSchedule();
       initAssignments();
@@ -436,6 +440,23 @@
       const isP = tab === 'progress';
       document.getElementById('ddProgPanel').style.display = isP ? '' : 'none';
       document.getElementById('ddLeaderPanel').style.display = isP ? 'none' : 'flex';
+    }
+
+    async function loadNotices() {
+      const { ok, data } = await C4K.api('/api/notices');
+      if (!ok || !data.notices || !data.notices.length) return;
+      const card = document.getElementById('noticesCard');
+      card.style.display = 'flex';
+      card.innerHTML = data.notices.map(n => `
+        <div style="display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#2e1457,#4c1d95);border:1px solid var(--border-bright);border-radius:14px;padding:16px 18px;">
+          <span style="font-size:1.3rem;">📣</span>
+          <div style="flex:1;">
+            <div style="font-weight:900;color:#fbbf24;font-size:0.92rem;">Message from KidVibers</div>
+            <div style="color:#e6dcff;font-size:0.9rem;line-height:1.5;margin-top:3px;white-space:pre-wrap;word-break:break-word;">${C4K.esc(n.body)}</div>
+            <div style="color:#a58fd6;font-size:0.72rem;margin-top:6px;">${C4K.esc(n.at)}</div>
+          </div>
+          <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:1.1rem;line-height:1;">✕</button>
+        </div>`).join('');
     }
 
     function paintHeader() {
@@ -676,7 +697,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=123" defer></script>
-  <script src="editor.js?v=123" defer></script>
+  <script src="pwa.js?v=124" defer></script>
+  <script src="editor.js?v=124" defer></script>
 </body>
 </html>

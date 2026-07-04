@@ -1,23 +1,18 @@
 // KidVibers visual editor.
-// - For EVERYONE: applies published colors, filters, text edits, and added blocks on load.
-// - ONLY on the staging site shows an "Edit Site" toolbar: click text to edit, change
-//   colors & filters, ADD text/image blocks, then Save (staging) / Submit for approval.
+// - For EVERYONE: applies published filters, text edits, and added blocks on load.
+// - ONLY on the staging site shows an "Edit Site" toolbar: click text to edit, adjust
+//   brightness/contrast, ADD text/image blocks, then Save (staging) / Submit for approval.
 //   Submitting sends the change to the super admin, who approves or denies it before it
 //   goes live. Edits are DB overrides - no files rewritten; the live site is never edited in place.
+// - Color changing is intentionally NOT available: the KidVibers brand colors are locked.
 (function () {
   const PAGE = (location.pathname.replace(/\/+$/, "") || "/index.html");
-  const COLOR_VARS = [
-    { v: "--purple", label: "Primary" }, { v: "--pink", label: "Accent" },
-    { v: "--bg", label: "Background" }, { v: "--surface", label: "Cards" },
-    { v: "--text", label: "Text" }, { v: "--yellow", label: "Highlight" },
-  ];
-  let edits = { colors: {}, texts: {}, blocks: {}, filters: {} };
+  let edits = { texts: {}, blocks: {}, filters: {} };
   let editing = false;
+  // Only tonal (non-color) adjustments — hue/saturation are excluded so the brand colors stay locked.
   const FILTERS = [
     { k: "brightness", label: "Brightness", min: 50, max: 150, def: 100, unit: "%" },
     { k: "contrast", label: "Contrast", min: 50, max: 150, def: 100, unit: "%" },
-    { k: "saturate", label: "Saturation", min: 0, max: 200, def: 100, unit: "%" },
-    { k: "hue-rotate", label: "Hue shift", min: 0, max: 360, def: 0, unit: "deg" },
   ];
 
   function token() { return localStorage.getItem("c4k_token"); }
@@ -38,7 +33,6 @@
         el.children.length === 0 && (el.textContent || "").trim().length > 0;
     });
   }
-  function applyColors(c) { for (const k in (c || {})) document.documentElement.style.setProperty(k, c[k]); }
   function applyFilters(f) {
     f = f || {};
     const parts = FILTERS.filter(function (x) { return f[x.k] != null && Number(f[x.k]) !== x.def; })
@@ -109,8 +103,10 @@
     let r; try { r = await api("/api/site-edits"); } catch (e) { return; }
     if (!r.ok) return;  // no endpoint (Mac site) -> editor stays off
     try { edits = await r.json(); } catch (e) { edits = {}; }
-    edits.colors = edits.colors || {}; edits.texts = edits.texts || {}; edits.blocks = edits.blocks || {}; edits.filters = edits.filters || {};
-    applyColors(edits.colors); applyFilters(edits.filters); applyTexts(edits.texts); renderBlocks();
+    edits.texts = edits.texts || {}; edits.blocks = edits.blocks || {}; edits.filters = edits.filters || {};
+    // Colors are locked — never apply any saved color overrides, even legacy ones.
+    delete edits.colors;
+    applyFilters(edits.filters); applyTexts(edits.texts); renderBlocks();
     // Editing toolbar appears ONLY on staging (canEdit). The live site is never editable in place.
     if (edits.canEdit) mountFab();
   }
@@ -178,14 +174,6 @@
     inp.click();
   }
 
-  function toHex(c) {
-    c = (c || "").trim();
-    if (/^#([0-9a-f]{6})$/i.test(c)) return c;
-    const m = c.match(/rgba?\(([^)]+)\)/);
-    if (m) { const p = m[1].split(",").map(function (x) { return parseInt(x, 10); }); return "#" + p.slice(0, 3).map(function (x) { return (x || 0).toString(16).padStart(2, "0"); }).join(""); }
-    return "#7c3aed";
-  }
-
   function mountPanel() {
     const p = document.createElement("div");
     p.id = "editPanel";
@@ -198,10 +186,7 @@
         '<button id="edAddText" style="flex:1;padding:9px;border:1px solid #3a2f63;border-radius:9px;background:#221d3d;color:#fff;font-weight:800;cursor:pointer;font-size:0.8rem;">➕ Text</button>' +
         '<button id="edAddImg" style="flex:1;padding:9px;border:1px solid #3a2f63;border-radius:9px;background:#221d3d;color:#fff;font-weight:800;cursor:pointer;font-size:0.8rem;">🖼️ Image</button>' +
       '</div>' +
-      '<div style="font-weight:800;font-size:0.8rem;margin-bottom:6px;">🎨 Colors</div>' +
-      '<div id="editColors" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>' +
-      '<button id="edResetColors" style="width:100%;padding:7px;border:1px solid #3a2f63;border-radius:9px;background:none;color:#bdb6d6;font-weight:800;cursor:pointer;font-size:0.76rem;margin-bottom:14px;">↺ Reset to original KidVibers colors</button>' +
-      '<div style="font-weight:800;font-size:0.8rem;margin-bottom:6px;">🪄 Filters</div>' +
+      '<div style="font-weight:800;font-size:0.8rem;margin-bottom:6px;">🪄 Brightness &amp; Contrast</div>' +
       '<div id="editFilters" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>' +
       '<button id="edResetFilters" style="width:100%;padding:7px;border:1px solid #3a2f63;border-radius:9px;background:none;color:#bdb6d6;font-weight:800;cursor:pointer;font-size:0.76rem;margin-bottom:14px;">↺ Reset filters</button>' +
       '<button id="edSave" style="width:100%;padding:10px;border:none;border-radius:10px;background:#7c3aed;color:#fff;font-weight:900;cursor:pointer;margin-bottom:6px;">💾 Save to staging</button>' +
@@ -210,17 +195,6 @@
       '<button id="edExit" style="width:100%;padding:8px;border:1px solid #3a2f63;border-radius:10px;background:none;color:#bdb6d6;font-weight:800;cursor:pointer;">Done</button>' +
       '<div id="edMsg" style="font-size:0.76rem;margin-top:8px;min-height:14px;text-align:center;"></div>';
     document.body.appendChild(p);
-    const cc = p.querySelector("#editColors");
-    COLOR_VARS.forEach(function (c) {
-      const cur = edits.colors[c.v] || getComputedStyle(document.documentElement).getPropertyValue(c.v);
-      const row = document.createElement("label");
-      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;cursor:pointer;";
-      row.appendChild(Object.assign(document.createElement("span"), { textContent: c.label }));
-      const inp = document.createElement("input");
-      inp.type = "color"; inp.value = toHex(cur); inp.style.cssText = "width:40px;height:26px;border:none;background:none;cursor:pointer;";
-      inp.oninput = function () { document.documentElement.style.setProperty(c.v, inp.value); edits.colors[c.v] = inp.value; };
-      row.appendChild(inp); cc.appendChild(row);
-    });
     const fc = p.querySelector("#editFilters");
     FILTERS.forEach(function (f) {
       const cur = edits.filters[f.k] != null ? Number(edits.filters[f.k]) : f.def;
@@ -238,18 +212,6 @@
       };
       row.appendChild(head); row.appendChild(inp); fc.appendChild(row);
     });
-    p.querySelector("#edResetColors").onclick = function () {
-      // Drop every color override so the original styles.css theme shows through again.
-      for (const k in edits.colors) document.documentElement.style.removeProperty(k);
-      COLOR_VARS.forEach(function (c) { document.documentElement.style.removeProperty(c.v); });
-      edits.colors = {};
-      // Refresh each picker to the restored default color.
-      const colorInputs = cc.querySelectorAll('input[type="color"]');
-      COLOR_VARS.forEach(function (c, i) {
-        if (colorInputs[i]) colorInputs[i].value = toHex(getComputedStyle(document.documentElement).getPropertyValue(c.v));
-      });
-      toast("↺ Colors reset to the original KidVibers theme.");
-    };
     p.querySelector("#edResetFilters").onclick = function () {
       edits.filters = {}; applyFilters(edits.filters);
       const inps = fc.querySelectorAll("input"); const spans = fc.querySelectorAll("span");

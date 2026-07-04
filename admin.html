@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=123" />
+  <link rel="stylesheet" href="styles.css?v=124" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -529,7 +529,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=123"></script>
+  <script src="auth.js?v=124"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -644,7 +644,11 @@
       // every registered account, kept forever
       const accts = (await C4K.api('/api/admin/accounts')).data.accounts || [];
       document.getElementById('acctCount').textContent = `· ${accts.length} kept`;
-      const roleTag = r => r === 'parent' ? '👨‍👩‍👧 parent' : (r === 'admin' ? '🛠️ admin' : '👦 kid');
+      const roleTag = (r, plan) => r === 'parent' ? '👨‍👩‍👧 parent'
+        : (r === 'admin' ? '🛠️ admin'
+        : (r === 'super_admin' ? '👑 super admin'
+        : (r === 'teacher' ? (plan === 'district' ? '🏛️ district' : plan === 'school' ? '🏫 school' : '🍎 teacher')
+        : '👦 kid')));
       document.getElementById('acctActionHead').textContent = sup ? 'Actions' : '';
       document.getElementById('acctRows').innerHTML = accts.length ? accts.map((a, i) => {
         const nm = (a.name||'').replace(/'/g,"\\'").replace(/</g,'').replace(/>/g,'');
@@ -654,7 +658,7 @@
            <td>${i + 1}</td>
            <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}</td>
            <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span>${(sup && a.role === 'kid' && a.parentEmail) ? `<br><span style="color:var(--text-faint);font-size:0.72rem;">📧 ${C4K.esc(a.parentEmail)}</span>` : ''}</td>
-           <td>${roleTag(a.role)}</td>
+           <td>${roleTag(a.role, a.plan)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
            <td style="color:var(--text-dim);">${a.joined || '-'}</td>
            <td>${sup ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -1350,7 +1354,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=123" defer></script>
-  <script src="editor.js?v=123" defer></script>
+  <script src="pwa.js?v=124" defer></script>
+  <script src="editor.js?v=124" defer></script>
 </body>
 </html>
