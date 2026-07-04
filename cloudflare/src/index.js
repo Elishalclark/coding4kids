@@ -2825,14 +2825,17 @@ async function editAuth(env, request) {
   return json({ error: "The live site can't be edited directly - make changes on staging and Publish." }, 403);
 }
 async function apiSiteEditsGet(env) {
-  const e = await getSetting(env, "site_edits", { colors: {}, texts: {}, blocks: {}, filters: {} });
+  const e = await getSetting(env, "site_edits", { texts: {}, blocks: {}, filters: {} });
   // canEdit is true ONLY on staging - so the editor toolbar never appears on the live site.
-  return new Response(JSON.stringify({ colors: e.colors || {}, texts: e.texts || {}, blocks: e.blocks || {}, filters: e.filters || {}, canEdit: !!env.STAGING_USER }),
+  // Colors are locked: never serve any saved color override, so the KidVibers brand colors
+  // always stay original everywhere (even for browsers running an older cached editor.js).
+  return new Response(JSON.stringify({ colors: {}, texts: e.texts || {}, blocks: e.blocks || {}, filters: e.filters || {}, canEdit: !!env.STAGING_USER }),
     { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS } });
 }
 async function apiSiteEditsSave(env, request, data) {
   const err = await editAuth(env, request); if (err) return err;
-  const clean = { colors: (data && data.colors) || {}, texts: (data && data.texts) || {}, blocks: (data && data.blocks) || {}, filters: (data && data.filters) || {} };
+  // Colors are intentionally dropped — the brand colors can't be changed.
+  const clean = { texts: (data && data.texts) || {}, blocks: (data && data.blocks) || {}, filters: (data && data.filters) || {} };
   if (JSON.stringify(clean).length > 4_000_000) return json({ error: "Too much content/images to save - try smaller or fewer images." }, 413);
   await setSetting(env, "site_edits", clean);
   return json({ ok: true });
