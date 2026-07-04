@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=122" />
+  <link rel="stylesheet" href="styles.css?v=123" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -138,16 +138,6 @@
       </div>
     </div>
 
-    <!-- Reports Inbox (teachers/schools only) -->
-    <div id="reportsInbox" style="display:none;margin-bottom:28px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-        <span style="font-size:1.4rem;">🚩</span>
-        <h2 style="font-size:1.1rem;font-weight:900;margin:0;flex:1;">Reports Inbox</h2>
-        <span id="inboxBadge" style="display:none;background:#ef4444;color:#fff;font-size:0.7rem;font-weight:900;padding:3px 10px;border-radius:50px;"></span>
-      </div>
-      <div id="inboxList" style="display:flex;flex-direction:column;gap:10px;"></div>
-      <p id="inboxEmpty" style="display:none;color:var(--text-dim);font-size:0.88rem;margin:0;">✅ No reports — your school is in good standing!</p>
-    </div>
 
     <div id="msgWrap" class="hidden" style="margin-bottom:28px;">
       <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:14px;">📬 Messages</h2>
@@ -248,7 +238,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=122"></script>
+  <script src="auth.js?v=123"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -529,222 +519,6 @@
 
     load();
 
-    // ── School reports popup ───────────────────────────
-    let _allSchoolReports = [];
-
-    async function loadSchoolReports() {
-      const { ok, data } = await C4K.api('/api/school/reports');
-      if (!ok) return;
-      _allSchoolReports = data.reports || [];
-      if (!_allSchoolReports.length) return;
-
-      // Show the inbox card
-      document.getElementById('reportsInbox').style.display = '';
-      const pending = _allSchoolReports.filter(r => r.status !== 'actioned');
-      const badge = document.getElementById('inboxBadge');
-      if (pending.length) { badge.style.display = ''; badge.textContent = pending.length + ' pending'; }
-      renderInbox();
-
-      // Pop up unread reports right away
-      const unread = _allSchoolReports.filter(r => r.status === 'unread');
-      if (unread.length) showReportPopup(unread, 0);
-    }
-
-    function renderInbox() {
-      const list = document.getElementById('inboxList');
-      const empty = document.getElementById('inboxEmpty');
-      empty.style.display = _allSchoolReports.length ? 'none' : '';
-      list.innerHTML = _allSchoolReports.map(r => {
-        const actioned = r.status === 'actioned';
-        const statusBadge = actioned
-          ? `<span style="background:rgba(34,197,94,.18);color:#4ade80;font-size:0.68rem;font-weight:900;padding:2px 8px;border-radius:50px;">✅ Actioned</span>`
-          : (r.status === 'unread'
-            ? `<span style="background:#ef4444;color:#fff;font-size:0.68rem;font-weight:900;padding:2px 8px;border-radius:50px;">🔴 New</span>`
-            : `<span style="background:rgba(245,158,11,.18);color:#f59e0b;font-size:0.68rem;font-weight:900;padding:2px 8px;border-radius:50px;">⏳ Pending</span>`);
-        return `<div style="background:var(--surface-2);border:1px solid ${r.status==='unread'?'#ef4444':actioned?'rgba(34,197,94,.3)':'var(--border)'};border-radius:12px;padding:14px 16px;">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span style="font-size:1.1rem;">🚩</span>
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:900;font-size:0.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                ${C4K.esc(r.kidName)} (@${C4K.esc(r.kidUsername)})
-              </div>
-              <div style="color:var(--text-dim);font-size:0.78rem;margin-top:1px;">${C4K.esc(r.reason)} · ${C4K.esc(r.at)}</div>
-              ${r.schoolAction ? `<div style="color:var(--green,#4ade80);font-size:0.78rem;margin-top:2px;font-weight:700;">Action taken: ${C4K.esc(r.schoolAction)}</div>` : ''}
-            </div>
-            ${statusBadge}
-            ${!actioned ? `<button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="showReportPopup([${JSON.stringify(r).replace(/</g,'\\u003c').replace(/'/g,"\\'")}],0)">View &amp; Act</button>` : ''}
-          </div>
-        </div>`;
-      }).join('');
-    }
-
-    function showReportPopup(reports, idx) {
-      const r = reports[idx];
-      if (!r) return;
-      const existing = document.getElementById('srPopup');
-      if (existing) existing.remove();
-      const toItems = txt => (txt||'').split('\n').filter(Boolean).map(a => `<li style="margin-bottom:4px;">${C4K.esc(a.replace(/^•\s*/,''))}</li>`).join('');
-      const nav = reports.length > 1
-        ? `<div style="text-align:center;color:#7c6faa;font-size:0.85rem;font-weight:800;margin-bottom:14px;">
-             Report ${idx+1} of ${reports.length} &nbsp;
-             <button onclick="showReportPopup(window._rpList,${idx-1})" ${idx===0?'disabled':''} style="background:none;border:1px solid #3a2f63;color:#bdb6d6;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:800;">← Prev</button>
-             <button onclick="showReportPopup(window._rpList,${idx+1})" ${idx===reports.length-1?'disabled':''} style="background:none;border:1px solid #3a2f63;color:#bdb6d6;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:800;">Next →</button>
-           </div>` : '';
-      window._rpList = reports;
-      const ov = document.createElement('div');
-      ov.id = 'srPopup';
-      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(6,4,14,0.93);backdrop-filter:blur(6px);overflow-y:auto;padding:20px;font-family:\'Nunito\',system-ui,sans-serif;';
-      ov.innerHTML = `
-        <div style="max-width:580px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#7f1d1d,#991b1b);border:1px solid rgba(239,68,68,.4);border-radius:18px 18px 0 0;padding:20px 24px;display:flex;align-items:center;gap:14px;">
-            <span style="font-size:2rem;">🚩</span>
-            <div style="flex:1;">
-              <div style="font-size:1.1rem;font-weight:900;color:#fff;">Student Report from KidVibers</div>
-              <div style="font-size:0.8rem;color:#fca5a5;margin-top:2px;">KidVibers Safety Team · ${C4K.esc(r.at)}</div>
-            </div>
-          </div>
-          <div style="background:#170f1e;border:1px solid rgba(239,68,68,.3);border-top:none;border-radius:0 0 18px 18px;padding:22px;">
-            <div style="background:#0f0a18;border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-              <div style="font-size:0.68rem;font-weight:900;color:#f87171;letter-spacing:0.06em;margin-bottom:5px;">REPORTED STUDENT</div>
-              <div style="font-size:1.05rem;font-weight:900;color:#fff;">${C4K.esc(r.kidName)}</div>
-              <div style="font-size:0.82rem;color:#c4b5fd;margin-top:2px;">@${C4K.esc(r.kidUsername)}</div>
-            </div>
-            <div style="background:#0f0a18;border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-              <div style="font-size:0.68rem;font-weight:900;color:#f59e0b;letter-spacing:0.06em;margin-bottom:5px;">REPORTED FOR</div>
-              <div style="font-size:1rem;font-weight:800;color:#fff;">${C4K.esc(r.reason)}</div>
-              ${r.commentBody ? `<div style="margin-top:8px;font-size:0.82rem;color:#9b93c4;font-style:italic;background:#08060f;border-radius:8px;padding:8px 10px;">"${C4K.esc(r.commentBody)}"</div>` : ''}
-            </div>
-            ${r.adminMessage ? `<div style="background:#0f0a18;border:1px solid rgba(167,139,250,.3);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-              <div style="font-size:0.68rem;font-weight:900;color:#a78bfa;letter-spacing:0.06em;margin-bottom:5px;">💬 MESSAGE FROM KIDVIBERS</div>
-              <div style="color:#e0d4ff;font-size:0.88rem;line-height:1.6;">${C4K.esc(r.adminMessage)}</div>
-            </div>` : ''}
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
-              <div style="background:#0a1a12;border:1px solid rgba(34,197,94,.25);border-radius:12px;padding:12px 14px;">
-                <div style="font-size:0.68rem;font-weight:900;color:#4ade80;letter-spacing:0.06em;margin-bottom:6px;">✅ WHAT YOU CAN DO</div>
-                <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:#a7f3c0;">${toItems(r.actionsSchool)}</ul>
-              </div>
-              <div style="background:#1a140a;border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:12px 14px;">
-                <div style="font-size:0.68rem;font-weight:900;color:#f59e0b;letter-spacing:0.06em;margin-bottom:6px;">⚠️ WHAT KIDVIBERS MAY DO</div>
-                <ul style="margin:0;padding:0 0 0 14px;font-size:0.8rem;color:#fde68a;">${toItems(r.actionsAdmin)}</ul>
-              </div>
-            </div>
-            ${nav}
-            <button onclick="openActionPopup(${r.id},'${C4K.esc(r.kidName).replace(/'/g,"\\'")}','${C4K.esc(r.kidUsername).replace(/'/g,"\\'")}')" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
-              ✅ Understood — I will take action
-            </button>
-            <p style="text-align:center;font-size:0.76rem;color:#6f6890;margin-top:10px;">This report stays in your dashboard for your records.</p>
-          </div>
-        </div>`;
-      document.body.appendChild(ov);
-      document.body.style.overflow = 'hidden';
-    }
-    loadSchoolReports();
-
-    function openActionPopup(reportId, kidName, kidUsername) {
-      document.getElementById('srPopup').remove();
-      document.body.style.overflow = 'hidden';
-      const existing = document.getElementById('srActionPopup');
-      if (existing) existing.remove();
-      const ov = document.createElement('div');
-      ov.id = 'srActionPopup';
-      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(6,4,14,0.93);backdrop-filter:blur(6px);overflow-y:auto;padding:20px;font-family:\'Nunito\',system-ui,sans-serif;';
-      ov.innerHTML = `
-        <div style="max-width:520px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#1e3a5f,#1d4ed8);border:1px solid rgba(59,130,246,.4);border-radius:18px 18px 0 0;padding:20px 24px;display:flex;align-items:center;gap:14px;">
-            <span style="font-size:2rem;">⚖️</span>
-            <div>
-              <div style="font-size:1.1rem;font-weight:900;color:#fff;">What action are you taking?</div>
-              <div style="font-size:0.82rem;color:#bfdbfe;margin-top:2px;">Student: ${C4K.esc(kidName)} (@${C4K.esc(kidUsername)})</div>
-            </div>
-          </div>
-          <div style="background:#0f1a2e;border:1px solid rgba(59,130,246,.3);border-top:none;border-radius:0 0 18px 18px;padding:22px;">
-            <p style="color:#93c5fd;font-size:0.88rem;margin:0 0 16px;">Select the action you are taking. This will be sent to KidVibers so we know the situation is being handled.</p>
-
-            <div id="srActionList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-              ${[
-                ['⚠️ Verbal warning', 'Gave the student a verbal warning about their behaviour'],
-                ['📧 Contacted parent/guardian', 'Reached out to the student\'s parent or guardian'],
-                ['📝 Written warning on file', 'Issued a formal written warning and kept it on record'],
-                ['⏸️ Suspended from KidVibers (1 day)', 'Suspended the student\'s access for 1 day'],
-                ['⏸️ Suspended from KidVibers (1 week)', 'Suspended the student\'s access for 1 week'],
-                ['🚫 Removed from the platform', 'Permanently removed the student from KidVibers'],
-                ['🔍 Under investigation', 'The situation is being investigated before action is taken'],
-              ].map(([label, val]) => `
-                <label style="display:flex;align-items:center;gap:12px;background:#0a1628;border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(59,130,246,.5)'" onmouseout="this.style.borderColor='rgba(59,130,246,.2)'">
-                  <input type="radio" name="srAction" value="${C4K.esc(val)}" style="width:16px;height:16px;accent-color:#3b82f6;">
-                  <span style="font-weight:800;color:#e0f0ff;font-size:0.9rem;">${label}</span>
-                </label>`).join('')}
-            </div>
-
-            <label style="display:block;margin-bottom:14px;">
-              <div style="font-size:0.75rem;font-weight:900;color:#60a5fa;margin-bottom:6px;">📝 ADDITIONAL NOTES <span style="color:#4a6380;font-weight:600;">(optional)</span></div>
-              <textarea id="srActionNotes" rows="2" placeholder="Any extra details about the action taken…" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid rgba(59,130,246,.3);background:#0a1628;color:#e0f0ff;font-family:inherit;font-weight:700;font-size:0.88rem;resize:vertical;"></textarea>
-            </label>
-
-            <div id="srActionErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;margin-bottom:8px;"></div>
-            <button onclick="submitAction(${reportId})" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">
-              📨 Submit my action
-            </button>
-            <button onclick="skipToInbox()" style="width:100%;margin-top:8px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:none;color:#6f6890;font-weight:800;font-size:0.88rem;cursor:pointer;font-family:inherit;">
-              📥 I'll handle this later — go to inbox
-            </button>
-          </div>
-        </div>`;
-      document.body.appendChild(ov);
-    }
-
-    function skipToInbox() {
-      const popup = document.getElementById('srActionPopup');
-      if (popup) popup.remove();
-      const rp = document.getElementById('srPopup');
-      if (rp) rp.remove();
-      document.body.style.overflow = '';
-      const inbox = document.getElementById('reportsInbox');
-      if (inbox) {
-        inbox.style.display = '';
-        inbox.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Flash the inbox to draw attention
-        inbox.style.transition = 'border-color .3s';
-        inbox.style.borderColor = '#ef4444';
-        setTimeout(() => { inbox.style.borderColor = ''; }, 1200);
-      }
-    }
-
-    async function submitAction(reportId) {
-      const selected = document.querySelector('input[name="srAction"]:checked');
-      const err = document.getElementById('srActionErr');
-      if (!selected) { err.textContent = 'Please select an action.'; return; }
-      const notes = document.getElementById('srActionNotes').value.trim();
-      const btn = document.querySelector('#srActionPopup button');
-      btn.disabled = true; btn.textContent = 'Sending…';
-      const { ok, data } = await C4K.api('/api/school/reports/respond', 'POST', {
-        reportId, action: selected.value, notes
-      });
-      if (ok) {
-        document.getElementById('srActionPopup').remove();
-        document.body.style.overflow = '';
-        // Update local record and refresh inbox
-        const rep = _allSchoolReports.find(r => r.id === reportId);
-        if (rep) {
-          const notes = document.getElementById('srActionNotes') ? document.getElementById('srActionNotes').value.trim() : '';
-          rep.schoolAction = selected.value + (notes ? ' — ' + notes : '');
-          rep.status = 'actioned';
-        }
-        renderInbox();
-        // Scroll to inbox
-        const inbox = document.getElementById('reportsInbox');
-        if (inbox) inbox.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Show a brief confirmation
-        const toast = document.createElement('div');
-        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-weight:900;padding:14px 26px;border-radius:50px;z-index:9999;font-family:inherit;font-size:0.95rem;box-shadow:0 8px 30px rgba(0,0,0,.4);';
-        toast.textContent = '✅ Action recorded — KidVibers has been notified.';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
-      } else {
-        err.textContent = (data && data.error) || 'Could not submit. Try again.';
-        btn.disabled = false; btn.textContent = '📨 Submit my action';
-      }
-    }
 
     // ── School Hours Schedule ──────────────────────────
     // ── Progress + Leaderboard ──────────────────────────
@@ -855,7 +629,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=122" defer></script>
-  <script src="editor.js?v=122" defer></script>
+  <script src="pwa.js?v=123" defer></script>
+  <script src="editor.js?v=123" defer></script>
 </body>
 </html>

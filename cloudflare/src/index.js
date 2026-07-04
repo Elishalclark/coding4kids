@@ -1225,21 +1225,10 @@ async function apiClassJoin(env, request, data) {
   return json({ ok: true, user: await publicUser(env, row), groupName: grp.groupName || (teacher.school || "the classroom"), groupLabel: grp.groupLabel || "Classroom" });
 }
 
-// ───────────────────────── gallery / projects / comments ─────────────────────────
-const PROJECT_MAX = 50, CODE_MAX = 20000, TITLE_MAX = 60, COMMENT_MAX = 500;
-const BAD_WORDS = [
-  "fuck", "shit", "bitch", "asshole", "bastard", "dick", "piss", "cunt", "slut",
-  "whore", "fag", "faggot", "nigger", "nigga", "retard", "rape", "kill yourself",
-  "kys", "stupid idiot", "loser", "hate you", "dumbass", "douche", "crap",
-  "penis", "vagina", "sex", "porn", "nude",
-];
-function containsBadWords(text) {
-  const low = (text || "").toLowerCase();
-  const squashed = low.replace(/@/g, "a").replace(/\$/g, "s").replace(/!/g, "i")
-    .replace(/0/g, "o").replace(/1/g, "i").replace(/3/g, "e").replace(/4/g, "a").replace(/[^a-z]/g, "");
-  for (const w of BAD_WORDS) { if (w.replace(/ /g, "") && squashed.includes(w.replace(/ /g, ""))) return true; if (low.includes(w)) return true; }
-  return false;
-}
+// ───────────────────────── private projects (Vibe Studio) ─────────────────────────
+// Projects are private to the child's own account. There is no public gallery,
+// sharing, likes, or comments feature — kids only save their own work.
+const PROJECT_MAX = 50, CODE_MAX = 20000, TITLE_MAX = 60;
 // simple in-memory rate limiter (best-effort per isolate)
 const rlMap = new Map();
 function rateLimited(key, max, windowSec) {
@@ -1249,47 +1238,6 @@ function rateLimited(key, max, windowSec) {
   return e.count > max;
 }
 function firstName(u) { return cleanName((u.name || u.username || "").split(" ")[0]) || "A coder"; }
-function projectPublic(r, withCode = false, liked = null) {
-  const out = { id: r.id, title: r.title, author: r.author_name, shared: !!r.shared, likes: r.likes ?? 0, updatedAt: (r.updated_at || "").slice(0, 16).replace("T", " ") };
-  if (withCode) out.code = r.code;
-  if (liked !== null) out.liked = liked;
-  return out;
-}
-
-async function apiGallery(env, request) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const rows = (await env.DB.prepare(
-    "SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes, " +
-    "(SELECT COUNT(*) FROM project_likes WHERE project_id=p.id AND user_id=?) mine " +
-    "FROM projects p WHERE p.shared=1 ORDER BY likes DESC, p.updated_at DESC LIMIT 200").bind(u.id).all()).results || [];
-  return json({ canModerate: u.role === "super_admin", projects: rows.map((r) => projectPublic(r, true, !!r.mine)) });
-}
-
-async function apiProjectGet(env, request, pid) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const r = await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes FROM projects p WHERE p.id=?").bind(pid).first();
-  if (!r) return json({ error: "Project not found" }, 404);
-  if (!r.shared && r.user_id !== u.id && u.role !== "super_admin") return json({ error: "This project is private." }, 403);
-  return json({ project: projectPublic(r, true) });
-}
-
-async function apiCommentsGet(env, request, pid) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const proj = await env.DB.prepare("SELECT user_id, shared FROM projects WHERE id=?").bind(pid).first();
-  if (!proj || (!proj.shared && proj.user_id !== u.id && u.role !== "super_admin")) return json({ error: "Project not found" }, 404);
-  const rows = (await env.DB.prepare("SELECT * FROM comments WHERE project_id=? ORDER BY id").bind(pid).all()).results || [];
-  const isMod = u.role === "super_admin", ownsProject = proj.user_id === u.id;
-  return json({ comments: rows
-    // Hide reported comments from everyone except the super admin and the comment's own author
-    .filter(c => !c.reported || isMod || c.user_id === u.id)
-    .map((c) => ({
-      id: c.id, author: c.author_name, body: c.body, at: (c.created_at || "").slice(0, 16).replace("T", " "),
-      reported: isMod ? !!c.reported : false, canDelete: isMod || ownsProject || c.user_id === u.id,
-    })) });
-}
 
 async function apiProjectSave(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -1312,95 +1260,6 @@ async function apiProjectSave(env, request, data) {
     pid = res.meta.last_row_id;
   }
   return json({ ok: true, id: pid });
-}
-
-async function apiProjectShare(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
-  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
-  const shared = data.shared ? 1 : 0;
-  const row = await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
-  if (!row) return json({ error: "Project not found" }, 404);
-  await env.DB.prepare("UPDATE projects SET shared=?, updated_at=? WHERE id=?").bind(shared, nowIso(), data.id).run();
-  return json({ ok: true, shared: !!shared });
-}
-
-async function apiProjectDelete(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const row = u.role === "super_admin"
-    ? await env.DB.prepare("SELECT id FROM projects WHERE id=?").bind(data.id).first()
-    : await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
-  if (!row) return json({ error: "Project not found" }, 404);
-  await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(data.id).run();
-  await env.DB.prepare("DELETE FROM project_likes WHERE project_id=?").bind(data.id).run();
-  return json({ ok: true });
-}
-
-async function apiProjectLike(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const proj = await env.DB.prepare("SELECT shared FROM projects WHERE id=?").bind(data.id).first();
-  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
-  const existing = await env.DB.prepare("SELECT 1 FROM project_likes WHERE user_id=? AND project_id=?").bind(u.id, data.id).first();
-  let liked;
-  if (existing) { await env.DB.prepare("DELETE FROM project_likes WHERE user_id=? AND project_id=?").bind(u.id, data.id).run(); liked = false; }
-  else { await env.DB.prepare("INSERT INTO project_likes (user_id,project_id) VALUES (?,?)").bind(u.id, data.id).run(); liked = true; }
-  const likes = (await env.DB.prepare("SELECT COUNT(*) c FROM project_likes WHERE project_id=?").bind(data.id).first()).c;
-  return json({ ok: true, liked, likes });
-}
-
-async function apiCommentAdd(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
-  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
-  if (rateLimited(`comment:${u.id}`, 6, 60)) return json({ error: "Whoa, slow down a sec! Try again in a moment. 🙂" }, 429);
-  const body = cleanName(data.body || "").slice(0, COMMENT_MAX);
-  if (!body) return json({ error: "Write something first!" }, 400);
-  if (containsBadWords(body)) return json({ error: "Please keep comments kind and clean. That message wasn't posted." }, 400);
-  const proj = await env.DB.prepare("SELECT shared FROM projects WHERE id=?").bind(data.projectId).first();
-  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
-  await env.DB.prepare("INSERT INTO comments (project_id,user_id,author_name,body,reported,created_at) VALUES (?,?,?,?,0,?)")
-    .bind(data.projectId, u.id, firstName(u), body, nowIso()).run();
-  return json({ ok: true });
-}
-
-async function apiCommentDelete(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const c = await env.DB.prepare("SELECT c.*, p.user_id AS owner FROM comments c JOIN projects p ON p.id=c.project_id WHERE c.id=?").bind(data.id).first();
-  if (!c) return json({ error: "Comment not found" }, 404);
-  if (!(u.role === "super_admin" || c.user_id === u.id || c.owner === u.id)) return json({ error: "forbidden" }, 403);
-  await env.DB.prepare("DELETE FROM comments WHERE id=?").bind(data.id).run();
-  return json({ ok: true });
-}
-
-async function apiCommentReport(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const c = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(data.id).first();
-  if (!c) return json({ error: "Comment not found" }, 404);
-  // One report per user per comment, so a single kid can't inflate the count to harass someone.
-  if (rateLimited(`report:${u.id}:${data.id}`, 1, 86400)) return json({ ok: true });
-  await env.DB.prepare("UPDATE comments SET reported=reported+1 WHERE id=?").bind(data.id).run();
-  return json({ ok: true });
-}
-
-async function apiProjectTakedown(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
-  { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
-  const reason = cleanName(data.reason || "").slice(0, 500);
-  const proj = await env.DB.prepare("SELECT id,shared FROM projects WHERE id=?").bind(data.projectId).first();
-  if (!proj || !proj.shared) return json({ error: "Project not found" }, 404);
-  const dup = await env.DB.prepare("SELECT id FROM takedowns WHERE project_id=? AND requester_id=? AND status='pending'").bind(data.projectId, u.id).first();
-  if (dup) return json({ ok: true, already: true });
-  await env.DB.prepare("INSERT INTO takedowns (project_id,requester_id,requester_name,reason,status,created_at) VALUES (?,?,?,?,'pending',?)")
-    .bind(data.projectId, u.id, firstName(u), reason, nowIso()).run();
-  return json({ ok: true });
 }
 
 // ───────────────────────── parent / teacher / district ─────────────────────────
@@ -2363,99 +2222,11 @@ async function adminSettingsGet(env, request) {
   const rows = (await env.DB.prepare("SELECT * FROM lessons ORDER BY position, id").all()).results || [];
   return json({ planSettings: await getPlanSettings(env), passPercent: await getPassPercent(env), unitNames: UNIT_NAMES, worlds: WORLDS, lessons: rows.map(lessonPublic) });
 }
-async function adminReportedComments(env, request) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const rows = (await env.DB.prepare(
-    "SELECT c.*, p.title AS project_title, us.username AS author_username, us.id AS author_id, " +
-    "us.family_id AS author_family_id, us.school AS author_school " +
-    "FROM comments c LEFT JOIN projects p ON p.id=c.project_id LEFT JOIN users us ON us.id=c.user_id " +
-    "WHERE c.reported > 0 ORDER BY c.reported DESC, c.id DESC"
-  ).all()).results || [];
-  // For each author, find their school (teacher account with same family_id)
-  const enriched = [];
-  for (const r of rows) {
-    let schoolId = null, schoolName = null;
-    if (r.author_family_id) {
-      const school = await env.DB.prepare("SELECT id,school FROM users WHERE (family_id=? OR id=?) AND role='teacher' LIMIT 1").bind(r.author_family_id, r.author_family_id).first();
-      if (school) { schoolId = school.id; schoolName = school.school || school.name; }
-    }
-    enriched.push({
-      id: r.id, body: r.body, author: r.author_name,
-      authorUsername: r.author_username ?? null, authorId: r.author_id ?? null,
-      projectId: r.project_id, projectTitle: r.project_title || "(deleted project)",
-      reports: r.reported, at: (r.created_at || "").slice(0, 16).replace("T", " "),
-      schoolId, schoolName,
-    });
-  }
-  return json({ comments: enriched });
-}
-
-async function adminSendSchoolReport(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const { schoolId, kidId, kidName, kidUsername, reason, commentBody, adminMessage } = data;
-  if (!schoolId || !kidName || !reason) return json({ error: "School, kid name, and reason are required." }, 400);
-  const school = await env.DB.prepare("SELECT id,school FROM users WHERE id=? AND role='teacher'").bind(schoolId).first();
-  if (!school) return json({ error: "School not found." }, 404);
-  const actionsSchool = "• Review the student's account and comments\n• Suspend the student if needed\n• Talk to the student and their guardian\n• Remove them from the platform if the behaviour continues";
-  const actionsAdmin = "• Remove the reported comment\n• Suspend or ban the student from KidVibers\n• Escalate to guardians via email\n• Permanently delete the account if required";
-  await env.DB.prepare(
-    "INSERT INTO school_reports (school_id,kid_id,kid_name,kid_username,reason,comment_body,admin_message,actions_school,actions_admin,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
-  ).bind(schoolId, kidId || null, kidName, kidUsername || "", reason, commentBody || "", adminMessage || "", actionsSchool, actionsAdmin, "unread", nowIso()).run();
-  await notifyAdmin(env, `🚩 Report sent to ${school.school}`, `🚩 *Report sent to school!*\n• School: ${school.school}\n• Student: ${kidName} (@${kidUsername})\n• Reason: ${reason}`);
-  return json({ ok: true });
-}
-
-async function apiSchoolReports(env, request) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
-  const rows = (await env.DB.prepare("SELECT * FROM school_reports WHERE school_id=? ORDER BY id DESC").bind(u.id).all()).results || [];
-  // Mark unread as read
-  await env.DB.prepare("UPDATE school_reports SET status='read' WHERE school_id=? AND status='unread'").bind(u.id).run();
-  return json({ reports: rows.map(r => ({
-    id: r.id, kidName: r.kid_name, kidUsername: r.kid_username, reason: r.reason,
-    commentBody: r.comment_body, adminMessage: r.admin_message,
-    actionsSchool: r.actions_school, actionsAdmin: r.actions_admin,
-    schoolAction: r.school_action ?? null,
-    status: r.status, at: (r.created_at || "").slice(0, 16).replace("T", " "),
-  })) });
-}
-
-async function apiSchoolReportsCount(env, request) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ count: 0 });
-  const row = await env.DB.prepare("SELECT COUNT(*) c FROM school_reports WHERE school_id=? AND status='unread'").bind(u.id).first();
-  return json({ count: row?.c || 0 });
-}
-
-async function apiSchoolReportRespond(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
-  const { reportId, action, notes } = data;
-  if (!reportId || !action) return json({ error: "Report ID and action are required." }, 400);
-  const report = await env.DB.prepare("SELECT * FROM school_reports WHERE id=? AND school_id=?").bind(reportId, u.id).first();
-  if (!report) return json({ error: "Report not found." }, 404);
-  const fullAction = notes ? `${action} — ${notes}` : action;
-  await env.DB.prepare("UPDATE school_reports SET school_action=?, status='actioned' WHERE id=?").bind(fullAction, reportId).run();
-  await notifyAdmin(env, `🏫 School action: ${report.kid_name}`, `🏫 *School took action on report!*\n• School: ${u.school || u.username}\n• Student: ${report.kid_name} (@${report.kid_username})\n• Reason: ${report.reason}\n• Action taken: ${fullAction}`);
-  return json({ ok: true });
-}
-async function adminTakedowns(env, request) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const rows = (await env.DB.prepare("SELECT t.*, p.title AS project_title, p.author_name AS project_author, p.shared AS project_shared FROM takedowns t LEFT JOIN projects p ON p.id=t.project_id WHERE t.status='pending' ORDER BY t.id DESC").all()).results || [];
-  return json({ takedowns: rows.map((r) => ({ id: r.id, projectId: r.project_id, projectTitle: r.project_title || "(deleted project)", projectAuthor: r.project_author ?? null, projectShared: !!r.project_shared, requester: r.requester_name, reason: r.reason, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
-}
 async function adminAccountRequests(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare("SELECT id,role,name,username,email,plan,requested_by,created_at FROM account_requests WHERE status='pending' ORDER BY id DESC").all()).results || [];
   return json({ requests: rows.map((r) => ({ id: r.id, role: r.role, name: r.name, username: r.username, email: r.email, plan: r.plan, requestedBy: r.requested_by, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
-async function apiProjectsMine(env, request) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  const rows = (await env.DB.prepare("SELECT p.*, (SELECT COUNT(*) FROM project_likes WHERE project_id=p.id) likes FROM projects p WHERE p.user_id=? ORDER BY p.updated_at DESC").bind(u.id).all()).results || [];
-  return json({ projects: rows.map((r) => projectPublic(r, true)) });
-}
-
 async function adminSetPlan(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   if (!["free", "trial", "pro", "family"].includes((data.plan || "").trim())) return json({ error: "bad plan" }, 400);
@@ -2656,28 +2427,6 @@ async function adminDeleteLesson(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   await env.DB.prepare("DELETE FROM lessons WHERE id=?").bind((data.id || "").trim()).run();
   return json({ ok: true });
-}
-async function adminCommentDismiss(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const c = await env.DB.prepare("SELECT id FROM comments WHERE id=?").bind(data.id).first();
-  if (!c) return json({ error: "Comment not found" }, 404);
-  await env.DB.prepare("UPDATE comments SET reported=0 WHERE id=?").bind(data.id).run();
-  return json({ ok: true });
-}
-async function adminTakedownResolve(env, request, data) {
-  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const action = (data.action || "").trim();
-  if (!["approve", "deny"].includes(action)) return json({ error: "bad action" }, 400);
-  const t = await env.DB.prepare("SELECT * FROM takedowns WHERE id=?").bind(data.id).first();
-  if (!t) return json({ error: "Request not found" }, 404);
-  if (t.status !== "pending") return json({ error: "Already resolved." }, 400);
-  if (action === "approve") {
-    await env.DB.prepare("UPDATE projects SET shared=0 WHERE id=?").bind(t.project_id).run();
-    await env.DB.prepare("UPDATE takedowns SET status='approved', resolved_at=?, resolved_by=? WHERE project_id=? AND status='pending'").bind(nowIso(), u.username, t.project_id).run();
-    return json({ ok: true, status: "approved" });
-  }
-  await env.DB.prepare("UPDATE takedowns SET status='denied', resolved_at=?, resolved_by=? WHERE id=?").bind(nowIso(), u.username, data.id).run();
-  return json({ ok: true, status: "denied" });
 }
 
 // ───────────────────────── email (Resend) ─────────────────────────
@@ -3196,15 +2945,6 @@ async function handleApi(env, request, path) {
   if (path === "/api/progress" && method === "GET") return apiProgressGet(env, request);
   if (path === "/api/notices" && method === "GET") return apiNotices(env, request);
   if (path === "/api/shop" && method === "GET") return apiShop(env, request);
-  if (path === "/api/gallery" && method === "GET") return apiGallery(env, request);
-  if (path.startsWith("/api/project/") && method === "GET") {
-    const pid = parseInt(path.split("/").pop(), 10);
-    return isNaN(pid) ? json({ error: "bad id" }, 400) : apiProjectGet(env, request, pid);
-  }
-  if (path.startsWith("/api/comments/") && method === "GET") {
-    const pid = parseInt(path.split("/").pop(), 10);
-    return isNaN(pid) ? json({ error: "bad id" }, 400) : apiCommentsGet(env, request, pid);
-  }
   if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
   if (path === "/api/teacher/progress" && method === "GET") return apiTeacherProgress(env, request);
   if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
@@ -3218,7 +2958,6 @@ async function handleApi(env, request, path) {
     return kid ? json({ childName: kid.name, childUsername: kid.username }) : json({ error: "Invite not found" }, 404);
   }
   if (path === "/api/billing/portal" && method === "POST") return apiBillingPortal(env, request);
-  if (path === "/api/projects/mine" && method === "GET") return apiProjectsMine(env, request);
   // admin GETs
   if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
   if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
@@ -3228,8 +2967,6 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/consent-groups" && method === "GET") return adminConsentGroups(env, request);
   if (path === "/api/admin/consent" && method === "GET") return adminConsentGet(env, request);
   if (path === "/api/admin/settings" && method === "GET") return adminSettingsGet(env, request);
-  if (path === "/api/admin/reported-comments" && method === "GET") return adminReportedComments(env, request);
-  if (path === "/api/admin/takedowns" && method === "GET") return adminTakedowns(env, request);
   if (path === "/api/admin/account-requests" && method === "GET") return adminAccountRequests(env, request);
 
   // auth POSTs
@@ -3310,13 +3047,6 @@ async function handleApi(env, request, path) {
 
   // gallery / projects / comments
   if (path === "/api/projects/save" && method === "POST") return apiProjectSave(env, request, data);
-  if (path === "/api/projects/share" && method === "POST") return apiProjectShare(env, request, data);
-  if (path === "/api/projects/delete" && method === "POST") return apiProjectDelete(env, request, data);
-  if (path === "/api/projects/like" && method === "POST") return apiProjectLike(env, request, data);
-  if (path === "/api/projects/takedown" && method === "POST") return apiProjectTakedown(env, request, data);
-  if (path === "/api/comments/add" && method === "POST") return apiCommentAdd(env, request, data);
-  if (path === "/api/comments/delete" && method === "POST") return apiCommentDelete(env, request, data);
-  if (path === "/api/comments/report" && method === "POST") return apiCommentReport(env, request, data);
 
   // admin POSTs
   if (path === "/api/admin/set-plan" && method === "POST") return adminSetPlan(env, request, data);
@@ -3334,12 +3064,6 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/settings" && method === "POST") return adminSaveSettings(env, request, data);
   if (path === "/api/admin/lesson" && method === "POST") return adminSaveLesson(env, request, data);
   if (path === "/api/admin/lesson/delete" && method === "POST") return adminDeleteLesson(env, request, data);
-  if (path === "/api/admin/comment-dismiss" && method === "POST") return adminCommentDismiss(env, request, data);
-  if (path === "/api/admin/send-school-report" && method === "POST") return adminSendSchoolReport(env, request, data);
-  if (path === "/api/school/reports" && method === "GET") return apiSchoolReports(env, request);
-  if (path === "/api/school/reports/count" && method === "GET") return apiSchoolReportsCount(env, request);
-  if (path === "/api/school/reports/respond" && method === "POST") return apiSchoolReportRespond(env, request, data);
-  if (path === "/api/admin/takedown-resolve" && method === "POST") return adminTakedownResolve(env, request, data);
 
   if (path === "/api/contact" && method === "POST") {
     const cname = (data.name || "").trim().slice(0, 100);
