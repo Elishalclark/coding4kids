@@ -29,6 +29,48 @@
     });
   }
 
+  // ── Push notifications helper (global) ──
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64); const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+  window.C4KPush = {
+    supported: function () { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; },
+    async status() {
+      if (!this.supported()) return 'unsupported';
+      if (Notification.permission === 'denied') return 'denied';
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        return sub ? 'on' : 'off';
+      } catch { return 'off'; }
+    },
+    async enable() {
+      if (!this.supported()) { alert('Notifications are not supported on this device.'); return false; }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return false;
+      let cfg = {}; try { cfg = await (await fetch('/api/site-config')).json(); } catch {}
+      if (!cfg.vapidPublicKey) { alert('🔔 Reminders will be enabled once the server is set up. Permission granted!'); return true; }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.vapidPublicKey) });
+        await (window.C4K && C4K.api ? C4K.api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }) : Promise.resolve());
+        return true;
+      } catch (e) { console.log('push subscribe failed', e); return false; }
+    },
+    async disable() {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) { await (window.C4K && C4K.api ? C4K.api('/api/push/unsubscribe', 'POST', { endpoint: sub.endpoint }) : Promise.resolve()); await sub.unsubscribe(); }
+        return true;
+      } catch { return false; }
+    }
+  };
+
   // ── PWA install prompt ──
   // Show a friendly "Add to Home Screen" banner when the browser fires beforeinstallprompt.
   var deferredInstall = null;

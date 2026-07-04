@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=114" />
+  <link rel="stylesheet" href="styles.css?v=122" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -47,6 +47,27 @@
       <div class="msg" id="meMsg"></div>
     </div>
 
+    <!-- Sound -->
+    <div class="card">
+      <h2>🔊 Sound</h2>
+      <p class="hint">Play sound effects for correct answers, wins, and coins.</p>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:800;">
+        <input type="checkbox" id="soundToggle" style="width:20px;height:20px;" onchange="C4K.setSound(this.checked); if(this.checked) C4K.sound.win();">
+        Sound effects on
+      </label>
+    </div>
+
+    <!-- Notifications -->
+    <div class="card" id="notifCard" style="display:none;">
+      <h2>🔔 Reminders</h2>
+      <p class="hint">Get a friendly reminder to keep your coding streak alive.</p>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:800;">
+        <input type="checkbox" id="notifToggle" style="width:20px;height:20px;" onchange="toggleNotif(this)">
+        Daily coding reminders
+      </label>
+      <div id="notifMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;color:var(--text-dim);"></div>
+    </div>
+
     <!-- Kids (parents/teachers) -->
     <div class="card" id="kidsCard" style="display:none;">
       <h2>👧 Your kids</h2>
@@ -61,7 +82,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=114"></script>
+  <script src="auth.js?v=122"></script>
   <script>
     let ME = null;
     (async () => {
@@ -75,6 +96,14 @@
       document.getElementById('meName').value = ME.name || '';
       document.getElementById('meUser').value = ME.username || '';
       document.getElementById('meEmail').value = ME.parentEmail || '';
+      document.getElementById('soundToggle').checked = C4K.soundOn();
+      // Notifications
+      if (window.C4KPush && C4KPush.supported()) {
+        document.getElementById('notifCard').style.display = '';
+        const st = await C4KPush.status();
+        document.getElementById('notifToggle').checked = st === 'on';
+        if (st === 'denied') { document.getElementById('notifToggle').disabled = true; document.getElementById('notifMsg').textContent = '⚠️ Notifications are blocked in your browser settings.'; }
+      }
 
       const isKid = ME.role === 'kid';
       if (isKid) {
@@ -86,6 +115,18 @@
       }
       if (ME.role === 'parent' || ME.role === 'teacher') loadKids();
     })();
+
+    async function toggleNotif(cb) {
+      const msg = document.getElementById('notifMsg');
+      if (cb.checked) {
+        msg.textContent = 'Turning on…';
+        const ok = await C4KPush.enable();
+        cb.checked = ok; msg.textContent = ok ? '✅ Reminders on! We\'ll nudge you to keep coding.' : 'Could not turn on notifications.';
+      } else {
+        await C4KPush.disable();
+        msg.textContent = 'Reminders off.';
+      }
+    }
 
     async function saveMe() {
       const msg = document.getElementById('meMsg');
@@ -119,7 +160,7 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=114" defer></script>
-  <script src="editor.js?v=114" defer></script>
+  <script src="pwa.js?v=122" defer></script>
+  <script src="editor.js?v=122" defer></script>
 </body>
 </html>

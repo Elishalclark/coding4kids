@@ -6,7 +6,7 @@
   <title>Certificate - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=114" />
+  <link rel="stylesheet" href="styles.css?v=122" />
   <style>
     body { background:#0d0a18; }
     .cert-page { max-width:880px; margin:0 auto; padding:24px 18px 70px; }
@@ -48,17 +48,59 @@
     <div id="content"><p class="msg">Loading your certificate…</p></div>
   </main>
 
-  <script src="auth.js?v=114"></script>
+  <script src="auth.js?v=122"></script>
   <script>
     (async () => {
-      const unit = parseInt(new URLSearchParams(location.search).get('unit'), 10);
+      const qs = new URLSearchParams(location.search);
+      const diploma = qs.get('diploma');
+      const unit = parseInt(qs.get('unit'), 10);
       const me = await C4K.loadMe();
       if (!me) { location.href = 'index.html'; return; }
       if (C4K.consentLock && C4K.consentLock(me)) return;
       const content = document.getElementById('content');
-      if (!unit) { content.innerHTML = '<p class="msg">No certificate selected.</p>'; return; }
 
       const pr = await C4K.api('/api/progress');
+
+      // ── Part diploma (finished ALL of Part 1 or Part 2) ──
+      if (diploma) {
+        const ld0 = await (await fetch('/api/lessons')).json();
+        const worlds0 = ld0.worlds || {};
+        const passedSet = new Set((pr.ok && pr.data.unitsPassed) ? pr.data.unitsPassed : []);
+        const part1Units = Object.keys(worlds0).map(Number).filter(u => !worlds0[u].part2);
+        const part2Units = Object.keys(worlds0).map(Number).filter(u => worlds0[u].part2);
+        const units = diploma === 'part2' ? part2Units : part1Units;
+        const label = diploma === 'part2' ? 'Elite Coder — Part 2 Complete' : 'Certified Coder — Part 1 Complete';
+        const earned = units.length > 0 && units.every(u => passedSet.has(u));
+        if (!earned) {
+          const doneN = units.filter(u => passedSet.has(u)).length;
+          content.innerHTML = `<p class="msg">🔒 Clear all ${units.length} ${diploma==='part2'?'Part 2':'Part 1'} worlds to earn this diploma. You've cleared ${doneN}/${units.length} — keep going!</p>`;
+          return;
+        }
+        const today0 = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+        if (window.C4K) C4K.sound.win();
+        content.innerHTML = `
+          <div class="toolbar">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+            <a class="btn btn-outline" href="dashboard.html">Back to dashboard</a>
+          </div>
+          <div class="cert" style="border-color:#f59e0b;">
+            <div class="seal">🎓</div>
+            <div class="kicker">Diploma of Completion</div>
+            <h1>KidVibers</h1>
+            <div class="awarded">This proudly certifies that</div>
+            <div class="name">${C4K.esc(me.name)}</div>
+            <div class="world">is a ${C4K.esc(label)}</div>
+            <div class="score">having conquered all ${units.length} worlds and mastered every lesson 🎉</div>
+            <div class="footer">
+              <div class="blk"><div class="line">${C4K.esc(today0)}</div><div style="font-size:0.75rem;color:#8a82ad;">Date earned</div></div>
+              <div class="blk"><div class="sig">Byte the Robot 🤖</div><div class="line">Chief Coding Buddy</div></div>
+            </div>
+          </div>`;
+        return;
+      }
+
+      if (!unit) { content.innerHTML = '<p class="msg">No certificate selected.</p>'; return; }
+
       const passed = (pr.ok && pr.data.unitsPassed) ? pr.data.unitsPassed : [];
       if (!passed.includes(unit)) {
         content.innerHTML = '<p class="msg">🔒 You haven’t defeated this world’s boss yet - beat it to earn this certificate!</p>';
@@ -91,6 +133,6 @@
         </div>`;
     })();
   </script>
-  <script src="editor.js?v=114" defer></script>
+  <script src="editor.js?v=122" defer></script>
 </body>
 </html>

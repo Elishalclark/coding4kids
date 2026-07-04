@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=114" />
+  <link rel="stylesheet" href="styles.css?v=122" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -154,15 +154,33 @@
       <div id="msgList" style="display:flex;flex-direction:column;gap:10px;"></div>
     </div>
 
+    <!-- Teacher: Add students in bulk (roster upload) -->
+    <div id="rosterCard" style="display:none;background:linear-gradient(135deg,rgba(124,58,237,0.12),rgba(6,182,212,0.06));border:1px solid var(--border-bright);border-radius:var(--radius);padding:22px 24px;margin-bottom:24px;">
+      <input type="file" id="rosterFile" accept=".csv,.txt" style="display:none;" onchange="onRosterFile(event)" />
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <span style="font-size:1.6rem;">📋</span>
+        <div style="flex:1;min-width:180px;">
+          <strong style="font-size:1.1rem;">Add all your students at once</strong>
+          <div style="color:var(--text-dim);font-size:0.85rem;">Upload a class roster (CSV) and we'll create every account instantly. <span id="rosterLimit"></span></div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+        <div style="font-size:0.78rem;font-weight:900;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">How it works</div>
+        <ol style="margin:0;padding-left:20px;color:var(--text-dim);font-size:0.86rem;line-height:1.7;">
+          <li>Download the template and fill in one student per row: <strong>Name, Username, Password</strong></li>
+          <li>Leave Username/Password blank and we'll <strong>auto-generate</strong> them</li>
+          <li>Upload the file — every account is created, and you'll get the list of logins to hand out</li>
+        </ol>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="rosterUploadBtn" class="btn btn-primary" onclick="triggerRosterUpload()">📤 Upload Roster (CSV)</button>
+        <a href="data:text/plain,Name,Username,Password%0AJane Smith,jsmith,pass123%0ABob Jones,bjones,secret99%0AAlex Kim,," download="kidvibers-roster-template.csv" class="btn btn-outline">⬇️ Download template</a>
+      </div>
+    </div>
+
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
       <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin:0;">Your Kids</h2>
-      <span id="rosterTools" style="display:none;margin-left:auto;">
-        <input type="file" id="rosterFile" accept=".csv,.txt" style="display:none;" onchange="onRosterFile(event)" />
-        <a href="report.html" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;">📄 Progress Report (PDF)</a>
-        <button id="rosterUploadBtn" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;" onclick="triggerRosterUpload()">📋 Upload Roster (CSV)</button>
-        <a href="data:text/plain,Name,Username,Password%0AJane Smith,jsmith,pass123%0ABob Jones,bjones,secret99" download="roster-template.csv" class="btn btn-ghost" style="font-size:0.82rem;padding:7px 14px;">⬇️ Template</a>
-      </span>
-      <span id="parentReportTool" style="display:none;margin-left:auto;">
+      <span id="reportTool" style="display:none;margin-left:auto;">
         <a href="report.html" class="btn btn-outline" style="font-size:0.82rem;padding:7px 14px;">📄 Progress Report (PDF)</a>
       </span>
     </div>
@@ -203,10 +221,13 @@
 
     <!-- Progress + Leaderboard (teachers/schools) -->
     <div id="progressSection" style="display:none;margin-top:32px;">
-      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <div id="onlineNow" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:14px;font-size:0.85rem;"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-primary" id="tabProgress" onclick="showProgTab('progress')" style="font-size:0.85rem;padding:8px 16px;">📊 Progress</button>
         <button class="btn btn-outline" id="tabLeader" onclick="showProgTab('leader')" style="font-size:0.85rem;padding:8px 16px;">🏆 Leaderboard</button>
+        <button class="btn btn-outline" onclick="emailAllCerts()" style="font-size:0.85rem;padding:8px 16px;margin-left:auto;">🎓 Email all certificates</button>
       </div>
+      <div id="certMsg" style="font-size:0.82rem;font-weight:700;margin-bottom:12px;"></div>
 
       <!-- Progress table -->
       <div id="progPanel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;overflow-x:auto;">
@@ -227,7 +248,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=114"></script>
+  <script src="auth.js?v=122"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -247,12 +268,22 @@
           ${consent}
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+          <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;" onclick="nudgeKid(${k.id}, '${nm}')">👋 Send encouragement</button>
           <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;" onclick="signOutKid(${k.id}, '${nm}')">🔒 Sign out</button>
           <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;" onclick="downloadKid(${k.id}, '${nm}')">⬇️ Download data</button>
           <button class="btn btn-outline" style="font-size:0.82rem;padding:8px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteKid(${k.id}, '${nm}')">🗑️ Delete account &amp; data</button>
         </div>
         <div class="signout-msg" id="so${k.id}" style="color:var(--green);font-weight:800;font-size:0.78rem;margin-top:6px;min-height:14px;"></div>
       </div>`;
+    }
+
+    async function nudgeKid(id, name) {
+      const msg = document.getElementById('so' + id);
+      if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…'; }
+      const { ok, data } = await C4K.api('/api/parent/nudge', 'POST', { kidId: id });
+      if (!msg) return;
+      if (ok) { msg.style.color = 'var(--green)'; msg.textContent = `✅ Nudged ${name} — a notification just went to their device.`; }
+      else { msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not send nudge.'); }
     }
 
     async function downloadKid(id, name) {
@@ -310,7 +341,7 @@
         const btn = document.getElementById('rosterUploadBtn');
         btn.textContent = '⏳ Uploading…'; btn.disabled = true;
         const { ok, data } = await C4K.api('/api/teacher/upload-roster', 'POST', { students });
-        btn.textContent = '📋 Upload Roster (CSV)'; btn.disabled = false;
+        btn.textContent = '📤 Upload Roster (CSV)'; btn.disabled = false;
         if (ok) {
           const list = (data.created || []).map(s => `${s.name} — @${s.username} / pw: ${s.password}`).join('\n');
           alert(`✅ ${data.created.length} student${data.created.length===1?'':'s'} added!\n\nSave these logins:\n${list}`);
@@ -390,19 +421,24 @@
       const isTeacher = me.role === 'teacher';
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
-      document.getElementById('planName').textContent = isTeacher ? (me.school || 'My Classroom') : 'Family Plan';
+      const paidFamily = me.plan === 'family';
+      document.getElementById('planName').textContent = isTeacher ? (me.school || 'My Classroom') : (paidFamily ? 'Family Plan' : 'Free Plan');
       document.getElementById('planDesc').textContent = isTeacher
         ? `${me.teacherPlanLabel} · ${me.studentsUsed}/${me.studentLimit} students · school consent`
-        : 'AI included for everyone in your family.';
+        : (paidFamily ? 'AI included for everyone in your family — up to 4 kids.' : '1 kid free. Upgrade to Family for up to 4 kids + AI for everyone.');
       const hasPlan = me.teacherPlan === 'teacher' || me.teacherPlan === 'school';
-      document.getElementById('planPill').textContent = isTeacher ? (hasPlan ? me.teacherPlan.toUpperCase() : 'NO PLAN') : 'FAMILY';
+      document.getElementById('planPill').textContent = isTeacher ? (hasPlan ? me.teacherPlan.toUpperCase() : 'NO PLAN') : (paidFamily ? 'FAMILY' : 'FREE');
       document.getElementById('kidsHeading').textContent = isTeacher ? 'Your Students' : 'Your Kids';
+      document.getElementById('reportTool').style.display = '';   // both teachers & parents get the PDF report
       if (isTeacher) {
-        document.getElementById('rosterTools').style.display = '';
+        document.getElementById('rosterCard').style.display = '';
+        const lim = me.studentLimit;
+        document.getElementById('rosterLimit').textContent = (lim && lim !== -1)
+          ? `Your plan allows up to ${lim} students (${me.studentsUsed || 0} used).`
+          : 'Your plan allows unlimited students.';
         document.getElementById('assignCard').style.display = '';
         initAssignments();
       } else {
-        document.getElementById('parentReportTool').style.display = '';
         document.getElementById('screenTimeCard').style.display = '';
         loadScreenLimit();
       }
@@ -485,7 +521,10 @@
       };
       const { ok, data } = await C4K.api('/api/parent/add-kid', 'POST', payload);
       if (ok) load();
-      else document.getElementById('akErr').textContent = '❌ ' + (data.error || 'Could not add kid.');
+      else if (data.upgradeRequired) {
+        document.getElementById('akErr').innerHTML = '🔒 ' + (data.error || 'Upgrade needed.') +
+          ' <a href="checkout.html?plan=family" style="color:var(--purple);font-weight:800;">Upgrade to Family →</a>';
+      } else document.getElementById('akErr').textContent = '❌ ' + (data.error || 'Could not add kid.');
     }
 
     load();
@@ -710,6 +749,13 @@
     // ── School Hours Schedule ──────────────────────────
     // ── Progress + Leaderboard ──────────────────────────
     let _progData = null;
+    async function emailAllCerts() {
+      const msg = document.getElementById('certMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…';
+      const { ok, data } = await C4K.api('/api/teacher/certificates/email-all', 'POST', {});
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = `✅ Sent ${data.sent} certificate${data.sent===1?'':'s'}${data.skipped?` (${data.skipped} skipped)`:''}.`; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not send.'; }
+    }
     async function loadProgress() {
       const { ok, data } = await C4K.api('/api/teacher/progress');
       if (!ok) return;
@@ -729,9 +775,16 @@
     function renderProgress() {
       const students = (_progData && _progData.students) || [];
       document.getElementById('progEmpty').style.display = students.length ? 'none' : '';
+      const onlineEl = document.getElementById('onlineNow');
+      if (onlineEl) {
+        const online = students.filter(s => s.online);
+        onlineEl.innerHTML = online.length
+          ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:6px;"></span><strong>${online.length} online now:</strong> ${online.map(s=>C4K.esc(s.name)).join(', ')}`
+          : '<span style="color:var(--text-faint);">No students online right now.</span>';
+      }
       document.getElementById('progRows').innerHTML = students.map(s => `
         <tr style="border-top:1px solid var(--border);">
-          <td style="padding:10px 8px;font-weight:800;">${C4K.esc(s.name)}<br><span style="color:var(--text-faint);font-size:0.75rem;font-weight:600;">@${C4K.esc(s.username)}</span></td>
+          <td style="padding:10px 8px;font-weight:800;">${s.online?'<span title="Online now" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:5px;"></span>':''}${C4K.esc(s.name)}<br><span style="color:var(--text-faint);font-size:0.75rem;font-weight:600;">@${C4K.esc(s.username)}</span></td>
           <td style="padding:10px 8px;min-width:130px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <div style="flex:1;height:8px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${s.percent}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div>
@@ -802,7 +855,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=114" defer></script>
-  <script src="editor.js?v=114" defer></script>
+  <script src="pwa.js?v=122" defer></script>
+  <script src="editor.js?v=122" defer></script>
 </body>
 </html>

@@ -443,6 +443,7 @@ function renderQuizSet(s) {
       document.getElementById('lvNext').style.display = '';
       document.getElementById('lvNext').disabled = false;
       document.getElementById('lvNext').textContent = 'Finish 🎉';
+      if (window.C4K) C4K.sound.win();
       finishLessonSave();
     }
     return;
@@ -487,9 +488,11 @@ function answerQuizSet(choice) {
     s.correct++;
     fb.innerHTML = `✅ Correct! ${q.explain ? '<span style="color:var(--text-dim);font-weight:700;">' + q.explain + '</span>' : ''}`;
     fb.style.color = 'var(--green)';
+    if (window.C4K) C4K.sound.correct();
   } else {
     fb.innerHTML = `❌ Not quite. ${q.explain ? '<span style="color:var(--text-dim);font-weight:700;">' + q.explain + '</span>' : 'Keep going!'}`;
     fb.style.color = '#f87171';
+    if (window.C4K) C4K.sound.wrong();
   }
 
   // Auto-advance after 1.4 seconds
@@ -594,12 +597,23 @@ function answerMcq(i, choice) {
 }
 
 let savedThisLesson = false;
+function isoWeekKey() {
+  const d = new Date();
+  const day = (d.getDay() + 6) % 7;               // Mon=0
+  d.setDate(d.getDate() - day);                   // back to Monday
+  return d.toISOString().slice(0, 10);            // Monday's date = week id
+}
 function bumpDailyGoal() {
   try {
     const today = new Date().toISOString().slice(0, 10);
     let d = JSON.parse(localStorage.getItem('c4k_lessons_today') || '{}');
     d = { date: today, count: (d.date === today ? (d.count || 0) : 0) + 1 };
     localStorage.setItem('c4k_lessons_today', JSON.stringify(d));
+    // Weekly challenge counter
+    const wk = isoWeekKey();
+    let w = JSON.parse(localStorage.getItem('c4k_week_lessons') || '{}');
+    w = { week: wk, count: (w.week === wk ? (w.count || 0) : 0) + 1 };
+    localStorage.setItem('c4k_week_lessons', JSON.stringify(w));
   } catch {}
 }
 

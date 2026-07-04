@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="canonical" href="https://kidvibers.com/quote.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Get a Quote for Your School - KidVibers</title>
+  <meta name="description" content="Request a quote to bring KidVibers to your school, district, or library. We'll reply within one business day." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=122" />
+  <style>
+    .qt { max-width: 620px; margin: 0 auto; padding: 32px 20px 90px; }
+    .qt-hero { text-align: center; margin-bottom: 32px; }
+    .qt-hero .badge { display:inline-block; background:var(--purple-light); color:var(--purple); font-weight:900;
+      font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase; padding:6px 16px; border-radius:50px;
+      border:1px solid var(--border-bright); margin-bottom:14px; }
+    .qt-hero h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 900; }
+    .qt-hero p { color: var(--text-dim); max-width: 480px; margin: 8px auto 0; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; }
+    .field { margin-bottom: 16px; }
+    .field label { display:block; font-size:0.8rem; font-weight:800; color:var(--text-dim); margin-bottom:6px; }
+    .field input, .field textarea, .field select { width:100%; box-sizing:border-box; padding:12px 14px; border-radius:10px;
+      border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:inherit; font-weight:700; font-size:0.95rem; resize:vertical; }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--border-bright); outline:none; }
+    .row { display:flex; gap:12px; } .row .field { flex:1; }
+    @media(max-width:480px){ .row { flex-direction:column; gap:0; } }
+    .trust-row { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:24px; color:var(--text-dim); font-size:0.84rem; font-weight:700; }
+    .success { text-align:center; background:linear-gradient(135deg,#0f3d2e,#15803d); border:1px solid #22c55e; border-radius:var(--radius); padding:44px 24px; display:none; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;"><a href="index.html" class="btn btn-ghost">← Home</a></div>
+    </div>
+  </nav>
+
+  <main class="qt">
+    <div class="qt-hero">
+      <div class="badge">🏫 Schools · Districts · Libraries</div>
+      <h1>Bring KidVibers to your students</h1>
+      <p>Tell us a bit about your organization and we'll send a quote and next steps — usually within one business day.</p>
+    </div>
+
+    <div id="successCard" class="success">
+      <div style="font-size:3rem;margin-bottom:10px;">✅</div>
+      <h2 style="font-size:1.5rem;font-weight:900;color:#fff;">Request received!</h2>
+      <p style="color:#dcfce7;margin:8px 0 20px;">We'll email you a quote within one business day. Thanks for your interest! 🚀</p>
+      <a href="index.html" class="btn btn-primary">← Back to KidVibers</a>
+    </div>
+
+    <div class="card" id="formCard">
+      <div class="row">
+        <div class="field"><label>Your name *</label><input id="qName" placeholder="Jane Smith" /></div>
+        <div class="field"><label>Your role</label><input id="qRole" placeholder="Teacher, Principal, Librarian…" /></div>
+      </div>
+      <div class="field"><label>School / District / Library *</label><input id="qOrg" placeholder="Arlington Public Library" /></div>
+      <div class="row">
+        <div class="field"><label>Work email *</label><input id="qEmail" type="email" placeholder="you@school.org" /></div>
+        <div class="field"><label>Approx. # of students</label><input id="qStudents" placeholder="e.g. 120" /></div>
+      </div>
+      <div class="field"><label>Anything else? (optional)</label><textarea id="qMsg" rows="3" placeholder="Tell us about your goals, timeline, or questions…"></textarea></div>
+      <button class="btn btn-primary btn-lg" style="width:100%;font-size:1.05rem;" id="qBtn" onclick="submitQuote()">Request my quote →</button>
+      <div id="qErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;margin-top:10px;text-align:center;"></div>
+      <div class="trust-row">
+        <span>🛡️ Ad-free & safe</span><span>📄 COPPA-minded</span><span>👨‍👩‍👧 Parent consent</span>
+      </div>
+    </div>
+  </main>
+
+  <script src="auth.js?v=122"></script>
+  <script>
+    async function submitQuote() {
+      const name = document.getElementById('qName').value.trim();
+      const org = document.getElementById('qOrg').value.trim();
+      const email = document.getElementById('qEmail').value.trim();
+      const err = document.getElementById('qErr');
+      if (!name || !org || !email) { err.textContent = 'Please fill in your name, organization, and email.'; return; }
+      if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Please enter a valid email.'; return; }
+      const btn = document.getElementById('qBtn'); btn.textContent = 'Sending…'; btn.disabled = true;
+      const { ok, data } = await C4K.api('/api/school-quote', 'POST', {
+        name, org, email,
+        role: document.getElementById('qRole').value.trim(),
+        students: document.getElementById('qStudents').value.trim(),
+        message: document.getElementById('qMsg').value.trim(),
+      });
+      if (ok) {
+        document.getElementById('formCard').style.display = 'none';
+        document.getElementById('successCard').style.display = 'block';
+      } else {
+        err.textContent = data.error || 'Something went wrong — try again.';
+        btn.textContent = 'Request my quote →'; btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

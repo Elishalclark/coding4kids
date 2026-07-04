@@ -14,7 +14,8 @@ const PRO_LAUNCH_DAYS = 30;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
 const TOKENS_PER_LESSON = 10;
-const REFERRAL_BONUS = 50;   // tokens each kid gets when a referral signs up
+const REFERRAL_BONUS = 50;      // tokens each kid gets when a referral signs up
+const REFERRAL_FREE_DAYS = 7;   // + days of free Pro (AI + unlimited lessons) for both kids
 const PASS_PERCENT = 70;
 const ADMIN_ROLES = ["admin", "super_admin"];
 const DISTRICT_PLANS = ["school", "district"];
@@ -166,11 +167,19 @@ function trialDaysLeft(user) {
   return Math.max(0, Math.ceil(ms / 86400000));
 }
 function effectivePlan(user) {
+  // A referral reward (or other promo) can temporarily grant Pro-level perks
+  // (AI + unlimited lessons) on top of whatever plan the account is actually on.
+  if (user.promo_pro_until && new Date(user.promo_pro_until) > new Date()) return "pro";
   if (user.plan === "trial") {
     const left = trialDaysLeft(user);
     if (left !== null && left <= 0) return "free";
   }
   return user.plan;
+}
+function promoDaysLeft(user) {
+  if (!user.promo_pro_until) return 0;
+  const ms = new Date(user.promo_pro_until) - new Date();
+  return ms > 0 ? Math.ceil(ms / 86400000) : 0;
 }
 function planCfg(settings, plan) {
   return settings[plan] || { ai: false, chatsPerDay: 0, lessonLimit: -1 };
@@ -279,6 +288,7 @@ async function publicUser(env, user) {
   return {
     id: user.id, role: user.role, name: user.name, username: user.username,
     plan: user.plan, effectivePlan: eff, trialDaysLeft: trialDaysLeft(user),
+    promoProDaysLeft: promoDaysLeft(user),
     ...teacher,
     hasAI: !!cfg.ai, chatsPerDay: cfg.chatsPerDay | 0, chatsUsedToday: await chatsUsedToday(env, user.id),
     lessonsPerDay: lessonLimitFor(await getPlanSettings(env), user),
@@ -671,11 +681,13 @@ async function apiSignup(env, request, data) {
     const noticeBody = `${name} just started learning to code on KidVibers. You can connect, manage, or remove the account anytime: ${manageUrl}`;
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)")
       .bind(email, "consent_notice", noticeBody, r.uid, consentToken, nowIso()).run();
-    await sendEmail(env, email, `${name} just joined KidVibers 🚀`,
+    const verifyUrl = `${origin}/consent-verify.html?token=${consentToken}`;
+    await sendEmail(env, email, `${name} just joined KidVibers — please approve 🚀`,
       `<p><strong>${name}</strong> just started learning to code on KidVibers - a safe, ad-free coding app for kids.</p>
-       <p>You're listed as their parent/guardian. You can connect to their account, see their progress, or remove it at any time:</p>
-       <p><a href="${manageUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;">Manage ${name}'s account →</a></p>
-       <p style="color:#666;font-size:0.9rem;">If you didn't expect this, click above to review or remove the account. No ads, no data selling - ever.</p>`);
+       <p>You're listed as their parent/guardian. Please confirm you approve of ${name} using KidVibers (this is our verifiable parental consent under COPPA):</p>
+       <p><a href="${verifyUrl}" style="display:inline-block;background:#22c55e;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:800;">✓ Verify &amp; Approve ${name}'s account</a></p>
+       <p style="margin-top:14px;">Or <a href="${manageUrl}" style="color:#7c3aed;font-weight:700;">manage / remove the account</a> at any time.</p>
+       <p style="color:#666;font-size:0.9rem;">If you didn't expect this, use the manage link to remove the account. No ads, no data selling - ever.</p>`);
   }
   const token = await createSession(env, r.uid);
   await notifyAdmin(env, `🧒 New kid signed up: ${name}`, `🧒 *New kid signed up!*\n• Name: ${name}\n• Username: @${username}\n• Age: ${ageYears}\n• Parent email: ${email || "none"}\n• Plan: ${planName}${getLaunchPro ? " (Launch Pro 🎉)" : ""}`);
@@ -1145,6 +1157,55 @@ async function apiRequestUpgrade(env, request) {
   return json({ ok: true, parentEmail: u.parent_email, message: body });
 }
 
+// Kid-facing safety button: "Something's wrong?" — lets a kid flag a problem (bug, someone
+// being mean, something they saw, or anything else) without needing a parent nearby.
+// Notifies the parent/guardian by email AND the KidVibers team, same-session, no waiting.
+const HELP_REASONS = {
+  bug: "Something isn't working right",
+  mean: "Someone was mean to me",
+  scary: "I saw something that scared or confused me",
+  other: "Something else",
+};
+async function apiKidHelp(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
+  if (rateLimited(`kidhelp:${u.id}`, 3, 3600)) return json({ error: "You've already sent a few — a grown-up has been told. Try again later if it's still happening." }, 429);
+  const reasonKey = (data.reason || "other").trim();
+  const reasonText = HELP_REASONS[reasonKey] || HELP_REASONS.other;
+  const note = (data.message || "").toString().slice(0, 500).trim();
+  if (u.parent_email) {
+    await sendEmail(env, u.parent_email, `🆘 ${u.name} used the "Something's wrong?" button on KidVibers`,
+      `<p><strong>${u.name}</strong> just used the help button on KidVibers.</p>
+       <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;"><strong>Reason:</strong> ${reasonText}${note ? `<br><strong>Message:</strong> ${note}` : ""}</p>
+       <p>It's a good idea to check in with them. No action was taken automatically — this is just to let you know right away.</p>`);
+  }
+  await notifyAdmin(env, `🆘 Kid help button: ${u.name} (@${u.username})`,
+    `🆘 *Kid used the "Something's wrong?" button*\n• Kid: ${u.name} (@${u.username})\n• Reason: ${reasonText}${note ? `\n• Message: ${note}` : ""}\n• Parent notified: ${u.parent_email ? "yes" : "no parent email on file"}`);
+  return json({ ok: true, parentNotified: !!u.parent_email });
+}
+
+// Parent/teacher "nudge" — sends an encouragement push notification to a kid right now.
+async function apiParentNudge(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const kidId = data.kidId | 0;
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(kidId, u.family_id).first();
+  if (!kid) return json({ error: "Not your student/kid." }, 403);
+  if (rateLimited(`nudge:${u.id}:${kidId}`, 5, 3600)) return json({ error: "Too many nudges sent — give it a little while." }, 429);
+  if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return json({ error: "Push notifications aren't set up yet.", noPush: true }, 400);
+  const subs = (await env.DB.prepare("SELECT endpoint,p256dh,auth,user_id FROM push_subs WHERE user_id=?").bind(kidId).all()).results || [];
+  if (!subs.length) return json({ error: `${kid.name} hasn't turned on notifications, so we can't nudge them right now.`, noPush: true }, 400);
+  let sent = 0;
+  for (const s of subs) {
+    try {
+      const res = await sendWebPush(env, s);
+      if (res === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?").bind(s.endpoint).run();
+      else if (res === true) sent++;
+    } catch {}
+  }
+  return json({ ok: sent > 0, sent });
+}
+
 async function apiClassJoin(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid") return json({ error: "Only a kid account can join a classroom." }, 403);
@@ -1462,17 +1523,25 @@ async function apiReferral(env, request) {
   const code = await ensureReferralCode(env, u);
   const count = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE referred_by=?").bind(u.id).first()).c || 0;
   const origin = new URL(request.url).origin;
-  return json({ code, count, bonus: REFERRAL_BONUS, link: `${origin}/index.html?ref=${code}` });
+  return json({ code, count, bonus: REFERRAL_BONUS, freeDays: REFERRAL_FREE_DAYS, link: `${origin}/index.html?ref=${code}` });
 }
 
 // Apply a referral after a new kid signs up (called from apiSignup).
+// Both kids get REFERRAL_BONUS tokens AND 7 days of free Pro (AI + unlimited lessons) —
+// stacks on top of any free days they already have, so referring more friends = more free days.
 async function applyReferral(env, newKidId, refCode) {
   if (!refCode) return;
   const referrer = await env.DB.prepare("SELECT id FROM users WHERE referral_code=? AND role='kid'").bind(refCode.trim().toUpperCase()).first();
   if (!referrer || referrer.id === newKidId) return;
   await env.DB.prepare("UPDATE users SET referred_by=? WHERE id=?").bind(referrer.id, newKidId).run();
-  // Reward both kids.
+  // Reward both kids: tokens + free Pro days.
   await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id IN (?,?)").bind(REFERRAL_BONUS, referrer.id, newKidId).run();
+  for (const id of [referrer.id, newKidId]) {
+    const row = await env.DB.prepare("SELECT promo_pro_until FROM users WHERE id=?").bind(id).first();
+    const base = (row && row.promo_pro_until && new Date(row.promo_pro_until) > new Date()) ? new Date(row.promo_pro_until) : new Date();
+    const until = new Date(base.getTime() + REFERRAL_FREE_DAYS * 86400000).toISOString();
+    await env.DB.prepare("UPDATE users SET promo_pro_until=? WHERE id=?").bind(until, id).run();
+  }
   await env.DB.prepare("UPDATE users SET referral_count = COALESCE(referral_count,0) + 1 WHERE id=?").bind(referrer.id).run();
 }
 
@@ -1527,7 +1596,7 @@ async function apiParentSignup(env, request, data) {
   const err = validateCredentials(name, username, password);
   if (err) return json({ error: err }, 400);
   const linkToken = (data.linkToken || "").trim();
-  const r = await createUser(env, { role: "parent", name, username, password, email, age: "", plan: "family", trial_ends: null });
+  const r = await createUser(env, { role: "parent", name, username, password, email, age: "", plan: "free", trial_ends: null });
   if (r.error) return json({ error: r.error }, r.status || 400);
   await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(r.uid, r.uid).run();
   let linked = null;
@@ -1574,11 +1643,21 @@ async function apiParentAddKid(env, request, data) {
   const err = validateCredentials(name, username, password);
   if (err) return json({ error: err }, 400);
   const isTeacher = u.role === "teacher";
+  // Parents: 1 kid free. More kids require the paid Family plan (up to 4).
+  const paidFamily = u.role === "parent" && u.plan === "family" && !!u.stripe_subscription_id;
   if (isTeacher) {
     const cfg = teacherPlanCfg(u.plan), limit = cfg.students;
     if (limit !== -1 && (await studentsInFamily(env, u.family_id)) >= limit) {
       const msg = limit === 0 ? "Choose a Teacher, School or District plan to add students." : `Your ${cfg.label} allows ${limit} students. Upgrade for more.`;
       return json({ error: msg, limitReached: true }, 403);
+    }
+  } else {
+    const kidsSoFar = await studentsInFamily(env, u.family_id);
+    if (!paidFamily && kidsSoFar >= 1) {
+      return json({ error: "You can add 1 kid for free. Upgrade to the Family plan to add up to 4 kids and unlock AI for everyone!", limitReached: true, upgradeRequired: true }, 403);
+    }
+    if (paidFamily && kidsSoFar >= 4) {
+      return json({ error: "The Family plan supports up to 4 kids.", limitReached: true }, 403);
     }
   }
   const method = isTeacher ? "school" : "parent_account";
@@ -1591,8 +1670,10 @@ async function apiParentAddKid(env, request, data) {
     if (school) assignFamilyId = school.family_id || school.id;
   }
 
+  // Teachers' students & paid-family kids get "family" (AI on); a parent's free kid gets "free".
+  const kidPlan = isTeacher || paidFamily ? "family" : "free";
   const r = await createUser(env, {
-    role: "kid", name, username, password, email: u.parent_email || "", age, plan: "family", trial_ends: null,
+    role: "kid", name, username, password, email: u.parent_email || "", age, plan: kidPlan, trial_ends: null,
     family_id: assignFamilyId, consent_status: "granted", consent_method: method, consent_by: grantedBy,
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
@@ -1600,13 +1681,21 @@ async function apiParentAddKid(env, request, data) {
   return json({ token: null, user: await publicUser(env, r.row) });
 }
 
-// Bulk roster upload: teachers/schools upload a CSV and get accounts created in one shot.
+// Bulk roster upload: TEACHERS/SCHOOLS only (parents can't bulk-add kids past their plan limit).
 async function apiUploadRoster(env, request, data) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "Only a teacher or school can upload a roster." }, 403);
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher or school can upload a roster." }, 403);
   const students = Array.isArray(data.students) ? data.students : [];
   if (!students.length) return json({ error: "No students provided." }, 400);
   if (students.length > 200) return json({ error: "Max 200 students per upload." }, 400);
+  // Respect the teacher/school student limit for the plan.
+  const cfg = teacherPlanCfg(u.plan), limit = cfg.students;
+  if (limit !== -1) {
+    const current = await studentsInFamily(env, u.family_id);
+    if (current + students.length > limit) {
+      return json({ error: `Your plan allows ${limit} students (${current} used). This upload of ${students.length} would exceed it.`, limitReached: true }, 403);
+    }
+  }
 
   const isTeacher = u.role === "teacher";
   const method = isTeacher ? "school" : "parent_account";
@@ -1699,6 +1788,20 @@ async function apiGetScreenLimit(env, request) {
   return json({ minutes: row ? parseInt(row.value, 10) : 0 });
 }
 
+// Public kid report card — safe stats only, looked up by a DEDICATED card_token
+// (never the link_token, which is used for parent-invite linking).
+async function apiKidCard(env, token) {
+  if (!token || token.length < 6) return json({ error: "Card not found." }, 404);
+  const k = await env.DB.prepare("SELECT id,name,role FROM users WHERE card_token=? AND role='kid'").bind(token).first();
+  if (!k) return json({ error: "Card not found." }, 404);
+  const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(k.id).first()).c || 0;
+  const worlds = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).first()).c || 0;
+  const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
+  const xp = xpRow ? xpRow.xp : 0;
+  const level = Math.floor(xp / 200) + 1;
+  return json({ name: k.name, xp, level, lessonsDone: done, worldsCleared: worlds });
+}
+
 // Email a certificate to the parent on demand (share button).
 async function apiEmailCertificate(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -1709,6 +1812,31 @@ async function apiEmailCertificate(env, request, data) {
   if (!passed) return json({ error: "You haven't earned that certificate yet." }, 400);
   await sendCertificateEmail(env, request, u, unit, passed.best_score || 100);
   return json({ ok: true, sentTo: u.parent_email });
+}
+
+// Bulk-email every student's best-earned certificate to their parent in one click —
+// handy for a teacher/school wrapping up a session or semester.
+async function apiTeacherBulkCertificates(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  if (rateLimited(`bulkcert:${u.id}`, 1, 3600)) return json({ error: "Already sent recently — try again in a bit." }, 429);
+  let familyIds = [u.family_id];
+  if (u.role === "teacher" && DISTRICT_PLANS.includes(u.plan)) {
+    const schools = (await env.DB.prepare("SELECT family_id,id FROM users WHERE district_id=? AND role='teacher'").bind(u.id).all()).results || [];
+    familyIds = [u.family_id, ...schools.map(s => s.family_id || s.id)];
+  }
+  const uniq = [...new Set(familyIds)];
+  const ph = uniq.map(() => "?").join(",");
+  const kids = (await env.DB.prepare(`SELECT * FROM users WHERE role='kid' AND family_id IN (${ph})`).bind(...uniq).all()).results || [];
+  let sent = 0, skipped = 0;
+  for (const kid of kids) {
+    if (!kid.parent_email) { skipped++; continue; }
+    const best = await env.DB.prepare("SELECT unit,best_score FROM unit_tests WHERE user_id=? AND passed=1 ORDER BY unit DESC LIMIT 1").bind(kid.id).first();
+    if (!best) { skipped++; continue; }
+    await sendCertificateEmail(env, request, kid, best.unit, best.best_score || 100);
+    sent++;
+  }
+  return json({ ok: true, sent, skipped });
 }
 
 async function apiDistrictRoster(env, request) {
@@ -1793,6 +1921,8 @@ async function apiTeacherProgress(env, request) {
       worldsCleared, avgScore, xp: xpRow.xp || 0,
       level: worldsCleared + 1, tokens: k.tokens || 0,
       lastActive: last ? last.slice(0, 10) : null,
+      lastActiveAt: last || null,
+      online: last ? (Date.now() - new Date(last).getTime()) < 15 * 60000 : false,
       suspended: !!k.suspended,
     });
   }
@@ -2699,12 +2829,39 @@ async function apiStripeWebhook(env, rawBody, sigHeader) {
   let event; try { event = JSON.parse(rawBody); } catch { return json({ error: "bad payload" }, 400); }
   const obj = (event.data && event.data.object) || {};
   if (event.type === "checkout.session.completed") {
-    const uid = obj.client_reference_id || (obj.metadata && obj.metadata.user_id);
-    const plan = obj.metadata && obj.metadata.plan;
+    const meta = obj.metadata || {};
+    const plan = meta.plan;
+    // ── Gift purchase: no buyer account; upgrade the recipient by email (or invite them). ──
+    if (meta.gift === "1" && plan) {
+      const rEmail = (obj.customer_details && obj.customer_details.email) || obj.customer_email || "";
+      const sender = meta.senderName || "someone";
+      if (rEmail) {
+        const acct = await env.DB.prepare("SELECT * FROM users WHERE parent_email=? AND role IN ('parent','kid') ORDER BY role='parent' DESC LIMIT 1").bind(rEmail).first();
+        if (acct) {
+          await env.DB.prepare("UPDATE users SET plan=?, stripe_customer_id=?, stripe_subscription_id=? WHERE id=?").bind(plan, obj.customer ?? null, obj.subscription ?? null, acct.id).run();
+          await sendEmail(env, rEmail, `🎁 ${sender} gifted you KidVibers ${plan === "family" ? "Family" : "Pro"}!`,
+            `<p><strong>${sender}</strong> gifted you the KidVibers <strong>${plan}</strong> plan — it's now active on your account! 🎉</p><p><a href="https://kidvibers.com/dashboard.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Open KidVibers →</a></p>`);
+        } else {
+          // No account yet — invite them to sign up; a human can apply the plan.
+          await sendEmail(env, rEmail, `🎁 ${sender} gifted you KidVibers ${plan === "family" ? "Family" : "Pro"}!`,
+            `<p><strong>${sender}</strong> just gifted you a KidVibers <strong>${plan}</strong> subscription! 🎉</p>
+             <p>Create your free account and we'll apply your gift:</p>
+             <p><a href="https://kidvibers.com/index.html#signup" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Get started →</a></p>
+             <p style="color:#666;font-size:0.85rem;">Use this email (${rEmail}) when you sign up so we can match your gift. Questions? support@kidvibers.com</p>`);
+          await notifyAdmin(env, `🎁 Gift needs manual apply: ${rEmail}`, `🎁 *Gift purchased for someone without an account*\n• Recipient: ${rEmail}\n• Plan: ${plan}\n• From: ${sender}\n• Apply the ${plan} plan once they sign up.`);
+        }
+      }
+      return json({ received: true });
+    }
+    // ── Normal self-purchase ──
+    const uid = obj.client_reference_id || meta.user_id;
     if (uid && plan) {
       const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(uid).first();
       if (row) {
-        await env.DB.prepare("UPDATE users SET plan=?, stripe_customer_id=?, stripe_subscription_id=? WHERE id=?").bind(plan, obj.customer ?? null, obj.subscription ?? null, uid).run();
+        const interval = meta.interval === "year" ? "year" : "month";
+        const renewsAt = new Date(Date.now() + (interval === "year" ? 365 : 30) * 86400000).toISOString();
+        await env.DB.prepare("UPDATE users SET plan=?, stripe_customer_id=?, stripe_subscription_id=?, plan_interval=?, plan_renews_at=? WHERE id=?")
+          .bind(plan, obj.customer ?? null, obj.subscription ?? null, interval, renewsAt, uid).run();
         if (row.parent_email) await sendEmail(env, row.parent_email, "Your KidVibers plan is active 🎉", `<p>Thanks for subscribing! Your <strong>${plan}</strong> plan is now active.</p>`);
       }
     }
@@ -3000,7 +3157,25 @@ async function handleApi(env, request, path) {
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
-    return json({ signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins"), stripeEnabled: !!env.STRIPE_SECRET_KEY });
+    return json({ signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins"), stripeEnabled: !!env.STRIPE_SECRET_KEY, vapidPublicKey: env.VAPID_PUBLIC_KEY || null });
+
+  // ── Push notification subscription ──
+  if (path === "/api/push/subscribe" && method === "POST") {
+    const u = await userFromToken(env, bearer(request));
+    if (!u) return json({ error: "not logged in" }, 401);
+    const sub = data.subscription || {};
+    if (!sub.endpoint) return json({ error: "bad subscription" }, 400);
+    const keys = sub.keys || {};
+    await env.DB.prepare("INSERT INTO push_subs (user_id,endpoint,p256dh,auth,created_at) VALUES (?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=?, p256dh=?, auth=?")
+      .bind(u.id, sub.endpoint, keys.p256dh || "", keys.auth || "", nowIso(), u.id, keys.p256dh || "", keys.auth || "").run();
+    return json({ ok: true });
+  }
+  if (path === "/api/push/unsubscribe" && method === "POST") {
+    const u = await userFromToken(env, bearer(request));
+    if (!u) return json({ error: "not logged in" }, 401);
+    if (data.endpoint) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=? AND user_id=?").bind(data.endpoint, u.id).run();
+    return json({ ok: true });
+  }
   if (path === "/api/site-message" && method === "GET") {
     const m = await getSetting(env, "site_message", {});
     return json({ text: m.text || "", active: !!m.active });
@@ -3085,6 +3260,17 @@ async function handleApi(env, request, path) {
   if (path === "/api/screen-limit" && method === "GET") return apiGetScreenLimit(env, request);
   if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
   if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
+  if (path.startsWith("/api/kidcard/") && method === "GET") return apiKidCard(env, decodeURIComponent(path.slice("/api/kidcard/".length)));
+  if (path === "/api/my-card-token" && method === "GET") {
+    const u = await userFromToken(env, bearer(request));
+    if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);
+    let tok = u.card_token;
+    if (!tok) { tok = randToken(12); await env.DB.prepare("UPDATE users SET card_token=? WHERE id=?").bind(tok, u.id).run(); }
+    return json({ cardToken: tok });
+  }
+  if (path === "/api/teacher/certificates/email-all" && method === "POST") return apiTeacherBulkCertificates(env, request);
+  if (path === "/api/kid/help" && method === "POST") return apiKidHelp(env, request, data);
+  if (path === "/api/parent/nudge" && method === "POST") return apiParentNudge(env, request, data);
   if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
   if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
   if (path === "/api/account/update" && method === "POST") return apiAccountUpdate(env, request, data);
@@ -3166,11 +3352,13 @@ async function handleApi(env, request, path) {
     return json({ ok: true });
   }
 
-  // ── Leaderboard (public top 10 by XP this week) ──
+  // ── Leaderboard (top 10 by XP this week — logged-in users only) ──
   if (path === "/api/leaderboard" && method === "GET") {
+    const viewer = await userFromToken(env, bearer(request));
+    if (!viewer) return json({ leaderboard: [] });   // don't expose kids' names to anonymous visitors
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     const rows = (await env.DB.prepare(
-      "SELECT u.id, u.name, u.username, u.tokens, " +
+      "SELECT u.id, u.name, u.username, " +
       "COALESCE(SUM(l.xp),0) AS week_xp, COUNT(p.lesson_id) AS week_lessons " +
       "FROM users u " +
       "JOIN progress p ON p.user_id = u.id AND p.completed_at >= ? " +
@@ -3181,14 +3369,15 @@ async function handleApi(env, request, path) {
     return json({ leaderboard: rows, since });
   }
 
-  // ── Report a lesson (content flag) ──
+  // ── Report a lesson (content flag) — logged-in only, rate-limited ──
   if (path === "/api/report-lesson" && method === "POST") {
     const u = await userFromToken(env, bearer(request));
+    if (!u) return json({ error: "Please log in to report." }, 401);
+    if (rateLimited(`report-lesson:${u.id}`, 5, 3600)) return json({ ok: true });  // max 5/hr, silently drop extras
     const lessonId = (data.lessonId || "").trim().slice(0, 50);
     const reason = (data.reason || "").trim().slice(0, 500) || "No reason given";
-    const who = u ? `@${u.username} (${u.role})` : "anonymous";
     await notifyAdmin(env, `🚩 Lesson flagged: ${lessonId}`,
-      `🚩 *Lesson content report*\nLesson: ${lessonId}\nFrom: ${who}\nReason: ${reason}`);
+      `🚩 *Lesson content report*\nLesson: ${lessonId}\nFrom: @${u.username} (${u.role})\nReason: ${reason}`);
     return json({ ok: true });
   }
 
@@ -3201,16 +3390,20 @@ async function handleApi(env, request, path) {
     const priceId = stripePrices(env)[plan];
     if (!priceId) return json({ error: "Plan not available." }, 400);
     const origin = siteUrl(env, request);
-    const session = await stripeRequest(env, "/checkout/sessions", {
+    // Stripe's API is form-encoded — use bracket notation, not JSON strings.
+    const params = {
       mode: "subscription",
-      line_items: JSON.stringify([{ price: priceId, quantity: 1 }]),
+      "line_items[0][price]": priceId, "line_items[0][quantity]": "1",
       success_url: `${origin}/gift.html?status=success&plan=${plan}`,
       cancel_url:  `${origin}/gift.html?status=cancel`,
-      customer_email: recipientEmail || undefined,
-      metadata: JSON.stringify({ gift: "1", senderName, plan }),
-    });
-    if (!session || !session.url) return json({ error: "Could not create checkout session." }, 500);
-    return json({ url: session.url });
+      "metadata[gift]": "1", "metadata[plan]": plan, "metadata[senderName]": senderName,
+    };
+    if (recipientEmail) params.customer_email = recipientEmail;
+    try {
+      const session = await stripeRequest(env, "/checkout/sessions", params);
+      if (!session || !session.url) return json({ error: "Could not create checkout session." }, 500);
+      return json({ url: session.url });
+    } catch (e) { console.log("gift checkout error:", e); return json({ error: "Could not start gift checkout." }, 502); }
   }
 
   // ── Parent weekly digest (manual trigger / test) ──
@@ -3218,6 +3411,67 @@ async function handleApi(env, request, path) {
     const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
     const sent = await runWeeklyDigest(env);
     return json({ ok: true, sent });
+  }
+
+  // ── Verifiable parental consent (COPPA) — parent clicks the email link ──
+  if (path === "/api/consent/verify" && method === "POST") {
+    const token = (data.token || "").trim();
+    if (!token) return json({ error: "Missing token." }, 400);
+    const kid = await env.DB.prepare("SELECT id,name,consent_by FROM users WHERE consent_token=? AND role='kid'").bind(token).first();
+    if (!kid) return json({ error: "This approval link is invalid or has expired." }, 404);
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    await env.DB.prepare("UPDATE users SET consent_status='granted', consent_method='verifiable_parent_confirm', consent_at=? WHERE id=?")
+      .bind(nowIso(), kid.id).run();
+    await logConsent(env, kid.id, kid.name, "verifiable_parent_confirm", kid.consent_by || "parent", `Parent confirmed via email link (IP ${ip})`);
+    await notifyAdmin(env, `✅ Consent verified: ${kid.name}`, `✅ *Parent verified consent*\n• Kid: ${kid.name}\n• By: ${kid.consent_by || "parent"}\n• IP: ${ip}`);
+    return json({ ok: true, name: kid.name });
+  }
+
+  // ── Weekly challenge claim (bonus tokens, once per week) ──
+  if (path === "/api/challenge/claim" && method === "POST") {
+    const u = await userFromToken(env, bearer(request));
+    if (!u || u.role !== "kid") return json({ error: "Only kids can claim challenges." }, 403);
+    if (u.isPreview) return json({ ok: true, tokens: 250, awarded: 0, alreadyClaimed: true });
+    // week id = Monday's date, sent by client but recomputed for safety
+    const now = new Date();
+    const day = (now.getUTCDay() + 6) % 7;
+    now.setUTCDate(now.getUTCDate() - day);
+    const week = now.toISOString().slice(0, 10);
+    const claimKey = `challenge:${u.id}:${week}`;
+    const existing = await env.DB.prepare("SELECT 1 FROM settings WHERE key=?").bind(claimKey).first();
+    if (existing) return json({ ok: true, alreadyClaimed: true });
+    // Verify the kid actually completed 5+ lessons this week (anti-cheat).
+    const since = week + "T00:00:00Z";
+    const doneThisWeek = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=? AND completed_at>=?").bind(u.id, since).first()).c || 0;
+    if (doneThisWeek < 5) return json({ error: `Complete 5 lessons this week first — you've done ${doneThisWeek}.`, need: 5, done: doneThisWeek }, 400);
+    const BONUS = 200;
+    await env.DB.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)").bind(claimKey, nowIso()).run();
+    await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id=?").bind(BONUS, u.id).run();
+    const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens;
+    return json({ ok: true, awarded: BONUS, tokens: tok });
+  }
+
+  // ── School/district quote request (lead capture) ──
+  if (path === "/api/school-quote" && method === "POST") {
+    const qip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (rateLimited(`quote:${qip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
+    const name = cleanName(data.name || "").slice(0, 100);
+    const email = (data.email || "").trim().slice(0, 200);
+    const org = cleanName(data.org || "").slice(0, 150);
+    const students = (data.students || "").toString().slice(0, 20);
+    const role = cleanName(data.role || "").slice(0, 60);
+    const msg = (data.message || "").trim().slice(0, 1500);
+    if (!name || !email || !org) return json({ error: "Name, email and organization are required." }, 400);
+    if (!/^\S+@\S+\.\S+$/.test(email)) return json({ error: "Enter a valid email." }, 400);
+    await notifyAdmin(env, `🏫 School quote request: ${org}`,
+      `🏫 *New school/district quote request!*\n• Contact: ${name} (${role || "?"})\n• Org: ${org}\n• Students: ${students || "?"}\n• Email: ${email}\n• Message: ${msg || "(none)"}`);
+    await sendEmail(env, "support@kidvibers.com", `School quote: ${org}`,
+      `<p><strong>${name}</strong> (${role}) from <strong>${org}</strong> wants a quote.</p>
+       <p>Students: ${students}<br>Email: ${email}</p><p>Message:</p><p>${msg.replace(/\n/g, "<br>")}</p>`);
+    // Confirmation to the requester
+    await sendEmail(env, email, "We got your KidVibers request 🚀",
+      `<p>Hi ${name},</p><p>Thanks for your interest in KidVibers for <strong>${org}</strong>! We received your request and will get back to you within 1 business day with a quote and next steps.</p><p>— Elisha, KidVibers</p>`);
+    return json({ ok: true });
   }
 
   // Unknown API route or method.
@@ -3299,12 +3553,83 @@ async function runWeeklyDigest(env) {
   return sent;
 }
 
+// Annual-plan renewal reminder — emails the account holder ~7 days before their yearly
+// subscription renews, so nobody is surprised by the charge. Only fires once per renewal
+// (guarded by only sending when renews_at is 6-7 days out, cron runs daily).
+async function runRenewalReminders(env) {
+  try {
+    const lo = new Date(Date.now() + 6 * 86400000).toISOString();
+    const hi = new Date(Date.now() + 7 * 86400000).toISOString();
+    const rows = (await env.DB.prepare(
+      "SELECT id,name,parent_email,plan,plan_renews_at FROM users WHERE plan_interval='year' AND plan_renews_at IS NOT NULL AND plan_renews_at BETWEEN ? AND ? AND stripe_subscription_id IS NOT NULL"
+    ).bind(lo, hi).all()).results || [];
+    let sent = 0;
+    for (const r of rows) {
+      if (!r.parent_email) continue;
+      const when = (r.plan_renews_at || "").slice(0, 10);
+      const ok = await sendEmail(env, r.parent_email, `Your KidVibers ${r.plan} plan renews soon`,
+        `<p>Hi <strong>${r.name}</strong>! Just a heads up — your annual <strong>${r.plan}</strong> plan renews on <strong>${when}</strong>.</p>
+         <p>No action needed if you'd like to keep it. To make changes, visit your account settings.</p>
+         <p style="color:#888;font-size:0.85rem;margin-top:16px;">Questions? Reply to this email or reach us at support@kidvibers.com</p>`);
+      if (ok) sent++;
+    }
+    return sent;
+  } catch { return 0; }
+}
+
+// Daily push reminder to kids who opted in and haven't coded today.
+// Fully guarded — a no-op (and never throws) unless VAPID keys are configured.
+async function runPushReminders(env) {
+  try {
+    if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return 0;
+    const subs = (await env.DB.prepare("SELECT ps.endpoint, ps.p256dh, ps.auth, ps.user_id FROM push_subs ps").all()).results || [];
+    let sent = 0;
+    for (const s of subs) {
+      try {
+        // Skip if the kid already did a lesson today
+        const usedToday = await lessonsUsedToday(env, s.user_id);
+        if (usedToday > 0) continue;
+        const res = await sendWebPush(env, s);
+        if (res === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?").bind(s.endpoint).run();
+        else if (res === true) sent++;
+      } catch {}
+    }
+    return sent;
+  } catch { return 0; }
+}
+
+// Minimal VAPID web push (payloadless "tickle" — the SW shows the default reminder).
+async function sendWebPush(env, sub) {
+  try {
+    const url = new URL(sub.endpoint);
+    const aud = url.origin;
+    const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const enc = new TextEncoder();
+    const header = b64u(enc.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+    const payload = b64u(enc.encode(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 43200, sub: "mailto:support@kidvibers.com" })));
+    const unsigned = `${header}.${payload}`;
+    // Import the private key (PKCS8 base64url in VAPID_PRIVATE_KEY)
+    const pkcs8 = Uint8Array.from(atob(env.VAPID_PRIVATE_KEY.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, enc.encode(unsigned));
+    const jwt = `${unsigned}.${b64u(sig)}`;
+    const res = await fetch(sub.endpoint, {
+      method: "POST",
+      headers: { TTL: "86400", Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}` },
+    });
+    if (res.status === 404 || res.status === 410) return 410;
+    return res.ok;
+  } catch { return false; }
+}
+
 export default {
   async scheduled(event, env, ctx) {
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
     if (now.getUTCDay() === 1) ctx.waitUntil(runWeeklyDigest(env));
     ctx.waitUntil(runReengagement(env));
+    ctx.waitUntil(runPushReminders(env));
+    ctx.waitUntil(runRenewalReminders(env));
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);

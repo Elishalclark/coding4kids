@@ -121,6 +121,39 @@ const C4K = {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   },
 
+  // ── Sound effects (Web Audio API — no asset files, respects the mute setting) ──
+  _actx: null,
+  soundOn() { try { return localStorage.getItem('c4k_sound') !== 'off'; } catch { return true; } },
+  setSound(on) { try { localStorage.setItem('c4k_sound', on ? 'on' : 'off'); } catch {} },
+  _tone(freqs, dur, type) {
+    if (!this.soundOn()) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!this._actx) this._actx = new AC();
+      const ctx = this._actx;
+      if (ctx.state === 'suspended') ctx.resume();
+      freqs.forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type || 'sine'; o.frequency.value = f;
+        const t0 = ctx.currentTime + i * (dur * 0.85);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t0); o.stop(t0 + dur);
+      });
+    } catch {}
+  },
+  sound: {
+    correct() { C4K._tone([660, 880], 0.14, 'sine'); },
+    wrong()   { C4K._tone([200, 150], 0.16, 'square'); },
+    win()     { C4K._tone([523, 659, 784, 1047], 0.18, 'triangle'); },
+    click()   { C4K._tone([440], 0.05, 'sine'); },
+    coin()    { C4K._tone([988, 1319], 0.10, 'square'); },
+    levelup() { C4K._tone([392, 523, 659, 784, 1047], 0.15, 'triangle'); },
+  },
+
   // ── Super-admin impersonation ("log in as") ──
   SUPER_BACKUP: 'c4k_super_token',
   startImpersonation(targetToken) {

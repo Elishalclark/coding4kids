@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Approve Account - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=122" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+    .cv { max-width: 460px; width:100%; background:var(--surface); border:1px solid var(--border-bright); border-radius:22px; padding:38px 30px; text-align:center; }
+    .cv .big { font-size:3.4rem; }
+    .cv h1 { font-size:1.5rem; font-weight:900; margin:12px 0; }
+    .cv p { color:var(--text-dim); line-height:1.6; margin-bottom:20px; }
+  </style>
+</head>
+<body>
+  <div class="cv" id="cv">
+    <div class="big">🛡️</div>
+    <h1>Parental Consent</h1>
+    <p>Confirming your approval…</p>
+  </div>
+  <script src="auth.js?v=122"></script>
+  <script>
+    (async () => {
+      const token = new URLSearchParams(location.search).get('token');
+      const cv = document.getElementById('cv');
+      if (!token) { cv.innerHTML = '<div class="big">⚠️</div><h1>Invalid link</h1><p>This approval link is missing its code.</p><a href="index.html" class="btn btn-primary">Go to KidVibers</a>'; return; }
+      const { ok, data } = await C4K.api('/api/consent/verify', 'POST', { token });
+      if (ok) {
+        cv.innerHTML = `<div class="big">✅</div><h1>Approved — thank you!</h1>
+          <p>You've verified your consent for <strong>${C4K.esc(data.name || 'your child')}</strong> to use KidVibers. They're all set to keep learning to code safely.</p>
+          <a href="index.html" class="btn btn-primary btn-lg">Go to KidVibers 🚀</a>`;
+      } else {
+        cv.innerHTML = `<div class="big">⚠️</div><h1>Link expired</h1><p>${C4K.esc(data.error || 'This approval link is no longer valid.')}</p><a href="index.html" class="btn btn-primary">Go to KidVibers</a>`;
+      }
+    })();
+  </script>
+</body>
+</html>
