@@ -12,7 +12,7 @@
   <meta property="og:image" content="https://kidvibers.com/icon-512.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=128" />
+  <link rel="stylesheet" href="styles.css?v=129" />
   <style>
     .pr { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
     .pr-hero { text-align:center; padding: 30px 20px 8px; }
@@ -78,6 +78,17 @@
       <a href="index.html#signup" class="btn btn-primary">Start your free trial 🚀</a>
     </div>
 
+    <!-- BILLING TOGGLE: Monthly / Annual -->
+    <div role="group" aria-label="Choose billing period" style="display:flex;justify-content:center;margin:28px auto 0;">
+      <div style="display:inline-flex;background:var(--surface);border:1px solid var(--border-bright);border-radius:50px;padding:4px;">
+        <button id="billMonthly" onclick="setBilling('month')" aria-pressed="true"
+          style="border:none;border-radius:50px;padding:9px 22px;font-weight:900;font-family:inherit;font-size:0.9rem;cursor:pointer;background:linear-gradient(135deg,var(--purple-mid,#7c3aed),var(--pink,#db2777));color:#fff;">Monthly</button>
+        <button id="billAnnual" onclick="setBilling('year')" aria-pressed="false"
+          style="border:none;border-radius:50px;padding:9px 22px;font-weight:900;font-family:inherit;font-size:0.9rem;cursor:pointer;background:none;color:var(--text-dim);">Annual</button>
+      </div>
+    </div>
+    <p id="billNote" style="text-align:center;color:var(--text-faint);font-size:0.82rem;margin:8px 0 0;">Pay month-to-month · cancel anytime</p>
+
     <!-- KIDS & FAMILIES -->
     <div class="pr-grid">
       <!-- Free -->
@@ -98,27 +109,27 @@
         <div class="pr-tag">MOST POPULAR</div>
         <div class="emoji">⭐</div>
         <h3>Pro</h3>
-        <div class="pr-price">$9<span>/mo</span></div>
+        <div class="pr-price" data-plan="pro" data-mo="9" data-yr="108"><span class="amt">$9</span><span class="per">/mo</span></div>
         <ul>
           <li>✅ All lessons &amp; 25 worlds</li>
           <li>✅ 🤖 AI buddy (Byte)</li>
           <li>✅ Boss battles</li>
           <li>✅ Certificates</li>
         </ul>
-        <a href="checkout.html?plan=pro" class="btn btn-primary btn-full">Get Pro</a>
+        <a href="checkout.html?plan=pro" data-checkout="pro" class="btn btn-primary btn-full">Get Pro</a>
       </div>
       <!-- Family -->
       <div class="pr-card">
         <div class="emoji">👨‍👩‍👧</div>
         <h3>Family</h3>
-        <div class="pr-price">$15<span>/mo</span></div>
+        <div class="pr-price" data-plan="family" data-mo="15" data-yr="180"><span class="amt">$15</span><span class="per">/mo</span></div>
         <ul>
           <li>✅ Everything in Pro</li>
           <li>✅ Up to 4 kids</li>
           <li>✅ Family dashboard</li>
           <li>✅ Priority support</li>
         </ul>
-        <a href="checkout.html?plan=family" class="btn btn-outline btn-full">Get Family</a>
+        <a href="checkout.html?plan=family" data-checkout="family" class="btn btn-outline btn-full">Get Family</a>
       </div>
     </div>
 
@@ -133,7 +144,7 @@
       <div class="pr-card">
         <div class="emoji">🍎</div>
         <h3>Teacher</h3>
-        <div class="pr-price">$24<span>/mo</span></div>
+        <div class="pr-price" data-plan="teacher" data-mo="24" data-yr="288"><span class="amt">$24</span><span class="per">/mo</span></div>
         <ul>
           <li>✅ Up to <strong>100 students</strong></li>
           <li>✅ Full curriculum - 25 worlds, 293 lessons</li>
@@ -141,13 +152,13 @@
           <li>✅ Class code - kids join in seconds</li>
           <li>✅ Teacher dashboard</li>
         </ul>
-        <a href="checkout.html?plan=teacher" class="btn btn-outline btn-full">Choose Teacher</a>
+        <a href="checkout.html?plan=teacher" data-checkout="teacher" class="btn btn-outline btn-full">Choose Teacher</a>
       </div>
       <!-- School -->
       <div class="pr-card">
         <div class="emoji">🏫</div>
         <h3>School</h3>
-        <div class="pr-price">$105<span>/mo</span></div>
+        <div class="pr-price" data-plan="school" data-mo="105" data-yr="1260"><span class="amt">$105</span><span class="per">/mo</span></div>
         <ul>
           <li>✅ Up to <strong>550 students</strong></li>
           <li>✅ Full curriculum - 25 worlds, 293 lessons</li>
@@ -155,14 +166,14 @@
           <li>✅ District dashboard - branding &amp; management</li>
           <li>✅ School-wide consent</li>
         </ul>
-        <a href="checkout.html?plan=school" class="btn btn-outline btn-full">Choose School</a>
+        <a href="checkout.html?plan=school" data-checkout="school" class="btn btn-outline btn-full">Choose School</a>
       </div>
       <!-- District -->
       <div class="pr-card featured">
         <div class="pr-tag">BEST FOR DISTRICTS &amp; LIBRARIES</div>
         <div class="emoji">🏛️</div>
         <h3>District</h3>
-        <div class="pr-price">$125<span>/mo</span></div>
+        <div class="pr-price" data-plan="district" data-mo="125" data-yr="1500"><span class="amt">$125</span><span class="per">/mo</span></div>
         <ul>
           <li>✅ <strong>Unlimited students</strong></li>
           <li>✅ Everything in School</li>
@@ -171,7 +182,7 @@
           <li>✅ Suspend, edit logins, or remove students</li>
           <li>✅ Priority support</li>
         </ul>
-        <a href="checkout.html?plan=district" class="btn btn-primary btn-full">Choose District</a>
+        <a href="checkout.html?plan=district" data-checkout="district" class="btn btn-primary btn-full">Choose District</a>
         <a href="mailto:support@kidvibers.com?subject=Library Partnership - KidVibers" style="display:block;text-align:center;margin-top:10px;font-size:0.85rem;font-weight:800;color:var(--purple);">📧 Library? Email us for a custom plan →</a>
       </div>
     </div>
@@ -220,7 +231,29 @@
     </div>
   </footer>
 
-  <script src="pwa.js?v=128" defer></script>
-  <script src="editor.js?v=128" defer></script>
+  <script>
+    // Monthly / Annual billing toggle. Annual = 12× monthly (no discount, shown as a yearly
+    // total). Carries the choice to checkout via ?interval=year so the right Stripe price is used.
+    function setBilling(interval) {
+      const annual = interval === 'year';
+      document.querySelectorAll('.pr-price[data-plan]').forEach(el => {
+        const amt = el.querySelector('.amt'), per = el.querySelector('.per');
+        amt.textContent = '$' + (annual ? el.dataset.yr : el.dataset.mo);
+        per.textContent = annual ? '/yr' : '/mo';
+      });
+      document.querySelectorAll('a[data-checkout]').forEach(a => {
+        a.href = 'checkout.html?plan=' + a.dataset.checkout + (annual ? '&interval=year' : '');
+      });
+      const m = document.getElementById('billMonthly'), y = document.getElementById('billAnnual');
+      const on = 'linear-gradient(135deg,var(--purple-mid,#7c3aed),var(--pink,#db2777))';
+      m.style.background = annual ? 'none' : on;  m.style.color = annual ? 'var(--text-dim)' : '#fff';  m.setAttribute('aria-pressed', String(!annual));
+      y.style.background = annual ? on : 'none';  y.style.color = annual ? '#fff' : 'var(--text-dim)';  y.setAttribute('aria-pressed', String(annual));
+      document.getElementById('billNote').textContent = annual
+        ? 'Billed once a year · same great price, one payment · cancel anytime'
+        : 'Pay month-to-month · cancel anytime';
+    }
+  </script>
+  <script src="pwa.js?v=129" defer></script>
+  <script src="editor.js?v=129" defer></script>
 </body>
 </html>

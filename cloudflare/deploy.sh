@@ -2,7 +2,13 @@
 # Usage:  ./deploy.sh staging   (private preview)   |   ./deploy.sh production   (live)
 set -e
 cd "$(dirname "$0")"
-export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; nvm use --lts >/dev/null 2>&1 || true
+export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; nvm use --lts >/dev/null 2>&1
+# wrangler is installed under a specific node version; if --lts switched to a version that
+# doesn't have it, fall back to whichever node bin DOES have wrangler so deploys don't break.
+command -v wrangler >/dev/null 2>&1 || {
+  W=$(ls "$NVM_DIR"/versions/node/*/bin/wrangler 2>/dev/null | head -1)
+  [ -n "$W" ] && export PATH="$(dirname "$W"):$PATH"
+} || true
 echo "📦 Copying the latest site files..."
 cp ../*.html public/ 2>/dev/null || true
 cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true

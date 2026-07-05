@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=128" />
+  <link rel="stylesheet" href="styles.css?v=129" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -208,13 +208,29 @@
       </div>
     </div>
 
+    <!-- Announce to class -->
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">📣</span>
+        <div style="flex:1;min-width:160px;">
+          <h2 style="margin-bottom:2px;">Announce to your students</h2>
+          <p class="hint" style="margin:0;">Post a message every student sees on their dashboard.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="annMsg" maxlength="500" placeholder="e.g. Welcome to coding club! Finish World 1 this week 🎉" style="flex:1;min-width:200px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <button class="btn btn-primary" onclick="postAnnouncement()">Post</button>
+      </div>
+      <div class="msg" id="annMsgResult"></div>
+    </div>
+
     <!-- Assign lessons -->
     <div class="card" id="assignCard">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="font-size:1.4rem;">📌</span>
         <div style="flex:1;min-width:160px;">
           <h2 style="margin-bottom:2px;">Assign lessons</h2>
-          <p class="hint" style="margin:0;">Set homework for your students. They'll see it on their dashboard.</p>
+          <p class="hint" style="margin:0;">Set homework — you'll see who's completed each one.</p>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -279,7 +295,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=128"></script>
+  <script src="auth.js?v=129"></script>
   <script>
     let ME = null;
 
@@ -321,6 +337,8 @@
       loadSchedule();
       initAssignments();
       if (ME.isFullDistrict) { document.getElementById('schoolsCard').style.display = ''; loadSchools(); }
+      // Live session view: refresh online-now + progress every 30s (paused when tab hidden).
+      setInterval(() => { if (!document.hidden) loadDDProgress(); }, 30000);
     })();
 
     // ── School Hours ──
@@ -368,17 +386,35 @@
       loadAssignments();
     }
     async function loadAssignments() {
-      const { ok, data } = await C4K.api('/api/assignments');
+      const { ok, data } = await C4K.api('/api/assignments/progress');
       if (!ok) return;
       const list = document.getElementById('asgList');
       const items = data.assignments || [];
-      list.innerHTML = items.length ? items.map(a => `
-        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
-          <span style="font-size:1.1rem;">📌</span>
-          <div style="flex:1;"><strong style="font-size:0.9rem;">${C4K.esc(a.title)}</strong>
-            <div style="color:var(--text-dim);font-size:0.78rem;">${a.unit ? (WORLD_NAMES[a.unit] || 'World ' + a.unit) : 'Any world'}${a.dueDate ? ' · due ' + a.dueDate : ''}</div></div>
-          <button class="mini danger" onclick="deleteAssignment(${a.id})">🗑️</button>
-        </div>`).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
+      list.innerHTML = items.length ? items.map(a => {
+        const prog = a.total ? `<div style="min-width:96px;text-align:right;">
+             <div style="font-weight:900;font-size:0.85rem;color:${a.doneCount===a.total?'#22c55e':'var(--purple)'};">${a.doneCount}/${a.total} done</div>
+             <div style="height:5px;background:var(--border);border-radius:50px;overflow:hidden;margin-top:3px;"><div style="height:100%;width:${a.total?Math.round(a.doneCount/a.total*100):0}%;background:linear-gradient(90deg,#7c3aed,#22c55e);"></div></div>
+           </div>` : '';
+        const doneNames = (a.done && a.done.length) ? `<div style="color:var(--text-faint);font-size:0.72rem;margin-top:3px;">✅ ${a.done.slice(0,6).map(C4K.esc).join(', ')}${a.done.length>6?' +'+(a.done.length-6):''}</div>` : '';
+        return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;">📌</span>
+            <div style="flex:1;"><strong style="font-size:0.9rem;">${C4K.esc(a.title)}</strong>
+              <div style="color:var(--text-dim);font-size:0.78rem;">${a.unit ? (WORLD_NAMES[a.unit] || 'World ' + a.unit) : 'Any world'}${a.dueDate ? ' · due ' + a.dueDate : ''}</div></div>
+            ${prog}
+            <button class="mini danger" onclick="deleteAssignment(${a.id})">🗑️</button>
+          </div>${doneNames}
+        </div>`; }).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
+    }
+
+    async function postAnnouncement() {
+      const inp = document.getElementById('annMsg'), res = document.getElementById('annMsgResult');
+      const message = inp.value.trim();
+      if (!message) { res.style.color = '#f87171'; res.textContent = 'Write a message first.'; return; }
+      res.style.color = 'var(--text-dim)'; res.textContent = 'Posting…';
+      const { ok, data } = await C4K.api('/api/teacher/announce', 'POST', { message });
+      if (ok) { res.style.color = 'var(--green,#4ade80)'; res.textContent = `✅ Sent to ${data.sent} student${data.sent===1?'':'s'}.`; inp.value=''; setTimeout(()=>res.textContent='',3000); }
+      else { res.style.color = '#f87171'; res.textContent = (data && data.error) || 'Could not post.'; }
     }
     async function createAssignment() {
       const title = document.getElementById('asgTitle').value.trim();
@@ -703,7 +739,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=128" defer></script>
-  <script src="editor.js?v=128" defer></script>
+  <script src="pwa.js?v=129" defer></script>
+  <script src="editor.js?v=129" defer></script>
 </body>
 </html>

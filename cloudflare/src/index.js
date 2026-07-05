@@ -1735,6 +1735,107 @@ async function apiDeleteAssignment(env, request, data) {
   return json({ ok: true });
 }
 
+// Assignment completion tracking: for each of a teacher's assignments, how many of their
+// students have completed it. "Complete" = passed the unit's boss (if the assignment targets
+// a unit) or did at least one of the listed lessons; otherwise counts kids who cleared the unit.
+async function apiAssignmentProgress(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const fams = await managedFamilyIds(env, u);
+  const ph = fams.map(() => "?").join(",");
+  const kids = (await env.DB.prepare(`SELECT id,name,username FROM users WHERE role='kid' AND family_id IN (${ph})`).bind(...fams).all()).results || [];
+  const assigns = (await env.DB.prepare("SELECT * FROM assignments WHERE teacher_id=? ORDER BY created_at DESC LIMIT 50").bind(u.id).all()).results || [];
+  const out = [];
+  for (const a of assigns) {
+    const lessonIds = a.lesson_ids ? (() => { try { return JSON.parse(a.lesson_ids); } catch { return []; } })() : [];
+    const done = [];
+    for (const k of kids) {
+      let complete = false;
+      if (a.unit) {
+        const passed = await env.DB.prepare("SELECT 1 FROM unit_tests WHERE user_id=? AND unit=? AND passed=1").bind(k.id, a.unit).first();
+        complete = !!passed;
+      } else if (lessonIds.length) {
+        const lp = lessonIds.map(() => "?").join(",");
+        const c = (await env.DB.prepare(`SELECT COUNT(*) c FROM progress WHERE user_id=? AND lesson_id IN (${lp})`).bind(k.id, ...lessonIds).first()).c || 0;
+        complete = c >= lessonIds.length;
+      }
+      if (complete) done.push(k.name);
+    }
+    out.push({ id: a.id, title: a.title, unit: a.unit, dueDate: a.due_date, total: kids.length, doneCount: done.length, done });
+  }
+  return json({ assignments: out, totalStudents: kids.length });
+}
+
+// Class announcement: a teacher/school/district posts one message that lands as a notice on
+// EVERY one of their students' dashboards at once.
+async function apiTeacherAnnounce(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can post announcements." }, 403);
+  const msg = (data.message || "").toString().trim().slice(0, 500);
+  if (!msg) return json({ error: "Write a message first." }, 400);
+  if (rateLimited(`announce:${u.id}`, 10, 3600)) return json({ error: "You've posted a lot of announcements — take a short break." }, 429);
+  const fams = await managedFamilyIds(env, u);
+  const ph = fams.map(() => "?").join(",");
+  const kids = (await env.DB.prepare(`SELECT id FROM users WHERE role='kid' AND family_id IN (${ph})`).bind(...fams).all()).results || [];
+  const now = nowIso();
+  const from = u.brand_name || u.school || "your teacher";
+  for (const k of kids) {
+    await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)")
+      .bind(k.id, "announcement", `📣 From ${from}: ${msg}`, now).run();
+  }
+  return json({ ok: true, sent: kids.length });
+}
+
+// Daily login reward: a small token bonus, once per calendar day, just for showing up.
+const DAILY_REWARD = 15;
+async function apiDailyReward(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
+  if (u.isPreview) return json({ claimed: false, alreadyToday: false, reward: DAILY_REWARD, tokens: 250 });
+  const key = `daily:${u.id}:${todayStr()}`;
+  const existing = await env.DB.prepare("SELECT 1 FROM settings WHERE key=?").bind(key).first();
+  if (existing) {
+    const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens ?? 0;
+    return json({ claimed: false, alreadyToday: true, reward: DAILY_REWARD, tokens: tok });
+  }
+  await env.DB.prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)").bind(key, nowIso()).run();
+  await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id=?").bind(DAILY_REWARD, u.id).run();
+  const tok = (await env.DB.prepare("SELECT tokens FROM users WHERE id=?").bind(u.id).first()).tokens ?? 0;
+  return json({ claimed: true, alreadyToday: false, reward: DAILY_REWARD, tokens: tok });
+}
+
+// Class leaderboard for a KID: ranks only the kids in their own class/family this week —
+// friendlier and safer than a global board. First names only.
+async function apiMyLeaderboard(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ leaderboard: [] });
+  if (u.family_id == null) return json({ leaderboard: [] });
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const rows = (await env.DB.prepare(
+    "SELECT u.id, u.name, COALESCE(SUM(l.xp),0) AS week_xp, COUNT(p.lesson_id) AS week_lessons " +
+    "FROM users u LEFT JOIN progress p ON p.user_id=u.id AND p.completed_at>=? " +
+    "LEFT JOIN lessons l ON l.id=p.lesson_id " +
+    "WHERE u.role='kid' AND u.family_id=? GROUP BY u.id ORDER BY week_xp DESC, week_lessons DESC LIMIT 20"
+  ).bind(since, u.family_id).all()).results || [];
+  return json({ leaderboard: rows.map((r, i) => ({ rank: i + 1, name: (r.name || "").split(" ")[0], xp: r.week_xp || 0, lessons: r.week_lessons || 0, me: r.id === u.id })), me: u.id });
+}
+
+// "Recommend KidVibers to my library/school" — a warm B2B lead. Emails the KidVibers team.
+async function apiRecommend(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (rateLimited(`recommend:${ip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
+  const org = cleanName(data.org || "").slice(0, 150);
+  const contact = (data.contact || "").toString().trim().slice(0, 200);
+  const from = cleanName(data.fromName || "").slice(0, 100);
+  const note = (data.note || "").toString().trim().slice(0, 500);
+  if (!org) return json({ error: "Please tell us the library or school name." }, 400);
+  await notifyAdmin(env, `📚 Library recommendation: ${org}`,
+    `📚 *Someone recommended KidVibers to their library/school!*\n• Organization: ${org}\n• Their contact info: ${contact || "(not given)"}\n• From: ${from || "a parent"}\n• Note: ${note || "(none)"}`);
+  await sendEmail(env, "support@kidvibers.com", `Library lead: ${org}`,
+    `<p><strong>${escHtml(from) || "A parent"}</strong> recommended KidVibers to <strong>${escHtml(org)}</strong>.</p><p>Contact/where to reach them: ${escHtml(contact) || "(not given)"}</p><p>Note: ${escHtml(note) || "(none)"}</p>`);
+  return json({ ok: true });
+}
+
 // ── Parent screen-time limit (minutes per day) ──────────────────────────────
 async function apiSetScreenLimit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -3135,6 +3236,11 @@ async function handleApi(env, request, path) {
   if (path === "/api/assignments" && method === "GET") return apiListAssignments(env, request);
   if (path === "/api/assignments/create" && method === "POST") return apiCreateAssignment(env, request, data);
   if (path === "/api/assignments/delete" && method === "POST") return apiDeleteAssignment(env, request, data);
+  if (path === "/api/assignments/progress" && method === "GET") return apiAssignmentProgress(env, request);
+  if (path === "/api/teacher/announce" && method === "POST") return apiTeacherAnnounce(env, request, data);
+  if (path === "/api/daily-reward" && method === "POST") return apiDailyReward(env, request);
+  if (path === "/api/my-leaderboard" && method === "GET") return apiMyLeaderboard(env, request);
+  if (path === "/api/recommend" && method === "POST") return apiRecommend(env, request, data);
   if (path === "/api/screen-limit" && method === "GET") return apiGetScreenLimit(env, request);
   if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
   if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
@@ -3400,8 +3506,15 @@ async function runWeeklyDigest(env) {
       const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
       const xp = xpRow ? xpRow.xp : 0;
       if (lessonsThisWeek > 0) anyActive = true;
+      // Highlight: worlds conquered THIS week (a real milestone worth celebrating in the email).
+      const wonThisWeek = (await env.DB.prepare("SELECT unit FROM unit_tests WHERE user_id=? AND passed=1 AND updated_at>=? ORDER BY unit").bind(k.id, since).all()).results || [];
+      const wonNames = wonThisWeek.map(w => { const wd = WORLDS[w.unit] || {}; return `${wd.emoji || "🏆"} ${wd.name || ("World " + w.unit)}`; });
+      const highlight = wonNames.length
+        ? `<div style="background:linear-gradient(135deg,#f3e8ff,#fce7f3);border:1px solid #e9d5ff;border-radius:10px;padding:11px 14px;margin:10px 0 4px;font-weight:800;color:#6d28d9;">🎉 Conquered ${wonNames.length === 1 ? "a new world" : wonNames.length + " new worlds"} this week: ${wonNames.join(", ")}!</div>`
+        : (lessonsThisWeek === 0 ? `<div style="color:#999;font-size:0.86rem;margin:8px 0 4px;">😴 Quiet week — a little nudge from you goes a long way!</div>` : "");
       kidsHtml += `<div style="background:#f9f7ff;border:1px solid #ede9fe;border-radius:12px;padding:16px 20px;margin-bottom:12px;">
         <div style="font-weight:900;font-size:1.05rem;color:#6d28d9;">${k.name}</div>
+        ${highlight}
         <table style="width:100%;margin-top:8px;">
           <tr><td style="color:#555;font-size:0.9rem;">📚 Lessons this week</td><td style="font-weight:800;text-align:right;">${lessonsThisWeek}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">🏆 Total lessons done</td><td style="font-weight:800;text-align:right;">${totalLessons}</td></tr>

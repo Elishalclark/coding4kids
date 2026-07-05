@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=128" />
+  <link rel="stylesheet" href="styles.css?v=129" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -176,11 +176,25 @@
     </div>
 
     <!-- Teacher: assign lessons -->
+    <!-- Class announcement (teachers) -->
+    <div id="announceCard" style="display:none;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">📣</span>
+        <div style="flex:1;min-width:160px;"><strong style="font-size:1.05rem;">Announce to your class</strong>
+          <div style="color:var(--text-dim);font-size:0.85rem;">Post a message every one of your students sees on their dashboard.</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="annMsg" maxlength="500" placeholder="e.g. Great job today! Finish World 3 by Friday 🎉" style="flex:1;min-width:200px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <button class="btn btn-primary" onclick="postAnnouncement()">Post</button>
+      </div>
+      <div id="annMsgResult" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+    </div>
+
     <div id="assignCard" style="display:none;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
         <span style="font-size:1.4rem;">📌</span>
         <div style="flex:1;min-width:160px;"><strong style="font-size:1.05rem;">Assign lessons</strong>
-          <div style="color:var(--text-dim);font-size:0.85rem;">Set homework for your students. They'll see it on their dashboard.</div></div>
+          <div style="color:var(--text-dim);font-size:0.85rem;">Set homework for your students. They'll see it on their dashboard, and you'll see who's done it.</div></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <input id="asgTitle" placeholder="Assignment title (e.g. Finish World 1)" style="flex:1;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
@@ -238,7 +252,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=128"></script>
+  <script src="auth.js?v=129"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -356,17 +370,38 @@
       loadAssignments();
     }
     async function loadAssignments() {
-      const { ok, data } = await C4K.api('/api/assignments');
+      const isTeacher = ME_ROLE === 'teacher';
+      // Teachers get completion counts; kids just get the list.
+      const { ok, data } = await C4K.api(isTeacher ? '/api/assignments/progress' : '/api/assignments');
       if (!ok) return;
       const list = document.getElementById('asgList');
       const items = data.assignments || [];
-      list.innerHTML = items.length ? items.map(a => `
-        <div style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
-          <span style="font-size:1.1rem;">📌</span>
-          <div style="flex:1;"><strong style="font-size:0.9rem;">${C4K.esc(a.title)}</strong>
-            <div style="color:var(--text-dim);font-size:0.78rem;">${a.unit ? (WORLD_NAMES[a.unit] || 'World ' + a.unit) : 'Any world'}${a.dueDate ? ' · due ' + a.dueDate : ''}</div></div>
-          <button class="btn btn-ghost" style="font-size:0.75rem;padding:5px 10px;" onclick="deleteAssignment(${a.id})">🗑️</button>
-        </div>`).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
+      list.innerHTML = items.length ? items.map(a => {
+        const prog = (isTeacher && a.total)
+          ? `<div style="min-width:96px;text-align:right;">
+               <div style="font-weight:900;font-size:0.85rem;color:${a.doneCount===a.total?'#22c55e':'var(--purple)'};">${a.doneCount}/${a.total} done</div>
+               <div style="height:5px;background:var(--border);border-radius:50px;overflow:hidden;margin-top:3px;"><div style="height:100%;width:${a.total?Math.round(a.doneCount/a.total*100):0}%;background:linear-gradient(90deg,#7c3aed,#22c55e);"></div></div>
+             </div>` : '';
+        const doneNames = (isTeacher && a.done && a.done.length) ? `<div style="color:var(--text-faint);font-size:0.72rem;margin-top:3px;">✅ ${a.done.slice(0,6).map(C4K.esc).join(', ')}${a.done.length>6?' +'+(a.done.length-6):''}</div>` : '';
+        return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.1rem;">📌</span>
+            <div style="flex:1;"><strong style="font-size:0.9rem;">${C4K.esc(a.title)}</strong>
+              <div style="color:var(--text-dim);font-size:0.78rem;">${a.unit ? (WORLD_NAMES[a.unit] || 'World ' + a.unit) : 'Any world'}${a.dueDate ? ' · due ' + a.dueDate : ''}</div></div>
+            ${prog}
+            <button class="btn btn-ghost" style="font-size:0.75rem;padding:5px 10px;" onclick="deleteAssignment(${a.id})">🗑️</button>
+          </div>${doneNames}
+        </div>`; }).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
+    }
+
+    async function postAnnouncement() {
+      const inp = document.getElementById('annMsg'), res = document.getElementById('annMsgResult');
+      const message = inp.value.trim();
+      if (!message) { res.style.color = '#f87171'; res.textContent = 'Write a message first.'; return; }
+      res.style.color = 'var(--text-dim)'; res.textContent = 'Posting…';
+      const { ok, data } = await C4K.api('/api/teacher/announce', 'POST', { message });
+      if (ok) { res.style.color = 'var(--green,#4ade80)'; res.textContent = `✅ Sent to ${data.sent} student${data.sent===1?'':'s'}.`; inp.value = ''; setTimeout(()=>res.textContent='',3000); }
+      else { res.style.color = '#f87171'; res.textContent = (data && data.error) || 'Could not post.'; }
     }
     async function createAssignment() {
       const title = document.getElementById('asgTitle').value.trim();
@@ -408,6 +443,7 @@
       setTimeout(() => b.textContent = t, 1200);
     }
 
+    let ME_ROLE = 'parent';
     async function load() {
       const me = await C4K.loadMe();
       // Super admin can preview this dashboard (master login); parents & teachers see their own.
@@ -415,6 +451,7 @@
       // School & District accounts have their own management dashboard.
       if (me.role === 'teacher' && me.isDistrict) { location.href = 'district.html'; return; }
       const isTeacher = me.role === 'teacher';
+      ME_ROLE = me.role;
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
       const paidFamily = me.plan === 'family';
@@ -433,6 +470,7 @@
           ? `Your plan allows up to ${lim} students (${me.studentsUsed || 0} used).`
           : 'Your plan allows unlimited students.';
         document.getElementById('assignCard').style.display = '';
+        document.getElementById('announceCard').style.display = '';
         initAssignments();
       } else {
         document.getElementById('screenTimeCard').style.display = '';
@@ -454,6 +492,9 @@
         // Progress + leaderboard
         document.getElementById('progressSection').style.display = 'block';
         loadProgress();
+        // Live session view: auto-refresh the "online now" + progress every 30s so a teacher
+        // running a coding club sees kids appear/advance in real time. Pauses when the tab is hidden.
+        setInterval(() => { if (!document.hidden) loadProgress(); }, 30000);
       }
       const { ok, data } = await C4K.api('/api/parent/family');
       const grid = document.getElementById('kidGrid');
@@ -635,7 +676,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=128" defer></script>
-  <script src="editor.js?v=128" defer></script>
+  <script src="pwa.js?v=129" defer></script>
+  <script src="editor.js?v=129" defer></script>
 </body>
 </html>
