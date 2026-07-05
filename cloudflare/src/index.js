@@ -55,6 +55,18 @@ const BAD_WORDS = [
   "fuck","shit","bitch","asshole","bastard","dick","piss","cunt","slut","whore","fag","faggot",
   "nigger","nigga","retard","rape","kys","dumbass","douche","penis","vagina","porn","nude","sex",
 ];
+// Child-welfare watchlist: phrases that suggest self-harm, suicidal thoughts, abuse, or serious
+// bullying. These are NOT blocked (a kid reaching out for help must get through) — instead they
+// quietly alert the child's teacher/school + the KidVibers team so a grown-up can check in.
+const WELFARE_PATTERNS = [
+  /\bkill (myself|my self)\b/, /\bkms\b/, /\bwant to die\b/, /\bend it all\b/, /\bsuicid/, /\bself harm\b/,
+  /\bcut(ting)? myself\b/, /\bhurt myself\b/, /\bno reason to live\b/, /\bhate my life\b/, /\bwish i was dead\b/,
+  /\bbeing bullied\b/, /\bthey hit me\b/, /\bsomeone hurts me\b/, /\bhits me\b/, /\bscared to go home\b/,
+];
+function welfareFlag(text) {
+  const low = (text || "").toString().toLowerCase();
+  return WELFARE_PATTERNS.some((re) => re.test(low));
+}
 function contentIssue(text) {
   const t = (text || "").toString();
   const low = t.toLowerCase();
@@ -64,6 +76,22 @@ function contentIssue(text) {
   if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return "Please don't share email addresses — keep personal info private. 🔒";
   if (/\b\d{1,5}\s+[a-z].{0,20}\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|blvd|court|ct)\b/i.test(low)) return "Please don't share your address — keep personal info private. 🔒";
   return null;
+}
+
+// Send a safety alert to the child's SCHOOL/TEACHER (the family owner) so the adult responsible
+// for them in class is a real-time first responder — plus the KidVibers team. Stored as a notice
+// on the teacher/district account (kind='safety'), which their dashboard surfaces.
+async function alertSchool(env, kid, title, detail) {
+  try {
+    if (kid && kid.family_id != null) {
+      const owner = await env.DB.prepare("SELECT id,role FROM users WHERE id=?").bind(kid.family_id).first();
+      if (owner && owner.role === "teacher") {
+        await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)")
+          .bind(owner.id, "safety", `🚩 SAFETY ALERT — ${kid.name} (@${kid.username}): ${title}${detail ? " — " + detail : ""}`, nowIso()).run();
+      }
+    }
+    await notifyAdmin(env, `🚩 Safety alert: ${kid && kid.name}`, `🚩 *Safety alert*\n• Student: ${kid && kid.name} (@${kid && kid.username})\n• ${title}${detail ? `\n• Detail: ${detail}` : ""}`);
+  } catch {}
 }
 
 function hexToBytes(hex) {
@@ -293,6 +321,7 @@ async function publicUser(env, user) {
       classCode: user.class_code ?? null,
       brandName: user.brand_name ?? null, brandLogo: user.brand_logo ?? null,
       logoutPinSet: !!(await getLogoutPin(env, user.family_id)),
+      retentionMonths: parseInt((await getSetting(env, `retention:${user.family_id}`, "0")), 10) || 0,
     };
   }
   const kidBrand = user.role === "kid" ? await familyBranding(env, user.family_id) : {};
@@ -1285,6 +1314,10 @@ async function apiKidHelp(env, request, data) {
   }
   await notifyAdmin(env, `🆘 Kid help button: ${u.name} (@${u.username})`,
     `🆘 *Kid used the "Something's wrong?" button*\n• Kid: ${u.name} (@${u.username})\n• Reason: ${reasonText}${note ? `\n• Message: ${note}` : ""}\n• Parent notified: ${u.parent_email ? "yes" : "no parent email on file"}`);
+  // Alert the teacher/school too — in a classroom they're the first responder. Escalate hard
+  // if the note trips the welfare watchlist (self-harm / abuse / serious bullying).
+  const welfare = welfareFlag(note) || reasonKey === "scary" || reasonKey === "mean";
+  await alertSchool(env, u, welfare ? "used the safety button — may need urgent attention" : "used the \"Something's wrong?\" button", `${reasonText}${note ? " — \"" + note.slice(0, 120) + "\"" : ""}`);
   return json({ ok: true, parentNotified: !!u.parent_email });
 }
 
@@ -1348,7 +1381,17 @@ async function apiProjectSave(env, request, data) {
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
-  { const _ci = contentIssue(data.title); if (_ci) return json({ error: _ci }, 400); }
+  // Welfare check first (a cry for help must be caught even if the text is also "blocked").
+  if (welfareFlag(data.title)) await alertSchool(env, u, "typed something concerning in Vibe Studio", (data.title || "").toString().slice(0, 120));
+  { const _ci = contentIssue(data.title); if (_ci) {
+      // Repeated attempts at bad content get flagged to the teacher (a pattern worth noticing).
+      const fk = `badtries:${u.id}:${todayStr()}`;
+      const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(fk).first();
+      const n = (parseInt(row && row.value, 10) || 0) + 1;
+      await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(fk, String(n)).run();
+      if (n === 4) await alertSchool(env, u, "repeatedly tried to post inappropriate content today", "content was blocked each time");
+      return json({ error: _ci }, 400);
+  } }
   const title = cleanName(data.title || "").slice(0, TITLE_MAX) || "Untitled project";
   const code = (data.code || "").slice(0, CODE_MAX);
   let pid = data.id;
@@ -1809,6 +1852,24 @@ async function apiTeacherAnnounce(env, request, data) {
   return json({ ok: true, sent: kids.length });
 }
 
+// A teacher/school flags a concern about one of their students to the KidVibers safety team,
+// creating a record. Documents the concern (behavior / safety worry) with a reason + notes.
+async function apiTeacherConcern(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can do this." }, 403);
+  const kid = await managedKid(env, u, data.kidId | 0);
+  if (!kid) return json({ error: "That student isn't in your school." }, 403);
+  const reason = cleanName(data.reason || "").slice(0, 100) || "Concern";
+  const notes = (data.notes || "").toString().trim().slice(0, 800);
+  if (rateLimited(`concern:${u.id}`, 20, 3600)) return json({ error: "Too many reports at once — take a short break." }, 429);
+  const org = u.brand_name || u.school || u.username;
+  // Keep a record for the KidVibers team and log it against the student's consent/history trail.
+  await notifyAdmin(env, `🏫 Teacher concern: ${kid.name}`,
+    `🏫 *A teacher reported a concern about a student*\n• School: ${org}\n• Student: ${kid.name} (@${kid.username})\n• Reason: ${reason}${notes ? `\n• Notes: ${notes}` : ""}`);
+  await logConsent(env, kid.id, kid.username, "concern_reported", `teacher (${u.username})`, `${reason}${notes ? ": " + notes : ""}`);
+  return json({ ok: true });
+}
+
 // ── Session logout PIN (shared-device / library sessions) ──────────────────
 // Kids normally can't sign themselves out (a guardian controls that). But on a shared
 // library/lab computer, the librarian wants kids to be able to end their own session so the
@@ -1823,6 +1884,17 @@ async function apiSetLogoutPin(env, request, data) {
   if (!pin) { await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(key).run(); return json({ ok: true, pinSet: false }); }
   await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key, pin).run();
   return json({ ok: true, pinSet: true });
+}
+// Data-retention setting: a school can auto-delete students who've been inactive for N months
+// (0 = keep forever, the default). Kept conservative — only touches genuinely inactive accounts.
+async function apiSetRetention(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a school/district can set this." }, 403);
+  const months = Math.max(0, Math.min(60, parseInt(data.months, 10) || 0));
+  const key = `retention:${u.family_id}`;
+  if (!months) { await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(key).run(); return json({ ok: true, months: 0 }); }
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key, String(months)).run();
+  return json({ ok: true, months });
 }
 async function getLogoutPin(env, familyId) {
   if (familyId == null) return null;
@@ -1891,6 +1963,20 @@ async function apiEndSession(env, request) {
   return json({ ok: true });
 }
 
+// Lock / unlock a session: locked = the code still works for kids already in, but no NEW joins
+// (stops a stranger who got the code from wandering in mid-program).
+async function apiLockSession(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const prev = await getSetting(env, `activesession:${u.id}`, null);
+  if (!prev || !prev.code) return json({ error: "No active session." }, 400);
+  const s = await getSetting(env, `session:${prev.code}`, null);
+  if (!s) return json({ error: "No active session." }, 400);
+  s.locked = !!data.locked;
+  await setSetting(env, `session:${prev.code}`, s);
+  return json({ ok: true, locked: s.locked });
+}
+
 async function apiJoinSession(env, request, data) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   if (rateLimited(`joinsession:${ip}`, 20, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
@@ -1898,6 +1984,7 @@ async function apiJoinSession(env, request, data) {
   const chosen = (data.name || data.username || "").toString().trim();
   const info = await getSetting(env, `session:${code}`, null);
   if (!info || info.expires < Date.now()) return json({ error: "That session code isn't active. Ask your teacher or librarian for the current code." }, 404);
+  if (info.locked) return json({ error: "This session is locked — no new joins right now. Ask your teacher." }, 403);
   if (!/^[A-Za-z0-9 _.-]{2,20}$/.test(chosen)) return json({ error: "Pick a name using 2-20 letters or numbers." }, 400);
   { const ci = contentIssue(chosen); if (ci) return json({ error: ci }, 400); }
   // Respect the group's seat cap so a session can't blow past the plan limit.
@@ -2140,7 +2227,8 @@ async function apiParentMessages(env, request) {
 async function apiParentKidData(env, request, kidId) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
-  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(kidId, u.family_id).first();
+  // managedKid lets a district export a student from any of its schools (FERPA / records requests).
+  const kid = await managedKid(env, u, kidId);
   if (!kid) return json({ error: "Not your family's kid." }, 403);
   const prog = ((await env.DB.prepare("SELECT lesson_id FROM progress WHERE user_id=?").bind(kidId).all()).results || []).map((r) => r.lesson_id);
   const tests = (await env.DB.prepare("SELECT unit,passed,best_score,attempts FROM unit_tests WHERE user_id=?").bind(kidId).all()).results || [];
@@ -3407,9 +3495,12 @@ async function handleApi(env, request, path) {
   if (path === "/api/assignments/delete" && method === "POST") return apiDeleteAssignment(env, request, data);
   if (path === "/api/assignments/progress" && method === "GET") return apiAssignmentProgress(env, request);
   if (path === "/api/teacher/announce" && method === "POST") return apiTeacherAnnounce(env, request, data);
+  if (path === "/api/teacher/concern" && method === "POST") return apiTeacherConcern(env, request, data);
   if (path === "/api/teacher/logout-pin" && method === "POST") return apiSetLogoutPin(env, request, data);
+  if (path === "/api/teacher/retention" && method === "POST") return apiSetRetention(env, request, data);
   if (path === "/api/session/start" && method === "POST") return apiStartSession(env, request, data);
   if (path === "/api/session/end" && method === "POST") return apiEndSession(env, request);
+  if (path === "/api/session/lock" && method === "POST") return apiLockSession(env, request, data);
   if (path === "/api/session/join" && method === "POST") return apiJoinSession(env, request, data);
   if (path === "/api/teacher/bulk" && method === "POST") return apiBulkStudents(env, request, data);
   if (path === "/api/kid/session-logout" && method === "POST") return apiKidSessionLogout(env, request, data);
@@ -3804,6 +3895,21 @@ export default {
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizfail:%' AND substr(key,-10) < ?").bind(d(2).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'challenge:%' AND substr(key,-10) < ?").bind(d(90).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
+        // School-set data retention: delete students inactive longer than the school's chosen
+        // window (last completed lesson, or account age if they never started).
+        const retRows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'retention:%'").all()).results || [];
+        for (const r of retRows) {
+          const months = parseInt(r.value, 10) || 0; if (!months) continue;
+          const famId = parseInt(r.key.split(":")[1], 10); if (!famId) continue;
+          const cutoff = new Date(Date.now() - months * 30 * 86400000).toISOString();
+          const kids = (await env.DB.prepare(
+            "SELECT id FROM users WHERE role='kid' AND family_id=? AND COALESCE((SELECT MAX(completed_at) FROM progress WHERE user_id=users.id), created_at) < ?"
+          ).bind(famId, cutoff).all()).results || [];
+          for (const k of kids) {
+            for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
+              await env.DB.prepare(sql).bind(k.id).run();
+          }
+        }
         // Clean up finished library-session guest accounts (and their data + markers).
         const guestCutoff = new Date(Date.now() - 24 * 3600000).toISOString();  // grace period after session ends
         const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND consent_method='library_session' AND created_at < ?").bind(guestCutoff).all()).results || [];

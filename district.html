@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=139" />
+  <link rel="stylesheet" href="styles.css?v=140" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -53,6 +53,7 @@
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:8px;">
         <a href="index.html" class="btn btn-ghost">Home</a>
+        <a href="for-schools-privacy.html" class="btn btn-ghost" title="Privacy, data & DPA for schools">🔒 Privacy &amp; DPA</a>
         <a href="settings.html" class="btn btn-ghost">⚙️ Settings</a>
         <button class="btn btn-outline" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
       </div>
@@ -100,6 +101,7 @@
         <div id="sessCode" style="font-size:2.4rem;font-weight:900;letter-spacing:8px;margin:6px 0;color:#fff;">------</div>
         <div style="font-size:0.8rem;color:#dcfce7;" id="sessExpiry"></div>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button id="sessLockBtn" class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="toggleLockSession()">🔒 Lock joins</button>
           <button class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="newSessionCode()">🔄 New code</button>
           <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
           <button class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
@@ -117,6 +119,24 @@
       </div>
       <input id="pinInput" maxlength="12" placeholder="e.g. 4821" style="width:120px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;font-family:inherit;text-align:center;letter-spacing:2px;" />
       <button class="mini" onclick="saveLogoutPin()">Save PIN</button>
+    </div>
+
+    <!-- Data retention -->
+    <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="font-size:1.8rem;">🗑️</div>
+      <div style="flex:1;min-width:200px;">
+        <h2 style="margin-bottom:2px;">Data retention</h2>
+        <p class="hint" style="margin:0;">Automatically delete students who've been inactive this long (their progress &amp; data are removed). Choose "Keep forever" to turn it off.</p>
+        <div class="msg" id="retMsg"></div>
+      </div>
+      <select id="retSelect" style="padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;font-family:inherit;">
+        <option value="0">Keep forever</option>
+        <option value="6">6 months inactive</option>
+        <option value="12">12 months inactive</option>
+        <option value="18">18 months inactive</option>
+        <option value="24">24 months inactive</option>
+      </select>
+      <button class="mini" onclick="saveRetention()">Save</button>
     </div>
 
     <div class="dd-grid">
@@ -339,7 +359,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=139"></script>
+  <script src="auth.js?v=140"></script>
   <script>
     let ME = null;
 
@@ -376,6 +396,7 @@
         document.getElementById('brLogo').value = ME.brandLogo || '';
       }
       if (ME.logoutPinSet) { document.getElementById('pinMsg').textContent = '✅ A session PIN is set — students can end their own session with it.'; }
+      if (ME.retentionMonths) document.getElementById('retSelect').value = String(ME.retentionMonths);
       loadRoster();
       loadNotices();
       loadDDProgress();
@@ -466,11 +487,18 @@
       if (ok) showSession(data.code, data.expiresAt);
       else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
     }
+    let _sessLocked = false;
     async function newSessionCode() {
       if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
       const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
-      if (ok) showSession(data.code, data.expiresAt);
+      if (ok) { _sessLocked = false; setLockBtn(); showSession(data.code, data.expiresAt); }
       else alert(data.error || 'Could not change the code.');
+    }
+    function setLockBtn() { const b = document.getElementById('sessLockBtn'); if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins'; }
+    async function toggleLockSession() {
+      const { ok, data } = await C4K.api('/api/session/lock', 'POST', { locked: !_sessLocked });
+      if (ok) { _sessLocked = data.locked; setLockBtn(); }
+      else alert(data.error || 'Could not update.');
     }
     async function endLiveSession() {
       if (!confirm('End the live session? The join code will stop working.')) return;
@@ -479,6 +507,15 @@
       const btn = document.getElementById('startSessBtn'); btn.disabled = false; btn.textContent = 'Start a session';
     }
 
+    async function saveRetention() {
+      const months = document.getElementById('retSelect').value;
+      const msg = document.getElementById('retMsg');
+      if (months !== '0' && !confirm('Auto-delete students inactive for ' + months + ' months? Their data will be permanently removed. This runs daily.')) return;
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/teacher/retention', 'POST', { months });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.months ? `✅ Inactive students are auto-deleted after ${data.months} months.` : '✅ Data is kept forever (auto-delete off).'; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
+    }
     async function saveLogoutPin() {
       const pin = document.getElementById('pinInput').value.trim();
       const msg = document.getElementById('pinMsg');
@@ -486,6 +523,20 @@
       const { ok, data } = await C4K.api('/api/teacher/logout-pin', 'POST', { pin });
       if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.pinSet ? `✅ Session PIN set to "${pin}". Share it with students.` : '✅ Session logout turned off.'; document.getElementById('pinInput').value=''; }
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
+    }
+    async function downloadStudent(kidId, name) {
+      const { ok, data } = await C4K.api('/api/parent/kid-data/' + kidId);
+      if (!ok) return alert(data.error || 'Could not get data.');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name.replace(/\s+/g, '_') + '-kidvibers-record.json'; a.click();
+    }
+    async function reportConcern(kidId, name) {
+      const reason = prompt('Report a concern about ' + name + ' to the KidVibers safety team.\n\nWhat is the concern? (e.g. Bullying, Safety worry, Inappropriate behavior)');
+      if (!reason) return;
+      const notes = prompt('Add any details (optional):') || '';
+      const { ok, data } = await C4K.api('/api/teacher/concern', 'POST', { kidId, reason, notes });
+      alert(ok ? '✅ Concern reported. The KidVibers safety team has been notified and it\'s on the student\'s record.' : ('❌ ' + (data.error || 'Could not report.')));
     }
     async function postAnnouncement() {
       const inp = document.getElementById('annMsg'), res = document.getElementById('annMsgResult');
@@ -563,16 +614,21 @@
       if (!ok || !data.notices || !data.notices.length) return;
       const card = document.getElementById('noticesCard');
       card.style.display = 'flex';
-      card.innerHTML = data.notices.map(n => `
-        <div style="display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#2e1457,#4c1d95);border:1px solid var(--border-bright);border-radius:14px;padding:16px 18px;">
-          <span style="font-size:1.3rem;">📣</span>
+      // Safety alerts (kind='safety') render as urgent red cards so they can't be missed.
+      card.innerHTML = data.notices.map(n => {
+        const safety = n.kind === 'safety';
+        const bg = safety ? 'linear-gradient(135deg,#7f1d1d,#991b1b)' : 'linear-gradient(135deg,#2e1457,#4c1d95)';
+        const title = safety ? '🚩 Student Safety Alert' : 'Message from KidVibers';
+        const titleColor = safety ? '#fecaca' : '#fbbf24';
+        return `<div style="display:flex;gap:12px;align-items:flex-start;background:${bg};border:1px solid ${safety?'rgba(239,68,68,.5)':'var(--border-bright)'};border-radius:14px;padding:16px 18px;">
+          <span style="font-size:1.3rem;">${safety?'🚩':'📣'}</span>
           <div style="flex:1;">
-            <div style="font-weight:900;color:#fbbf24;font-size:0.92rem;">Message from KidVibers</div>
+            <div style="font-weight:900;color:${titleColor};font-size:0.92rem;">${title}</div>
             <div style="color:#e6dcff;font-size:0.9rem;line-height:1.5;margin-top:3px;white-space:pre-wrap;word-break:break-word;">${C4K.esc(n.body)}</div>
             <div style="color:#a58fd6;font-size:0.72rem;margin-top:6px;">${C4K.esc(n.at)}</div>
           </div>
           <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:1.1rem;line-height:1;">✕</button>
-        </div>`).join('');
+        </div>`; }).join('');
     }
 
     function paintHeader() {
@@ -669,6 +725,8 @@
               ? '<button class="mini" onclick="setSuspend(' + k.id + ',false)">Restore</button>'
               : '<button class="mini" onclick="setSuspend(' + k.id + ',true)">Suspend</button>') +
             '<button class="mini" onclick="editLogin(' + k.id + ',\'' + C4K.esc(k.username) + '\')">Edit login</button>' +
+            '<button class="mini" onclick="downloadStudent(' + k.id + ',\'' + C4K.esc(k.name) + '\')">⬇️ Data</button>' +
+            '<button class="mini" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="reportConcern(' + k.id + ',\'' + C4K.esc(k.name) + '\')">🚩 Concern</button>' +
             '<button class="mini danger" onclick="removeStudent(' + k.id + ',\'' + C4K.esc(k.name) + '\')">Delete</button>' +
           '</div></td>' +
         '</tr>';
@@ -840,7 +898,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=139" defer></script>
-  <script src="editor.js?v=139" defer></script>
+  <script src="pwa.js?v=140" defer></script>
+  <script src="editor.js?v=140" defer></script>
 </body>
 </html>

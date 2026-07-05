@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=139" />
+  <link rel="stylesheet" href="styles.css?v=140" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -105,6 +105,7 @@
         <div id="sessCode" style="font-size:2.6rem;font-weight:900;letter-spacing:8px;margin:8px 0;color:#fff;">------</div>
         <div style="font-size:0.82rem;color:#dcfce7;" id="sessExpiry"></div>
         <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button id="sessLockBtn" class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);" onclick="toggleLockSession()">🔒 Lock joins</button>
           <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);" onclick="newSessionCode()">🔄 New code</button>
           <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);">🖨️ Print session flyer</a>
           <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);" onclick="endLiveSession()">End session</button>
@@ -304,7 +305,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=139"></script>
+  <script src="auth.js?v=140"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -461,11 +462,21 @@
       if (ok) showSession(data.code, data.expiresAt);
       else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
     }
+    let _sessLocked = false;
     async function newSessionCode() {
       if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
       const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
-      if (ok) showSession(data.code, data.expiresAt);
+      if (ok) { _sessLocked = false; setLockBtn(); showSession(data.code, data.expiresAt); }
       else alert(data.error || 'Could not change the code.');
+    }
+    function setLockBtn() {
+      const b = document.getElementById('sessLockBtn');
+      if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins';
+    }
+    async function toggleLockSession() {
+      const { ok, data } = await C4K.api('/api/session/lock', 'POST', { locked: !_sessLocked });
+      if (ok) { _sessLocked = data.locked; setLockBtn(); }
+      else alert(data.error || 'Could not update.');
     }
     async function endLiveSession() {
       if (!confirm('End the live session? The join code will stop working. (Kids already in stay signed in.)')) return;
@@ -635,14 +646,15 @@
       const msgs = (mr.ok && mr.data.messages) ? mr.data.messages : [];
       if (notices.length || msgs.length) {
         document.getElementById('msgWrap').classList.remove('hidden');
-        const noticeHtml = notices.map(n =>
-          `<div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:12px;padding:16px 18px;display:flex;gap:12px;align-items:flex-start;">
-             <span style="font-size:1.2rem;">📨</span>
-             <div style="flex:1;"><div style="font-weight:800;color:#fbbf24;">Notice from KidVibers</div>
+        const noticeHtml = notices.map(n => {
+          const safety = n.kind === 'safety';
+          return `<div style="background:${safety?'rgba(239,68,68,0.14)':'rgba(245,158,11,0.12)'};border:1px solid ${safety?'#ef4444':'#f59e0b'};border-radius:12px;padding:16px 18px;display:flex;gap:12px;align-items:flex-start;">
+             <span style="font-size:1.2rem;">${safety?'🚩':'📨'}</span>
+             <div style="flex:1;"><div style="font-weight:800;color:${safety?'#fca5a5':'#fbbf24'};">${safety?'Student Safety Alert':'Notice from KidVibers'}</div>
                <p style="color:var(--text);font-size:0.9rem;line-height:1.5;">${C4K.esc(n.body)}</p>
                <div style="color:var(--text-faint);font-size:0.72rem;">${C4K.esc(n.at)}</div></div>
              <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:1.1rem;">✕</button>
-           </div>`).join('');
+           </div>`; }).join('');
         const msgHtml = msgs.map(m => {
           const upgrade = m.kind === 'upgrade_request';
           return `<div style="background:var(--surface);border:1px solid ${upgrade?'var(--border-bright)':'var(--border)'};border-radius:12px;padding:16px 18px;">
@@ -782,7 +794,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=139" defer></script>
-  <script src="editor.js?v=139" defer></script>
+  <script src="pwa.js?v=140" defer></script>
+  <script src="editor.js?v=140" defer></script>
 </body>
 </html>
