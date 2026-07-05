@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=127" />
+  <link rel="stylesheet" href="styles.css?v=128" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -279,7 +279,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=127"></script>
+  <script src="auth.js?v=128"></script>
   <script>
     let ME = null;
 
@@ -642,8 +642,14 @@
         const { ok, data } = await C4K.api('/api/teacher/upload-roster', 'POST', { students });
         btn.textContent = '📤 Upload Roster (CSV)'; btn.disabled = false;
         if (ok) {
-          const list = (data.created || []).map(s => `${s.name} — @${s.username} / pw: ${s.password}`).join('\n');
-          alert(`✅ ${data.created.length} student${data.created.length===1?'':'s'} added!\n\nSave these logins:\n${list}`);
+          // Download the logins as a CSV file — an alert() disappears forever once dismissed.
+          const created = data.created || [];
+          const csv = 'Name,Username,Password\n' + created.map(s =>
+            [s.name, s.username, s.password].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+          a.download = 'kidvibers-student-logins.csv'; a.click();
+          alert(`✅ ${created.length} student${created.length===1?'':'s'} added!\n\nA CSV with all their logins (kidvibers-student-logins.csv) was just downloaded — save or print it to hand out.`);
           loadRoster();
         } else {
           msg.style.color = '#f87171'; msg.textContent = '❌ ' + (data.error || 'Upload failed.');
@@ -697,7 +703,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=127" defer></script>
-  <script src="editor.js?v=127" defer></script>
+  <script src="pwa.js?v=128" defer></script>
+  <script src="editor.js?v=128" defer></script>
 </body>
 </html>

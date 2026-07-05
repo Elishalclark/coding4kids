@@ -13,6 +13,11 @@ routes = [
 [triggers]
 crons = ["0 16 * * *"]
 
+# Error monitoring: keep logs (incl. unhandled errors) queryable in the Cloudflare dashboard
+# under Workers → kidvibers → Logs. Pairs with the in-code 500-alert email.
+[observability]
+enabled = true
+
 [assets]
 directory = "./public"
 binding = "ASSETS"

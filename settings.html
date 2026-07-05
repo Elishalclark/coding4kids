@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=127" />
+  <link rel="stylesheet" href="styles.css?v=128" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -82,7 +82,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=127"></script>
+  <script src="auth.js?v=128"></script>
   <script>
     let ME = null;
     (async () => {
@@ -147,20 +147,24 @@
         `<div class="kid-row">
            <div class="field"><label>${C4K.esc(k.name)} - username</label><input id="ku_${k.id}" value="${C4K.esc(k.username)}" /></div>
            <div class="field"><label>Parent email</label><input id="ke_${k.id}" type="email" value="${C4K.esc(k.parentEmail || '')}" /></div>
+           <div class="field"><label>New password <span style="font-weight:600;color:var(--text-faint);">(blank = keep)</span></label><input id="kp_${k.id}" type="text" autocomplete="new-password" placeholder="min 6 characters" /></div>
            <button class="btn btn-primary" onclick="saveKid(${k.id})">Save</button>
            <div class="msg" id="km_${k.id}" style="flex-basis:100%;"></div>
          </div>`).join('');
     }
     async function saveKid(id) {
       const msg = document.getElementById('km_' + id);
+      const pass = document.getElementById('kp_' + id).value;
+      if (pass && !confirm('Set a new password for this kid? They\'ll be signed out everywhere and need the new password to log in.')) return;
       msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
       const body = { kidId: id, username: document.getElementById('ku_' + id).value.trim(), email: document.getElementById('ke_' + id).value.trim() };
+      if (pass) body.password = pass;
       const { ok, data } = await C4K.api('/api/parent/update-kid', 'POST', body);
-      if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Saved: ' + (data.changed || []).join(' & '); }
+      if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Saved: ' + (data.changed || []).join(' & '); document.getElementById('kp_' + id).value = ''; }
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=127" defer></script>
-  <script src="editor.js?v=127" defer></script>
+  <script src="pwa.js?v=128" defer></script>
+  <script src="editor.js?v=128" defer></script>
 </body>
 </html>

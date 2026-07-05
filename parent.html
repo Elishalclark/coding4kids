@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=127" />
+  <link rel="stylesheet" href="styles.css?v=128" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -238,7 +238,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=127"></script>
+  <script src="auth.js?v=128"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -333,8 +333,14 @@
         const { ok, data } = await C4K.api('/api/teacher/upload-roster', 'POST', { students });
         btn.textContent = '📤 Upload Roster (CSV)'; btn.disabled = false;
         if (ok) {
-          const list = (data.created || []).map(s => `${s.name} — @${s.username} / pw: ${s.password}`).join('\n');
-          alert(`✅ ${data.created.length} student${data.created.length===1?'':'s'} added!\n\nSave these logins:\n${list}`);
+          // Download the logins as a CSV file — an alert() disappears forever once dismissed.
+          const created = data.created || [];
+          const csv = 'Name,Username,Password\n' + created.map(s =>
+            [s.name, s.username, s.password].map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+          a.download = 'kidvibers-student-logins.csv'; a.click();
+          alert(`✅ ${created.length} student${created.length===1?'':'s'} added!\n\nA CSV with all their logins (kidvibers-student-logins.csv) was just downloaded — save or print it to hand out.`);
           location.reload();
         } else { alert('❌ ' + (data.error || 'Upload failed.')); }
       };
@@ -629,7 +635,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=127" defer></script>
-  <script src="editor.js?v=127" defer></script>
+  <script src="pwa.js?v=128" defer></script>
+  <script src="editor.js?v=128" defer></script>
 </body>
 </html>

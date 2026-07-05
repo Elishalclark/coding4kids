@@ -17,4 +17,7 @@ else
   echo "🚀 Deploying to PRODUCTION (live)..."
   wrangler deploy
   echo "✅ Production: https://kidvibers.elishalclark.workers.dev"
+  # Post-deploy smoke tests: catch a broken deploy immediately, not from a user report.
+  sleep 3   # give the new version a moment to propagate
+  bash "$(dirname "$0")/smoke.sh" https://kidvibers.com || echo "⚠️⚠️⚠️  SMOKE TESTS FAILED — check the output above! ⚠️⚠️⚠️"
 fi

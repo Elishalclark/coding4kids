@@ -809,11 +809,24 @@ async function apiQuizAnswer(env, request, data) {
   // Record that this kid genuinely went through the quiz (any answer counts as the attempt).
   // apiProgressPost requires this marker before accepting a completion — so progress can't
   // be farmed by POSTing /api/progress directly without ever opening the quiz.
+  const correct = choice === q.answer;
   if (!u.isPreview) {
     await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .bind(`quizok:${u.id}:${lessonId}`, nowIso()).run();
+    // SERVER-SIDE fail tracking: the 3rd wrong answer on this lesson today burns one of the
+    // day's lesson slots automatically. The client also reports 3 failed runs, but a kid who
+    // blocks that call no longer escapes the cost — and burnFailSlot dedupes, so an honest
+    // client reporting too never double-charges.
+    if (!correct) {
+      const failKey = `quizfail:${u.id}:${lessonId}:${todayStr()}`;
+      const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(failKey).first();
+      const fails = (parseInt(row && row.value, 10) || 0) + 1;
+      await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .bind(failKey, String(fails)).run();
+      if (fails >= 3) await burnFailSlot(env, u, lessonId);
+    }
   }
-  return json({ correct: choice === q.answer, answer: q.answer, explain: q.explain || "" });
+  return json({ correct, answer: q.answer, explain: q.explain || "" });
 }
 
 async function apiProgressPost(env, request, data) {
@@ -866,16 +879,12 @@ async function apiProgressPost(env, request, data) {
 
 // Failing a lesson quiz 3 times uses one of today's lesson slots (anti-farming),
 // but does NOT mark the lesson complete — the kid still has to pass it.
-async function apiCountAttempt(env, request, data) {
-  const u = await userFromToken(env, bearer(request));
-  if (!u) return json({ error: "not logged in" }, 401);
-  if (u.isPreview) return json({ ok: true, lessonsUsedToday: 0 });
-  if (!consentOk(u)) return json({ error: "consent required" }, 403);
-  const lessonId = (data.lessonId || "").trim();
-  // Only count if this lesson isn't already completed (no charge for done lessons).
+// Burn one of today's lesson slots for a failed lesson. Deduped per lesson per day (the
+// "-fail:" marker row), so the client call and the server's automatic trigger can never
+// double-charge the same lesson.
+async function burnFailSlot(env, u, lessonId) {
   const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
-  if (already) return json({ ok: true, lessonsUsedToday: await lessonsUsedToday(env, u.id), alreadyDone: true });
-  // Guard: only count once per lesson per day, so re-opening the same failed lesson doesn't stack.
+  if (already) return;   // no charge for lessons they've completed
   const key = `${todayStr()}-fail:${lessonId}`;
   const counted = await env.DB.prepare("SELECT 1 FROM lessons_daily WHERE user_id=? AND day=?").bind(u.id, key).first();
   if (!counted) {
@@ -883,6 +892,15 @@ async function apiCountAttempt(env, request, data) {
     await env.DB.prepare("INSERT INTO lessons_daily (user_id,day,count) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1")
       .bind(u.id, todayStr()).run();
   }
+}
+
+async function apiCountAttempt(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (u.isPreview) return json({ ok: true, lessonsUsedToday: 0 });
+  if (!consentOk(u)) return json({ error: "consent required" }, 403);
+  const lessonId = (data.lessonId || "").trim();
+  await burnFailSlot(env, u, lessonId);
   return json({ ok: true, lessonsUsedToday: await lessonsUsedToday(env, u.id) });
 }
 
@@ -2084,6 +2102,15 @@ async function apiParentUpdateKid(env, request, data) {
     if (!/^\S+@\S+\.\S+$/.test(newEmail)) return json({ error: "Enter a valid parent email." }, 400);
     await env.DB.prepare("UPDATE users SET parent_email=? WHERE id=?").bind(newEmail, kid.id).run();
     changed.push("email");
+  }
+  // Parent can set a new password for their kid (kids have no self-serve reset by design).
+  const newPass = data.password || "";
+  if (newPass) {
+    if (newPass.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+    const { hash, salt } = await hashPassword(newPass);
+    await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, kid.id).run();
+    await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();  // sign out old devices
+    changed.push("password");
   }
   if (!changed.length) return json({ error: "Nothing changed." }, 400);
   return json({ ok: true, changed });
@@ -3479,6 +3506,18 @@ export default {
         await env.DB.prepare("DELETE FROM sessions WHERE created_at < ?").bind(cutoff).run();
       } catch {}
     })());
+    // Housekeeping: purge short-lived bookkeeping keys from the settings table so it
+    // doesn't grow forever. quizok markers only matter between quiz + completion (keep 7d);
+    // quizfail counters are day-scoped (keep 2d); challenge claims are week-scoped (keep 90d).
+    ctx.waitUntil((async () => {
+      try {
+        const d = (days) => new Date(Date.now() - days * 86400000).toISOString();
+        await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizok:%' AND value < ?").bind(d(7)).run();
+        await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizfail:%' AND substr(key,-10) < ?").bind(d(2).slice(0, 10)).run();
+        await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'challenge:%' AND substr(key,-10) < ?").bind(d(90).slice(0, 10)).run();
+        await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
+      } catch {}
+    })());
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -3510,7 +3549,16 @@ export default {
     }
     if (url.pathname.startsWith("/api/")) {
       try { return await handleApi(env, request, url.pathname); }
-      catch (e) { console.log("api error:", e && e.stack || e); return json({ error: "Something went wrong. Please try again." }, 500); }
+      catch (e) {
+        console.log("api error:", e && e.stack || e);
+        // Error monitoring: email the admin about unhandled 500s (max 5/hr so a hot bug
+        // can't email-storm; the alert includes the route + stack to fix it fast).
+        if (!rateLimited("err-alert", 5, 3600)) {
+          ctx.waitUntil(notifyAdmin(env, `🔥 API error: ${url.pathname}`,
+            `🔥 *Unhandled API error*\n• Route: ${request.method} ${url.pathname}\n• Error: ${(e && e.message) || e}\n• Stack: ${((e && e.stack) || "").slice(0, 800)}`).catch(() => {}));
+        }
+        return json({ error: "Something went wrong. Please try again." }, 500);
+      }
     }
     // Static pages: serve from assets, but add our security headers so EVERY response
     // (HTML included) carries anti-clickjacking, no-sniff, referrer, and HSTS protection.
