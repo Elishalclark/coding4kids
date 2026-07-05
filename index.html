@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=144" />
+  <link rel="stylesheet" href="styles.css?v=143" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -809,16 +809,12 @@
           </div>
         </div>
         <form id="signupForm" onsubmit="handleSignup(event)" style="display:flex;flex-direction:column;gap:12px;">
-          <input type="text" id="suName" placeholder="Child's first name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" oninput="suggestUsername()" />
-          <input type="number" id="suAgeYears" min="4" max="18" placeholder="Child's age" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-          <input type="email" id="suEmail" placeholder="Parent's email (to keep them in the loop)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-          <div style="display:flex;gap:8px;">
-            <input type="text" id="suUsername" placeholder="Pick a username" required class="form-input" style="flex:1;background:var(--bg);color:var(--text);border-color:var(--border);" />
-            <button type="button" onclick="suggestUsername(true)" title="Suggest a username" style="flex-shrink:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:0 14px;color:var(--text);font-weight:800;cursor:pointer;font-family:inherit;">🎲</button>
-          </div>
+          <input type="text" id="suName" placeholder="Child's first name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="email" id="suEmail" placeholder="Parent's email address" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="email" id="suKidEmail" placeholder="Child's email" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="text" id="suUsername" placeholder="Pick a username (3-20 letters/numbers)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
           <input type="password" id="suPassword" placeholder="Create a password (min 6 characters)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-          <!-- Child's email is optional (kept for older kids who have one) -->
-          <input type="email" id="suKidEmail" placeholder="Child's email (optional)" class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
+          <input type="number" id="suAgeYears" min="4" max="18" placeholder="Child's age (in years)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
           <button type="submit" class="btn btn-primary btn-lg">Create Free Account 🚀</button>
         </form>
         <div id="signupSuccess" class="signup-success hidden" style="margin-top:10px;"></div>
@@ -922,9 +918,6 @@
           <div id="quizBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#db2777);transition:width .25s;"></div>
         </div>
         <div id="quizBody"></div>
-        <div style="text-align:center;margin-top:14px;">
-          <a href="#" onclick="finishQuiz();return false;" style="color:var(--text-faint);font-size:0.82rem;font-weight:700;">Skip — just start coding →</a>
-        </div>
       </div>
     </div>
   </div>
@@ -1108,9 +1101,9 @@
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=144"></script>
-  <script src="app.js?v=144"></script>
-  <script src="pwa.js?v=144" defer></script>
-  <script src="editor.js?v=144" defer></script>
+  <script src="auth.js?v=143"></script>
+  <script src="app.js?v=143"></script>
+  <script src="pwa.js?v=143" defer></script>
+  <script src="editor.js?v=143" defer></script>
 </body>
 </html>

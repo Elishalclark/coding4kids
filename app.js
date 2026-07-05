@@ -25,18 +25,6 @@ async function loadLaunchBanner() {
 }
 if (document.getElementById('launchBannerHome') || document.getElementById('launchBanner')) loadLaunchBanner();
 
-// Suggest a fun, available-looking username so kids don't get stuck picking one.
-// Auto-fills from the child's name (only if the field is empty); the 🎲 button forces a new one.
-function suggestUsername(force) {
-  const nameEl = document.getElementById('suName'), userEl = document.getElementById('suUsername');
-  if (!nameEl || !userEl) return;
-  if (!force && userEl.value.trim()) return;   // don't overwrite what they typed
-  const base = (nameEl.value.trim().split(/\s+/)[0] || 'coder').replace(/[^a-zA-Z0-9]/g, '') || 'coder';
-  const adj = ['Cool', 'Super', 'Mega', 'Pixel', 'Turbo', 'Ninja', 'Star', 'Byte'];
-  const pick = adj[Math.floor(Math.random() * adj.length)];
-  userEl.value = (base + pick + Math.floor(10 + Math.random() * 90)).slice(0, 20);
-}
-
 async function handleSignup(e) {
   e.preventDefault();
   const success = document.getElementById('signupSuccess');
