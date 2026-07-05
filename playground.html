@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=125" />
+  <link rel="stylesheet" href="styles.css?v=126" />
   <style>
     body { background: #07050f; }
     .vs { display: flex; flex-direction: column; height: calc(100vh - 56px); }
@@ -78,6 +78,7 @@
       <span style="font-size:1.3rem;">🎨</span>
       <input class="vs-title-in" id="projTitle" placeholder="My awesome project" maxlength="60" />
       <span class="vs-status" id="vsStatus">Tell Byte what you want to build →</span>
+      <button class="btn btn-outline" id="myProjBtn" onclick="showMyProjects()" style="font-size:0.85rem;padding:8px 16px;display:none;">📂 My projects</button>
       <button class="btn btn-primary" id="saveBtn" onclick="saveProject()" style="font-size:0.85rem;padding:8px 16px;display:none;">💾 Save my project</button>
     </div>
 
@@ -132,7 +133,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=125"></script>
+  <script src="auth.js?v=126"></script>
   <script>
   const TEMPLATES = [
     { id:'website', name:'My Website', emoji:'🌐',
@@ -296,7 +297,7 @@
 
   (async()=>{
     ME=await C4K.loadMe();
-    if(ME) document.getElementById('dashLink').style.display='';
+    if(ME){ document.getElementById('dashLink').style.display=''; document.getElementById('myProjBtn').style.display=''; }
     // Auto-load a template from URL param: playground.html?template=birthday
     const autoId=new URLSearchParams(location.search).get('template');
     if(autoId){
@@ -387,11 +388,57 @@
     const code='VIBE:'+JSON.stringify({templateId:curTmpl.id,fields:curF,html:curTmpl.html(curF)});
     const sb=document.getElementById('saveBtn'); sb.textContent='💾 Saving…';
     const {ok,data}=await C4K.api('/api/projects/save','POST',{id:projId,title,code});
-    if(ok){projId=data.id; addMsg('🎉 Saved! Your project is safe — come back anytime to keep working on it.','ai'); document.getElementById('vsStatus').textContent='✅ Saved!'; setTimeout(()=>document.getElementById('vsStatus').textContent=curTmpl.emoji+' '+curTmpl.name,2000);}
+    if(ok){projId=data.id; addMsg('🎉 Saved! Tap <strong>📂 My projects</strong> anytime to reopen it and keep working. ','ai'); document.getElementById('vsStatus').textContent='✅ Saved!'; setTimeout(()=>document.getElementById('vsStatus').textContent=curTmpl.emoji+' '+curTmpl.name,2000);}
     else alert(data.error||'Could not save.');
     sb.textContent='💾 Save my project';
   }
+
+  // ── My projects: list, reopen (with editable fields), delete ──
+  async function showMyProjects(){
+    const {ok,data}=await C4K.api('/api/projects/mine');
+    if(!ok){addMsg('Could not load your projects — try again.','ai');return;}
+    const list=(data.projects||[]);
+    if(!list.length){addMsg('You have no saved projects yet. Build something and hit <strong>💾 Save</strong>! 🎨','ai');return;}
+    window._myProjects=list;
+    addMsg('Here are your saved projects — tap one to keep working on it:<br>'+list.map((p,i)=>
+      `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+         <button onclick="openProject(${i})" style="flex:1;text-align:left;background:var(--surface-2,#221d3d);border:1px solid var(--border,#3a2f63);border-radius:10px;padding:9px 12px;color:inherit;font-family:inherit;font-weight:800;font-size:0.85rem;cursor:pointer;">📄 ${e(p.title)} <span style="font-weight:600;opacity:.6;font-size:0.75rem;">· ${e(p.updatedAt)}</span></button>
+         <button onclick="deleteProject(${i})" title="Delete" style="background:none;border:1px solid rgba(239,68,68,.4);border-radius:8px;color:#f87171;padding:8px 10px;cursor:pointer;font-family:inherit;">🗑️</button>
+       </div>`).join(''),'ai');
+  }
+  function openProject(i){
+    const p=(window._myProjects||[])[i]; if(!p)return;
+    let payload=null;
+    if((p.code||'').startsWith('VIBE:')){ try{payload=JSON.parse(p.code.slice(5));}catch{} }
+    if(payload&&payload.templateId){
+      const t=TEMPLATES.find(x=>x.id===payload.templateId);
+      if(t){
+        curTmpl=t; curF=Object.assign({},payload.fields||{}); projId=p.id;
+        document.getElementById('editorPanel').classList.remove('hidden');
+        buildEditor(); refreshPreview();
+        document.getElementById('saveBtn').style.display='';
+        document.getElementById('projTitle').value=p.title||t.name;
+        document.getElementById('vsStatus').textContent=t.emoji+' '+t.name+' — reopened!';
+        addMsg(`📂 Reopened <strong>${e(p.title)}</strong> — everything is editable. Save again when you're done! ✨`,'ai');
+        return;
+      }
+    }
+    // Older save format (or a retired template): show the stored HTML in the preview, read-only.
+    projId=p.id; curTmpl=null;
+    const fr=document.getElementById('previewFrame'), em=document.getElementById('vsEmpty');
+    fr.style.display=''; em.style.display='none';
+    fr.srcdoc=(payload&&payload.html)?payload.html:((p.code||'').startsWith('VIBE:')?'':(p.code||''));
+    document.getElementById('projTitle').value=p.title||'';
+    addMsg(`📂 Opened <strong>${e(p.title)}</strong> to view. This one was saved in an older format, so pick a template to start editing a new version. 🎨`,'ai');
+  }
+  async function deleteProject(i){
+    const p=(window._myProjects||[])[i]; if(!p)return;
+    if(!confirm('Delete "'+p.title+'"? This cannot be undone.'))return;
+    const {ok,data}=await C4K.api('/api/projects/delete','POST',{id:p.id});
+    if(ok){ if(projId===p.id)projId=null; addMsg('🗑️ Deleted <strong>'+e(p.title)+'</strong>.','ai'); showMyProjects(); }
+    else alert(data.error||'Could not delete.');
+  }
   </script>
-  <script src="pwa.js?v=125" defer></script>
+  <script src="pwa.js?v=126" defer></script>
 </body>
 </html>

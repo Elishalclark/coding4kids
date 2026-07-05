@@ -869,6 +869,27 @@ async function apiGameScore(env, request, data) {
   return json({ ok: true, tokensAwarded: awarded, tokens: tok, alreadyPlayedToday: !!already });
 }
 
+// Load a unit's boss-battle test: the questions only (answers NEVER leave the server —
+// grading happens in apiTestSubmit, which walks the same lessons in the same order).
+async function apiTestGet(env, request, unit) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  if (!u.isPreview) {
+    if (!consentOk(u)) return json({ error: "A parent must approve this account first.", consentRequired: true }, 403);
+    const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403);
+  }
+  if (isNaN(unit)) return json({ error: "bad unit" }, 400);
+  const rows = (await env.DB.prepare("SELECT * FROM lessons WHERE published=1 AND unit=? ORDER BY position, id").bind(unit).all()).results || [];
+  const questions = [];
+  for (const r of rows) {
+    let q = {}; try { q = JSON.parse(r.quiz || "{}"); } catch {}
+    if (q.q && "answer" in q) questions.push({ q: q.q, opts: q.options || q.opts || [] });
+  }
+  if (!questions.length) return json({ error: "No test available for this unit." }, 400);
+  const world = WORLDS[unit] || {};
+  return json({ questions, boss: world.boss || { name: "The Boss", emoji: "👾" }, passPercent: await getPassPercent(env), unit });
+}
+
 async function apiTestSubmit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
@@ -1260,6 +1281,24 @@ async function apiProjectSave(env, request, data) {
     pid = res.meta.last_row_id;
   }
   return json({ ok: true, id: pid });
+}
+
+// List the logged-in user's own private projects (Vibe Studio "My projects").
+async function apiProjectsMine(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const rows = (await env.DB.prepare("SELECT id,title,code,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC").bind(u.id).all()).results || [];
+  return json({ projects: rows.map((r) => ({ id: r.id, title: r.title, code: r.code, updatedAt: (r.updated_at || "").slice(0, 16).replace("T", " ") })) });
+}
+
+// Delete one of your OWN projects (needed so kids aren't stuck at the project cap).
+async function apiProjectDeleteOwn(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const row = await env.DB.prepare("SELECT id FROM projects WHERE id=? AND user_id=?").bind(data.id, u.id).first();
+  if (!row) return json({ error: "Project not found" }, 404);
+  await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
 }
 
 // ───────────────────────── parent / teacher / district ─────────────────────────
@@ -3039,6 +3078,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/lesson/count-attempt" && method === "POST") return apiCountAttempt(env, request, data);
   if (path === "/api/game/score" && method === "POST") return apiGameScore(env, request, data);
   if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
+  if (path.startsWith("/api/test/") && method === "GET") return apiTestGet(env, request, parseInt(path.split("/").pop(), 10));
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
@@ -3050,6 +3090,8 @@ async function handleApi(env, request, path) {
 
   // gallery / projects / comments
   if (path === "/api/projects/save" && method === "POST") return apiProjectSave(env, request, data);
+  if (path === "/api/projects/mine" && method === "GET") return apiProjectsMine(env, request);
+  if (path === "/api/projects/delete" && method === "POST") return apiProjectDeleteOwn(env, request, data);
 
   // admin POSTs
   if (path === "/api/admin/set-plan" && method === "POST") return adminSetPlan(env, request, data);
