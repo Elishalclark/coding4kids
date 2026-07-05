@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=132" />
+  <link rel="stylesheet" href="styles.css?v=134" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -125,6 +125,12 @@
       <div class="hero-btns">
         <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;" data-i18n="heroCta">Start for Free 🚀</a>
         <a href="#how" class="btn btn-outline btn-lg" data-i18n="heroCta2">See How It Works</a>
+      </div>
+      <div style="margin-top:14px;">
+        <a href="#" onclick="openJoinSession();return false;" data-i18n="heroJoin"
+           style="display:inline-flex;align-items:center;gap:8px;background:rgba(21,128,61,0.18);border:1px solid rgba(34,197,94,0.5);color:#86efac;font-weight:800;font-size:0.9rem;padding:10px 18px;border-radius:50px;text-decoration:none;">
+          🎟️ At a library or class? Join a session with a code →
+        </a>
       </div>
       <div class="hero-stats">
         <div class="stat"><span class="stat-num">293</span><span class="stat-label" data-i18n="statLessons">Fun Lessons</span></div>
@@ -1070,6 +1076,7 @@
         statSafe: 'Seguro',
         navLogin: 'Entrar / Registrarse',
         navJoin: '🎟️ Unirse a una Sesión',
+        heroJoin: '🎟️ ¿En una biblioteca o clase? Únete con un código →',
       }
     };
     function applyLang(lang) {
@@ -1094,9 +1101,9 @@
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=132"></script>
-  <script src="app.js?v=132"></script>
-  <script src="pwa.js?v=132" defer></script>
-  <script src="editor.js?v=132" defer></script>
+  <script src="auth.js?v=134"></script>
+  <script src="app.js?v=134"></script>
+  <script src="pwa.js?v=134" defer></script>
+  <script src="editor.js?v=134" defer></script>
 </body>
 </html>

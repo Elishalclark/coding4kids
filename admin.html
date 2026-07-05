@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=132" />
+  <link rel="stylesheet" href="styles.css?v=134" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -214,6 +214,8 @@
               <option value="kid">👦 Kid</option>
               <option value="parent">👨‍👩‍👧 Parent</option>
               <option value="teacher">🍎 Teacher</option>
+              <option value="school">🏫 School</option>
+              <option value="district">🏛️ District</option>
               <option value="admin">🛠️ Admin</option>
             </select></label>
           <label class="le-lbl">Name <input id="caName" class="le-in" placeholder="Full name" /></label>
@@ -530,7 +532,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=132"></script>
+  <script src="auth.js?v=134"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -706,19 +708,25 @@
       document.getElementById('caPlanWrap').style.display = (role === 'kid') ? '' : 'none';
     }
     async function createAccount() {
-      const role = document.getElementById('caRole').value;
+      const picked = document.getElementById('caRole').value;
       const name = document.getElementById('caName').value.trim();
       const username = document.getElementById('caUser').value.trim();
       const password = document.getElementById('caPass').value;
       const email = document.getElementById('caEmail').value.trim();
-      const plan = role === 'kid' ? document.getElementById('caPlan').value : '';
+      // School & District are teacher accounts with the matching plan (they land in the
+      // District/Library dashboard). Teacher = teacher plan. Kids use the plan dropdown.
+      let role = picked, plan = '';
+      if (picked === 'school' || picked === 'district') { role = 'teacher'; plan = picked; }
+      else if (picked === 'teacher') { role = 'teacher'; plan = 'teacher'; }
+      else if (picked === 'kid') { plan = document.getElementById('caPlan').value; }
       const msg = document.getElementById('caMsg');
       if (!name || !username || !password) { msg.style.color = '#f87171'; msg.textContent = 'Name, username and password are required.'; return; }
       const { ok, data } = await C4K.api('/api/admin/create-account', 'POST', { role, name, username, password, email, plan });
       if (ok) {
+        const label = picked === 'district' ? 'district' : picked === 'school' ? 'school' : data.role;
         msg.style.color = 'var(--green, #5ad17e)';
         msg.textContent = data.created
-          ? `✅ Created ${data.role} account @${data.username}.`
+          ? `✅ Created ${label} account @${data.username}.`
           : `📨 Request sent - the super admin will approve @${data.username}.`;
         ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
         loadData();
@@ -1358,7 +1366,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=132" defer></script>
-  <script src="editor.js?v=132" defer></script>
+  <script src="pwa.js?v=134" defer></script>
+  <script src="editor.js?v=134" defer></script>
 </body>
 </html>
