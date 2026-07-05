@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=134" />
+  <link rel="stylesheet" href="styles.css?v=135" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -99,7 +99,10 @@
         <div style="font-size:0.78rem;font-weight:800;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Kids: kidvibers.com → “Join a session” → enter</div>
         <div id="sessCode" style="font-size:2.4rem;font-weight:900;letter-spacing:8px;margin:6px 0;color:#fff;">------</div>
         <div style="font-size:0.8rem;color:#dcfce7;" id="sessExpiry"></div>
-        <button class="mini" style="margin-top:10px;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+        <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
+          <button class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+        </div>
       </div>
     </div>
 
@@ -335,7 +338,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=134"></script>
+  <script src="auth.js?v=135"></script>
   <script>
     let ME = null;
 
@@ -452,6 +455,7 @@
     function showSession(code, expiresAt) {
       document.getElementById('sessLive').style.display = '';
       document.getElementById('sessCode').textContent = code;
+      document.getElementById('sessFlyer').href = 'card.html?code=' + encodeURIComponent(code);
       const b = document.getElementById('startSessBtn'); b.textContent = 'Session live'; b.disabled = true;
       if (expiresAt) { const h = Math.max(1, Math.round((new Date(expiresAt) - Date.now()) / 3600000)); document.getElementById('sessExpiry').textContent = `Code works for about ${h} more hour${h===1?'':'s'}.`; }
     }
@@ -829,7 +833,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=134" defer></script>
-  <script src="editor.js?v=134" defer></script>
+  <script src="pwa.js?v=135" defer></script>
+  <script src="editor.js?v=135" defer></script>
 </body>
 </html>

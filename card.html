@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Printable Cards - KidVibers</title>
+  <title>Printables - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
@@ -11,73 +11,158 @@
     body { font-family: 'Nunito', system-ui, sans-serif; background: #0c0a18; color: #fff;
            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
            padding: 26px 16px 50px; gap: 18px; }
-
-    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-    .btn { font-family: inherit; font-weight: 800; font-size: 0.95rem; padding: 11px 22px;
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .btn { font-family: inherit; font-weight: 800; font-size: 0.92rem; padding: 10px 18px;
            border-radius: 50px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
     .btn-primary { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; }
     .btn-outline { background: none; border: 1px solid #3a2f63; color: #cbb8ef; }
-    .hint { color: #8a82ad; font-size: 0.85rem; text-align: center; max-width: 460px; }
+    .btn-tab { background: #171327; border: 1px solid #3a2f63; color: #cbb8ef; }
+    .btn-tab.active { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; border-color: transparent; }
+    .hint { color: #8a82ad; font-size: 0.85rem; text-align: center; max-width: 480px; }
+    .codebar { display: none; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .codebar input { font-family: inherit; font-weight: 900; font-size: 1.1rem; text-align: center; letter-spacing: 4px;
+      text-transform: uppercase; padding: 8px 14px; border-radius: 10px; border: 1px solid #3a2f63; background: #171327; color: #fff; width: 160px; }
 
-    /* ── The sheet (letter page) ── */
-    .sheet {
-      width: 8.5in; min-height: 11in; background: #fff;
-      padding: 0.5in 0.5in; display: flex; flex-direction: column; align-items: center; gap: 0.25in;
-      box-shadow: 0 16px 50px rgba(0,0,0,0.4);
-    }
-    /* each slot has a dashed cut guide around the card */
-    .slot { border: 1px dashed #999; padding: 0; }
+    /* Sheets (letter) */
+    .view { display: none; }
+    .view.active { display: block; }
+    .sheet { width: 8.5in; min-height: 11in; background: #fff; color: #000;
+      padding: 0.5in; display: flex; flex-direction: column; align-items: center; gap: 0.25in;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.4); }
 
-    /* ── The card: 5in x 3in, black background + white text ── */
-    .card {
-      width: 5in; height: 3in; background: #fff; color: #000;
-      padding: 0.28in 0.32in; position: relative; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
+    /* ── Business cards ── */
+    .slot { border: 1px dashed #999; }
+    .card { width: 5in; height: 3in; background: #fff; color: #000; padding: 0.28in 0.32in; display: flex; flex-direction: column; }
     .card .top { display: flex; align-items: center; gap: 8px; }
     .card .logo-ico { font-size: 1.5rem; }
-    .card .brand { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.5px; color: #000; }
+    .card .brand { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.5px; }
     .card .tagline { font-size: 0.82rem; font-weight: 800; color: #333; margin-top: 2px; }
     .card .rule { height: 2px; background: #000; margin: 6px 0 0; }
     .card .mid { display: flex; gap: 14px; align-items: center; flex: 1; margin-top: 6px; }
     .card .pitch { flex: 1; }
-    .card .pitch h2 { font-size: 1.05rem; font-weight: 900; line-height: 1.15; margin-bottom: 5px; color: #000; }
+    .card .pitch h2 { font-size: 1.05rem; font-weight: 900; line-height: 1.15; margin-bottom: 5px; }
     .card .pitch ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
     .card .pitch li { font-size: 0.72rem; font-weight: 700; color: #222; }
     .card .pitch li b { font-weight: 900; color: #000; }
-    .card .qr { background: #fff; border: 1.5px solid #000; border-radius: 8px; padding: 5px; flex-shrink: 0; }
-    .card .qr img { width: 1.05in; height: 1.05in; display: block; filter: grayscale(1) contrast(1.4); }
-    .card .qr .scan { text-align: center; font-size: 0.58rem; font-weight: 900; color: #000; margin-top: 2px; letter-spacing: 0.5px; }
-    .card .offer { background: #000; color: #fff; border-radius: 8px; padding: 5px 10px;
-                   font-size: 0.72rem; font-weight: 900; text-align: center; margin-top: 4px; }
-    .card .url { text-align: center; font-size: 0.82rem; font-weight: 900; color: #000; margin-top: 5px; }
+    .qr { background: #fff; border: 1.5px solid #000; border-radius: 8px; padding: 5px; flex-shrink: 0; text-align: center; }
+    .qr img { display: block; filter: grayscale(1) contrast(1.4); }
+    .qr .scan { font-size: 0.58rem; font-weight: 900; margin-top: 2px; letter-spacing: 0.5px; }
+    .card .qr img { width: 1.05in; height: 1.05in; }
+    .card .offer { background: #000; color: #fff; border-radius: 8px; padding: 5px 10px; font-size: 0.72rem; font-weight: 900; text-align: center; margin-top: 4px; }
+    .card .url { text-align: center; font-size: 0.82rem; font-weight: 900; margin-top: 5px; }
+
+    /* ── Flyer (full page) ── */
+    .flyer { text-align: center; width: 100%; }
+    .flyer .fbrand { font-size: 3rem; font-weight: 900; letter-spacing: -1px; }
+    .flyer .ftag { font-size: 1.2rem; font-weight: 800; color: #6d28d9; margin: 2px 0 24px; }
+    .flyer h1 { font-size: 2.4rem; font-weight: 900; line-height: 1.1; margin-bottom: 20px; }
+    .flyer .feats { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 26px; }
+    .flyer .feat { border: 2px solid #000; border-radius: 14px; padding: 12px 18px; font-weight: 900; font-size: 1rem; }
+    .flyer .fqr img { width: 2.6in; height: 2.6in; }
+    .flyer .foffer { display: inline-block; background: #000; color: #fff; border-radius: 12px; padding: 12px 26px; font-size: 1.15rem; font-weight: 900; margin: 22px 0 10px; }
+    .flyer .furl { font-size: 1.6rem; font-weight: 900; }
+
+    /* ── Session flyer ── */
+    .sflyer { text-align: center; width: 100%; }
+    .sflyer .sbrand { font-size: 2.2rem; font-weight: 900; }
+    .sflyer h1 { font-size: 2.8rem; font-weight: 900; margin: 8px 0 6px; }
+    .sflyer .ssub { font-size: 1.3rem; font-weight: 800; color: #15803d; margin-bottom: 26px; }
+    .sflyer .steps { text-align: left; max-width: 5.5in; margin: 0 auto 22px; display: flex; flex-direction: column; gap: 14px; }
+    .sflyer .step { display: flex; gap: 14px; align-items: center; }
+    .sflyer .sn { flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: #15803d; color: #fff; font-weight: 900; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; }
+    .sflyer .step p { font-size: 1.15rem; font-weight: 800; }
+    .sflyer .codebox { border: 4px dashed #15803d; border-radius: 18px; padding: 16px 20px; display: inline-block; margin: 6px 0 22px; }
+    .sflyer .codebox .lbl { font-size: 1rem; font-weight: 900; color: #15803d; text-transform: uppercase; letter-spacing: 2px; }
+    .sflyer .codebox .code { font-size: 3.6rem; font-weight: 900; letter-spacing: 12px; }
+    .sflyer .sqr img { width: 2.2in; height: 2.2in; }
+    .sflyer .surl { font-size: 1.3rem; font-weight: 900; margin-top: 12px; }
 
     @media print {
       @page { size: letter; margin: 0; }
       body { background: #fff; padding: 0; gap: 0; display: block; }
-      .toolbar, .hint { display: none !important; }
+      .toolbar, .hint, .codebar { display: none !important; }
+      .view:not(.active) { display: none !important; }
       .sheet { box-shadow: none; margin: 0 auto; }
       .slot { border-color: #bbb; }
-      .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .card, .flyer, .sflyer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <button class="btn btn-primary" onclick="window.print()">🖨️ Print sheet (3 cards)</button>
+    <button class="btn btn-tab active" id="tabCards" onclick="show('cards')">💳 Business Cards</button>
+    <button class="btn btn-tab" id="tabFlyer" onclick="show('flyer')">📄 Flyer</button>
+    <button class="btn btn-tab" id="tabSession" onclick="show('session')">🎟️ Session Flyer</button>
+  </div>
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="window.print()">🖨️ Print this</button>
     <a class="btn btn-outline" href="index.html">← Back to site</a>
   </div>
-  <p class="hint">This is a full letter-size sheet with <strong>3 cards</strong>. Print it, then cut along the dashed lines. Cardstock works best.</p>
+  <div class="codebar" id="codeBar">
+    <span style="color:#cbb8ef;font-weight:800;">Session join code:</span>
+    <input id="codeInput" maxlength="6" placeholder="ABC123" oninput="updateCode()" />
+  </div>
+  <p class="hint" id="hint">A letter-size sheet with <strong>3 cards</strong>. Print, then cut along the dashed lines. Cardstock works best.</p>
 
-  <div class="sheet" id="sheet"></div>
+  <!-- CARDS -->
+  <div class="view active" id="view-cards">
+    <div class="sheet" id="cardSheet"></div>
+  </div>
+
+  <!-- FLYER -->
+  <div class="view" id="view-flyer">
+    <div class="sheet">
+      <div class="flyer">
+        <div class="fbrand">🚀 Kid<b>Vibers</b></div>
+        <div class="ftag">The Duolingo of coding — for kids</div>
+        <h1>Learn to code<br>by playing! 🎮</h1>
+        <div class="feats">
+          <div class="feat">293 lessons</div>
+          <div class="feat">25 worlds</div>
+          <div class="feat">🤖 AI buddy</div>
+          <div class="feat">🏆 Boss battles</div>
+          <div class="feat">100% ad-free &amp; safe</div>
+        </div>
+        <div class="qr fqr" style="display:inline-block;">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=520x520&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to visit kidvibers.com" />
+          <div class="scan" style="font-size:0.9rem;">📷 SCAN TO START</div>
+        </div>
+        <div class="foffer">First 50 kids get 30 days of Pro FREE 🎁</div>
+        <div class="furl">kidvibers.com</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SESSION FLYER -->
+  <div class="view" id="view-session">
+    <div class="sheet">
+      <div class="sflyer">
+        <div class="sbrand">🚀 Kid<b>Vibers</b></div>
+        <h1>💻 Coding Session Today!</h1>
+        <div class="ssub">Join in 10 seconds — no sign-up, no password.</div>
+        <div class="steps">
+          <div class="step"><div class="sn">1</div><p>Go to <b>kidvibers.com</b></p></div>
+          <div class="step"><div class="sn">2</div><p>Tap <b>“🎟️ Join a Session”</b></p></div>
+          <div class="step"><div class="sn">3</div><p>Enter the code below &amp; pick a name</p></div>
+          <div class="step"><div class="sn">4</div><p>Start coding! 🚀</p></div>
+        </div>
+        <div class="codebox">
+          <div class="lbl">Session code</div>
+          <div class="code" id="flyerCode">------</div>
+        </div>
+        <div class="qr sqr" style="display:inline-block;">
+          <img id="sessionQr" src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to join" />
+          <div class="scan" style="font-size:0.85rem;">📷 OR SCAN TO JOIN</div>
+        </div>
+        <div class="surl">kidvibers.com</div>
+      </div>
+    </div>
+  </div>
 
   <template id="cardTpl">
     <div class="slot">
       <div class="card">
-        <div class="top">
-          <span class="logo-ico">🚀</span>
-          <span class="brand">Kid<b>Vibers</b></span>
-        </div>
+        <div class="top"><span class="logo-ico">🚀</span><span class="brand">Kid<b>Vibers</b></span></div>
         <div class="tagline">The Duolingo of coding — for kids</div>
         <div class="rule"></div>
         <div class="mid">
@@ -102,11 +187,33 @@
   </template>
 
   <script>
-    // Fill the sheet with 3 copies of the card.
+    // Fill the card sheet with 3 copies.
     const tpl = document.getElementById('cardTpl');
-    const sheet = document.getElementById('sheet');
-    for (let i = 0; i < 3; i++) sheet.appendChild(tpl.content.cloneNode(true));
+    const cardSheet = document.getElementById('cardSheet');
+    for (let i = 0; i < 3; i++) cardSheet.appendChild(tpl.content.cloneNode(true));
+
+    const HINTS = {
+      cards: 'A letter-size sheet with <strong>3 cards</strong>. Print, then cut along the dashed lines. Cardstock works best.',
+      flyer: 'A full-page promo <strong>flyer</strong>. Great for a bulletin board, library display, or handout.',
+      session: 'A <strong>session flyer</strong> for a live drop-in program. Type your session code below — it updates the flyer & QR. Print one for each table.'
+    };
+    function show(v) {
+      ['cards','flyer','session'].forEach(k => {
+        document.getElementById('view-' + k).classList.toggle('active', k === v);
+        document.getElementById('tab' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === v);
+      });
+      document.getElementById('hint').innerHTML = HINTS[v];
+      document.getElementById('codeBar').style.display = (v === 'session') ? 'flex' : 'none';
+    }
+    function updateCode() {
+      const code = (document.getElementById('codeInput').value || '').trim().toUpperCase();
+      document.getElementById('flyerCode').textContent = code || '------';
+      const url = 'https://kidvibers.com/' + (code ? ('?join=' + encodeURIComponent(code)) : '');
+      document.getElementById('sessionQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=' + encodeURIComponent(url);
+    }
+    // Pre-fill the session code from ?code=ABC123 if provided (e.g. a link from the dashboard).
+    (() => { const c = new URLSearchParams(location.search).get('code'); if (c) { document.getElementById('codeInput').value = c.toUpperCase(); updateCode(); show('session'); } })();
   </script>
-  <script src="pwa.js?v=134" defer></script>
+  <script src="pwa.js?v=135" defer></script>
 </body>
 </html>
