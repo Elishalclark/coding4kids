@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify a Certificate - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=146" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">← Home</a>
+    </div>
+  </nav>
+  <main style="max-width:520px;margin:60px auto;padding:0 20px;">
+    <div class="card" style="padding:32px 28px;text-align:center;">
+      <div style="font-size:2.4rem;">🏅</div>
+      <h1 style="font-size:1.5rem;font-weight:900;margin:6px 0 4px;">Certificate Verification</h1>
+      <p style="color:var(--text-dim);margin-bottom:20px;font-size:0.92rem;">Confirm a KidVibers certificate is genuine.</p>
+      <div id="result"><p style="color:var(--text-dim);">Checking…</p></div>
+      <div id="manual" style="display:none;margin-top:16px;text-align:left;">
+        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:10px;">Have a certificate code? Enter it below (format: <code>CODE-UNIT</code>).</p>
+        <div style="display:flex;gap:8px;">
+          <input id="codeIn" placeholder="e.g. a1b2c3d4-5" style="flex:1;padding:11px 13px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+          <button class="btn btn-primary" onclick="manualCheck()">Verify</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const qs = new URLSearchParams(location.search);
+    async function check(k, u) {
+      const box = document.getElementById('result');
+      box.innerHTML = '<p style="color:var(--text-dim);">Checking…</p>';
+      let data = {};
+      try { const r = await fetch('/api/verify-cert?k=' + encodeURIComponent(k) + '&u=' + encodeURIComponent(u)); data = await r.json(); } catch (e) {}
+      if (data.valid) {
+        box.innerHTML =
+          '<div style="background:rgba(34,197,94,0.14);border:1px solid #22c55e;border-radius:14px;padding:20px;">' +
+          '<div style="font-size:1.6rem;">✅</div>' +
+          '<div style="font-weight:900;font-size:1.1rem;color:#4ade80;margin:4px 0;">Genuine certificate</div>' +
+          '<div style="font-size:1rem;font-weight:800;margin-top:8px;">' + esc(data.name) + '</div>' +
+          '<div style="color:var(--text-dim);font-size:0.9rem;">conquered <strong>' + esc(data.world) + '</strong></div>' +
+          '<div style="color:var(--text-dim);font-size:0.85rem;margin-top:6px;">Score ' + data.score + '% · earned ' + esc(data.at || '') + '</div>' +
+          '</div>';
+      } else {
+        box.innerHTML =
+          '<div style="background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:14px;padding:20px;">' +
+          '<div style="font-size:1.6rem;">⚠️</div>' +
+          '<div style="font-weight:900;color:#f87171;margin:4px 0;">Could not verify</div>' +
+          '<div style="color:var(--text-dim);font-size:0.9rem;">This code doesn\'t match a completed certificate. Double-check the code.</div>' +
+          '</div>';
+        document.getElementById('manual').style.display = '';
+      }
+    }
+    function manualCheck() {
+      const raw = (document.getElementById('codeIn').value || '').trim();
+      const m = raw.match(/^(.+)-(\d+)$/);
+      if (!m) { alert('Enter the code as CODE-UNIT, e.g. a1b2c3d4-5'); return; }
+      check(m[1], m[2]);
+    }
+    function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+    const k = qs.get('k'), u = qs.get('u');
+    if (k && u) check(k, u);
+    else { document.getElementById('result').innerHTML = '<p style="color:var(--text-dim);">Enter a certificate code to verify.</p>'; document.getElementById('manual').style.display = ''; }
+  </script>
+  <script src="pwa.js?v=146" defer></script>
+</body>
+</html>

@@ -2128,6 +2128,17 @@ async function apiGetScreenLimit(env, request) {
 
 // Public kid report card — safe stats only, looked up by a DEDICATED card_token
 // (never the link_token, which is used for parent-invite linking).
+// Public certificate verification: given a kid's card token + a world unit, confirm they really
+// earned that world's certificate (no login). Powers verify.html.
+async function apiVerifyCert(env, token, unit) {
+  const k = token && token.length >= 6 ? await env.DB.prepare("SELECT id,name FROM users WHERE card_token=? AND role='kid'").bind(token).first() : null;
+  if (!k || isNaN(unit)) return json({ valid: false });
+  const t = await env.DB.prepare("SELECT best_score,updated_at FROM unit_tests WHERE user_id=? AND unit=? AND passed=1").bind(k.id, unit).first();
+  if (!t) return json({ valid: false });
+  const w = WORLDS[unit] || {};
+  return json({ valid: true, name: k.name, world: (w.emoji ? w.emoji + " " : "") + (w.name || ("World " + unit)), score: t.best_score || 100, at: (t.updated_at || "").slice(0, 10) });
+}
+
 async function apiKidCard(env, token) {
   if (!token || token.length < 6) return json({ error: "Card not found." }, 404);
   const k = await env.DB.prepare("SELECT id,name,role FROM users WHERE card_token=? AND role='kid'").bind(token).first();
@@ -3590,6 +3601,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
   if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
   if (path.startsWith("/api/kidcard/") && method === "GET") return apiKidCard(env, decodeURIComponent(path.slice("/api/kidcard/".length)));
+  if (path === "/api/verify-cert" && method === "GET") { const q = new URL(request.url).searchParams; return apiVerifyCert(env, (q.get("k") || "").trim(), parseInt(q.get("u"), 10)); }
   if (path === "/api/my-card-token" && method === "GET") {
     const u = await userFromToken(env, bearer(request));
     if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);

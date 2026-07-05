@@ -6,7 +6,7 @@
   <title>Certificate - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=145" />
+  <link rel="stylesheet" href="styles.css?v=146" />
   <style>
     body { background:#0d0a18; }
     .cert-page { max-width:880px; margin:0 auto; padding:24px 18px 70px; }
@@ -48,7 +48,7 @@
     <div id="content"><p class="msg">Loading your certificate…</p></div>
   </main>
 
-  <script src="auth.js?v=145"></script>
+  <script src="auth.js?v=146"></script>
   <script>
     (async () => {
       const qs = new URLSearchParams(location.search);
@@ -113,6 +113,11 @@
       const boss = world.boss ? (world.boss.emoji + ' ' + world.boss.name) : 'the Boss';
       const today = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
 
+      // Verification code = the kid's card token + the unit, so anyone can confirm the cert at
+      // kidvibers.com/verify. Fetched lazily; the cert still renders if it isn't available.
+      let verifyCode = '', verifyUrl = '';
+      try { const ct = await C4K.api('/api/my-card-token'); if (ct.ok && ct.data.cardToken) { verifyCode = ct.data.cardToken + '-' + unit; verifyUrl = location.origin + '/verify.html?k=' + encodeURIComponent(ct.data.cardToken) + '&u=' + unit; } } catch (e) {}
+
       content.innerHTML = `
         <div class="toolbar">
           <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
@@ -130,9 +135,10 @@
             <div class="blk"><div class="line">${C4K.esc(today)}</div><div style="font-size:0.75rem;color:#8a82ad;">Date earned</div></div>
             <div class="blk"><div class="sig">Byte the Robot 🤖</div><div class="line">Chief Coding Buddy</div></div>
           </div>
+          ${verifyCode ? `<div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(138,130,173,0.4);font-size:0.72rem;color:#8a82ad;">🔐 Verify this certificate at <strong>kidvibers.com/verify</strong> · code <strong>${C4K.esc(verifyCode)}</strong></div>` : ''}
         </div>`;
     })();
   </script>
-  <script src="editor.js?v=145" defer></script>
+  <script src="editor.js?v=146" defer></script>
 </body>
 </html>

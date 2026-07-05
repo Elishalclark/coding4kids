@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="canonical" href="https://kidvibers.com/help.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Help &amp; FAQ - KidVibers</title>
+  <meta name="description" content="KidVibers help center: reset a password, add students, start a library session, consent, safety, and more." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=146" />
+  <style>
+    .hp { max-width: 780px; margin: 0 auto; padding: 28px 20px 90px; }
+    .hp h1 { font-size: 1.9rem; font-weight: 900; text-align: center; margin-bottom: 6px; }
+    .hp .sub { text-align: center; color: var(--text-dim); margin-bottom: 22px; }
+    .hp-search { width: 100%; box-sizing: border-box; padding: 13px 16px; border-radius: 12px; border: 1px solid var(--border-bright);
+      background: var(--surface); color: var(--text); font-family: inherit; font-weight: 700; margin-bottom: 20px; }
+    .cat { font-size: 0.78rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: var(--purple); margin: 22px 0 8px; }
+    details { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px; margin-bottom: 8px; }
+    details[open] { border-color: var(--border-bright); }
+    summary { cursor: pointer; font-weight: 800; padding: 12px 0; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: '＋ '; color: var(--purple); font-weight: 900; }
+    details[open] summary::before { content: '－ '; }
+    details p { color: var(--text-dim); line-height: 1.7; font-size: 0.92rem; padding: 0 0 14px; margin: 0; }
+    details a { color: var(--purple); font-weight: 800; }
+    .contact { text-align: center; margin-top: 28px; background: linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border: 1px solid var(--border-bright); border-radius: var(--radius); padding: 26px; }
+    .contact h2 { font-size: 1.2rem; font-weight: 900; }
+    .contact p { color: #e0d4ff; margin: 6px 0 14px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">← Home</a>
+    </div>
+  </nav>
+  <main class="hp">
+    <h1>💬 Help &amp; FAQ</h1>
+    <p class="sub">Quick answers to the most common questions.</p>
+    <input class="hp-search" id="q" placeholder="🔎 Search help… (e.g. password, students, session)" oninput="filterFaq()" />
+
+    <div id="faqWrap">
+      <div class="cat" data-cat>👦 For kids &amp; parents</div>
+      <details><summary>How do I reset a forgotten password?</summary><p>On the login screen, tap <strong>Forgot password?</strong> and enter your username or email — parents &amp; teachers get a reset link by email. Kids: ask a parent or teacher to reset it for you from their dashboard.</p></details>
+      <details><summary>Does my child need their own email?</summary><p>A parent's email is required (so we can keep you in the loop). A child's email is used during signup — enter the parent's email if the child doesn't have one.</p></details>
+      <details><summary>How does parental consent work?</summary><p>Every kid account needs a parent/guardian to approve it before the child can play. The parent gets an email link to approve, review, download, or delete the account anytime. See our <a href="trust.html">Trust &amp; Safety Center</a>.</p></details>
+      <details><summary>My child forgot their username.</summary><p>A parent can see and change it in <strong>Settings → Your kids</strong>.</p></details>
+      <details><summary>Is there a free plan?</summary><p>Yes — start free with no credit card. Upgrade to Pro or Family anytime for the full curriculum and Byte. See <a href="pricing.html">Pricing</a>.</p></details>
+
+      <div class="cat" data-cat>🍎 For teachers, schools &amp; libraries</div>
+      <details><summary>How do I add my students?</summary><p>On your dashboard, use the <strong>roster upload</strong> card to add everyone at once with a CSV (Name, Username, Password — one per row), or add students one at a time. You'll get a list of logins to hand out.</p></details>
+      <details><summary>How do students join my class?</summary><p>Share your <strong>class join code</strong>. Students log in, open their dashboard, and enter the code to join your group.</p></details>
+      <details><summary>What is a "live drop-in session"?</summary><p>Great for library programs. Tap <strong>Start a session</strong> to get a code; kids go to the homepage, tap <strong>Join a Session</strong>, pick a nickname, and code instantly — no sign-up. Guest accounts clean themselves up afterward.</p></details>
+      <details><summary>Can students sign themselves out on a shared computer?</summary><p>Yes, if you set a <strong>session logout PIN</strong> (dashboard). Kids can then end their own session with the PIN so the next kid can log in — a random kid can't. Idle sessions also sign out automatically.</p></details>
+      <details><summary>How do I turn on two-step login (2FA)?</summary><p>In <strong>Settings</strong>, toggle <strong>Two-step login</strong> (needs an email on file). After that, logging in also asks for a 6-digit code we email you.</p></details>
+      <details><summary>How do I get a signed DPA / see your privacy details?</summary><p>See <a href="for-schools-privacy.html">Privacy, Data &amp; DPA for Schools</a> — it covers data, storage, sub-processors, retention, and how to request a signed DPA.</p></details>
+      <details><summary>How do I verify a certificate is real?</summary><p>Go to <a href="verify.html">kidvibers.com/verify</a> and enter the code printed on the certificate.</p></details>
+
+      <div class="cat" data-cat>🛡️ Safety</div>
+      <details><summary>What is the "Something's wrong?" button?</summary><p>An always-visible button on every kid's dashboard. One tap alerts the child's parent/guardian, their teacher (in a class), and the KidVibers team right away.</p></details>
+      <details><summary>Is there advertising or chat between kids?</summary><p>No ads, ever, and no private messaging between users. Projects are private to each kid's own account. More in our <a href="trust.html">Trust Center</a>.</p></details>
+    </div>
+
+    <p id="noResults" style="display:none;color:var(--text-dim);text-align:center;margin-top:20px;">No matches — try a different word, or email us below.</p>
+
+    <div class="contact">
+      <h2>Still stuck?</h2>
+      <p>We're happy to help — usually within one business day.</p>
+      <a href="mailto:support@kidvibers.com" class="btn btn-primary">📧 Email support@kidvibers.com</a>
+    </div>
+  </main>
+  <script>
+    function filterFaq() {
+      const q = document.getElementById('q').value.trim().toLowerCase();
+      let any = false;
+      document.querySelectorAll('#faqWrap details').forEach(d => {
+        const match = !q || d.textContent.toLowerCase().includes(q);
+        d.style.display = match ? '' : 'none';
+        if (match) any = true;
+      });
+      // Hide category labels with no visible items
+      document.querySelectorAll('#faqWrap [data-cat]').forEach(c => {
+        let n = c.nextElementSibling, show = false;
+        while (n && n.tagName === 'DETAILS') { if (n.style.display !== 'none') show = true; n = n.nextElementSibling; }
+        c.style.display = show ? '' : 'none';
+      });
+      document.getElementById('noResults').style.display = any ? 'none' : '';
+    }
+  </script>
+  <script src="pwa.js?v=146" defer></script>
+</body>
+</html>

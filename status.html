@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System Status - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=146" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">← Home</a>
+    </div>
+  </nav>
+  <main style="max-width:560px;margin:50px auto;padding:0 20px;">
+    <h1 style="font-size:1.6rem;font-weight:900;margin-bottom:6px;">📡 System Status</h1>
+    <p style="color:var(--text-dim);margin-bottom:22px;font-size:0.92rem;">Live check of the KidVibers service.</p>
+    <div id="overall" class="card" style="padding:22px 24px;margin-bottom:16px;text-align:center;">
+      <div id="overallIcon" style="font-size:2rem;">⏳</div>
+      <div id="overallText" style="font-weight:900;font-size:1.15rem;margin-top:4px;">Checking…</div>
+    </div>
+    <div id="checks" style="display:flex;flex-direction:column;gap:10px;"></div>
+    <p style="color:var(--text-faint);font-size:0.82rem;margin-top:18px;text-align:center;">Something wrong that this doesn't show? Email <a href="mailto:support@kidvibers.com">support@kidvibers.com</a>.</p>
+  </main>
+  <script>
+    const CHECKS = [
+      { name: 'Website', url: '/api/site-config' },
+      { name: 'Lessons', url: '/api/lessons' },
+    ];
+    async function ping(url) {
+      const t0 = Date.now();
+      try { const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'x=' + Date.now()); return { ok: r.ok, ms: Date.now() - t0 }; }
+      catch (e) { return { ok: false, ms: Date.now() - t0 }; }
+    }
+    (async () => {
+      const box = document.getElementById('checks');
+      const results = [];
+      for (const c of CHECKS) {
+        const r = await ping(c.url);
+        results.push(r.ok);
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.style.cssText = 'padding:14px 18px;display:flex;align-items:center;gap:12px;';
+        el.innerHTML = `<span style="font-size:1.2rem;">${r.ok ? '🟢' : '🔴'}</span>
+          <span style="flex:1;font-weight:800;">${c.name}</span>
+          <span style="color:var(--text-dim);font-size:0.85rem;">${r.ok ? 'Operational · ' + r.ms + 'ms' : 'Unavailable'}</span>`;
+        box.appendChild(el);
+      }
+      const allOk = results.every(Boolean);
+      document.getElementById('overallIcon').textContent = allOk ? '✅' : '⚠️';
+      document.getElementById('overallText').textContent = allOk ? 'All systems operational' : 'Some services are having trouble';
+      document.getElementById('overall').style.background = allOk ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)';
+    })();
+  </script>
+  <script src="pwa.js?v=146" defer></script>
+</body>
+</html>
