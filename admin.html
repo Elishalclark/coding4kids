@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=142" />
+  <link rel="stylesheet" href="styles.css?v=143" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -532,7 +532,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=142"></script>
+  <script src="auth.js?v=143"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -731,7 +731,9 @@
         const label = picked === 'district' ? 'district' : picked === 'school' ? 'school' : data.role;
         msg.style.color = 'var(--green, #5ad17e)';
         msg.textContent = data.created
-          ? `✅ Created ${label} account @${data.username}.`
+          ? (data.welcomed
+              ? `✅ Created ${label} account @${data.username}. 📧 A welcome email was sent so they can set their own password.`
+              : `✅ Created ${label} account @${data.username}.` + (email ? ' (No welcome email — check the email address.)' : ' Give them the username & password you set.'))
           : `📨 Request sent - the super admin will approve @${data.username}.`;
         ['caName','caUser','caPass','caEmail'].forEach(id => document.getElementById(id).value = '');
         loadData();
@@ -1371,7 +1373,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=142" defer></script>
-  <script src="editor.js?v=142" defer></script>
+  <script src="pwa.js?v=143" defer></script>
+  <script src="editor.js?v=143" defer></script>
 </body>
 </html>

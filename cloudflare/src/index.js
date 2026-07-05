@@ -2878,6 +2878,25 @@ async function adminSiteMessage(env, request, data) {
   await setSetting(env, "site_message", { text, active });
   return json({ ok: true, active });
 }
+// Email a newly-created staff account (teacher / school / district) a welcome with their
+// username and a secure link to set their own password (7-day token). Returns true if sent.
+async function sendStaffWelcome(env, request, uid, name, username, email, plan) {
+  const token = randToken(24);
+  const expires = new Date(Date.now() + 7 * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+  await env.DB.prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?").bind(token, expires, uid).run();
+  const url = `${siteUrl(env, request)}/reset.html?token=${token}&welcome=1`;
+  const kind = plan === "district" ? "District" : plan === "school" ? "School" : "Teacher";
+  const ok = await sendEmail(env, email, `Welcome to KidVibers — set up your ${kind} account`,
+    `<p>Hi ${escHtml(cleanName(name || ""))},</p>
+     <p>A KidVibers <strong>${kind}</strong> account has been created for you. 🎉</p>
+     <p><strong>Your username:</strong> ${escHtml(username)}</p>
+     <p>To finish setup, choose your own password:</p>
+     <p><a href="${url}" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Set your password →</a></p>
+     <p style="color:#666;font-size:0.9rem;">This link is valid for 7 days. After that, use "Forgot password" on the login page. Questions? Reply to this email or reach us at support@kidvibers.com.</p>`,
+    FROM_PASSWORD);
+  return !!ok;
+}
+
 async function adminCreateAccount(env, request, data) {
   const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const role = (data.role || "").trim(), name = (data.name || "").trim(), username = (data.username || "").trim();
@@ -2891,7 +2910,13 @@ async function adminCreateAccount(env, request, data) {
   if (u.role === "super_admin") {
     const uid = await provisionAccount(env, role, name, username, hash, salt, email, plan);
     if (!uid) return json({ error: "That username is already taken." }, 409);
-    return json({ ok: true, created: true, role, username });
+    // Welcome email with a "set your own password" link for staff accounts (teacher / school /
+    // district) — the school picks their own password securely instead of you emailing one.
+    let welcomed = false;
+    if (role === "teacher" && email) {
+      welcomed = await sendStaffWelcome(env, request, uid, name, username, email, plan);
+    }
+    return json({ ok: true, created: true, role, username, welcomed });
   }
   await env.DB.prepare("INSERT INTO account_requests (role,name,username,password_hash,salt,email,plan,requested_by,status,created_at) VALUES (?,?,?,?,?,?,?,?,'pending',?)")
     .bind(role, cleanName(name), username, hash, salt, email, plan, u.username, nowIso()).run();

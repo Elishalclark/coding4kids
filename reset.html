@@ -6,7 +6,7 @@
   <title>Reset Password - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=142" />
+  <link rel="stylesheet" href="styles.css?v=143" />
 </head>
 <body>
   <nav class="nav">
@@ -16,8 +16,8 @@
   </nav>
   <main style="max-width:440px;margin:60px auto;padding:0 20px;">
     <div class="card" style="padding:32px 28px;">
-      <h1 style="font-size:1.5rem;font-weight:900;margin-bottom:6px;">🔑 Choose a new password</h1>
-      <p style="color:var(--text-dim);margin-bottom:18px;font-size:0.92rem;">Pick a new password for your KidVibers account.</p>
+      <h1 id="rTitle" style="font-size:1.5rem;font-weight:900;margin-bottom:6px;">🔑 Choose a new password</h1>
+      <p id="rSub" style="color:var(--text-dim);margin-bottom:18px;font-size:0.92rem;">Pick a new password for your KidVibers account.</p>
       <div id="form">
         <input id="pw1" type="password" placeholder="New password (6+ characters)"
           style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
@@ -28,11 +28,18 @@
       </div>
     </div>
   </main>
-  <script src="auth.js?v=142"></script>
+  <script src="auth.js?v=143"></script>
   <script>
-    const token = new URLSearchParams(location.search).get('token') || '';
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token') || '';
     const msg = document.getElementById('msg');
-    if (!token) { document.getElementById('form').innerHTML = '<p style="color:#f87171;font-weight:800;">This reset link is missing its token. Please use the link from your email.</p>'; }
+    // Friendlier copy when this is a first-time welcome (new school/district account).
+    if (params.get('welcome') === '1') {
+      document.getElementById('rTitle').textContent = '👋 Welcome to KidVibers!';
+      document.getElementById('rSub').textContent = "Let's finish setting up your account — choose a password you'll use to log in.";
+      document.getElementById('go').textContent = 'Set my password';
+    }
+    if (!token) { document.getElementById('form').innerHTML = '<p style="color:#f87171;font-weight:800;">This link is missing its token. Please use the link from your email.</p>'; }
 
     async function submitReset() {
       const p1 = document.getElementById('pw1').value, p2 = document.getElementById('pw2').value;
@@ -51,6 +58,6 @@
       }
     }
   </script>
-  <script src="editor.js?v=142" defer></script>
+  <script src="editor.js?v=143" defer></script>
 </body>
 </html>
