@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=146" />
+  <link rel="stylesheet" href="styles.css?v=147" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -359,7 +359,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=146"></script>
+  <script src="auth.js?v=147"></script>
   <script>
     let ME = null;
 
@@ -385,6 +385,7 @@
       document.getElementById('ddMain').style.display = '';
       paintHeader();
       document.getElementById('ddCode').textContent = ME.classCode || '------';
+      maybeShowTour();
       // Schools managed by a district can't edit branding - show a read-only view instead.
       if (ME.partOfDistrict) {
         document.getElementById('brandingCard').style.display = 'none';
@@ -629,6 +630,37 @@
           </div>
           <button onclick="this.closest('div[style]').remove();C4K.api('/api/notices/dismiss','POST',{id:${n.id}})" style="background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:1.1rem;line-height:1;">✕</button>
         </div>`; }).join('');
+    }
+
+    // First-login onboarding tour — a quick walkthrough so a new school/district isn't lost.
+    const TOUR_STEPS = [
+      { i: '👋', t: 'Welcome to your dashboard!', d: 'This is where you manage everything for your school or library. Here\'s a 20-second tour.' },
+      { i: '👩‍🎓', t: 'Add your students', d: 'Use the Students card to add kids one at a time, or upload a whole roster (CSV) at once. You\'ll get logins to hand out.' },
+      { i: '🔑', t: 'Or share your class code', d: 'Students can log in and enter your class code to join — no manual adding needed.' },
+      { i: '🎟️', t: 'Run a live drop-in session', d: 'Tap "Start a session" for a code. Kids join with just a nickname — no sign-up. Perfect for a library program.' },
+      { i: '🛡️', t: 'Safety built in', d: 'Set a logout PIN for shared computers, get safety alerts about students, and control data & privacy. See the 🔒 Privacy & DPA link up top.' },
+    ];
+    function maybeShowTour() {
+      try { if (localStorage.getItem('c4k_dtour') === '1') return; } catch (e) {}
+      let i = 0;
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(8,6,18,0.9);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+      const paint = () => {
+        const s = TOUR_STEPS[i], last = i === TOUR_STEPS.length - 1;
+        ov.innerHTML = `<div style="max-width:420px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:20px;padding:30px 28px;text-align:center;color:#fff;">
+          <div style="font-size:2.6rem;">${s.i}</div>
+          <h2 style="font-size:1.3rem;font-weight:900;margin:8px 0;">${s.t}</h2>
+          <p style="color:#c4b5fd;font-size:0.92rem;line-height:1.6;margin-bottom:18px;">${s.d}</p>
+          <div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;">${TOUR_STEPS.map((_,j)=>`<span style="width:8px;height:8px;border-radius:50%;background:${j===i?'#7c3aed':'#3a2f63'};"></span>`).join('')}</div>
+          <button id="tourNext" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">${last?'Got it — let\'s go! 🚀':'Next →'}</button>
+          <button id="tourSkip" style="width:100%;margin-top:8px;padding:9px;border:none;background:none;color:#8b84a8;font-weight:800;cursor:pointer;font-family:inherit;font-size:0.85rem;">${last?'':'Skip tour'}</button>
+        </div>`;
+        ov.querySelector('#tourNext').onclick = () => { if (last) closeT(); else { i++; paint(); } };
+        const sk = ov.querySelector('#tourSkip'); if (sk) sk.onclick = closeT;
+      };
+      const closeT = () => { try { localStorage.setItem('c4k_dtour', '1'); } catch (e) {} ov.remove(); };
+      paint();
+      document.body.appendChild(ov);
     }
 
     function paintHeader() {
@@ -898,7 +930,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=146" defer></script>
-  <script src="editor.js?v=146" defer></script>
+  <script src="pwa.js?v=147" defer></script>
+  <script src="editor.js?v=147" defer></script>
 </body>
 </html>

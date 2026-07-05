@@ -320,6 +320,11 @@ function renderScreen() {
   if (s.type === 'content') {
     const st = s.step;
     let html = '<div class="lv-step">';
+    // Read-aloud (great for young / pre-reading kids & accessibility). Reads the heading + text.
+    if ((st.h || st.p) && 'speechSynthesis' in window) {
+      const say = ((st.h || '') + '. ' + (st.p || '')).replace(/"/g, '&quot;');
+      html += `<button class="btn btn-outline" style="font-size:0.82rem;padding:6px 12px;margin-bottom:10px;" onclick="readAloud(this,&quot;${say}&quot;)">🔊 Read aloud</button>`;
+    }
     if (st.h) html += `<h4>${st.h}</h4>`;
     if (st.p) html += `<p>${st.p}</p>`;
     if (st.code) {
@@ -543,6 +548,18 @@ async function countFailedLesson() {
 }
 
 // run = visual demonstration + instant feedback
+// Read a lesson's text aloud (toggle). Uses the browser's built-in speech — nothing leaves the device.
+function readAloud(btn, text) {
+  try {
+    const synth = window.speechSynthesis;
+    if (synth.speaking) { synth.cancel(); if (btn) btn.textContent = '🔊 Read aloud'; return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.95; u.pitch = 1.05;
+    if (btn) { btn.textContent = '⏹️ Stop'; u.onend = () => { btn.textContent = '🔊 Read aloud'; }; }
+    synth.cancel(); synth.speak(u);
+  } catch (e) {}
+}
+
 function runCode(i) {
   const code = screens[i].step.code || '';
   const prints = [...code.matchAll(/print\(\s*["']([^"']*)["']\s*\)/g)].map(m => m[1]);

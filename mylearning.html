@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>What I've Learned - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=147" />
+  <style>
+    .ml { max-width: 760px; margin: 0 auto; padding: 24px 18px 80px; }
+    .ml-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
+    .ml-head .av { font-size:2.4rem; }
+    .ml-head h1 { font-size:1.5rem; font-weight:900; color:#fff; }
+    .ml-head p { color:#dcfce7; font-size:0.9rem; }
+    .ml-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-bottom:20px; }
+    .ml-stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; text-align:center; }
+    .ml-stat .n { font-size:1.8rem; font-weight:900; color:var(--purple); }
+    .ml-stat .l { font-size:0.78rem; color:var(--text-dim); font-weight:700; }
+    .ml-sec { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+    .ml-sec h2 { font-size:1.05rem; font-weight:900; margin-bottom:12px; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { background:var(--surface-2); border:1px solid var(--border); border-radius:50px; padding:6px 14px; font-weight:800; font-size:0.85rem; }
+    .chip.done { background:rgba(34,197,94,0.15); border-color:rgba(34,197,94,0.4); color:#4ade80; }
+    @media print {
+      nav, .toolbar { display:none !important; }
+      body { background:#fff !important; color:#000 !important; }
+      .ml-head { background:#fff !important; border-bottom:3px solid #000; border-radius:0; }
+      .ml-head h1, .ml-head p { color:#000 !important; }
+      .ml-stat, .ml-sec { border:1px solid #999 !important; background:#fff !important; break-inside:avoid; }
+      .ml-stat .n { color:#000 !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="dashboard.html" class="btn btn-ghost" style="margin-left:auto;">← Dashboard</a>
+    </div>
+  </nav>
+  <main class="ml" id="main"><p style="color:var(--text-dim);text-align:center;padding:60px 0;">Loading…</p></main>
+  <script src="auth.js?v=147"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me) { location.href = 'index.html?login=1'; return; }
+      const pr = await C4K.api('/api/progress');
+      const ld = await (await fetch('/api/lessons')).json();
+      const worlds = ld.worlds || {};
+      const passed = new Set((pr.ok && pr.data.unitsPassed) || []);
+      const done = (pr.ok && pr.data.completed) ? pr.data.completed.length : (me.lessonsDone || 0);
+      const xp = (me.unitsPassed ? 0 : 0); // xp shown from stats below
+      const total = (ld.lessons || []).length || 293;
+      const clearedWorlds = Object.keys(worlds).map(Number).filter(u => passed.has(u));
+      const nextWorld = Object.keys(worlds).map(Number).sort((a,b)=>a-b).find(u => !passed.has(u));
+      const today = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+
+      document.getElementById('main').innerHTML = `
+        <div class="toolbar" style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        </div>
+        <div class="ml-head">
+          <div class="av">${C4K.renderAvatar ? '' : '🧑‍💻'}</div>
+          <div style="flex:1;">
+            <h1>${C4K.esc(me.name)}'s Coding Journey</h1>
+            <p>A summary of what ${C4K.esc((me.name||'').split(' ')[0])} has learned on KidVibers · ${today}</p>
+          </div>
+        </div>
+        <div class="ml-stats">
+          <div class="ml-stat"><div class="n">${done}</div><div class="l">Lessons done</div></div>
+          <div class="ml-stat"><div class="n">${clearedWorlds.length} 🏆</div><div class="l">Worlds conquered</div></div>
+          <div class="ml-stat"><div class="n">${Math.round(done/total*100)}%</div><div class="l">Of the journey</div></div>
+          <div class="ml-stat"><div class="n">${me.tokens || 0} 🪙</div><div class="l">Tokens earned</div></div>
+        </div>
+        <div class="ml-sec">
+          <h2>🌍 Worlds conquered</h2>
+          ${clearedWorlds.length
+            ? `<div class="chips">${clearedWorlds.map(u => `<span class="chip done">${(worlds[u].emoji||'🏆')} ${C4K.esc(worlds[u].name||('World '+u))}</span>`).join('')}</div>`
+            : `<p style="color:var(--text-dim);font-size:0.9rem;">No worlds conquered yet — beat a world's boss battle to earn one!</p>`}
+        </div>
+        <div class="ml-sec">
+          <h2>🎯 Skills unlocked</h2>
+          <div class="chips">
+            ${clearedWorlds.length >= 1 ? '<span class="chip done">✅ Coding basics</span>' : ''}
+            ${passed.has(2) ? '<span class="chip done">✅ Loops & functions</span>' : ''}
+            ${passed.has(6) ? '<span class="chip done">✅ Web pages (HTML/CSS)</span>' : ''}
+            ${passed.has(7) ? '<span class="chip done">✅ JavaScript</span>' : ''}
+            ${passed.has(9) ? '<span class="chip done">✅ Math in code</span>' : ''}
+            ${passed.has(19) ? '<span class="chip done">✅ Elite (Part 2 unlocked)</span>' : ''}
+            ${!clearedWorlds.length ? '<span class="chip">Keep going to unlock skills!</span>' : ''}
+          </div>
+        </div>
+        ${nextWorld ? `<div class="ml-sec"><h2>🚀 Up next</h2><p style="color:var(--text-dim);font-size:0.92rem;">${(worlds[nextWorld].emoji||'🎯')} <strong>${C4K.esc(worlds[nextWorld].name||('World '+nextWorld))}</strong> — ${C4K.esc(worlds[nextWorld].tagline||'keep coding!')}</p></div>` : `<div class="ml-sec"><h2>🎓 Complete!</h2><p style="color:var(--text-dim);">Every world conquered — an amazing achievement!</p></div>`}
+      `;
+    })();
+  </script>
+  <script src="pwa.js?v=147" defer></script>
+</body>
+</html>
