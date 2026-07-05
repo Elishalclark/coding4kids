@@ -16,6 +16,7 @@ const STARTER_TOKENS = 40;
 const TOKENS_PER_LESSON = 10;
 const REFERRAL_BONUS = 50;      // tokens each kid gets when a referral signs up
 const REFERRAL_FREE_DAYS = 7;   // + days of free Pro (AI + unlimited lessons) for both kids
+const REFERRAL_MAX_REWARDED = 5; // a referrer earns rewards for at most this many sign-ups (anti-farming)
 const PASS_PERCENT = 70;
 const ADMIN_ROLES = ["admin", "super_admin"];
 const DISTRICT_PLANS = ["school", "district"];
@@ -409,6 +410,8 @@ function mockUserForRole(role) {
   if (role === "district") return { ...base, role: "teacher", plan: "district", name: "Preview District Admin", username: "preview_district", age_band: "", age_years: null, parent_email: "", district_id: null };
   return base;
 }
+const SESSION_MAX_DAYS = 90;   // tokens older than this stop working (kid just logs in again)
+
 async function userFromToken(env, token) {
   if (!token) return null;
   // Check for a preview session first (super-admin role previews, no real account).
@@ -417,7 +420,8 @@ async function userFromToken(env, token) {
     if (preview.expires_at < nowIso()) { await env.DB.prepare("DELETE FROM preview_sessions WHERE token=?").bind(token).run(); return null; }
     return mockUserForRole(preview.role);
   }
-  return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?").bind(token).first();
+  const cutoff = new Date(Date.now() - SESSION_MAX_DAYS * 86400000).toISOString();
+  return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at >= ?").bind(token, cutoff).first();
 }
 async function createSession(env, userId) {
   const token = randToken(32);
@@ -802,6 +806,13 @@ async function apiQuizAnswer(env, request, data) {
   if (!r) return json({ error: "Unknown lesson." }, 404);
   let q = {}; try { q = JSON.parse(r.quiz || "{}"); } catch {}
   if (!q.q || !("answer" in q)) return json({ error: "No quiz for this lesson." }, 404);
+  // Record that this kid genuinely went through the quiz (any answer counts as the attempt).
+  // apiProgressPost requires this marker before accepting a completion — so progress can't
+  // be farmed by POSTing /api/progress directly without ever opening the quiz.
+  if (!u.isPreview) {
+    await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .bind(`quizok:${u.id}:${lessonId}`, nowIso()).run();
+  }
   return json({ correct: choice === q.answer, answer: q.answer, explain: q.explain || "" });
 }
 
@@ -820,8 +831,16 @@ async function apiProgressPost(env, request, data) {
   if (!lessonId) return json({ error: "lessonId required" }, 400);
   // Must be a REAL published lesson - otherwise kids could farm tokens and fake progress
   // by POSTing made-up lesson IDs.
-  const realLesson = await env.DB.prepare("SELECT 1 FROM lessons WHERE id=? AND published=1").bind(lessonId).first();
+  const realLesson = await env.DB.prepare("SELECT quiz FROM lessons WHERE id=? AND published=1").bind(lessonId).first();
   if (!realLesson) return json({ error: "Unknown lesson." }, 404);
+  // Anti-farming: if the lesson has a quiz, the kid must have actually taken it (their
+  // answer went through /api/quiz/answer, which is also rate-limited). Blocks scripted
+  // completion-farming; honest kids always hit the quiz on the way through a lesson.
+  let lq = {}; try { lq = JSON.parse(realLesson.quiz || "{}"); } catch {}
+  if (lq.q && "answer" in lq) {
+    const took = await env.DB.prepare("SELECT 1 FROM settings WHERE key=?").bind(`quizok:${u.id}:${lessonId}`).first();
+    if (!took) return json({ error: "Finish the lesson quiz first! 🧠" }, 400);
+  }
   const settings = await getPlanSettings(env);
   const already = await env.DB.prepare("SELECT 1 FROM progress WHERE user_id=? AND lesson_id=?").bind(u.id, lessonId).first();
   const limit = lessonLimitFor(settings, u);
@@ -1453,12 +1472,17 @@ async function apiReferral(env, request) {
 // stacks on top of any free days they already have, so referring more friends = more free days.
 async function applyReferral(env, newKidId, refCode) {
   if (!refCode) return;
-  const referrer = await env.DB.prepare("SELECT id FROM users WHERE referral_code=? AND role='kid'").bind(refCode.trim().toUpperCase()).first();
+  const referrer = await env.DB.prepare("SELECT id, referral_count FROM users WHERE referral_code=? AND role='kid'").bind(refCode.trim().toUpperCase()).first();
   if (!referrer || referrer.id === newKidId) return;
   await env.DB.prepare("UPDATE users SET referred_by=? WHERE id=?").bind(referrer.id, newKidId).run();
-  // Reward both kids: tokens + free Pro days.
-  await env.DB.prepare("UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id IN (?,?)").bind(REFERRAL_BONUS, referrer.id, newKidId).run();
-  for (const id of [referrer.id, newKidId]) {
+  // The NEW kid always gets their welcome reward. The REFERRER earns rewards for at most
+  // REFERRAL_MAX_REWARDED sign-ups — after that, invites still count but don't pay out
+  // (stops farming free Pro by mass-creating fake accounts).
+  const referrerRewarded = (referrer.referral_count || 0) < REFERRAL_MAX_REWARDED;
+  const rewardIds = referrerRewarded ? [referrer.id, newKidId] : [newKidId];
+  const ph = rewardIds.map(() => "?").join(",");
+  await env.DB.prepare(`UPDATE users SET tokens = COALESCE(tokens,0) + ? WHERE id IN (${ph})`).bind(REFERRAL_BONUS, ...rewardIds).run();
+  for (const id of rewardIds) {
     const row = await env.DB.prepare("SELECT promo_pro_until FROM users WHERE id=?").bind(id).first();
     const base = (row && row.promo_pro_until && new Date(row.promo_pro_until) > new Date()) ? new Date(row.promo_pro_until) : new Date();
     const until = new Date(base.getTime() + REFERRAL_FREE_DAYS * 86400000).toISOString();
@@ -3448,6 +3472,13 @@ export default {
     ctx.waitUntil(runReengagement(env));
     ctx.waitUntil(runPushReminders(env));
     ctx.waitUntil(runRenewalReminders(env));
+    // Housekeeping: drop expired session rows (userFromToken already rejects them).
+    ctx.waitUntil((async () => {
+      try {
+        const cutoff = new Date(Date.now() - SESSION_MAX_DAYS * 86400000).toISOString();
+        await env.DB.prepare("DELETE FROM sessions WHERE created_at < ?").bind(cutoff).run();
+      } catch {}
+    })());
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
