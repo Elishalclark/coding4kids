@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=131" />
+  <link rel="stylesheet" href="styles.css?v=132" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -135,6 +135,7 @@
         <div class="stat-box"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
         <div class="stat-box"><div class="big" id="statPro">-</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div>
         <div class="stat-box"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
+        <div class="stat-box"><div class="big" id="statSessions">-</div><div class="lbl">Live Sessions Made</div><div class="trend" id="statSessionsTrend">library drop-ins</div></div>
       </div>
 
       <h2 class="super-only admin-section" style="display:none;">📊 Overview &amp; Growth</h2>
@@ -529,7 +530,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=131"></script>
+  <script src="auth.js?v=132"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -614,6 +615,9 @@
         document.getElementById('statLessons').textContent = stats.lessonsCompleted ?? '-';
         document.getElementById('statPro').textContent = stats.proKids ?? '-';
         document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
+        document.getElementById('statSessions').textContent = stats.sessionsStarted ?? '-';
+        document.getElementById('statSessionsTrend').textContent =
+          `${stats.sessionJoins ?? 0} kids joined · ${stats.sessionsActive ?? 0} live now`;
         renderDbStatus(stats.environment, stats.totalKids);
       } catch (e) {
         showDataError('The stat boxes failed to load (' + e.message + '). If you just deployed, give it a moment and tap Retry.');
@@ -1354,7 +1358,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=131" defer></script>
-  <script src="editor.js?v=131" defer></script>
+  <script src="pwa.js?v=132" defer></script>
+  <script src="editor.js?v=132" defer></script>
 </body>
 </html>

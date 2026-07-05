@@ -1848,6 +1848,18 @@ async function apiKidSessionLogout(env, request, data) {
 // can code right away with no sign-up. Guest accounts are auto-cleaned by the daily cron.
 const SESSION_HOURS = 8;              // a session code stays joinable for this long
 function sessionCode() { let c = ""; const b = new Uint8Array(6); crypto.getRandomValues(b); for (let i = 0; i < 6; i++) c += CODE_ALPHABET[b[i] % CODE_ALPHABET.length]; return c; }
+// Lifetime counters kept in the settings table (key `stat:<name>`), for the admin panel.
+async function bumpStat(env, name) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`stat:${name}`).first();
+    const n = (parseInt(row && row.value, 10) || 0) + 1;
+    await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(`stat:${name}`, String(n)).run();
+  } catch {}
+}
+async function getStat(env, name) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`stat:${name}`).first();
+  return parseInt(row && row.value, 10) || 0;
+}
 
 async function apiStartSession(env, request) {
   const u = await userFromToken(env, bearer(request));
@@ -1862,6 +1874,7 @@ async function apiStartSession(env, request) {
   const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
   await setSetting(env, `session:${code}`, { teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires });
   await setSetting(env, `activesession:${u.id}`, { code });
+  await bumpStat(env, "sessions_started");   // lifetime counter for the admin panel
   return json({ ok: true, code, expiresAt: new Date(expires).toISOString() });
 }
 
@@ -1898,6 +1911,7 @@ async function apiJoinSession(env, request, data) {
   if (r.error) return json({ error: r.error }, r.status || 400);
   // Mark as a session guest for auto-cleanup.
   await setSetting(env, `sessionguest:${r.uid}`, { code, expires: info.expires });
+  await bumpStat(env, "session_joins");   // lifetime counter for the admin panel
   const token = await createSession(env, r.uid);
   return json({ ok: true, token, user: await publicUser(env, r.row), displayName: chosen });
 }
@@ -2458,6 +2472,10 @@ async function adminStats(env, request) {
     trialKids: await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND plan='trial'"),
     parents: await c("SELECT COUNT(*) c FROM users WHERE role='parent'"),
     lessonsCompleted: await c("SELECT COUNT(*) c FROM progress"),
+    // Live drop-in sessions: lifetime started, lifetime kids joined, and how many are live now.
+    sessionsStarted: await getStat(env, "sessions_started"),
+    sessionJoins: await getStat(env, "session_joins"),
+    sessionsActive: await c("SELECT COUNT(*) c FROM settings WHERE key LIKE 'session:%'"),
     // Which database the panel is reading. STAGING_USER is only set in the staging env,
     // so the admin panel can show a clear "production vs staging" badge.
     environment: env.STAGING_USER ? "staging" : "production",
