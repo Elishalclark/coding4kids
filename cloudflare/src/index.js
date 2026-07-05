@@ -1861,12 +1861,16 @@ async function getStat(env, name) {
   return parseInt(row && row.value, 10) || 0;
 }
 
-async function apiStartSession(env, request) {
+async function apiStartSession(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher") return json({ error: "Only a teacher, school, or district can start a session." }, 403);
-  // Reuse the teacher's still-valid session if they already have one (so refreshing shows the same code).
+  const regen = data && data.regen;
   const prev = await getSetting(env, `activesession:${u.id}`, null);
-  if (prev && prev.code) {
+  if (regen && prev && prev.code) {
+    // Change the code: retire the old one so it stops working, then make a fresh one below.
+    await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
+  } else if (prev && prev.code) {
+    // Reuse the teacher's still-valid session (so refreshing shows the same code).
     const s = await getSetting(env, `session:${prev.code}`, null);
     if (s && s.expires > Date.now()) return json({ ok: true, code: prev.code, expiresAt: new Date(s.expires).toISOString(), reused: true });
   }
@@ -3404,7 +3408,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/assignments/progress" && method === "GET") return apiAssignmentProgress(env, request);
   if (path === "/api/teacher/announce" && method === "POST") return apiTeacherAnnounce(env, request, data);
   if (path === "/api/teacher/logout-pin" && method === "POST") return apiSetLogoutPin(env, request, data);
-  if (path === "/api/session/start" && method === "POST") return apiStartSession(env, request);
+  if (path === "/api/session/start" && method === "POST") return apiStartSession(env, request, data);
   if (path === "/api/session/end" && method === "POST") return apiEndSession(env, request);
   if (path === "/api/session/join" && method === "POST") return apiJoinSession(env, request, data);
   if (path === "/api/teacher/bulk" && method === "POST") return apiBulkStudents(env, request, data);
