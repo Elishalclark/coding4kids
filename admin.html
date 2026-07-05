@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=140" />
+  <link rel="stylesheet" href="styles.css?v=141" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -195,12 +195,12 @@
           </table>
         </div>
 
-        <!-- Chatbots -->
+        <!-- Account breakdown (real, live from the database) -->
         <div class="panel">
-          <h3>🤖 AI Chatbots</h3>
+          <h3>📊 Account Breakdown</h3>
           <table class="admin-table">
-            <thead><tr><th>Bot</th><th>Chats</th><th>Status</th></tr></thead>
-            <tbody id="botRows"></tbody>
+            <thead><tr><th>Type</th><th>Count</th><th></th></tr></thead>
+            <tbody id="breakdownRows"></tbody>
           </table>
         </div>
       </div>
@@ -532,7 +532,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=140"></script>
+  <script src="auth.js?v=141"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -557,14 +557,6 @@
     }
 
     async function doLogout() { await C4K.logout(); location.reload(); }
-
-    const BOTS = [
-      { n: '😂 Giggle Bot', chats: '4,210' },
-      { n: '🔢 Math Buddy', chats: '6,880' },
-      { n: '📖 Story Spark', chats: '3,540' },
-      { n: '🧠 Quiz Master', chats: '2,990' },
-      { n: '🤖 Byte (Helper)', chats: '18,402' }
-    ];
 
     const isSuper = () => C4K.user && C4K.user.role === 'super_admin';
 
@@ -644,12 +636,25 @@
          </tr>`).join('')
         : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
 
-      document.getElementById('botRows').innerHTML = BOTS.map(b =>
-        `<tr><td><strong>${b.n}</strong></td><td>${b.chats}</td><td><span class="pill active">live</span></td></tr>`).join('');
-
       // every registered account, kept forever
       const accts = (await C4K.api('/api/admin/accounts')).data.accounts || [];
       document.getElementById('acctCount').textContent = `· ${accts.length} kept`;
+
+      // Real account breakdown by type (computed from the live accounts list).
+      const bd = { kid: 0, guest: 0, parent: 0, teacher: 0, school: 0, district: 0, admin: 0, super_admin: 0 };
+      accts.forEach(a => {
+        if (a.role === 'kid') { bd.kid++; }
+        else if (a.role === 'teacher') { bd[(a.plan === 'district' ? 'district' : a.plan === 'school' ? 'school' : 'teacher')]++; }
+        else if (bd[a.role] !== undefined) { bd[a.role]++; }
+      });
+      const bdDefs = [
+        ['👦 Kids', bd.kid], ['👨‍👩‍👧 Parents', bd.parent], ['🍎 Teachers', bd.teacher],
+        ['🏫 Schools', bd.school], ['🏛️ Districts', bd.district], ['🛠️ Admins', bd.admin + bd.super_admin],
+      ];
+      const bdTotal = accts.length || 1;
+      document.getElementById('breakdownRows').innerHTML = bdDefs.map(([label, n]) =>
+        `<tr><td><strong>${label}</strong></td><td style="font-weight:900;">${n}</td>
+           <td style="width:110px;"><div style="height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(n / bdTotal * 100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div></td></tr>`).join('');
       const roleTag = (r, plan) => r === 'parent' ? '👨‍👩‍👧 parent'
         : (r === 'admin' ? '🛠️ admin'
         : (r === 'super_admin' ? '👑 super admin'
@@ -1366,7 +1371,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=140" defer></script>
-  <script src="editor.js?v=140" defer></script>
+  <script src="pwa.js?v=141" defer></script>
+  <script src="editor.js?v=141" defer></script>
 </body>
 </html>
