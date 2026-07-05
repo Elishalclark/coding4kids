@@ -53,14 +53,21 @@
 
     /* ── Flyer (full page) ── */
     .flyer { text-align: center; width: 100%; }
-    .flyer .fbrand { font-size: 3rem; font-weight: 900; letter-spacing: -1px; }
-    .flyer .ftag { font-size: 1.2rem; font-weight: 800; color: #6d28d9; margin: 2px 0 24px; }
-    .flyer h1 { font-size: 2.4rem; font-weight: 900; line-height: 1.1; margin-bottom: 20px; }
-    .flyer .feats { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 26px; }
-    .flyer .feat { border: 2px solid #000; border-radius: 14px; padding: 12px 18px; font-weight: 900; font-size: 1rem; }
-    .flyer .fqr img { width: 2.6in; height: 2.6in; }
-    .flyer .foffer { display: inline-block; background: #000; color: #fff; border-radius: 12px; padding: 12px 26px; font-size: 1.15rem; font-weight: 900; margin: 22px 0 10px; }
+    .flyer .fbrand { font-size: 2.8rem; font-weight: 900; letter-spacing: -1px; }
+    .flyer .ftag { font-size: 1.1rem; font-weight: 800; color: #6d28d9; margin: 2px 0 14px; }
+    .flyer h1 { font-size: 2.2rem; font-weight: 900; line-height: 1.1; margin-bottom: 8px; }
+    .flyer .flead { font-size: 1.05rem; font-weight: 700; color: #333; line-height: 1.5; margin-bottom: 18px; }
+    .flyer .flead b { color: #6d28d9; }
+    .flyer .feats { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 16px; }
+    .flyer .feat { border: 2px solid #000; border-radius: 12px; padding: 9px 15px; font-weight: 900; font-size: 0.95rem; }
+    .flyer .fbuild { font-size: 1.02rem; font-weight: 700; color: #222; max-width: 6in; margin: 0 auto 18px; line-height: 1.5; }
+    .flyer .fbuild b { color: #000; }
+    .flyer .fqr img { width: 2.3in; height: 2.3in; }
+    .flyer .ftrust { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; margin: 16px auto 0; max-width: 6.5in; }
+    .flyer .ftrust span { font-size: 0.92rem; font-weight: 900; color: #15803d; }
+    .flyer .foffer { display: inline-block; background: #000; color: #fff; border-radius: 12px; padding: 11px 24px; font-size: 1.1rem; font-weight: 900; margin: 16px 0 8px; }
     .flyer .furl { font-size: 1.6rem; font-weight: 900; }
+    .flyer .fmade { font-size: 0.92rem; font-weight: 800; color: #6d28d9; margin-top: 6px; }
 
     /* ── Session flyer ── */
     .sflyer { text-align: center; width: 100%; }
@@ -118,21 +125,28 @@
     <div class="sheet">
       <div class="flyer">
         <div class="fbrand">🚀 Kid<b>Vibers</b></div>
-        <div class="ftag">The Duolingo of coding — for kids</div>
+        <div class="ftag">The Duolingo of coding — for kids ages 6–16</div>
         <h1>Learn to code<br>by playing! 🎮</h1>
+        <p class="flead">Short, fun lessons. Real projects. Epic rewards.<br>Turn screen time into <b>skill time</b>.</p>
         <div class="feats">
-          <div class="feat">293 lessons</div>
-          <div class="feat">25 worlds</div>
-          <div class="feat">🤖 AI buddy</div>
+          <div class="feat">📚 293 lessons</div>
+          <div class="feat">🌍 25 worlds</div>
+          <div class="feat">🤖 AI buddy "Byte"</div>
           <div class="feat">🏆 Boss battles</div>
-          <div class="feat">100% ad-free &amp; safe</div>
+          <div class="feat">🎨 Vibe Studio</div>
+          <div class="feat">🎮 Coding games</div>
         </div>
+        <div class="fbuild">Kids build real <b>websites, games, apps &amp; art</b> — and earn certificates for every world they conquer. 🏅</div>
         <div class="qr fqr" style="display:inline-block;">
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=520x520&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to visit kidvibers.com" />
-          <div class="scan" style="font-size:0.9rem;">📷 SCAN TO START</div>
+          <div class="scan" style="font-size:0.9rem;">📷 SCAN TO START FREE</div>
+        </div>
+        <div class="ftrust">
+          <span>✓ 100% ad-free</span><span>✓ COPPA-minded</span><span>✓ Parent &amp; teacher controls</span><span>✓ No data selling</span>
         </div>
         <div class="foffer">First 50 kids get 30 days of Pro FREE 🎁</div>
         <div class="furl">kidvibers.com</div>
+        <div class="fmade">Made by a kid, for kids 💜</div>
       </div>
     </div>
   </div>
@@ -221,6 +235,6 @@
     // Pre-fill the session code from ?code=ABC123 if provided (e.g. a link from the dashboard).
     (() => { const c = new URLSearchParams(location.search).get('code'); if (c) { updateCode(c); show('session'); } })();
   </script>
-  <script src="pwa.js?v=137" defer></script>
+  <script src="pwa.js?v=138" defer></script>
 </body>
 </html>
