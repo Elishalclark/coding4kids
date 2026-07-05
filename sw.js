@@ -1,5 +1,5 @@
 // KidVibers service worker - installable + offline, but always fresh when online.
-const CACHE = 'c4k-v4';
+const CACHE = 'c4k-v5';   // v5: purge cached /api/lessons copies that still contained quiz answers
 // Core shell + lesson pages so kids can start coding even if wifi drops (great for libraries).
 const SHELL = [
   '/index.html', '/styles.css', '/auth.js', '/app.js', '/favicon.svg', '/manifest.json', '/offline.html',

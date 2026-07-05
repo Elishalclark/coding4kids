@@ -171,8 +171,9 @@ function extraQuestionsFor(lesson) {
 
 function buildQuizSet(lesson) {
   const qs = [];
-  // Always use the lesson's own question first
-  if (lesson.quiz && lesson.quiz.q) qs.push(lesson.quiz);
+  // Always use the lesson's own question first. The server no longer ships the answer
+  // (anti-cheat) — tag it with the lessonId so grading goes through /api/quiz/answer.
+  if (lesson.quiz && lesson.quiz.q) qs.push(Object.assign({}, lesson.quiz, { lessonId: lesson.id }));
   // Also use quizzes array if present (future-proof)
   if (Array.isArray(lesson.quizzes)) lesson.quizzes.forEach(q => { if (!qs.find(x => x.q === q.q)) qs.push(q); });
   // Pad to 5 with bonus questions, avoiding duplicates
@@ -472,25 +473,42 @@ function renderQuizSet(s) {
   </div>`;
 }
 
-function answerQuizSet(choice) {
+async function answerQuizSet(choice) {
   const s = screens[scr];
   const q = s.questions[s.qi];
   const opts = document.querySelectorAll('#quizOpts .mcq-opt');
   const fb = document.getElementById('quizFb');
-  const correct = choice === q.answer;
 
   // Disable all buttons immediately — can't go back
   opts.forEach(btn => btn.disabled = true);
-  opts.forEach(btn => { if (+btn.dataset.ans === q.answer) btn.classList.add('correct'); });
+
+  // Lesson questions are graded on the SERVER (the answer never reaches the browser
+  // until after you've committed to a choice). Bonus-bank questions grade locally.
+  let correct, answerIdx = q.answer, explain = q.explain;
+  if (answerIdx === undefined && q.lessonId) {
+    fb.style.color = 'var(--text-dim)'; fb.textContent = '🤔 Checking…';
+    const { ok, data } = await C4K.api('/api/quiz/answer', 'POST', { lessonId: q.lessonId, choice });
+    if (!ok) {  // network hiccup: don't count it — let them tap again
+      fb.style.color = '#f87171';
+      fb.textContent = (data && data.error) || '⚠️ Could not check — tap your answer again.';
+      opts.forEach(btn => btn.disabled = false);
+      return;
+    }
+    correct = data.correct; answerIdx = data.answer; explain = data.explain;
+  } else {
+    correct = choice === answerIdx;
+  }
+
+  opts.forEach(btn => { if (+btn.dataset.ans === answerIdx) btn.classList.add('correct'); });
   if (!correct) opts.forEach(btn => { if (+btn.dataset.ans === choice) btn.classList.add('wrong'); });
 
   if (correct) {
     s.correct++;
-    fb.innerHTML = `✅ Correct! ${q.explain ? '<span style="color:var(--text-dim);font-weight:700;">' + q.explain + '</span>' : ''}`;
+    fb.innerHTML = `✅ Correct! ${explain ? '<span style="color:var(--text-dim);font-weight:700;">' + explain + '</span>' : ''}`;
     fb.style.color = 'var(--green)';
     if (window.C4K) C4K.sound.correct();
   } else {
-    fb.innerHTML = `❌ Not quite. ${q.explain ? '<span style="color:var(--text-dim);font-weight:700;">' + q.explain + '</span>' : 'Keep going!'}`;
+    fb.innerHTML = `❌ Not quite. ${explain ? '<span style="color:var(--text-dim);font-weight:700;">' + explain + '</span>' : 'Keep going!'}`;
     fb.style.color = '#f87171';
     if (window.C4K) C4K.sound.wrong();
   }
@@ -574,21 +592,29 @@ function checkDrag(i) {
 }
 
 // Legacy single-question handler (kept for any old quiz type still in memory)
-function answerMcq(i, choice) {
+async function answerMcq(i, choice) {
   const q = screens[i].quiz;
   if (!q) return;
   const opts = document.querySelectorAll('#mcqOpts .mcq-opt');
   const fb = document.getElementById('mcqFb');
   opts.forEach(o => o.disabled = true);
-  opts[choice].classList.add(choice === q.answer ? 'correct' : 'wrong');
-  if (choice === q.answer) {
+  let correct, answerIdx = q.answer;
+  if (answerIdx === undefined && curLesson) {  // answers live server-side now
+    const { ok, data } = await C4K.api('/api/quiz/answer', 'POST', { lessonId: curLesson.id, choice });
+    if (!ok) { fb.textContent = '⚠️ Could not check — tap your answer again.'; fb.style.color = '#f87171'; opts.forEach(o => o.disabled = false); return; }
+    correct = data.correct; answerIdx = data.answer;
+  } else {
+    correct = choice === answerIdx;
+  }
+  opts[choice].classList.add(correct ? 'correct' : 'wrong');
+  if (correct) {
     fb.textContent = '🎉 Correct!'; fb.style.color = 'var(--green)';
     screenDone[i] = true;
     document.getElementById('lvNext').disabled = false;
     document.getElementById('lvNext').textContent = 'Finish 🎉';
     finishLessonSave();
   } else {
-    opts[q.answer].classList.add('correct');
+    if (answerIdx !== undefined && opts[answerIdx]) opts[answerIdx].classList.add('correct');
     fb.textContent = '❌ Not quite — but you can still finish!'; fb.style.color = '#f87171';
     screenDone[i] = true;
     document.getElementById('lvNext').disabled = false;

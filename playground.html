@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=126" />
+  <link rel="stylesheet" href="styles.css?v=127" />
   <style>
     body { background: #07050f; }
     .vs { display: flex; flex-direction: column; height: calc(100vh - 56px); }
@@ -133,7 +133,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=126"></script>
+  <script src="auth.js?v=127"></script>
   <script>
   const TEMPLATES = [
     { id:'website', name:'My Website', emoji:'🌐',
@@ -317,7 +317,8 @@
   function addMsg(txt,who){
     const w=document.getElementById('chatMsgs'),d=document.createElement('div');
     d.className='chat-msg '+who;
-    d.innerHTML=`<span class="avi">${who==='ai'?'🤖':'😊'}</span><div class="bubble">${txt}</div>`;
+    // User-typed text is escaped; only Byte's own (trusted) messages may contain HTML.
+    d.innerHTML=`<span class="avi">${who==='ai'?'🤖':'😊'}</span><div class="bubble">${who==='user'?e(txt):txt}</div>`;
     w.appendChild(d); w.scrollTop=w.scrollHeight;
   }
 
@@ -439,6 +440,6 @@
     else alert(data.error||'Could not delete.');
   }
   </script>
-  <script src="pwa.js?v=126" defer></script>
+  <script src="pwa.js?v=127" defer></script>
 </body>
 </html>

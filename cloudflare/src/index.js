@@ -43,6 +43,8 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 // Strip characters that could break out of an HTML tag or attribute (<, >, quotes, backtick, &).
 // Names are shown in many places — some inside onclick="..." handlers — so neutralize at the source.
 function cleanName(s) { return (s || "").replace(/[<>"'`&]/g, "").trim(); }
+// Escape untrusted text before embedding it in email/notification HTML.
+function escHtml(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 function hexToBytes(hex) {
   const a = new Uint8Array(hex.length / 2);
@@ -731,9 +733,13 @@ function lessonPublic(r) {
   let quiz = {}, steps = [];
   try { quiz = JSON.parse(r.quiz || "{}"); } catch {}
   try { steps = JSON.parse(r.steps || "[]"); } catch {}
+  // ANTI-CHEAT: never ship the correct answer (or the explanation that reveals it) to the
+  // client. Quiz answers are checked server-side via /api/quiz/answer, and boss battles are
+  // graded in apiTestSubmit. The client only needs the question + options.
+  const safeQuiz = quiz && quiz.q ? { q: quiz.q, opts: quiz.opts || quiz.options || [] } : {};
   return {
     id: r.id, position: r.position, emoji: r.emoji, title: r.title, blurb: r.blurb,
-    level: r.level, xp: r.xp, published: !!r.published, unit: r.unit ?? 1, steps, quiz,
+    level: r.level, xp: r.xp, published: !!r.published, unit: r.unit ?? 1, steps, quiz: safeQuiz,
   };
 }
 
@@ -779,6 +785,24 @@ async function apiProgressGet(env, request) {
     lessonsUsedToday: await lessonsUsedToday(env, u.id),
     lessonsDone: rows.length,
   });
+}
+
+// Check a lesson-quiz answer server-side (answers are never shipped to the client).
+// Returns whether the choice was right, plus the correct index + explanation so the UI
+// can highlight it AFTER the kid has committed to an answer — same as the old UX.
+async function apiQuizAnswer(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  // Light rate limit: generous for real lesson-taking, slows bulk answer-scraping.
+  if (!u.isPreview && rateLimited(`quizans:${u.id}`, 120, 3600)) return json({ error: "Whoa, that's a lot of answers! Take a short break. 🙂" }, 429);
+  const lessonId = (data.lessonId || "").trim();
+  const choice = parseInt(data.choice, 10);
+  if (!lessonId || isNaN(choice)) return json({ error: "lessonId and choice required" }, 400);
+  const r = await env.DB.prepare("SELECT quiz FROM lessons WHERE id=? AND published=1").bind(lessonId).first();
+  if (!r) return json({ error: "Unknown lesson." }, 404);
+  let q = {}; try { q = JSON.parse(r.quiz || "{}"); } catch {}
+  if (!q.q || !("answer" in q)) return json({ error: "No quiz for this lesson." }, 404);
+  return json({ correct: choice === q.answer, answer: q.answer, explain: q.explain || "" });
 }
 
 async function apiProgressPost(env, request, data) {
@@ -1197,7 +1221,7 @@ async function apiKidHelp(env, request, data) {
   if (u.parent_email) {
     await sendEmail(env, u.parent_email, `🆘 ${u.name} used the "Something's wrong?" button on KidVibers`,
       `<p><strong>${u.name}</strong> just used the help button on KidVibers.</p>
-       <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;"><strong>Reason:</strong> ${reasonText}${note ? `<br><strong>Message:</strong> ${note}` : ""}</p>
+       <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;"><strong>Reason:</strong> ${reasonText}${note ? `<br><strong>Message:</strong> ${escHtml(note)}` : ""}</p>
        <p>It's a good idea to check in with them. No action was taken automatically — this is just to let you know right away.</p>`);
   }
   await notifyAdmin(env, `🆘 Kid help button: ${u.name} (@${u.username})`,
@@ -1868,7 +1892,7 @@ async function apiParentSignoutKid(env, request, data) {
 async function apiParentDeleteKid(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !GUARDIAN_ROLES.includes(u.role) || u.family_id == null) return json({ error: "Only a parent or teacher can do this." }, 403);
-  const kid = await env.DB.prepare("SELECT id,name,username FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, u.family_id).first();
+  const kid = await managedKid(env, u, data.kidId);
   if (!kid) return json({ error: "That kid isn't in your family." }, 403);
   for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?",
     "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"])
@@ -1881,6 +1905,24 @@ async function districtOwner(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher" || u.family_id == null || !DISTRICT_PLANS.includes(u.plan)) return null;
   return u;
+}
+
+// The set of family_ids a guardian may manage. For a full District that's the district's own
+// family PLUS every school under it (the district roster shows all those students, so the
+// manage actions must reach them too). Everyone else: just their own family.
+async function managedFamilyIds(env, u) {
+  const ids = new Set([u.family_id]);
+  if (u.role === "teacher" && u.plan === "district") {
+    const schools = (await env.DB.prepare("SELECT id,family_id FROM users WHERE district_id=? AND role='teacher'").bind(u.id).all()).results || [];
+    for (const s of schools) ids.add(s.family_id || s.id);
+  }
+  return [...ids];
+}
+// Fetch a kid only if they belong to one of the guardian's managed families.
+async function managedKid(env, u, kidId) {
+  const fams = await managedFamilyIds(env, u);
+  const ph = fams.map(() => "?").join(",");
+  return await env.DB.prepare(`SELECT * FROM users WHERE id=? AND role='kid' AND family_id IN (${ph})`).bind(kidId, ...fams).first();
 }
 
 // Only a true District plan (not a single School) can add and manage child schools.
@@ -1955,7 +1997,7 @@ async function apiSchoolBranding(env, request, data) {
 async function apiSchoolSuspend(env, request, data) {
   const owner = await districtOwner(env, request);
   if (!owner) return json({ error: "Only a School or District account can do this." }, 403);
-  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, owner.family_id).first();
+  const kid = await managedKid(env, owner, data.kidId);
   if (!kid) return json({ error: "That student isn't in your school." }, 403);
   const suspend = !!data.suspended;
   const reason = (data.reason || "").trim().slice(0, 200);
@@ -2026,7 +2068,7 @@ async function apiParentUpdateKid(env, request, data) {
 async function apiSchoolCredentials(env, request, data) {
   const owner = await districtOwner(env, request);
   if (!owner) return json({ error: "Only a School or District account can do this." }, 403);
-  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(data.kidId, owner.family_id).first();
+  const kid = await managedKid(env, owner, data.kidId);
   if (!kid) return json({ error: "That student isn't in your school." }, 403);
   const newUser = (data.username || "").trim(), newPass = data.password || "";
   if (!newUser && !newPass) return json({ error: "Enter a new username and/or password." }, 400);
@@ -2259,7 +2301,13 @@ async function adminConsentGet(env, request) {
 async function adminSettingsGet(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare("SELECT * FROM lessons ORDER BY position, id").all()).results || [];
-  return json({ planSettings: await getPlanSettings(env), passPercent: await getPassPercent(env), unitNames: UNIT_NAMES, worlds: WORLDS, lessons: rows.map(lessonPublic) });
+  // Super admin gets the FULL quiz (answer + explain) for editing — unlike the public list.
+  const full = rows.map((r) => {
+    const pub = lessonPublic(r);
+    try { pub.quiz = JSON.parse(r.quiz || "{}"); } catch { pub.quiz = {}; }
+    return pub;
+  });
+  return json({ planSettings: await getPlanSettings(env), passPercent: await getPassPercent(env), unitNames: UNIT_NAMES, worlds: WORLDS, lessons: full });
 }
 async function adminAccountRequests(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
@@ -3079,6 +3127,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/game/score" && method === "POST") return apiGameScore(env, request, data);
   if (path === "/api/test/submit" && method === "POST") return apiTestSubmit(env, request, data);
   if (path.startsWith("/api/test/") && method === "GET") return apiTestGet(env, request, parseInt(path.split("/").pop(), 10));
+  if (path === "/api/quiz/answer" && method === "POST") return apiQuizAnswer(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
@@ -3117,7 +3166,7 @@ async function handleApi(env, request, path) {
     if (!cname || !cemail || !cmsg) return json({ error: "Name, email and message are required." }, 400);
     await notifyAdmin(env, `📬 Contact form: ${cname}`, `📬 *New contact form message!*\n• From: ${cname} (${cemail})\n• Message: ${cmsg}`);
     await sendEmail(env, "support@kidvibers.com", `Contact form: ${cname}`,
-      `<p><strong>From:</strong> ${cname} (${cemail})</p><p><strong>Message:</strong></p><p>${cmsg.replace(/\n/g,"<br>")}</p>`);
+      `<p><strong>From:</strong> ${escHtml(cname)} (${escHtml(cemail)})</p><p><strong>Message:</strong></p><p>${escHtml(cmsg).replace(/\n/g,"<br>")}</p>`);
     return json({ ok: true });
   }
 
@@ -3236,7 +3285,7 @@ async function handleApi(env, request, path) {
       `🏫 *New school/district quote request!*\n• Contact: ${name} (${role || "?"})\n• Org: ${org}\n• Students: ${students || "?"}\n• Email: ${email}\n• Message: ${msg || "(none)"}`);
     await sendEmail(env, "support@kidvibers.com", `School quote: ${org}`,
       `<p><strong>${name}</strong> (${role}) from <strong>${org}</strong> wants a quote.</p>
-       <p>Students: ${students}<br>Email: ${email}</p><p>Message:</p><p>${msg.replace(/\n/g, "<br>")}</p>`);
+       <p>Students: ${escHtml(students)}<br>Email: ${escHtml(email)}</p><p>Message:</p><p>${escHtml(msg).replace(/\n/g, "<br>")}</p>`);
     // Confirmation to the requester
     await sendEmail(env, email, "We got your KidVibers request 🚀",
       `<p>Hi ${name},</p><p>Thanks for your interest in KidVibers for <strong>${org}</strong>! We received your request and will get back to you within 1 business day with a quote and next steps.</p><p>— Elisha, KidVibers</p>`);
