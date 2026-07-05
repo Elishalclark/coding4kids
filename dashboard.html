@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=129" />
+  <link rel="stylesheet" href="styles.css?v=130" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -277,12 +277,21 @@
     </div>
   </div>
 
-  <script src="auth.js?v=129"></script>
+  <script src="auth.js?v=130"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
 
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
+
+    // Kid ends their own session by entering the teacher/library session PIN.
+    async function sessionLogout() {
+      const pin = prompt('Enter the session PIN from your teacher or librarian to sign out:');
+      if (pin === null) return;
+      const { ok, data } = await C4K.api('/api/kid/session-logout', 'POST', { pin: pin.trim() });
+      if (ok) { try { localStorage.removeItem('c4k_token'); } catch(e){} location.href = 'index.html'; }
+      else alert(data.error || 'Could not sign out.');
+    }
 
     // ── Kid safety button ──
     let _helpReason = null;
@@ -668,6 +677,13 @@
       classJoinCard();
       document.getElementById('sTokens').textContent = ME.tokens || 0;
       if (ME.username && ME.username.toLowerCase().includes('demo')) document.getElementById('demoLogout').style.display = '';
+      // Session logout: on a shared library/class computer, the teacher can turn on a session
+      // PIN so a kid can end their own session (a random kid can't — they need the PIN).
+      if (ME.hasLogoutPin) {
+        const b = document.getElementById('demoLogout');
+        b.style.display = ''; b.textContent = '🔒 End session';
+        b.setAttribute('onclick', 'sessionLogout()');
+      }
       loadCardToken();
 
       document.getElementById('sStreak').textContent = streak();
@@ -699,7 +715,21 @@
       claimDailyReward();
       loadClassLeaderboard();
       renderStreakCalendar();
+      setupIdleLogout();
       maybeShowTour();
+    }
+
+    // Idle auto-logout for shared library/lab computers: if a kid in a class/group leaves the
+    // machine, sign them out after 15 min of no activity so the next kid isn't in their account.
+    function setupIdleLogout() {
+      if (!ME || ME.role !== 'kid' || !(ME.groupLabel || ME.hasLogoutPin)) return;
+      let t;
+      const reset = () => { clearTimeout(t); t = setTimeout(() => {
+        try { localStorage.removeItem('c4k_token'); } catch(e){}
+        document.body.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:Nunito,system-ui,sans-serif;color:#fff;background:#0c0a18;"><div style="font-size:3rem;">😴</div><h1 style="font-weight:900;margin:12px 0;">Signed out for safety</h1><p style="color:#b9b2d6;max-width:360px;">You were away for a while, so we signed you out on this shared computer. Log back in to keep coding! 🚀</p><a href="index.html?login=1" style="margin-top:18px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;padding:12px 24px;border-radius:50px;text-decoration:none;">Log back in</a></div>';
+      }, 15 * 60 * 1000); };
+      ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => document.addEventListener(ev, reset, { passive: true }));
+      reset();
     }
 
     // ── Daily login reward: a few tokens once a day, just for showing up ──
@@ -1079,7 +1109,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=129" defer></script>
-  <script src="editor.js?v=129" defer></script>
+  <script src="pwa.js?v=130" defer></script>
+  <script src="editor.js?v=130" defer></script>
 </body>
 </html>

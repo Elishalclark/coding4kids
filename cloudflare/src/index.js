@@ -47,6 +47,25 @@ function cleanName(s) { return (s || "").replace(/[<>"'`&]/g, "").trim(); }
 // Escape untrusted text before embedding it in email/notification HTML.
 function escHtml(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
+// ── Kid-safety content filter ──
+// Anything a kid types that a teacher/parent might see (project titles, help notes) is
+// screened for profanity/slurs and for personal info (phone/email/address) — kids shouldn't
+// be posting where they live. Returns a friendly reason, or null if the text is fine.
+const BAD_WORDS = [
+  "fuck","shit","bitch","asshole","bastard","dick","piss","cunt","slut","whore","fag","faggot",
+  "nigger","nigga","retard","rape","kys","dumbass","douche","penis","vagina","porn","nude","sex",
+];
+function contentIssue(text) {
+  const t = (text || "").toString();
+  const low = t.toLowerCase();
+  const squashed = low.replace(/[^a-z]/g, "");
+  for (const w of BAD_WORDS) { if (squashed.includes(w) || low.includes(w)) return "Let's keep it kind and clean. 🙂"; }
+  if (/(\+?\d[\s().-]?){10,}/.test(t)) return "Please don't share phone numbers — keep personal info private. 🔒";
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return "Please don't share email addresses — keep personal info private. 🔒";
+  if (/\b\d{1,5}\s+[a-z].{0,20}\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|blvd|court|ct)\b/i.test(low)) return "Please don't share your address — keep personal info private. 🔒";
+  return null;
+}
+
 function hexToBytes(hex) {
   const a = new Uint8Array(hex.length / 2);
   for (let i = 0; i < a.length; i++) a[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -273,10 +292,13 @@ async function publicUser(env, user) {
       partOfDistrict: user.district_id != null,
       classCode: user.class_code ?? null,
       brandName: user.brand_name ?? null, brandLogo: user.brand_logo ?? null,
+      logoutPinSet: !!(await getLogoutPin(env, user.family_id)),
     };
   }
   const kidBrand = user.role === "kid" ? await familyBranding(env, user.family_id) : {};
   const kidGroup = user.role === "kid" ? await familyGroup(env, user.family_id) : {};
+  // Can this kid self-logout on a shared device? Only if their teacher set a session PIN.
+  const hasLogoutPin = user.role === "kid" ? !!(await getLogoutPin(env, user.family_id)) : false;
 
   // School schedule check: if the kid's teacher has hours set, enforce them.
   let scheduleLocked = false, scheduleMsg = "";
@@ -303,7 +325,7 @@ async function publicUser(env, user) {
     ageBand: user.age_band, ageYears: user.age_years ?? null, familyId: user.family_id,
     consentStatus: cstatus, consentMethod: user.consent_method ?? null,
     needsConsent: user.role === "kid" && cstatus === "pending",
-    scheduleLocked, scheduleMsg,
+    scheduleLocked, scheduleMsg, hasLogoutPin,
     school: user.school ?? null,
     suspended: !!(user.suspended),
     hasBilling: !!(user.stripe_customer_id),
@@ -1326,6 +1348,7 @@ async function apiProjectSave(env, request, data) {
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
+  { const _ci = contentIssue(data.title); if (_ci) return json({ error: _ci }, 400); }
   const title = cleanName(data.title || "").slice(0, TITLE_MAX) || "Untitled project";
   const code = (data.code || "").slice(0, CODE_MAX);
   let pid = data.id;
@@ -1786,6 +1809,38 @@ async function apiTeacherAnnounce(env, request, data) {
   return json({ ok: true, sent: kids.length });
 }
 
+// ── Session logout PIN (shared-device / library sessions) ──────────────────
+// Kids normally can't sign themselves out (a guardian controls that). But on a shared
+// library/lab computer, the librarian wants kids to be able to end their own session so the
+// next kid can log in — WITHOUT letting a kid freely log out or mess with others. So a
+// teacher/school/district sets a "session logout PIN"; a kid must enter it to sign out.
+async function apiSetLogoutPin(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can set this." }, 403);
+  const pin = (data.pin || "").toString().trim();
+  if (pin && !/^[A-Za-z0-9]{3,12}$/.test(pin)) return json({ error: "PIN must be 3-12 letters or numbers." }, 400);
+  const key = `logoutpin:${u.family_id}`;
+  if (!pin) { await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(key).run(); return json({ ok: true, pinSet: false }); }
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key, pin).run();
+  return json({ ok: true, pinSet: true });
+}
+async function getLogoutPin(env, familyId) {
+  if (familyId == null) return null;
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`logoutpin:${familyId}`).first();
+  return row && row.value ? row.value : null;
+}
+// A kid signs themselves out by entering the library/class logout PIN.
+async function apiKidSessionLogout(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
+  const pin = await getLogoutPin(env, u.family_id);
+  if (!pin) return json({ error: "Your teacher hasn't turned on session logout.", noPin: true }, 403);
+  if (rateLimited(`kidlogout:${u.id}`, 8, 600)) return json({ error: "Too many tries — ask a grown-up for help." }, 429);
+  if ((data.pin || "").toString().trim() !== pin) return json({ error: "That's not the right session PIN. Ask your teacher/librarian." }, 403);
+  await env.DB.prepare("DELETE FROM sessions WHERE token=?").bind(bearer(request)).run();
+  return json({ ok: true });
+}
+
 // Daily login reward: a small token bonus, once per calendar day, just for showing up.
 const DAILY_REWARD = 15;
 async function apiDailyReward(env, request) {
@@ -2030,6 +2085,37 @@ async function apiParentSignoutKid(env, request, data) {
   if (!kid) return json({ error: "That kid isn't in your family." }, 403);
   await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
   return json({ ok: true, name: kid.name });
+}
+
+// Bulk roster actions for teachers/schools/districts: apply one action to many students at
+// once (suspend / unsuspend / sign-out / delete). Every kid is checked against the caller's
+// managed families, so you can only touch your own students.
+async function apiBulkStudents(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can do this." }, 403);
+  const action = (data.action || "").trim();
+  if (!["suspend", "unsuspend", "signout", "delete"].includes(action)) return json({ error: "Unknown action." }, 400);
+  const ids = Array.isArray(data.kidIds) ? data.kidIds.slice(0, 500) : [];
+  if (!ids.length) return json({ error: "No students selected." }, 400);
+  const reason = (data.reason || "").toString().trim().slice(0, 200);
+  let done = 0;
+  for (const id of ids) {
+    const kid = await managedKid(env, u, id);
+    if (!kid) continue;
+    if (action === "suspend") {
+      await env.DB.prepare("UPDATE users SET suspended=1, suspend_reason=?, suspend_until=NULL WHERE id=?").bind(reason || `Suspended by ${u.school || "your school"}`, kid.id).run();
+      await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+    } else if (action === "unsuspend") {
+      await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(kid.id).run();
+    } else if (action === "signout") {
+      await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
+    } else if (action === "delete") {
+      for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM messages WHERE child_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
+        await env.DB.prepare(sql).bind(kid.id).run();
+    }
+    done++;
+  }
+  return json({ ok: true, count: done, action });
 }
 
 async function apiParentDeleteKid(env, request, data) {
@@ -3238,6 +3324,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/assignments/delete" && method === "POST") return apiDeleteAssignment(env, request, data);
   if (path === "/api/assignments/progress" && method === "GET") return apiAssignmentProgress(env, request);
   if (path === "/api/teacher/announce" && method === "POST") return apiTeacherAnnounce(env, request, data);
+  if (path === "/api/teacher/logout-pin" && method === "POST") return apiSetLogoutPin(env, request, data);
+  if (path === "/api/teacher/bulk" && method === "POST") return apiBulkStudents(env, request, data);
+  if (path === "/api/kid/session-logout" && method === "POST") return apiKidSessionLogout(env, request, data);
   if (path === "/api/daily-reward" && method === "POST") return apiDailyReward(env, request);
   if (path === "/api/my-leaderboard" && method === "GET") return apiMyLeaderboard(env, request);
   if (path === "/api/recommend" && method === "POST") return apiRecommend(env, request, data);
