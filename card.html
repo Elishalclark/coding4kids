@@ -73,7 +73,11 @@
     .sflyer .step p { font-size: 1.15rem; font-weight: 800; }
     .sflyer .codebox { border: 4px dashed #15803d; border-radius: 18px; padding: 16px 20px; display: inline-block; margin: 6px 0 22px; }
     .sflyer .codebox .lbl { font-size: 1rem; font-weight: 900; color: #15803d; text-transform: uppercase; letter-spacing: 2px; }
-    .sflyer .codebox .code { font-size: 3.6rem; font-weight: 900; letter-spacing: 12px; }
+    .sflyer .codebox .code { font-size: 3.6rem; font-weight: 900; letter-spacing: 12px; color: #000;
+      font-family: inherit; text-align: center; text-transform: uppercase; width: 5in; max-width: 100%;
+      border: none; background: #f0fdf4; border-radius: 10px; padding: 4px 0; outline: none; }
+    .sflyer .codebox .code:focus { background: #dcfce7; }
+    .sflyer .codebox .code::placeholder { color: #86efac; letter-spacing: 12px; }
     .sflyer .sqr img { width: 2.2in; height: 2.2in; }
     .sflyer .surl { font-size: 1.3rem; font-weight: 900; margin-top: 12px; }
 
@@ -100,7 +104,7 @@
   </div>
   <div class="codebar" id="codeBar">
     <span style="color:#cbb8ef;font-weight:800;">Session join code:</span>
-    <input id="codeInput" maxlength="6" placeholder="ABC123" oninput="updateCode()" />
+    <input id="codeInput" maxlength="6" placeholder="ABC123" oninput="updateCode(this.value)" />
   </div>
   <p class="hint" id="hint">A letter-size sheet with <strong>3 cards</strong>. Print, then cut along the dashed lines. Cardstock works best.</p>
 
@@ -147,8 +151,8 @@
           <div class="step"><div class="sn">4</div><p>Start coding! 🚀</p></div>
         </div>
         <div class="codebox">
-          <div class="lbl">Session code</div>
-          <div class="code" id="flyerCode">------</div>
+          <div class="lbl">Session code — ✏️ type it here</div>
+          <input class="code" id="flyerCode" maxlength="6" placeholder="------" oninput="updateCode(this.value)" autocomplete="off" spellcheck="false" />
         </div>
         <div class="qr sqr" style="display:inline-block;">
           <img id="sessionQr" src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to join" />
@@ -205,15 +209,18 @@
       document.getElementById('hint').innerHTML = HINTS[v];
       document.getElementById('codeBar').style.display = (v === 'session') ? 'flex' : 'none';
     }
-    function updateCode() {
-      const code = (document.getElementById('codeInput').value || '').trim().toUpperCase();
-      document.getElementById('flyerCode').textContent = code || '------';
+    function updateCode(val) {
+      const code = (val != null ? val : (document.getElementById('flyerCode').value || '')).trim().toUpperCase();
+      // Keep both inputs (the one on the flyer + the one in the top bar) in sync.
+      const flyer = document.getElementById('flyerCode'), bar = document.getElementById('codeInput');
+      if (flyer.value.toUpperCase() !== code) flyer.value = code;
+      if (bar.value.toUpperCase() !== code) bar.value = code;
       const url = 'https://kidvibers.com/' + (code ? ('?join=' + encodeURIComponent(code)) : '');
       document.getElementById('sessionQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=' + encodeURIComponent(url);
     }
     // Pre-fill the session code from ?code=ABC123 if provided (e.g. a link from the dashboard).
-    (() => { const c = new URLSearchParams(location.search).get('code'); if (c) { document.getElementById('codeInput').value = c.toUpperCase(); updateCode(); show('session'); } })();
+    (() => { const c = new URLSearchParams(location.search).get('code'); if (c) { updateCode(c); show('session'); } })();
   </script>
-  <script src="pwa.js?v=136" defer></script>
+  <script src="pwa.js?v=137" defer></script>
 </body>
 </html>
