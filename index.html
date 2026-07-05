@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=130" />
+  <link rel="stylesheet" href="styles.css?v=131" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -93,6 +93,7 @@
       <div class="nav-cta" id="navCta">
         <button id="langToggle" onclick="toggleLang()" aria-label="Cambiar idioma / Switch language" title="English / Español"
           style="background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:7px 14px;font-weight:900;font-family:inherit;font-size:0.82rem;color:var(--text);cursor:pointer;margin-right:8px;">🌐 ES</button>
+        <a href="#" class="btn btn-ghost" onclick="openJoinSession();return false;" data-i18n="navJoin">🎟️ Join a Session</a>
         <a href="#" class="btn btn-primary" onclick="openLogin('login');return false;" data-i18n="navLogin">Log In / Sign Up</a>
       </div>
       <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
@@ -103,6 +104,7 @@
       <a href="pricing.html">Pricing</a>
       <a href="#schools">Schools &amp; Libraries</a>
       <a href="trust.html">Trust &amp; Safety</a>
+      <a href="#" onclick="openJoinSession();return false;">🎟️ Join a Session</a>
       <a href="page.html?p=about">About</a>
       <a href="#" class="btn btn-primary" style="margin-top:8px;" onclick="openLogin('login');return false;">Log In / Sign Up</a>
     </div>
@@ -1009,6 +1011,50 @@
     // Show on entry, shortly after load.
     window.addEventListener('load', () => setTimeout(() => openWhatsNew(false), 800));
 
+    // ── Join a live drop-in session (library / classroom kiosk) ──
+    // No sign-up: kid enters the session code from the librarian and picks a nickname.
+    function openJoinSession(prefill) {
+      let ov = document.getElementById('joinSessModal');
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'joinSessModal';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(8,6,18,0.88);backdrop-filter:blur(6px);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;';
+        ov.innerHTML = `
+          <div style="max-width:400px;width:100%;margin-top:8vh;background:linear-gradient(160deg,#0f3d2e,#15803d);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:28px 26px;color:#fff;font-family:Nunito,system-ui,sans-serif;">
+            <div style="font-size:2rem;text-align:center;">🎟️</div>
+            <h2 style="font-size:1.4rem;font-weight:900;text-align:center;margin:6px 0;">Join a Session</h2>
+            <p style="color:#dcfce7;font-size:0.9rem;text-align:center;margin-bottom:18px;">Enter the code from your teacher or librarian, then pick a name. No sign-up needed!</p>
+            <label style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Session code</label>
+            <input id="jsCode" maxlength="6" placeholder="ABC123" autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:none;font-family:inherit;font-weight:900;font-size:1.3rem;text-align:center;letter-spacing:6px;text-transform:uppercase;margin:6px 0 14px;color:#15803d;" />
+            <label style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Your name</label>
+            <input id="jsName" maxlength="20" placeholder="e.g. CoderSam" autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:none;font-family:inherit;font-weight:800;font-size:1rem;margin:6px 0 14px;color:#15803d;" />
+            <div id="jsErr" style="color:#fecaca;font-weight:800;font-size:0.85rem;min-height:18px;text-align:center;"></div>
+            <button id="jsGo" onclick="doJoinSession()" style="width:100%;padding:14px;border:none;border-radius:12px;background:#fff;color:#15803d;font-weight:900;font-size:1.05rem;cursor:pointer;font-family:inherit;">Let's code! 🚀</button>
+            <button onclick="document.getElementById('joinSessModal').remove()" style="width:100%;margin-top:8px;padding:10px;border:1px solid rgba(255,255,255,0.4);border-radius:12px;background:none;color:#fff;font-weight:800;cursor:pointer;font-family:inherit;">Cancel</button>
+          </div>`;
+        document.body.appendChild(ov);
+        ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      }
+      ov.style.display = 'flex';
+      const c = document.getElementById('jsCode'); if (prefill) c.value = prefill;
+      setTimeout(() => c.focus(), 50);
+    }
+    async function doJoinSession() {
+      const code = document.getElementById('jsCode').value.trim().toUpperCase();
+      const name = document.getElementById('jsName').value.trim();
+      const err = document.getElementById('jsErr'), go = document.getElementById('jsGo');
+      if (!code || !name) { err.textContent = 'Enter the code and a name.'; return; }
+      go.disabled = true; go.textContent = 'Joining…'; err.textContent = '';
+      try {
+        const r = await fetch('/api/session/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name }) });
+        const data = await r.json();
+        if (r.ok && data.token) { C4K.setToken(data.token); location.href = 'dashboard.html'; }
+        else { err.textContent = data.error || 'Could not join.'; go.disabled = false; go.textContent = "Let's code! 🚀"; }
+      } catch (e) { err.textContent = 'Network error — try again.'; go.disabled = false; go.textContent = "Let's code! 🚀"; }
+    }
+    // Deep link: kidvibers.com/?join=ABC123 opens the join modal pre-filled (great for a QR code).
+    (() => { const j = new URLSearchParams(location.search).get('join'); if (j) setTimeout(() => openJoinSession(j.toUpperCase()), 400); })();
+
     // ── Bilingual (English / Español) starter ──
     // A first-class Spanish option for the homepage — important for a public-library audience.
     // Translates the key marketing strings; the full app/lessons stay English for now.
@@ -1023,6 +1069,7 @@
         statAdFree: 'Sin Anuncios',
         statSafe: 'Seguro',
         navLogin: 'Entrar / Registrarse',
+        navJoin: '🎟️ Unirse a una Sesión',
       }
     };
     function applyLang(lang) {
@@ -1047,9 +1094,9 @@
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=130"></script>
-  <script src="app.js?v=130"></script>
-  <script src="pwa.js?v=130" defer></script>
-  <script src="editor.js?v=130" defer></script>
+  <script src="auth.js?v=131"></script>
+  <script src="app.js?v=131"></script>
+  <script src="pwa.js?v=131" defer></script>
+  <script src="editor.js?v=131" defer></script>
 </body>
 </html>

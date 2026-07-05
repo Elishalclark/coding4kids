@@ -1841,6 +1841,67 @@ async function apiKidSessionLogout(env, request, data) {
   return json({ ok: true });
 }
 
+// ── Live drop-in sessions (library / classroom kiosk) ──────────────────────
+// A teacher/school/district clicks "Start a session" to get a short code. Kids go to the
+// homepage, tap "Join a session", enter the code, and pick a display name — they get a
+// TEMPORARY guest account (no password, joins the teacher's group, school-consented) so they
+// can code right away with no sign-up. Guest accounts are auto-cleaned by the daily cron.
+const SESSION_HOURS = 8;              // a session code stays joinable for this long
+function sessionCode() { let c = ""; const b = new Uint8Array(6); crypto.getRandomValues(b); for (let i = 0; i < 6; i++) c += CODE_ALPHABET[b[i] % CODE_ALPHABET.length]; return c; }
+
+async function apiStartSession(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher, school, or district can start a session." }, 403);
+  // Reuse the teacher's still-valid session if they already have one (so refreshing shows the same code).
+  const prev = await getSetting(env, `activesession:${u.id}`, null);
+  if (prev && prev.code) {
+    const s = await getSetting(env, `session:${prev.code}`, null);
+    if (s && s.expires > Date.now()) return json({ ok: true, code: prev.code, expiresAt: new Date(s.expires).toISOString(), reused: true });
+  }
+  let code; for (let i = 0; i < 40; i++) { code = sessionCode(); if (!(await getSetting(env, `session:${code}`, null))) break; }
+  const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
+  await setSetting(env, `session:${code}`, { teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires });
+  await setSetting(env, `activesession:${u.id}`, { code });
+  return json({ ok: true, code, expiresAt: new Date(expires).toISOString() });
+}
+
+async function apiEndSession(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const prev = await getSetting(env, `activesession:${u.id}`, null);
+  if (prev && prev.code) await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
+  await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
+  return json({ ok: true });
+}
+
+async function apiJoinSession(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (rateLimited(`joinsession:${ip}`, 20, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
+  const code = (data.code || "").toString().trim().toUpperCase();
+  const chosen = (data.name || data.username || "").toString().trim();
+  const info = await getSetting(env, `session:${code}`, null);
+  if (!info || info.expires < Date.now()) return json({ error: "That session code isn't active. Ask your teacher or librarian for the current code." }, 404);
+  if (!/^[A-Za-z0-9 _.-]{2,20}$/.test(chosen)) return json({ error: "Pick a name using 2-20 letters or numbers." }, 400);
+  { const ci = contentIssue(chosen); if (ci) return json({ error: ci }, 400); }
+  // Respect the group's seat cap so a session can't blow past the plan limit.
+  const owner = await env.DB.prepare("SELECT plan FROM users WHERE id=?").bind(info.teacherId).first();
+  if (owner) { const cfg = teacherPlanCfg(owner.plan); if (cfg.students !== -1 && (await studentsInFamily(env, info.familyId)) >= cfg.students) return json({ error: "This session is full — ask your teacher." }, 403); }
+  // Build a unique username (guests never log in again, so it just needs to be unique).
+  let base = chosen.replace(/[^A-Za-z0-9_]/g, "") || "coder"; if (base.length < 3) base = base + "coder";
+  let uname = base.slice(0, 16);
+  for (let i = 0; i < 8; i++) { if (!(await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(uname).first())) break; uname = (base.slice(0, 12) + randToken(3).replace(/[^A-Za-z0-9]/g, "")).slice(0, 20); }
+  const r = await createUser(env, {
+    role: "kid", name: chosen.slice(0, 20), username: uname, password: randToken(12),
+    email: "", age: "", plan: "family", trial_ends: null, family_id: info.familyId,
+    consent_status: "granted", consent_method: "library_session", consent_by: `Session by ${info.name}`,
+  });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  // Mark as a session guest for auto-cleanup.
+  await setSetting(env, `sessionguest:${r.uid}`, { code, expires: info.expires });
+  const token = await createSession(env, r.uid);
+  return json({ ok: true, token, user: await publicUser(env, r.row), displayName: chosen });
+}
+
 // Daily login reward: a small token bonus, once per calendar day, just for showing up.
 const DAILY_REWARD = 15;
 async function apiDailyReward(env, request) {
@@ -3325,6 +3386,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/assignments/progress" && method === "GET") return apiAssignmentProgress(env, request);
   if (path === "/api/teacher/announce" && method === "POST") return apiTeacherAnnounce(env, request, data);
   if (path === "/api/teacher/logout-pin" && method === "POST") return apiSetLogoutPin(env, request, data);
+  if (path === "/api/session/start" && method === "POST") return apiStartSession(env, request);
+  if (path === "/api/session/end" && method === "POST") return apiEndSession(env, request);
+  if (path === "/api/session/join" && method === "POST") return apiJoinSession(env, request, data);
   if (path === "/api/teacher/bulk" && method === "POST") return apiBulkStudents(env, request, data);
   if (path === "/api/kid/session-logout" && method === "POST") return apiKidSessionLogout(env, request, data);
   if (path === "/api/daily-reward" && method === "POST") return apiDailyReward(env, request);
@@ -3718,6 +3782,13 @@ export default {
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizfail:%' AND substr(key,-10) < ?").bind(d(2).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'challenge:%' AND substr(key,-10) < ?").bind(d(90).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
+        // Clean up finished library-session guest accounts (and their data + markers).
+        const guestCutoff = new Date(Date.now() - 24 * 3600000).toISOString();  // grace period after session ends
+        const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND consent_method='library_session' AND created_at < ?").bind(guestCutoff).all()).results || [];
+        for (const g of guests) {
+          for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM settings WHERE key=?","DELETE FROM users WHERE id=?"])
+            await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${g.id}` : g.id).run();
+        }
       } catch {}
     })());
   },
