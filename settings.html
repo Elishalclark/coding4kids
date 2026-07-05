@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=141" />
+  <link rel="stylesheet" href="styles.css?v=142" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -68,6 +68,17 @@
       <div id="notifMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;color:var(--text-dim);"></div>
     </div>
 
+    <!-- Two-step login (teacher / school / district accounts) -->
+    <div class="card" id="twoFaCard" style="display:none;">
+      <h2>🔐 Two-step login (2FA)</h2>
+      <p class="hint">Extra protection: after your password, we email you a 6-digit code to finish signing in. Recommended for accounts that manage students.</p>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:800;">
+        <input type="checkbox" id="twoFaToggle" style="width:20px;height:20px;" onchange="toggle2fa(this)">
+        Require an email code at login
+      </label>
+      <div id="twoFaMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;color:var(--text-dim);"></div>
+    </div>
+
     <!-- Kids (parents/teachers) -->
     <div class="card" id="kidsCard" style="display:none;">
       <h2>👧 Your kids</h2>
@@ -82,7 +93,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=141"></script>
+  <script src="auth.js?v=142"></script>
   <script>
     let ME = null;
     (async () => {
@@ -114,7 +125,21 @@
         document.getElementById('meSaveBtn').style.display = 'none';
       }
       if (ME.role === 'parent' || ME.role === 'teacher') loadKids();
+      // Two-step login: teacher/school/district accounts only.
+      if (ME.role === 'teacher') {
+        document.getElementById('twoFaCard').style.display = '';
+        document.getElementById('twoFaToggle').checked = !!ME.twoFactorEnabled;
+        if (!ME.parentEmail) document.getElementById('twoFaMsg').textContent = '⚠️ Add an email above first — that\'s where codes are sent.';
+      }
     })();
+
+    async function toggle2fa(cb) {
+      const msg = document.getElementById('twoFaMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/account/2fa', 'POST', { enabled: cb.checked });
+      if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = data.enabled ? '✅ Two-step login is ON. Next time you log in, we\'ll email you a code.' : 'Two-step login is off.'; }
+      else { cb.checked = !cb.checked; msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not update.'; }
+    }
 
     async function toggleNotif(cb) {
       const msg = document.getElementById('notifMsg');
@@ -164,7 +189,7 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=141" defer></script>
-  <script src="editor.js?v=141" defer></script>
+  <script src="pwa.js?v=142" defer></script>
+  <script src="editor.js?v=142" defer></script>
 </body>
 </html>

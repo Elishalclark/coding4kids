@@ -322,6 +322,7 @@ async function publicUser(env, user) {
       brandName: user.brand_name ?? null, brandLogo: user.brand_logo ?? null,
       logoutPinSet: !!(await getLogoutPin(env, user.family_id)),
       retentionMonths: parseInt((await getSetting(env, `retention:${user.family_id}`, "0")), 10) || 0,
+      twoFactorEnabled: await twoFAEnabled(env, user.id),
     };
   }
   const kidBrand = user.role === "kid" ? await familyBranding(env, user.family_id) : {};
@@ -627,8 +628,59 @@ async function apiLogin(env, request, data, allow) {
     return json({ error: msg, suspended: true }, 403);
   }
   clearLoginFails(key);
+  // Optional staff 2FA: if this staff account turned on email codes, don't hand out a session
+  // yet — email a 6-digit code and make them confirm it. Opt-in per account, so default logins
+  // are never affected (and nobody can get locked out unless they choose to enable it).
+  if (STAFF_2FA_ROLES.includes(row.role) && row.parent_email && (await twoFAEnabled(env, row.id))) {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const challenge = randToken(24);
+    await setSetting(env, `2fachal:${challenge}`, { userId: row.id, code, exp: Date.now() + 10 * 60000, tries: 0 });
+    await sendEmail(env, row.parent_email, "Your KidVibers login code",
+      `<p>Your KidVibers verification code is:</p><p style="font-size:1.8rem;font-weight:900;letter-spacing:6px;">${code}</p><p style="color:#666;">It expires in 10 minutes. If you didn't try to log in, you can ignore this email and consider changing your password.</p>`);
+    const em = row.parent_email;
+    const hint = em.replace(/^(.{1,2}).*(@.*)$/, "$1***$2");
+    return json({ twoFactor: true, challenge, emailHint: hint });
+  }
   const token = await createSession(env, row.id);
   return json({ token, user: await publicUser(env, row) });
+}
+
+// 2FA is offered to teacher/school/district accounts (all role "teacher") — the staff who
+// control many student accounts. Admin/super-admin are deliberately excluded so the master
+// login can never be locked out by an email hiccup.
+const STAFF_2FA_ROLES = ["teacher"];
+async function twoFAEnabled(env, userId) {
+  return (await getSetting(env, `twofa:${userId}`, "0")) === "1";
+}
+
+// Step 2 of login: verify the emailed code and issue the real session.
+async function apiLogin2FA(env, request, data) {
+  const challenge = (data.challenge || "").toString();
+  const code = (data.code || "").toString().trim();
+  const rec = await getSetting(env, `2fachal:${challenge}`, null);
+  if (!rec) return json({ error: "This code request expired. Please log in again." }, 400);
+  if (rec.exp < Date.now()) { await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`2fachal:${challenge}`).run(); return json({ error: "That code expired. Please log in again." }, 400); }
+  if ((rec.tries || 0) >= 6) { await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`2fachal:${challenge}`).run(); return json({ error: "Too many wrong codes. Please log in again." }, 429); }
+  if (code !== rec.code) {
+    await setSetting(env, `2fachal:${challenge}`, { ...rec, tries: (rec.tries || 0) + 1 });
+    return json({ error: "That code isn't right. Check your email and try again." }, 401);
+  }
+  await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`2fachal:${challenge}`).run();
+  const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(rec.userId).first();
+  if (!row) return json({ error: "Account not found." }, 404);
+  const token = await createSession(env, row.id);
+  return json({ token, user: await publicUser(env, row) });
+}
+
+// A staff member turns email-code 2FA on or off for their own account (needs an email on file).
+async function apiSet2FA(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !STAFF_2FA_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const on = !!data.enabled;
+  if (on && !u.parent_email) return json({ error: "Add an email to your account first — that's where codes are sent." }, 400);
+  if (on) await setSetting(env, `twofa:${u.id}`, "1");
+  else await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`twofa:${u.id}`).run();
+  return json({ ok: true, enabled: on });
 }
 
 async function apiLogout(env, request) {
@@ -3474,6 +3526,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/teacher/signup" && method === "POST") return apiTeacherSignup(env, request, data);
   if (path === "/api/auth/google" && method === "POST") return apiAuthGoogle(env, request, data);
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
+  if (path === "/api/login/2fa" && method === "POST") return apiLogin2FA(env, request, data);
+  if (path === "/api/account/2fa" && method === "POST") return apiSet2FA(env, request, data);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
   if (path === "/api/logout" && method === "POST") return apiLogout(env, request);
   if (path === "/api/forgot-password" && method === "POST") return apiForgotPassword(env, request, data);

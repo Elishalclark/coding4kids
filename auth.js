@@ -44,7 +44,13 @@ const C4K = {
 
   async login(username, password) {
     const { ok, data } = await this.api('/api/login', 'POST', { username, password });
-    if (ok) { this.setToken(data.token); this.user = data.user; }
+    // A 2FA-enabled staff account returns { twoFactor:true } with no token — don't sign in yet.
+    if (ok && data.token) { this.setToken(data.token); this.user = data.user; }
+    return { ok, data };
+  },
+  async login2fa(challenge, code) {
+    const { ok, data } = await this.api('/api/login/2fa', 'POST', { challenge, code });
+    if (ok && data.token) { this.setToken(data.token); this.user = data.user; }
     return { ok, data };
   },
 

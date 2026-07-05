@@ -208,9 +208,34 @@ async function handleLogin(e) {
     document.getElementById('loginError').textContent = '❌ ' + (data.error || "Can't reach the server - try again in a moment.");
     return;
   }
+  // Staff 2FA: the password was right, but we need the emailed code before signing in.
+  if (data.twoFactor) {
+    const done = await promptTwoFactor(data.challenge, data.emailHint);
+    if (!done) return;   // cancelled or gave up; stay on the login form
+    closeLogin();
+    window.location.href = C4K.homeFor(C4K.user);
+    return;
+  }
   closeLogin();
   // Send them to the right place based on their actual account type.
   window.location.href = C4K.homeFor(data.user);
+}
+
+// Ask for the 6-digit email code (up to a few tries). Returns true when signed in.
+async function promptTwoFactor(challenge, emailHint) {
+  const err = document.getElementById('loginError');
+  err.style.color = 'var(--text-dim)';
+  err.textContent = `📧 We sent a 6-digit code to ${emailHint || 'your email'}.`;
+  for (let i = 0; i < 5; i++) {
+    const code = window.prompt(`Enter the 6-digit code we emailed to ${emailHint || 'your email'}:`);
+    if (code === null) { err.style.color = '#f87171'; err.textContent = 'Login cancelled.'; return false; }
+    const { ok, data } = await C4K.login2fa(challenge, code.trim());
+    if (ok && data.token) return true;
+    err.style.color = '#f87171';
+    err.textContent = '❌ ' + (data.error || 'That code was wrong.');
+    if (data && /expired|log in again/i.test(data.error || '')) return false;
+  }
+  return false;
 }
 
 // ── Parent signup ──
