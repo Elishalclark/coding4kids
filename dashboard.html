@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=149" />
+  <link rel="stylesheet" href="styles.css?v=151" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -247,6 +247,12 @@
         </div>
 
         <div class="card">
+          <h3 data-i18n="hQuests">🗺️ Quests</h3>
+          <p style="color:var(--text-dim);font-size:0.86rem;margin-bottom:12px;">Little goals to chase. Finish them all!</p>
+          <div id="quests" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+
+        <div class="card">
           <h3 data-i18n="hBadges">🏅 Badges</h3>
           <div class="badges" id="badges"></div>
         </div>
@@ -284,7 +290,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=149"></script>
+  <script src="auth.js?v=151"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -295,7 +301,7 @@
     const I18N_ES = {
       navVibe: '🎨 Vibe Studio', navGames: '🎮 Juegos', navLessons: '📚 Lecciones',
       sLevel: 'Nivel', sXp: 'XP Total ⚡', sDone: 'Lecciones Hechas', sStreak: 'Días Seguidos 🔥', sTokens: 'Fichas 🪙',
-      hBadges: '🏅 Insignias', hCerts: '🏆 Certificados', hLeader: '🏆 Clasificación', hLearned: '📜 Lo Que Aprendí',
+      hBadges: '🏅 Insignias', hCerts: '🏆 Certificados', hLeader: '🏆 Clasificación', hLearned: '📜 Lo Que Aprendí', hQuests: '🗺️ Misiones',
     };
     function getLang() { try { return localStorage.getItem('c4k_lang') === 'es' ? 'es' : 'en'; } catch (e) { return 'en'; } }
     function applyLang(lang) {
@@ -531,6 +537,35 @@
       }
     }
 
+    // Multi-step quests — active goals that tie the pieces together. Progress-based, so they
+    // fill up as the kid plays (no separate rewards to farm; completing them is the reward).
+    function renderQuests(passed) {
+      const el = document.getElementById('quests'); if (!el) return;
+      const done = COMPLETED.length, worlds = passed.size || 0;
+      let daysActive = 0; try { daysActive = (JSON.parse(localStorage.getItem('c4k_days') || '[]')).length; } catch {}
+      let projects = 0; try { projects = parseInt(localStorage.getItem('c4k_projects_saved') || '0', 10) || 0; } catch {}
+      const QUESTS = [
+        { e: '👟', n: 'First Steps', d: 'Finish your first lesson', have: Math.min(done, 1), need: 1 },
+        { e: '📚', n: 'Getting Started', d: 'Complete 10 lessons', have: Math.min(done, 10), need: 10 },
+        { e: '⚔️', n: 'Boss Slayer', d: 'Beat your first boss battle', have: Math.min(worlds, 1), need: 1 },
+        { e: '🌍', n: 'World Explorer', d: 'Conquer 3 worlds', have: Math.min(worlds, 3), need: 3 },
+        { e: '🔥', n: 'Streak Star', d: 'Code on 3 different days', have: Math.min(daysActive, 3), need: 3 },
+        { e: '🎨', n: 'Creator', d: 'Save a Vibe Studio creation', have: Math.min(projects, 1), need: 1 },
+      ];
+      el.innerHTML = QUESTS.map(q => {
+        const complete = q.have >= q.need, pct = Math.round(q.have / q.need * 100);
+        return `<div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.4rem;${complete?'':'opacity:.5;filter:grayscale(1);'}">${complete?'✅':q.e}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:800;font-size:0.9rem;">${q.n}${complete?' <span style="color:var(--green);font-size:0.75rem;">done!</span>':''}</div>
+            <div style="color:var(--text-dim);font-size:0.76rem;">${q.d}</div>
+            ${complete?'':`<div style="height:5px;background:var(--surface-2);border-radius:50px;overflow:hidden;margin-top:4px;"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div>`}
+          </div>
+          ${complete?'':`<span style="font-size:0.76rem;font-weight:800;color:var(--text-dim);">${q.have}/${q.need}</span>`}
+        </div>`;
+      }).join('');
+    }
+
     function renderBadges() {
       const done = COMPLETED.length, total = LESSONS.length, st = parseInt(document.getElementById('sStreak').textContent) || 1;
       const defs = [
@@ -735,6 +770,7 @@
       if (inPart2) activatePart2();
 
       renderWorlds(inPart2);
+      renderQuests(passed);
       renderByte();
       renderBadges();
       renderCerts();
@@ -1160,7 +1196,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=149" defer></script>
-  <script src="editor.js?v=149" defer></script>
+  <script src="pwa.js?v=151" defer></script>
+  <script src="editor.js?v=151" defer></script>
 </body>
 </html>

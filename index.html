@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=149" />
+  <link rel="stylesheet" href="styles.css?v=151" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -124,7 +124,7 @@
       <p class="hero-sub" data-i18n="heroSub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks - just a coding adventure made for kids ages 6-16.</p>
       <div class="hero-btns">
         <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;" data-i18n="heroCta">Start for Free 🚀</a>
-        <a href="#how" class="btn btn-outline btn-lg" data-i18n="heroCta2">See How It Works</a>
+        <a href="#" class="btn btn-outline btn-lg" onclick="seeDemo(this);return false;" data-i18n="heroDemo">🎬 See a Live Demo</a>
       </div>
       <div style="margin-top:14px;">
         <a href="#" onclick="openJoinSession();return false;" data-i18n="heroJoin"
@@ -1079,6 +1079,7 @@
         navLogin: 'Entrar / Registrarse',
         navJoin: '🎟️ Unirse a una Sesión',
         heroJoin: '🎟️ ¿En una biblioteca o clase? Únete con un código →',
+        heroDemo: '🎬 Ver Demostración',
       }
     };
     function applyLang(lang) {
@@ -1103,9 +1104,9 @@
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=149"></script>
-  <script src="app.js?v=149"></script>
-  <script src="pwa.js?v=149" defer></script>
-  <script src="editor.js?v=149" defer></script>
+  <script src="auth.js?v=151"></script>
+  <script src="app.js?v=151"></script>
+  <script src="pwa.js?v=151" defer></script>
+  <script src="editor.js?v=151" defer></script>
 </body>
 </html>

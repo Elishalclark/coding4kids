@@ -649,6 +649,17 @@ async function apiLogin(env, request, data, allow) {
 // control many student accounts. Admin/super-admin are deliberately excluded so the master
 // login can never be locked out by an email hiccup.
 const STAFF_2FA_ROLES = ["teacher"];
+
+// One-click "See a demo": logs the visitor into the shared, pre-loaded demo kid account so the
+// platform looks alive instantly (no password to fumble at a pitch). Rate-limited per IP.
+async function apiDemoLogin(env, request) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (rateLimited(`demo:${ip}`, 12, 3600)) return json({ error: "Too many demo logins — try again shortly." }, 429);
+  const row = await env.DB.prepare("SELECT * FROM users WHERE username='demo' AND role='kid'").first();
+  if (!row) return json({ error: "Demo isn't set up yet." }, 404);
+  const token = await createSession(env, row.id);
+  return json({ token, user: await publicUser(env, row) });
+}
 async function twoFAEnabled(env, userId) {
   return (await getSetting(env, `twofa:${userId}`, "0")) === "1";
 }
@@ -3562,6 +3573,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/teacher/signup" && method === "POST") return apiTeacherSignup(env, request, data);
   if (path === "/api/auth/google" && method === "POST") return apiAuthGoogle(env, request, data);
   if (path === "/api/login" && method === "POST") return apiLogin(env, request, data, ["kid", "parent", "teacher", "admin", "super_admin"]);
+  if (path === "/api/demo" && method === "POST") return apiDemoLogin(env, request);
   if (path === "/api/login/2fa" && method === "POST") return apiLogin2FA(env, request, data);
   if (path === "/api/account/2fa" && method === "POST") return apiSet2FA(env, request, data);
   if (path === "/api/admin/login" && method === "POST") return apiLogin(env, request, data, ADMIN_ROLES);
@@ -3862,6 +3874,7 @@ async function runWeeklyDigest(env) {
       const worldsCleared = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).first()).c || 0;
       const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
       const xp = xpRow ? xpRow.xp : 0;
+      const creations = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(k.id).first()).c || 0;
       if (lessonsThisWeek > 0) anyActive = true;
       // Highlight: worlds conquered THIS week (a real milestone worth celebrating in the email).
       const wonThisWeek = (await env.DB.prepare("SELECT unit FROM unit_tests WHERE user_id=? AND passed=1 AND updated_at>=? ORDER BY unit").bind(k.id, since).all()).results || [];
@@ -3876,6 +3889,7 @@ async function runWeeklyDigest(env) {
           <tr><td style="color:#555;font-size:0.9rem;">📚 Lessons this week</td><td style="font-weight:800;text-align:right;">${lessonsThisWeek}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">🏆 Total lessons done</td><td style="font-weight:800;text-align:right;">${totalLessons}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">🌍 Worlds cleared</td><td style="font-weight:800;text-align:right;">${worldsCleared}</td></tr>
+          <tr><td style="color:#555;font-size:0.9rem;">🎨 Creations built</td><td style="font-weight:800;text-align:right;">${creations}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">⚡ Total XP</td><td style="font-weight:800;text-align:right;">${xp}</td></tr>
         </table>
       </div>`;

@@ -25,6 +25,20 @@ async function loadLaunchBanner() {
 }
 if (document.getElementById('launchBannerHome') || document.getElementById('launchBanner')) loadLaunchBanner();
 
+// One-click live demo: logs into the pre-loaded demo account so the platform looks alive
+// instantly — no credentials to fumble at a pitch.
+async function seeDemo(btn) {
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = 'Loading demo…'; btn.style.pointerEvents = 'none'; }
+  try {
+    const r = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await r.json();
+    if (r.ok && data.token) { C4K.setToken(data.token); C4K.user = data.user; location.href = 'dashboard.html'; return; }
+    alert(data.error || 'Could not load the demo right now.');
+  } catch (e) { alert('Could not load the demo — check your connection.'); }
+  if (btn) { btn.innerHTML = orig; btn.style.pointerEvents = ''; }
+}
+
 async function handleSignup(e) {
   e.preventDefault();
   const success = document.getElementById('signupSuccess');
