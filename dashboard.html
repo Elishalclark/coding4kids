@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=147" />
+  <link rel="stylesheet" href="styles.css?v=149" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -81,10 +81,11 @@
     <div class="nav-inner">
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
-        <a href="playground.html" class="btn btn-ghost">🎨 Vibe Studio</a>
-        <a href="games.html" class="btn btn-ghost">🎮 Games</a>
-        <a href="lessons.html" class="btn btn-outline">📚 Lessons</a>
+        <a href="playground.html" class="btn btn-ghost" data-i18n="navVibe">🎨 Vibe Studio</a>
+        <a href="games.html" class="btn btn-ghost" data-i18n="navGames">🎮 Games</a>
+        <a href="lessons.html" class="btn btn-outline" data-i18n="navLessons">📚 Lessons</a>
         <a href="settings.html" class="btn btn-ghost" title="Settings">⚙️</a>
+        <button onclick="toggleLang()" title="English / Español" style="background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:6px 12px;font-weight:900;font-family:inherit;font-size:0.8rem;color:var(--text);cursor:pointer;">🌐 <span id="langLbl">ES</span></button>
         <button id="demoLogout" class="btn btn-outline" style="display:none;" onclick="C4K.logout().then(()=>location.href='index.html')">Log out</button>
       </div>
     </div>
@@ -146,16 +147,16 @@
     <div id="assignments" style="display:none;margin-bottom:18px;"></div>
 
     <div class="stat-grid">
-      <div class="stat-box"><div class="big" id="sLevel">1</div><div class="lbl">Level</div></div>
-      <div class="stat-box"><div class="big" id="sXp">0</div><div class="lbl">Total XP ⚡</div></div>
-      <div class="stat-box"><div class="big" id="sDone">0</div><div class="lbl">Lessons Done</div></div>
+      <div class="stat-box"><div class="big" id="sLevel">1</div><div class="lbl" data-i18n="sLevel">Level</div></div>
+      <div class="stat-box"><div class="big" id="sXp">0</div><div class="lbl" data-i18n="sXp">Total XP ⚡</div></div>
+      <div class="stat-box"><div class="big" id="sDone">0</div><div class="lbl" data-i18n="sDone">Lessons Done</div></div>
       <div class="stat-box" style="position:relative;">
         <div class="big" id="sStreak">1</div>
-        <div class="lbl">Day Streak 🔥</div>
+        <div class="lbl" data-i18n="sStreak">Day Streak 🔥</div>
         <div id="freezeCount" style="font-size:0.7rem;font-weight:800;color:#22d3ee;margin-top:3px;"></div>
         <div id="freezeUsedNote" style="display:none;position:absolute;top:-36px;left:50%;transform:translateX(-50%);background:#0891b2;color:#fff;font-size:0.72rem;font-weight:900;padding:5px 12px;border-radius:50px;white-space:nowrap;">🧊 Freeze used!</div>
       </div>
-      <div class="stat-box"><div class="big" id="sTokens">0</div><div class="lbl">Tokens 🪙</div></div>
+      <div class="stat-box"><div class="big" id="sTokens">0</div><div class="lbl" data-i18n="sTokens">Tokens 🪙</div></div>
     </div>
 
     <!-- Streak calendar: last 14 days -->
@@ -214,7 +215,7 @@
         </div>
 
         <div class="card" style="border:1px solid rgba(251,191,36,0.4);">
-          <h3>🏆 Leaderboard</h3>
+          <h3 data-i18n="hLeader">🏆 Leaderboard</h3>
           <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">See how you rank against other coders this week — top 10 by XP earned.</p>
           <a href="leaderboard.html" class="btn btn-outline" style="font-size:0.88rem;">View Leaderboard →</a>
         </div>
@@ -246,17 +247,17 @@
         </div>
 
         <div class="card">
-          <h3>🏅 Badges</h3>
+          <h3 data-i18n="hBadges">🏅 Badges</h3>
           <div class="badges" id="badges"></div>
         </div>
 
         <div class="card">
-          <h3>🏆 Certificates</h3>
+          <h3 data-i18n="hCerts">🏆 Certificates</h3>
           <div id="certs" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
 
         <div class="card" style="border:1px solid var(--border-bright);">
-          <h3>📜 What I've Learned</h3>
+          <h3 data-i18n="hLearned">📜 What I've Learned</h3>
           <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">A printable summary of your worlds, skills, and progress — great for a portfolio or showing your family.</p>
           <a href="mylearning.html" class="btn btn-outline" style="font-size:0.88rem;">See my journey →</a>
         </div>
@@ -283,12 +284,35 @@
     </div>
   </div>
 
-  <script src="auth.js?v=147"></script>
+  <script src="auth.js?v=149"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
 
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
+
+    // ── Bilingual dashboard (English / Español), shares the homepage's saved choice ──
+    const I18N_ES = {
+      navVibe: '🎨 Vibe Studio', navGames: '🎮 Juegos', navLessons: '📚 Lecciones',
+      sLevel: 'Nivel', sXp: 'XP Total ⚡', sDone: 'Lecciones Hechas', sStreak: 'Días Seguidos 🔥', sTokens: 'Fichas 🪙',
+      hBadges: '🏅 Insignias', hCerts: '🏆 Certificados', hLeader: '🏆 Clasificación', hLearned: '📜 Lo Que Aprendí',
+    };
+    function getLang() { try { return localStorage.getItem('c4k_lang') === 'es' ? 'es' : 'en'; } catch (e) { return 'en'; } }
+    function applyLang(lang) {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.dataset.i18n;
+        if (!el.dataset.en) el.dataset.en = el.innerHTML;
+        el.innerHTML = (lang === 'es' && I18N_ES[k]) ? I18N_ES[k] : el.dataset.en;
+      });
+      const lbl = document.getElementById('langLbl'); if (lbl) lbl.textContent = lang === 'es' ? 'EN' : 'ES';
+      document.documentElement.lang = lang;
+    }
+    function toggleLang() {
+      const next = getLang() === 'es' ? 'en' : 'es';
+      try { localStorage.setItem('c4k_lang', next); } catch (e) {}
+      applyLang(next);
+      if (ME && ME.name) document.getElementById('dHi').textContent = (next === 'es' ? `¡Hola ${ME.name}! 👋` : `Hey ${ME.name}! 👋`);
+    }
 
     // Kid ends their own session by entering the teacher/library session PIN.
     async function sessionLogout() {
@@ -668,7 +692,8 @@
       schoolBrandBar();
       document.getElementById('dAv').innerHTML = C4K.renderAvatar(ME.avatar, 70);
       document.getElementById('avPreview').innerHTML = C4K.renderAvatar(ME.avatar, 80);
-      document.getElementById('dHi').textContent = `Hey ${ME.name}! 👋`;
+      document.getElementById('dHi').textContent = (getLang() === 'es' ? `¡Hola ${ME.name}! 👋` : `Hey ${ME.name}! 👋`);
+      applyLang(getLang());
       // Students in a school/district group show their group label (District/School/Classroom),
       // not the underlying "family" plan.
       document.getElementById('dPlan').textContent = ME.groupLabel || ME.effectivePlan;
@@ -773,9 +798,29 @@
       const d = new Date(); const day = (d.getDay() + 6) % 7;
       d.setDate(d.getDate() - day); return d.toISOString().slice(0, 10);
     }
+    // A rotating seasonal theme so the weekly challenge feels fresh & timely.
+    function seasonalTheme() {
+      const m = new Date().getMonth(); // 0=Jan
+      const themes = [
+        { e: '❄️', n: 'Winter Code Sprint' },   // Jan
+        { e: '💖', n: 'February Focus' },        // Feb
+        { e: '🍀', n: 'Spring Coding Streak' },  // Mar
+        { e: '🌷', n: 'April Adventure' },       // Apr
+        { e: '🌼', n: 'May Maker Challenge' },   // May
+        { e: '☀️', n: 'Summer Code Camp' },      // Jun
+        { e: '🏖️', n: 'Summer Code Camp' },      // Jul
+        { e: '🌊', n: 'August Code Quest' },     // Aug
+        { e: '🍎', n: 'Back-to-School Sprint' }, // Sep
+        { e: '🎃', n: 'Spooky Code Challenge' }, // Oct
+        { e: '🍂', n: 'Fall Focus' },            // Nov
+        { e: '🎄', n: 'Holiday Code Fest' },     // Dec
+      ];
+      return themes[m] || { e: '🎯', n: 'Weekly Challenge' };
+    }
     function renderWeeklyChallenge() {
       const el = document.getElementById('weeklyChallenge');
       if (!el) return;
+      const theme = seasonalTheme();
       const GOAL = 5;
       const wk = weekKey();
       let count = 0;
@@ -787,9 +832,9 @@
       el.style.display = '';
       el.innerHTML = `<div class="card" style="border:1px solid var(--border-bright);margin:0;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span style="font-size:1.8rem;">🎯</span>
+          <span style="font-size:1.8rem;">${theme.e}</span>
           <div style="flex:1;min-width:160px;">
-            <strong style="font-size:1rem;">Weekly Challenge: complete ${GOAL} lessons</strong>
+            <strong style="font-size:1rem;">${theme.n}: complete ${GOAL} lessons</strong>
             <div style="color:var(--text-dim);font-size:0.82rem;">Finish ${GOAL} lessons this week for a <strong style="color:var(--yellow);">🪙 200 token bonus!</strong></div>
           </div>
           ${done
@@ -1115,7 +1160,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=147" defer></script>
-  <script src="editor.js?v=147" defer></script>
+  <script src="pwa.js?v=149" defer></script>
+  <script src="editor.js?v=149" defer></script>
 </body>
 </html>
