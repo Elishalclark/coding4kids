@@ -31,6 +31,20 @@
     .tc-promise p { color:var(--text-dim); line-height:1.7; max-width:680px; margin:0 auto; }
     .tc-links { text-align:center; }
     .tc-links a { color:var(--purple); font-weight:800; margin:0 10px; }
+    /* One-pager print: clean black-on-white handout a librarian can print & share. */
+    @media print {
+      nav, .tc-print-btn, .tc-links { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .tc { padding: 0; max-width: 100%; }
+      .tc-hero { background: #fff !important; border: none; padding: 0 0 12px; margin-bottom: 12px; border-bottom: 3px solid #000; }
+      .tc-hero .badge { background: #000 !important; color: #fff !important; }
+      .tc-hero h1, .tc-hero p { color: #000 !important; }
+      .tc-grid { display: block; }
+      .tc-card, .tc-promise { border: 1px solid #999 !important; background: #fff !important; break-inside: avoid; margin-bottom: 12px; page-break-inside: avoid; }
+      .tc-card h2, .tc-promise h2 { color: #000 !important; }
+      .tc-card li, .tc-promise p { color: #222 !important; }
+      .tc-card li::before { color: #000 !important; }
+    }
   </style>
 </head>
 <body>
@@ -46,6 +60,10 @@
       <div class="badge">🛡️ Trust &amp; Safety</div>
       <h1>Your child's safety comes first</h1>
       <p>KidVibers is built for kids - so safety, privacy, and security aren't afterthoughts. Here's exactly how we protect your child.</p>
+    </div>
+
+    <div class="tc-print-btn" style="text-align:center;margin:-12px 0 24px;">
+      <button class="btn btn-outline" onclick="window.print()">🖨️ Print this one-pager (for libraries &amp; schools)</button>
     </div>
 
     <div class="tc-grid">

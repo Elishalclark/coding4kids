@@ -635,6 +635,8 @@ function bumpDailyGoal() {
     let d = JSON.parse(localStorage.getItem('c4k_lessons_today') || '{}');
     d = { date: today, count: (d.date === today ? (d.count || 0) : 0) + 1 };
     localStorage.setItem('c4k_lessons_today', JSON.stringify(d));
+    // Record this as an active coding day for the dashboard streak calendar.
+    try { const days = JSON.parse(localStorage.getItem('c4k_days') || '[]'); if (!days.includes(today)) { days.push(today); localStorage.setItem('c4k_days', JSON.stringify(days.slice(-120))); } } catch {}
     // Weekly challenge counter
     const wk = isoWeekKey();
     let w = JSON.parse(localStorage.getItem('c4k_week_lessons') || '{}');

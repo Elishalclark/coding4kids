@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Class Certificates - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=129" />
+  <style>
+    .cp { max-width: 900px; margin: 0 auto; padding: 24px 18px 80px; }
+    .cp-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+    .cert {
+      background:#fff; color:#1a1330; border:3px solid #7c3aed; border-radius:16px;
+      padding:22px 26px; margin-bottom:18px; page-break-inside: avoid; break-inside: avoid;
+    }
+    .cert .top { display:flex; align-items:center; gap:12px; border-bottom:2px solid #ede9fe; padding-bottom:10px; margin-bottom:12px; }
+    .cert .logo { font-size:1.4rem; font-weight:900; color:#7c3aed; }
+    .cert h2 { font-size:1.5rem; font-weight:900; margin:2px 0; }
+    .cert .sub { color:#6b7280; font-size:0.9rem; }
+    .cert .worlds { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .cert .w { background:#f3e8ff; border:1px solid #d8b4fe; color:#6d28d9; font-weight:800; font-size:0.82rem; padding:5px 12px; border-radius:50px; }
+    .cert .stats { display:flex; gap:22px; margin-top:12px; }
+    .cert .stat b { font-size:1.3rem; color:#7c3aed; display:block; }
+    .cert .stat span { font-size:0.75rem; color:#6b7280; }
+    .cert .sig { margin-top:14px; display:flex; justify-content:space-between; align-items:flex-end; font-size:0.8rem; color:#6b7280; }
+    @media print {
+      nav, .cp-bar { display:none !important; }
+      body { background:#fff !important; }
+      .cp { padding:0; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner">
+    <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+    <a href="#" id="backLink" class="btn btn-ghost" style="margin-left:auto;">← Dashboard</a>
+  </div></nav>
+
+  <main class="cp">
+    <div class="cp-bar">
+      <h1 style="font-size:1.5rem;font-weight:900;flex:1;min-width:200px;">🎓 Class Certificates</h1>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print all</button>
+    </div>
+    <p id="cpNote" style="color:var(--text-dim);margin-bottom:18px;">Loading your students…</p>
+    <div id="certList"></div>
+  </main>
+
+  <script src="auth.js?v=129"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me) { location.href = 'index.html?login=1'; return; }
+      document.getElementById('backLink').href = C4K.homeFor(me);
+      if (me.role !== 'teacher') { document.getElementById('cpNote').textContent = 'This page is for teacher, school, and district accounts.'; return; }
+      const { ok, data } = await C4K.api('/api/teacher/progress');
+      if (!ok) { document.getElementById('cpNote').textContent = 'Could not load students.'; return; }
+      const students = (data.students || []).filter(s => s.worldsCleared > 0);
+      const org = me.brandName || me.school || 'KidVibers';
+      const today = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+      if (!students.length) {
+        document.getElementById('cpNote').textContent = 'No certificates yet — students earn one by beating a world\'s boss battle.';
+        return;
+      }
+      document.getElementById('cpNote').textContent = `${students.length} student${students.length===1?'':'s'} with certificates. Tap “Print all” for a printable pack to hand out.`;
+      document.getElementById('certList').innerHTML = students.map(s => {
+        return `<div class="cert">
+          <div class="top"><span class="logo">🚀 KidVibers</span><span class="sub" style="margin-left:auto;">${C4K.esc(org)}</span></div>
+          <div class="sub">Certificate of Achievement</div>
+          <h2>${C4K.esc(s.name)}</h2>
+          <div class="sub">has conquered <strong>${s.worldsCleared}</strong> coding world${s.worldsCleared===1?'':'s'} on KidVibers!</div>
+          <div class="stats">
+            <div class="stat"><b>${s.lessonsDone}</b><span>lessons done</span></div>
+            <div class="stat"><b>${s.worldsCleared} 🏆</b><span>worlds cleared</span></div>
+            <div class="stat"><b>${s.xp} ⚡</b><span>total XP</span></div>
+            ${s.avgScore?`<div class="stat"><b>${s.avgScore}%</b><span>avg score</span></div>`:''}
+          </div>
+          <div class="sig"><span>Awarded by ${C4K.esc(org)}</span><span>${today}</span></div>
+        </div>`;
+      }).join('');
+    })();
+  </script>
+  <script src="pwa.js?v=129" defer></script>
+</body>
+</html>

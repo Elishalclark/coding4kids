@@ -158,6 +158,15 @@
       <div class="stat-box"><div class="big" id="sTokens">0</div><div class="lbl">Tokens 🪙</div></div>
     </div>
 
+    <!-- Streak calendar: last 14 days -->
+    <div class="card" id="streakCal" style="display:none;padding:16px 18px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <strong style="font-size:0.95rem;">🔥 Your coding days</strong>
+        <span id="streakCalNote" style="color:var(--text-dim);font-size:0.8rem;"></span>
+      </div>
+      <div id="streakDots" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+    </div>
+
     <div class="card" id="puzzleCard" style="display:none;border:1px solid var(--border-bright);">
       <h3>🧩 Puzzle of the Day <span id="puzzleStreak" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
       <div id="puzzleBody"></div>
@@ -322,6 +331,31 @@
     function renderFreezeCount() {
       const el = document.getElementById('freezeCount');
       if (el) { const n = getFreezesOwned(); el.textContent = n > 0 ? `🧊 ${n} freeze${n===1?'':'s'}` : ''; }
+    }
+
+    // Record every day the kid coded (for the streak calendar). Also mark "today" when they
+    // have a lesson done today, so the calendar reflects current activity even after refresh.
+    function activeDays() { try { return JSON.parse(localStorage.getItem('c4k_days') || '[]'); } catch { return []; } }
+    function markActiveDay(d) {
+      d = d || new Date().toISOString().slice(0,10);
+      const days = activeDays();
+      if (!days.includes(d)) { days.push(d); localStorage.setItem('c4k_days', JSON.stringify(days.slice(-120))); }
+    }
+    function renderStreakCalendar() {
+      const set = new Set(activeDays());
+      // if a lesson was done today, count today active
+      try { const t = JSON.parse(localStorage.getItem('c4k_lessons_today')||'{}'); const today = new Date().toISOString().slice(0,10); if (t.date===today && (t.count||0)>0) { set.add(today); markActiveDay(today); } } catch {}
+      const dots = []; let activeCount = 0;
+      for (let i = 13; i >= 0; i--) {
+        const dt = new Date(Date.now() - i*86400000); const key = dt.toISOString().slice(0,10);
+        const on = set.has(key); if (on) activeCount++;
+        const label = dt.toLocaleDateString(undefined,{weekday:'short',month:'numeric',day:'numeric'});
+        dots.push(`<div title="${label}${on?' — coded! 🔥':''}" aria-label="${label}${on?', coded':', no activity'}" style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;background:${on?'linear-gradient(135deg,#f59e0b,#ef4444)':'var(--surface-2)'};border:1px solid ${on?'transparent':'var(--border)'};">${on?'🔥':''}</div>`);
+      }
+      const el = document.getElementById('streakCal'); if (!el) return;
+      el.style.display = '';
+      document.getElementById('streakDots').innerHTML = dots.join('');
+      document.getElementById('streakCalNote').textContent = `${activeCount} of the last 14 days`;
     }
 
     function streak() {
@@ -664,6 +698,7 @@
       loadAssignments();
       claimDailyReward();
       loadClassLeaderboard();
+      renderStreakCalendar();
       maybeShowTour();
     }
 

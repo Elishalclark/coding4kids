@@ -229,7 +229,8 @@
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-primary" id="tabProgress" onclick="showProgTab('progress')" style="font-size:0.85rem;padding:8px 16px;">📊 Progress</button>
         <button class="btn btn-outline" id="tabLeader" onclick="showProgTab('leader')" style="font-size:0.85rem;padding:8px 16px;">🏆 Leaderboard</button>
-        <button class="btn btn-outline" onclick="emailAllCerts()" style="font-size:0.85rem;padding:8px 16px;margin-left:auto;">🎓 Email all certificates</button>
+        <a href="certs-print.html" class="btn btn-outline" style="font-size:0.85rem;padding:8px 16px;margin-left:auto;">🖨️ Print certificate pack</a>
+        <button class="btn btn-outline" onclick="emailAllCerts()" style="font-size:0.85rem;padding:8px 16px;">🎓 Email all certificates</button>
       </div>
       <div id="certMsg" style="font-size:0.82rem;font-weight:700;margin-bottom:12px;"></div>
 
@@ -249,6 +250,21 @@
         <div id="leaderList" style="display:flex;flex-direction:column;gap:8px;"></div>
         <p id="leaderEmpty" style="display:none;color:var(--text-dim);font-size:0.88rem;margin:0;">No students yet.</p>
       </div>
+    </div>
+
+    <!-- Recommend to a library/school -->
+    <div style="margin-top:32px;background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(6,182,212,0.05));border:1px solid var(--border-bright);border-radius:var(--radius);padding:22px 24px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:1.5rem;">📚</span>
+        <strong style="font-size:1.1rem;">Love KidVibers? Tell your library!</strong>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:14px;">Recommend us to your local library or school and we'll reach out about bringing free coding programs to your community.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input id="recOrg" maxlength="150" placeholder="Library or school name" style="flex:2;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <input id="recContact" maxlength="200" placeholder="Their email or website (optional)" style="flex:2;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
+        <button class="btn btn-primary" onclick="sendRecommend()">Send</button>
+      </div>
+      <div id="recMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
     </div>
   </main>
 
@@ -394,6 +410,17 @@
         </div>`; }).join('') : '<div style="color:var(--text-faint);font-size:0.85rem;">No assignments yet.</div>';
     }
 
+    async function sendRecommend() {
+      const org = document.getElementById('recOrg').value.trim();
+      const contact = document.getElementById('recContact').value.trim();
+      const msg = document.getElementById('recMsg');
+      if (!org) { msg.style.color = '#f87171'; msg.textContent = 'Enter the library or school name.'; return; }
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…';
+      const { ok, data } = await C4K.api('/api/recommend', 'POST', { org, contact, fromName: (window.C4K_ME && C4K_ME.name) || '' });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Thank you! We\'ll reach out to them. 💜'; document.getElementById('recOrg').value=''; document.getElementById('recContact').value=''; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not send.'; }
+    }
+
     async function postAnnouncement() {
       const inp = document.getElementById('annMsg'), res = document.getElementById('annMsgResult');
       const message = inp.value.trim();
@@ -452,6 +479,7 @@
       if (me.role === 'teacher' && me.isDistrict) { location.href = 'district.html'; return; }
       const isTeacher = me.role === 'teacher';
       ME_ROLE = me.role;
+      window.C4K_ME = me;
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
       const paidFamily = me.plan === 'family';

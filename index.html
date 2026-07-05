@@ -73,8 +73,10 @@
 </head>
 <body>
 
+  <a href="#main" class="skip-link">Skip to content</a>
+
   <!-- NAV -->
-  <nav class="nav">
+  <nav class="nav" aria-label="Main navigation">
     <div class="nav-inner">
       <a href="#" class="logo">
         <span class="logo-icon">🚀</span>
@@ -89,7 +91,9 @@
         <li><a href="page.html?p=about">About</a></li>
       </ul>
       <div class="nav-cta" id="navCta">
-        <a href="#" class="btn btn-primary" onclick="openLogin('login');return false;">Log In / Sign Up</a>
+        <button id="langToggle" onclick="toggleLang()" aria-label="Cambiar idioma / Switch language" title="English / Español"
+          style="background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:7px 14px;font-weight:900;font-family:inherit;font-size:0.82rem;color:var(--text);cursor:pointer;margin-right:8px;">🌐 ES</button>
+        <a href="#" class="btn btn-primary" onclick="openLogin('login');return false;" data-i18n="navLogin">Log In / Sign Up</a>
       </div>
       <button class="hamburger" id="hamburger" aria-label="Menu">&#9776;</button>
     </div>
@@ -105,7 +109,7 @@
   </nav>
 
   <!-- HERO -->
-  <section class="hero">
+  <section class="hero" id="main">
     <div class="hero-bg-blobs">
       <div class="blob blob1"></div>
       <div class="blob blob2"></div>
@@ -113,19 +117,19 @@
     </div>
     <div class="hero-inner">
     <div class="hero-content">
-      <div class="hero-badge">🎮 The Duolingo of Coding for Kids</div>
-      <h1>Learn to Code.<br /><span class="gradient-text">Level Up Your Life.</span></h1>
-      <p class="hero-sub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks - just a coding adventure made for kids ages 6-16.</p>
+      <div class="hero-badge" data-i18n="heroBadge">🎮 The Duolingo of Coding for Kids</div>
+      <h1 data-i18n="heroTitle">Learn to Code.<br /><span class="gradient-text">Level Up Your Life.</span></h1>
+      <p class="hero-sub" data-i18n="heroSub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks - just a coding adventure made for kids ages 6-16.</p>
       <div class="hero-btns">
-        <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;">Start for Free 🚀</a>
-        <a href="#how" class="btn btn-outline btn-lg">See How It Works</a>
+        <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;" data-i18n="heroCta">Start for Free 🚀</a>
+        <a href="#how" class="btn btn-outline btn-lg" data-i18n="heroCta2">See How It Works</a>
       </div>
       <div class="hero-stats">
-        <div class="stat"><span class="stat-num">293</span><span class="stat-label">Fun Lessons</span></div>
+        <div class="stat"><span class="stat-num">293</span><span class="stat-label" data-i18n="statLessons">Fun Lessons</span></div>
         <div class="stat-divider"></div>
-        <div class="stat"><span class="stat-num">100%</span><span class="stat-label">Ad-Free</span></div>
+        <div class="stat"><span class="stat-num">100%</span><span class="stat-label" data-i18n="statAdFree">Ad-Free</span></div>
         <div class="stat-divider"></div>
-        <div class="stat"><span class="stat-num">100%</span><span class="stat-label">Safe</span></div>
+        <div class="stat"><span class="stat-num">100%</span><span class="stat-label" data-i18n="statSafe">Safe</span></div>
       </div>
     </div>
     <div class="hero-visual">
@@ -1004,6 +1008,42 @@
     }
     // Show on entry, shortly after load.
     window.addEventListener('load', () => setTimeout(() => openWhatsNew(false), 800));
+
+    // ── Bilingual (English / Español) starter ──
+    // A first-class Spanish option for the homepage — important for a public-library audience.
+    // Translates the key marketing strings; the full app/lessons stay English for now.
+    const I18N = {
+      es: {
+        heroBadge: '🎮 El Duolingo de Programación para Niños',
+        heroTitle: 'Aprende a Programar.<br /><span class="gradient-text">Sube de Nivel tu Vida.</span>',
+        heroSub: 'Lecciones cortas y divertidas. Proyectos reales. Recompensas épicas. Sin libros aburridos — una aventura de código para niños de 6 a 16 años.',
+        heroCta: 'Empieza Gratis 🚀',
+        heroCta2: 'Mira Cómo Funciona',
+        statLessons: 'Lecciones Divertidas',
+        statAdFree: 'Sin Anuncios',
+        statSafe: 'Seguro',
+        navLogin: 'Entrar / Registrarse',
+      }
+    };
+    function applyLang(lang) {
+      const dict = I18N[lang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (!el.dataset.en) el.dataset.en = el.innerHTML;   // remember the original English
+        el.innerHTML = (dict && dict[key]) ? dict[key] : el.dataset.en;
+      });
+      document.documentElement.lang = lang;
+      const btn = document.getElementById('langToggle');
+      if (btn) btn.textContent = lang === 'es' ? '🌐 EN' : '🌐 ES';
+      try { localStorage.setItem('c4k_lang', lang); } catch (e) {}
+    }
+    function toggleLang() { applyLang((localStorage.getItem('c4k_lang') === 'es') ? 'en' : 'es'); }
+    // Restore the visitor's saved choice (or auto-pick Spanish if their browser is Spanish).
+    (() => {
+      let saved; try { saved = localStorage.getItem('c4k_lang'); } catch (e) {}
+      if (!saved && (navigator.language || '').toLowerCase().startsWith('es')) saved = 'es';
+      if (saved === 'es') applyLang('es');
+    })();
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
