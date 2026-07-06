@@ -83,9 +83,13 @@ function render() {
     const tiles = ls.map((l, n) => {
       const done = completed.has(l.id);
       const limitLock = !done && limitReached();
-      const locked = !unlocked || limitLock;
+      // Guided path: lessons within a world must be done in order — lesson n+1 stays
+      // locked until lesson n is complete, so kids can't skip ahead and get lost.
+      const seqLock = !done && n > 0 && !completed.has(ls[n - 1].id);
+      const locked = !unlocked || limitLock || seqLock;
       const reason = !unlocked ? '🔒 Pass the previous unit test first'
-        : (limitLock ? `🌙 Daily limit reached - come back tomorrow!` : '');
+        : (limitLock ? `🌙 Daily limit reached - come back tomorrow!`
+        : (seqLock ? `🔒 Finish Lesson ${n} first` : ''));
       const click = !locked ? `onclick="openLesson('${l.id}')"`
         : (limitLock ? `onclick="openUpgrade()"` : '');
       return `<div class="lesson-tile ${done ? 'done' : ''} ${locked ? 'locked' : ''}" ${click}>
@@ -302,8 +306,32 @@ function renderDots() {
     `<div class="lv-dot ${i === scr ? 'active' : ''} ${i < scr || screenDone[i] && i !== scr ? 'done' : ''}"></div>`).join('');
 }
 
+// ── Guided mode: a step checklist (Learn → Try → Quiz) + a Byte tip for the current screen ──
+const STAGE_OF = { content: 'learn', drag: 'try', prompt_lab: 'try', quiz_set: 'quiz' };
+const STAGE_LABEL = { learn: '📖 Learn', try: '🎮 Try it', quiz: '🧠 Quiz' };
+function renderChecklist() {
+  const el = document.getElementById('lvChecklist');
+  if (!el) return;
+  const stagesPresent = [...new Set(screens.map((s, i) => STAGE_OF[s.type] || 'learn'))];
+  const curStage = STAGE_OF[screens[scr].type] || 'learn';
+  const curIdx = stagesPresent.indexOf(curStage);
+  el.innerHTML = stagesPresent.map((st, i) =>
+    `<span class="lv-check ${i < curIdx ? 'done' : ''} ${i === curIdx ? 'active' : ''}">${i < curIdx ? '✅' : STAGE_LABEL[st]}</span>`
+  ).join('<span class="lv-check-arrow">→</span>');
+}
+function byteTip(type) {
+  const TIPS = {
+    content: "📖 Read this, then try running the code below!",
+    drag: "🧲 Think about what needs to happen first — put the lines in order!",
+    prompt_lab: "🤖 Just give it a try — there's no wrong answer here!",
+    quiz_set: "🧠 Take your time and pick your best answer. You've got this!",
+  };
+  return `<div class="byte-tip"><span class="byte-tip-av">🤖</span><span>${TIPS[type] || "You're doing great — keep going!"}</span></div>`;
+}
+
 function renderScreen() {
   renderDots();
+  renderChecklist();
   const body = document.getElementById('lvBody');
   const s = screens[scr];
   const back = document.getElementById('lvBack'), next = document.getElementById('lvNext');
@@ -341,14 +369,14 @@ function renderScreen() {
     }
     if (st.tip) html += `<div class="lv-tip">💡 ${st.tip}</div>`;
     html += '</div>';
-    body.innerHTML = html;
+    body.innerHTML = byteTip('content') + html;
     next.disabled = false;
     next.textContent = 'Next →';
   }
 
   if (s.type === 'drag') {
     if (!s._shuffled) { s.order = shuffle(s.correct.slice()); s._shuffled = true; }
-    body.innerHTML = `<div class="lv-step">
+    body.innerHTML = byteTip('drag') + `<div class="lv-step">
       <span class="activity-tag">🧲 Drag & Drop</span>
       <h4>Put the code in the right order</h4>
       <p style="color:var(--text-dim);margin-bottom:12px;">Drag the lines so the program runs top to bottom correctly.</p>
@@ -366,7 +394,7 @@ function renderScreen() {
     next.textContent = 'Next →';
     next.disabled = !s.done;   // must try a prompt before moving on
     const sk = s.skill;
-    body.innerHTML = `<div class="lv-step">
+    body.innerHTML = byteTip('prompt_lab') + `<div class="lv-step">
       <span class="activity-tag" style="background:rgba(6,182,212,0.15);color:#22d3ee;">🤖 Prompt Lab · Skill: ${sk.emoji} ${sk.name}</span>
       <h4 style="margin:10px 0 8px;">Learn to talk to AI</h4>
       <div style="background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.3);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
@@ -462,13 +490,16 @@ function renderQuizSet(s) {
     `<div style="flex:1;height:5px;border-radius:50px;background:${i < qi ? 'var(--green)' : i === qi ? 'var(--purple-mid)' : 'var(--border)'};"></div>`
   ).join('');
 
-  body.innerHTML = `<div class="lv-step">
+  s._hintShown = false;
+  body.innerHTML = byteTip('quiz_set') + `<div class="lv-step">
     <div style="display:flex;gap:4px;margin-bottom:14px;">${pips}</div>
     <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
       <span class="activity-tag">🧠 Question ${progress}</span>
       <span style="font-size:0.75rem;color:var(--text-faint);font-weight:700;">${s.correct} correct so far</span>
     </div>
-    <h4 style="margin-bottom:16px;line-height:1.5;">${q.q}</h4>
+    <h4 style="margin-bottom:10px;line-height:1.5;">${q.q}</h4>
+    ${q.explain ? `<button class="btn btn-outline" id="hintBtn" style="font-size:0.78rem;padding:5px 12px;margin-bottom:12px;" onclick="showQuizHint()">💡 Need a hint?</button>
+    <div id="quizHint" style="display:none;background:rgba(251,191,36,0.1);border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:12px;color:#fbbf24;font-size:0.85rem;font-weight:700;"></div>` : ''}
     <div id="quizOpts" style="display:flex;flex-direction:column;gap:10px;">
       ${shuffle(q.opts.map((o, i) => ({ o, i }))).map(({ o, i }) =>
         `<button class="mcq-opt" data-ans="${i}" onclick="answerQuizSet(${i})">${o}</button>`
@@ -476,6 +507,18 @@ function renderQuizSet(s) {
     </div>
     <div id="quizFb" style="margin-top:12px;font-weight:800;min-height:1.2em;"></div>
   </div>`;
+}
+
+// A hint nudges toward the concept (using the question's own explanation) WITHOUT
+// revealing which option is correct — kids still have to apply it themselves.
+function showQuizHint() {
+  const s = screens[scr];
+  const q = s.questions[s.qi];
+  s._hintShown = true;
+  const box = document.getElementById('quizHint');
+  if (box) { box.style.display = 'block'; box.innerHTML = '💡 ' + (q.explain || "Think about what each option would actually do."); }
+  const btn = document.getElementById('hintBtn');
+  if (btn) btn.disabled = true;
 }
 
 async function answerQuizSet(choice) {
