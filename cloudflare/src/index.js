@@ -84,13 +84,44 @@ function contentIssue(text) {
 async function alertSchool(env, kid, title, detail) {
   try {
     if (kid && kid.family_id != null) {
-      const owner = await env.DB.prepare("SELECT id,role FROM users WHERE id=?").bind(kid.family_id).first();
-      if (owner && owner.role === "teacher") {
-        await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)")
+      const owner = await env.DB.prepare("SELECT id,role,parent_email,name FROM users WHERE id=?").bind(kid.family_id).first();
+      if (owner) {
+        // Notify whoever is responsible for this kid — a teacher/school/district, OR the
+        // parent directly on a family account. Either way it lands as a 'safety' notice.
+        await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at,resolved) VALUES (?,?,?,?,0)")
           .bind(owner.id, "safety", `🚩 SAFETY ALERT — ${kid.name} (@${kid.username}): ${title}${detail ? " — " + detail : ""}`, nowIso()).run();
+        // Parents get this by email too, since they may not check the dashboard daily and this is urgent.
+        if (owner.role === "parent" && owner.parent_email) {
+          await sendEmail(env, owner.parent_email, `⚠️ Safety alert for ${kid.name} on KidVibers`,
+            `<p style="font-size:1.05rem;">Hi ${escHtml(owner.name || "")},</p>
+             <p>Our safety system flagged something ${escHtml(kid.name)} typed on KidVibers and wanted you to know right away:</p>
+             <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;color:#991b1b;font-weight:700;">${escHtml(title)}${detail ? " — " + escHtml(detail) : ""}</p>
+             <p>This doesn't block their account — it's just a heads-up so you can check in with them. 💜</p>
+             <p><a href="https://kidvibers.com/parent.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Open dashboard →</a></p>`,
+            "KidVibers Safety <support@kidvibers.com>");
+        }
       }
     }
     await notifyAdmin(env, `🚩 Safety alert: ${kid && kid.name}`, `🚩 *Safety alert*\n• Student: ${kid && kid.name} (@${kid && kid.username})\n• ${title}${detail ? `\n• Detail: ${detail}` : ""}`);
+  } catch {}
+}
+
+// Track repeated content-filter blocks per kid — one or two blocked messages is normal kid
+// experimentation, but a burst suggests something worth an adult's attention.
+async function flagContentBlock(env, kid) {
+  try {
+    if (!kid || !kid.id) return;
+    const key = `contentblocks:${kid.id}`;
+    const day = new Date().toISOString().slice(0, 10);
+    let rec = await getSetting(env, key, null);
+    if (!rec || rec.day !== day) rec = { day, count: 0, alerted: false };
+    rec.count++;
+    if (rec.count >= 5 && !rec.alerted) {
+      rec.alerted = true;
+      await notifyAdmin(env, `⚠️ Repeated content blocks: ${kid.name}`,
+        `⚠️ *${kid.name}* (@${kid.username}) has had ${rec.count} messages blocked by the content filter today. Might be worth a look.`);
+    }
+    await setSetting(env, key, rec);
   } catch {}
 }
 
@@ -1152,15 +1183,44 @@ async function sendCertificateEmail(env, request, kid, unit, score) {
 async function apiNotices(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
-  const rows = (await env.DB.prepare("SELECT id,kind,body,created_at FROM notices WHERE user_id=? ORDER BY id DESC").bind(u.id).all()).results || [];
+  const rows = (await env.DB.prepare("SELECT id,kind,body,created_at FROM notices WHERE user_id=? AND resolved=0 ORDER BY id DESC").bind(u.id).all()).results || [];
   return json({ notices: rows.map((r) => ({ id: r.id, kind: r.kind, body: r.body, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
 
 async function apiDismissNotice(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
-  await env.DB.prepare("DELETE FROM notices WHERE id=? AND user_id=?").bind(data.id, u.id).run();
+  // Safety-related notices aren't deleted — they're marked resolved so they stay in the
+  // incident log for accountability. Everything else (regular notices) can be cleared normally.
+  const row = await env.DB.prepare("SELECT kind FROM notices WHERE id=? AND user_id=?").bind(data.id, u.id).first();
+  if (row && (row.kind === "safety" || row.kind === "kid_report")) {
+    await env.DB.prepare("UPDATE notices SET resolved=1 WHERE id=? AND user_id=?").bind(data.id, u.id).run();
+  } else {
+    await env.DB.prepare("DELETE FROM notices WHERE id=? AND user_id=?").bind(data.id, u.id).run();
+  }
   return json({ ok: true });
+}
+
+// Super-admin audit log: every account suspend/delete/reinstate an admin has performed,
+// pulled from consent_log (which already records these as an audit trail).
+async function apiAdminAuditLog(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT id,child_username,method,granted_by,detail,created_at FROM consent_log " +
+    "WHERE method IN ('deleted','suspended','reinstated') ORDER BY id DESC LIMIT 200"
+  ).all()).results || [];
+  return json({ log: rows.map(r => ({ id: r.id, username: r.child_username, action: r.method, by: r.granted_by, detail: r.detail, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+
+// Full history of safety-kind notices for this account (teacher/school/district/parent) —
+// including resolved ones — so nothing quietly falls through the cracks.
+async function apiIncidentLog(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  const rows = (await env.DB.prepare(
+    "SELECT id,kind,body,created_at,resolved FROM notices WHERE user_id=? AND kind IN ('safety','kid_report') ORDER BY id DESC LIMIT 200"
+  ).bind(u.id).all()).results || [];
+  return json({ incidents: rows.map(r => ({ id: r.id, kind: r.kind, body: r.body, resolved: !!r.resolved, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
 
 // ───────────────────────── avatar shop / Byte AI / upgrade / class join ─────────────────────────
@@ -2068,7 +2128,16 @@ async function apiJoinSession(env, request, data) {
   if (!info || info.expires < Date.now()) return json({ error: "That session code isn't active. Ask your teacher or librarian for the current code." }, 404);
   if (info.locked) return json({ error: "This session is locked — no new joins right now. Ask your teacher." }, 403);
   if (!/^[A-Za-z0-9 _.-]{2,20}$/.test(chosen)) return json({ error: "Pick a name using 2-20 letters or numbers." }, 400);
-  { const ci = contentIssue(chosen); if (ci) return json({ error: ci }, 400); }
+  { const ci = contentIssue(chosen); if (ci) {
+      // A session guest has no account yet, so track repeated bad tries by IP instead of user id —
+      // a burst of inappropriate names in one session is worth a heads-up to the KidVibers team.
+      const fk = `sessionbadtries:${ip}:${todayStr()}`;
+      const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(fk).first();
+      const n = (parseInt(row && row.value, 10) || 0) + 1;
+      await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(fk, String(n)).run();
+      if (n === 3) await notifyAdmin(env, `⚠️ Repeated inappropriate names in a session`, `⚠️ Someone joining session code ${code} has tried ${n} inappropriate nicknames today (IP ${ip}). Might be worth a look.`);
+      return json({ error: ci }, 400);
+  } }
   // Respect the group's seat cap so a session can't blow past the plan limit.
   const owner = await env.DB.prepare("SELECT plan FROM users WHERE id=?").bind(info.teacherId).first();
   if (owner) { const cfg = teacherPlanCfg(owner.plan); if (cfg.students !== -1 && (await studentsInFamily(env, info.familyId)) >= cfg.students) return json({ error: "This session is full — ask your teacher." }, 403); }
@@ -3683,6 +3752,8 @@ async function handleApi(env, request, path) {
   if (path.startsWith("/api/test/") && method === "GET") return apiTestGet(env, request, parseInt(path.split("/").pop(), 10));
   if (path === "/api/quiz/answer" && method === "POST") return apiQuizAnswer(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
+  if (path === "/api/incident-log" && method === "GET") return apiIncidentLog(env, request);
+  if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
   if (path === "/api/shop/buy" && method === "POST") return apiShopBuy(env, request, data);

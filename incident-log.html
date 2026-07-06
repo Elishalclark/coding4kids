@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safety Incident Log - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=158" />
+  <style>
+    .il { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+    .il-head { margin-bottom: 20px; }
+    .il-head h1 { font-size: 1.6rem; font-weight: 900; }
+    .il-head p { color: var(--text-dim); font-size: 0.92rem; margin-top: 4px; }
+    .il-row { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
+    .il-row.resolved { opacity: 0.6; }
+    .il-body { flex: 1; }
+    .il-body .txt { font-size: 0.9rem; line-height: 1.5; color: var(--text); }
+    .il-body .at { font-size: 0.76rem; color: var(--text-faint); margin-top: 4px; }
+    .il-tag { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 50px; background: rgba(239,68,68,0.14); color: #f87171; flex-shrink: 0; }
+    .il-tag.resolved-tag { background: rgba(52,211,153,0.14); color: var(--green); }
+    .empty { color: var(--text-dim); text-align: center; padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="javascript:history.back()" class="btn btn-ghost" style="margin-left:auto;">← Back</a>
+    </div>
+  </nav>
+
+  <main class="il" id="main">
+    <div class="il-head">
+      <h1>🚩 Safety Incident Log</h1>
+      <p>Every safety alert this account has ever received — resolved ones stay here too, so nothing quietly disappears.</p>
+    </div>
+    <div id="list"><p class="empty">Loading…</p></div>
+  </main>
+
+  <script src="auth.js?v=158"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me) { location.href = 'index.html?login=1'; return; }
+      const { ok, data } = await C4K.api('/api/incident-log');
+      const list = document.getElementById('list');
+      if (!ok) { list.innerHTML = '<p class="empty">Could not load the incident log.</p>'; return; }
+      const incidents = data.incidents || [];
+      if (!incidents.length) { list.innerHTML = '<p class="empty">✅ No safety incidents on record. That\'s a great sign!</p>'; return; }
+      list.innerHTML = incidents.map(i => `
+        <div class="il-row ${i.resolved ? 'resolved' : ''}">
+          <span class="il-tag ${i.resolved ? 'resolved-tag' : ''}">${i.resolved ? '✅ resolved' : '🚩 open'}</span>
+          <div class="il-body">
+            <div class="txt">${C4K.esc(i.body)}</div>
+            <div class="at">${C4K.esc(i.at)}</div>
+          </div>
+        </div>`).join('');
+    })();
+  </script>
+  <script src="pwa.js?v=158" defer></script>
+</body>
+</html>

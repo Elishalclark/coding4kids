@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=157" />
+  <link rel="stylesheet" href="styles.css?v=158" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -203,6 +203,15 @@
             <tbody id="breakdownRows"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- Admin action audit log (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🕵️ Audit Log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">account suspend/delete/reinstate history</span></h3>
+        <table class="admin-table">
+          <thead><tr><th>When</th><th>Account</th><th>Action</th><th>By</th><th>Detail</th></tr></thead>
+          <tbody id="auditRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <!-- Create a new account -->
@@ -532,7 +541,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=157"></script>
+  <script src="auth.js?v=158"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -655,6 +664,21 @@
       document.getElementById('breakdownRows').innerHTML = bdDefs.map(([label, n]) =>
         `<tr><td><strong>${label}</strong></td><td style="font-weight:900;">${n}</td>
            <td style="width:110px;"><div style="height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(n / bdTotal * 100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div></td></tr>`).join('');
+
+      if (sup) {
+        const { ok: aOk, data: aData } = await C4K.api('/api/admin/audit-log');
+        const rows = document.getElementById('auditRows');
+        if (rows) {
+          const log = (aOk && aData.log) || [];
+          rows.innerHTML = log.length ? log.map(r => `<tr>
+              <td style="white-space:nowrap;color:var(--text-faint);font-size:0.8rem;">${C4K.esc(r.at)}</td>
+              <td>@${C4K.esc(r.username || '?')}</td>
+              <td><strong>${C4K.esc(r.action)}</strong></td>
+              <td style="font-size:0.82rem;color:var(--text-faint);">${C4K.esc(r.by || '')}</td>
+              <td style="font-size:0.82rem;">${C4K.esc(r.detail || '')}</td>
+            </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No admin actions recorded yet.</td></tr>';
+        }
+      }
       const roleTag = (r, plan) => r === 'parent' ? '👨‍👩‍👧 parent'
         : (r === 'admin' ? '🛠️ admin'
         : (r === 'super_admin' ? '👑 super admin'
@@ -1373,7 +1397,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=157" defer></script>
-  <script src="editor.js?v=157" defer></script>
+  <script src="pwa.js?v=158" defer></script>
+  <script src="editor.js?v=158" defer></script>
 </body>
 </html>
