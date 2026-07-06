@@ -2011,7 +2011,7 @@ async function apiStartSession(env, request, data) {
   }
   let code; for (let i = 0; i < 40; i++) { code = sessionCode(); if (!(await getSetting(env, `session:${code}`, null))) break; }
   const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
-  await setSetting(env, `session:${code}`, { teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires });
+  await setSetting(env, `session:${code}`, { teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires, started: Date.now(), joins: 0 });
   await setSetting(env, `activesession:${u.id}`, { code });
   await bumpStat(env, "sessions_started");   // lifetime counter for the admin panel
   return json({ ok: true, code, expiresAt: new Date(expires).toISOString() });
@@ -2021,9 +2021,28 @@ async function apiEndSession(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
   const prev = await getSetting(env, `activesession:${u.id}`, null);
-  if (prev && prev.code) await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
+  let recap = null;
+  if (prev && prev.code) {
+    const info = await getSetting(env, `session:${prev.code}`, null);
+    if (info) {
+      const started = info.started || null;
+      const minutes = started ? Math.max(1, Math.round((Date.now() - started) / 60000)) : null;
+      // Count creations built by this group during the session window.
+      let creations = 0;
+      if (started) {
+        try {
+          const row = await env.DB.prepare(
+            "SELECT COUNT(*) c FROM projects p JOIN users u ON u.id=p.user_id WHERE u.family_id=? AND p.created_at>=?"
+          ).bind(info.familyId, new Date(started).toISOString()).first();
+          creations = (row && row.c) || 0;
+        } catch (e) {}
+      }
+      recap = { joins: info.joins || 0, minutes, creations };
+    }
+    await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
+  }
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
-  return json({ ok: true });
+  return json({ ok: true, recap });
 }
 
 // Lock / unlock a session: locked = the code still works for kids already in, but no NEW joins
@@ -2065,6 +2084,8 @@ async function apiJoinSession(env, request, data) {
   if (r.error) return json({ error: r.error }, r.status || 400);
   // Mark as a session guest for auto-cleanup.
   await setSetting(env, `sessionguest:${r.uid}`, { code, expires: info.expires });
+  info.joins = (info.joins || 0) + 1;   // per-session attendance for the end-of-session recap
+  await setSetting(env, `session:${code}`, info);
   await bumpStat(env, "session_joins");   // lifetime counter for the admin panel
   const token = await createSession(env, r.uid);
   return json({ ok: true, token, user: await publicUser(env, r.row), displayName: chosen });
