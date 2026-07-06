@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=154" />
+  <link rel="stylesheet" href="styles.css?v=155" />
   <style>
     body { background: #07050f; }
     .vs { display: flex; flex-direction: column; height: calc(100vh - 56px); }
@@ -103,6 +103,9 @@
             <span class="tchip" onclick="quickPick('announcement')">📣 Announcement</span>
             <span class="tchip" onclick="quickPick('recipe')">🍕 Recipe</span>
             <span class="tchip" onclick="quickPick('portfolio')">🏆 Portfolio</span>
+            <span class="tchip" onclick="quickPick('meme')">😂 Meme</span>
+            <span class="tchip" onclick="quickPick('trading card')">🃏 Trading Card</span>
+            <span class="tchip" onclick="quickPick('all about me')">🌟 All About Me</span>
           </div>
           <div class="chat-input-row">
             <input id="chatIn" placeholder="I want to build…" onkeydown="if(event.key==='Enter')sendChat()" />
@@ -133,7 +136,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=154"></script>
+  <script src="auth.js?v=155"></script>
   <script>
   const TEMPLATES = [
     { id:'website', name:'My Website', emoji:'🌐',
@@ -286,6 +289,49 @@
         {id:'color',label:'Color',type:'color',def:'#6366f1'},
       ],
       html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:36px}.hd{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:36px 20px;text-align:center}.av{width:78px;height:78px;border-radius:50%;background:${f.color};display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 14px;box-shadow:0 0 30px ${f.color}66}h1{font-size:1.8rem;font-weight:900;margin-bottom:4px}.ti{color:#a78bfa;font-size:0.9rem;font-weight:600;margin-bottom:10px}.bio{color:#c4b5fd;max-width:480px;margin:0 auto;line-height:1.6;font-size:0.88rem}.sec{max-width:640px;margin:24px auto;padding:0 18px}h2{font-size:0.88rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}.sk{display:flex;gap:9px;flex-wrap:wrap}.s{background:${f.color}22;border:1px solid ${f.color}44;border-radius:50px;padding:6px 14px;font-size:0.82rem;font-weight:700}.pr{background:#1a1730;border:1px solid #3a2f63;border-radius:13px;padding:16px 18px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start}.pn{background:${f.color};color:#fff;font-weight:900;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.82rem}.pt{font-weight:900;margin-bottom:3px}.pd{color:#a78bfa;font-size:0.82rem}.ft{text-align:center;color:#4a4060;font-size:0.75rem;margin-top:26px}</style></head><body><div class="hd"><div class="av">🏆</div><h1>${e(f.name)}</h1><div class="ti">${e(f.title)}</div><p class="bio">${e(f.bio)}</p></div><div class="sec"><h2>Skills</h2><div class="sk"><span class="s">✅ ${e(f.skill1)}</span><span class="s">✅ ${e(f.skill2)}</span><span class="s">✅ ${e(f.skill3)}</span></div></div><div class="sec"><h2>Projects</h2><div class="pr"><div class="pn">1</div><div><div class="pt">${e(f.proj1)}</div><div class="pd">${e(f.proj1d)}</div></div></div><div class="pr"><div class="pn">2</div><div><div class="pt">${e(f.proj2)}</div><div class="pd">${e(f.proj2d)}</div></div></div></div><div class="ft">Made with 💜 KidVibers.com</div></body></html>`;},
+    },
+    { id:'meme', name:'Meme', emoji:'😂',
+      keywords:['meme','funny','joke','lol','caption','gif','trend'],
+      fields:[
+        {id:'emoji',label:'Big meme emoji/face',type:'text',def:'😹'},
+        {id:'top',label:'Top text',type:'text',def:'WHEN THE CODE FINALLY WORKS'},
+        {id:'bottom',label:'Bottom text',type:'text',def:'BUT YOU DON\'T KNOW WHY'},
+        {id:'color',label:'Color',type:'color',def:'#f59e0b'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Impact','Segoe UI',sans-serif;background:#0a0618;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}.meme{background:#111;border:4px solid ${f.color};border-radius:14px;width:100%;max-width:440px;text-align:center;overflow:hidden}.tt{color:#fff;font-size:1.7rem;letter-spacing:1px;text-transform:uppercase;padding:16px 12px 6px;text-shadow:2px 2px 0 #000;line-height:1.1}.pic{background:linear-gradient(135deg,${f.color}55,${f.color}22);height:240px;display:flex;align-items:center;justify-content:center;font-size:7rem}.bt{color:#fff;font-size:1.7rem;letter-spacing:1px;text-transform:uppercase;padding:6px 12px 16px;text-shadow:2px 2px 0 #000;line-height:1.1}.tag{background:${f.color};color:#000;font-size:0.7rem;font-weight:900;padding:5px;font-family:'Segoe UI',sans-serif}</style></head><body><div class="meme"><div class="tt">${e(f.top)}</div><div class="pic">${f.emoji}</div><div class="bt">${e(f.bottom)}</div><div class="tag">Made with 💜 KidVibers.com</div></div></body></html>`;},
+    },
+    { id:'tradingcard', name:'Trading Card', emoji:'🃏',
+      keywords:['trading','card','collectible','character','stats','pokemon','battle','deck'],
+      fields:[
+        {id:'name',label:'Character name',type:'text',def:'Byte the Bot'},
+        {id:'emoji',label:'Character emoji',type:'text',def:'🤖'},
+        {id:'type',label:'Type',type:'text',def:'⚡ Tech'},
+        {id:'rarity',label:'Rarity',type:'text',def:'★★★★★ Legendary'},
+        {id:'power',label:'Power',type:'text',def:'95'},
+        {id:'defense',label:'Defense',type:'text',def:'80'},
+        {id:'speed',label:'Speed',type:'text',def:'99'},
+        {id:'move',label:'Special move',type:'text',def:'Mega Code Blast 💥'},
+        {id:'desc',label:'Description',type:'textarea',def:'A super-smart helper bot who can build anything you imagine. Never gives up!'},
+        {id:'color',label:'Color',type:'color',def:'#6366f1'},
+      ],
+      html(f){return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}.tc{width:100%;max-width:340px;background:linear-gradient(160deg,${f.color},${f.color}88);border-radius:20px;padding:8px;box-shadow:0 20px 60px ${f.color}66}.inner{background:#0f0c1e;border-radius:14px;overflow:hidden}.top{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 8px}.nm{font-weight:900;font-size:1.15rem;color:#fff}.ty{background:${f.color};color:#fff;border-radius:50px;padding:3px 11px;font-size:0.72rem;font-weight:900}.pic{background:linear-gradient(135deg,${f.color}44,${f.color}11);height:180px;display:flex;align-items:center;justify-content:center;font-size:6rem;margin:0 12px;border-radius:12px}.rar{text-align:center;color:#fbbf24;font-size:0.82rem;font-weight:800;padding:8px}.stats{display:flex;justify-content:space-around;padding:6px 12px}.st{text-align:center}.sv{font-size:1.4rem;font-weight:900;color:${f.color}}.sl{font-size:0.62rem;color:#a78bfa;font-weight:800;text-transform:uppercase}.move{background:${f.color}22;border:1px solid ${f.color}44;border-radius:10px;margin:8px 12px;padding:8px 12px;text-align:center;color:#f1eefb;font-weight:800;font-size:0.85rem}.desc{color:#c4b5fd;font-size:0.78rem;line-height:1.5;padding:0 16px 8px;font-style:italic}.ft{text-align:center;color:#4a4060;font-size:0.62rem;padding-bottom:12px}</style></head><body><div class="tc"><div class="inner"><div class="top"><span class="nm">${e(f.name)}</span><span class="ty">${e(f.type)}</span></div><div class="pic">${f.emoji}</div><div class="rar">${e(f.rarity)}</div><div class="stats"><div class="st"><div class="sv">${e(f.power)}</div><div class="sl">⚔️ Power</div></div><div class="st"><div class="sv">${e(f.defense)}</div><div class="sl">🛡️ Def</div></div><div class="st"><div class="sv">${e(f.speed)}</div><div class="sl">⚡ Speed</div></div></div><div class="move">✨ ${e(f.move)}</div><div class="desc">${e(f.desc)}</div><div class="ft">Made with 💜 KidVibers.com</div></div></div></body></html>`;},
+    },
+    { id:'aboutme', name:'All About Me', emoji:'🌟',
+      keywords:['all about me','about me','me','myself','introduce','profile','favorites','favourites'],
+      fields:[
+        {id:'name',label:'Your name',type:'text',def:'Alex'},
+        {id:'emoji',label:'Your emoji',type:'text',def:'🌟'},
+        {id:'age',label:'Age',type:'text',def:'10'},
+        {id:'fav1',label:'Favorite food',type:'text',def:'🍕 Pizza'},
+        {id:'fav2',label:'Favorite color',type:'text',def:'💜 Purple'},
+        {id:'fav3',label:'Favorite animal',type:'text',def:'🐬 Dolphin'},
+        {id:'fav4',label:'Favorite hobby',type:'text',def:'🎮 Gaming'},
+        {id:'fav5',label:'Favorite subject',type:'text',def:'💻 Coding'},
+        {id:'dream',label:'When I grow up I want to be…',type:'text',def:'a video game maker'},
+        {id:'fact',label:'A fun fact about me',type:'textarea',def:'I can name every planet in the solar system and I once built a robot out of cardboard!'},
+        {id:'color',label:'Color',type:'color',def:'#ec4899'},
+      ],
+      html(f){const favs=[f.fav1,f.fav2,f.fav3,f.fav4,f.fav5].filter(Boolean);return`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0a0618;color:#f1eefb;padding-bottom:40px}.hero{background:linear-gradient(135deg,${f.color}44,${f.color}11);border-bottom:1px solid ${f.color}44;padding:48px 24px;text-align:center}.av{width:96px;height:96px;border-radius:50%;background:${f.color};display:flex;align-items:center;justify-content:center;font-size:3rem;margin:0 auto 14px;box-shadow:0 0 40px ${f.color}66}h1{font-size:2.2rem;font-weight:900}.age{color:#a78bfa;font-size:1rem;font-weight:700;margin-top:4px}.card{background:#1a1730;border:1px solid ${f.color}44;border-radius:16px;padding:22px;margin:18px 24px}h2{font-size:1rem;font-weight:900;color:${f.color};text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}.favs{display:flex;flex-wrap:wrap;gap:10px}.fav{background:${f.color}22;border:1px solid ${f.color}44;border-radius:50px;padding:9px 16px;font-weight:800;font-size:0.92rem}.dream{font-size:1.1rem;font-weight:800;color:#f1eefb;text-align:center;padding:8px 0}p{color:#c4b5fd;line-height:1.7;font-size:0.95rem}.foot{text-align:center;color:#4a4060;font-size:0.78rem;margin-top:16px}</style></head><body><div class="hero"><div class="av">${f.emoji}</div><h1>All About ${e(f.name)}</h1><div class="age">${e(f.age)} years old</div></div><div class="card"><h2>My Favorites</h2><div class="favs">${favs.map(x=>`<span class="fav">${e(x)}</span>`).join('')}</div></div><div class="card"><h2>My Big Dream</h2><div class="dream">🚀 I want to be ${e(f.dream)}!</div></div><div class="card"><h2>Fun Fact</h2><p>${e(f.fact)}</p></div><div class="foot">Made with 💜 KidVibers.com</div></body></html>`;},
     },
   ];
 
@@ -440,6 +486,6 @@
     else alert(data.error||'Could not delete.');
   }
   </script>
-  <script src="pwa.js?v=154" defer></script>
+  <script src="pwa.js?v=155" defer></script>
 </body>
 </html>
