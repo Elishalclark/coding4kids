@@ -477,7 +477,7 @@ function renderQuizSet(s) {
       document.getElementById('lvNext').style.display = '';
       document.getElementById('lvNext').disabled = false;
       document.getElementById('lvNext').textContent = 'Finish 🎉';
-      if (window.C4K) C4K.sound.win();
+      if (window.C4K) { C4K.sound.win(); C4K.confetti(30); }
       finishLessonSave();
     }
     return;
@@ -822,6 +822,7 @@ async function submitTest() {
   const { ok, data } = await C4K.api('/api/test/submit', 'POST', { unit: pendingUnit, answers });
   if (!ok) { alert(data.error || 'Could not submit.'); return; }
   unitsPassed = new Set(data.unitsPassed || []);
+  if (data.passed && window.C4K) { C4K.sound.levelup(); C4K.confetti(70); }
   // result screen
   document.getElementById('testNote').textContent = '';
   document.getElementById('testSubmit').style.display = 'none';

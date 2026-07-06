@@ -2266,7 +2266,13 @@ async function apiParentFamily(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
   const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=? ORDER BY id").bind(u.family_id).all()).results || [];
-  const kidsPub = []; for (const k of kids) kidsPub.push(await publicUser(env, k));
+  const kidsPub = [];
+  for (const k of kids) {
+    const pub = await publicUser(env, k);
+    const last = (await env.DB.prepare("SELECT MAX(completed_at) m FROM progress WHERE user_id=?").bind(k.id).first()).m;
+    pub.lastActive = last ? last.slice(0, 10) : null;
+    kidsPub.push(pub);
+  }
   return json({ parent: await publicUser(env, u), kids: kidsPub });
 }
 
@@ -3565,6 +3571,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/notices" && method === "GET") return apiNotices(env, request);
   if (path === "/api/shop" && method === "GET") return apiShop(env, request);
   if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
+  if (path === "/api/parent/digest-now" && method === "POST") return apiSendDigestNow(env, request);
   if (path === "/api/teacher/progress" && method === "GET") return apiTeacherProgress(env, request);
   if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
   if (path.startsWith("/api/parent/kid-data/") && method === "GET") {
@@ -3925,6 +3932,42 @@ async function runWeeklyDigest(env) {
     if (ok) sent++;
   }
   return sent;
+}
+
+// On-demand parent digest: same content as the weekly email, but the parent can trigger
+// it right now (e.g. right after a library session) instead of waiting for Monday.
+async function apiSendDigestNow(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !["parent", "teacher"].includes(u.role)) return json({ error: "Only a parent or teacher can do this." }, 403);
+  if (!u.parent_email) return json({ error: "Add a contact email in Settings first." }, 400);
+  if (rateLimited(`digestnow:${u.id}`, 3, 3600)) return json({ error: "You can only send this a few times per hour — try again soon." }, 429);
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=?").bind(u.family_id).all()).results || [];
+  if (!kids.length) return json({ error: "No kids on this account yet." }, 400);
+  let kidsHtml = "";
+  for (const k of kids) {
+    const lessonsThisWeek = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=? AND completed_at>=?").bind(k.id, since).first()).c || 0;
+    const totalLessons = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(k.id).first()).c || 0;
+    const worldsCleared = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).first()).c || 0;
+    const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
+    const creations = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(k.id).first()).c || 0;
+    kidsHtml += `<div style="background:#f9f7ff;border:1px solid #ede9fe;border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+      <div style="font-weight:900;font-size:1.05rem;color:#6d28d9;">${escHtml(k.name)}</div>
+      <table style="width:100%;margin-top:8px;">
+        <tr><td style="color:#555;font-size:0.9rem;">📚 Lessons this week</td><td style="font-weight:800;text-align:right;">${lessonsThisWeek}</td></tr>
+        <tr><td style="color:#555;font-size:0.9rem;">🏆 Total lessons done</td><td style="font-weight:800;text-align:right;">${totalLessons}</td></tr>
+        <tr><td style="color:#555;font-size:0.9rem;">🌍 Worlds cleared</td><td style="font-weight:800;text-align:right;">${worldsCleared}</td></tr>
+        <tr><td style="color:#555;font-size:0.9rem;">🎨 Creations built</td><td style="font-weight:800;text-align:right;">${creations}</td></tr>
+        <tr><td style="color:#555;font-size:0.9rem;">⚡ Total XP</td><td style="font-weight:800;text-align:right;">${xpRow.xp || 0}</td></tr>
+      </table>
+    </div>`;
+  }
+  const ok = await sendEmail(env, u.parent_email, `Your KidVibers progress update 📊`,
+    `<p style="font-size:1.05rem;">Hi <strong>${escHtml(u.name)}</strong>! Here's where things stand right now:</p>
+     ${kidsHtml}
+     <p><a href="https://kidvibers.com/parent.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">View full progress →</a></p>`);
+  if (!ok) return json({ error: "Could not send the email — try again in a moment." }, 500);
+  return json({ ok: true });
 }
 
 // Annual-plan renewal reminder — emails the account holder ~7 days before their yearly

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate Wall - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=157" />
+  <style>
+    body { background:#0d0a18; }
+    .cw-page { max-width:1000px; margin:0 auto; padding:24px 18px 70px; }
+    .toolbar { display:flex; gap:10px; justify-content:center; margin-bottom:22px; flex-wrap:wrap; }
+    .cw-head { text-align:center; margin-bottom:24px; }
+    .cw-head h1 { font-size:1.8rem; font-weight:900; }
+    .cw-head p { color:var(--text-dim); }
+    .cw-kid { margin-bottom:30px; }
+    .cw-kid h2 { font-size:1.2rem; font-weight:900; margin-bottom:12px; color:var(--purple); }
+    .cw-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+    .mini-cert {
+      background:linear-gradient(135deg,#fffdf7,#fff6e6); color:#2a2150; border-radius:14px;
+      border:6px solid #b78a2e; box-shadow:0 10px 30px rgba(0,0,0,.4); padding:20px 16px; text-align:center;
+    }
+    .mini-cert .seal { font-size:2.2rem; }
+    .mini-cert .kicker { letter-spacing:2px; text-transform:uppercase; font-weight:800; color:#a8772a; font-size:0.65rem; margin-top:4px; }
+    .mini-cert h3 { font-size:1.05rem; font-weight:900; margin:4px 0 2px; color:#1c1640; }
+    .mini-cert .score { color:#5b5480; font-weight:700; font-size:0.8rem; }
+    .empty { color: var(--text-dim); padding: 16px 0; font-size: 0.9rem; }
+    @media print {
+      nav, .toolbar { display:none !important; }
+      body, .cw-page { background:#fff !important; }
+      .cw-head h1, .cw-kid h2 { color:#000 !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="parent.html" class="btn btn-ghost" style="margin-left:auto;">← Back to dashboard</a>
+    </div>
+  </nav>
+
+  <main class="cw-page">
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    </div>
+    <div class="cw-head">
+      <h1>🏆 Family Certificate Wall</h1>
+      <p>Every world your kids have conquered — perfect for printing and hanging on the fridge!</p>
+    </div>
+    <div id="wall"><p class="empty" style="text-align:center;">Loading…</p></div>
+  </main>
+
+  <script src="auth.js?v=157"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me) { location.href = 'index.html?login=1'; return; }
+      const [fam, ld] = await Promise.all([
+        C4K.api('/api/parent/family'),
+        fetch('/api/lessons').then(r => r.json()).catch(() => ({})),
+      ]);
+      const worlds = ld.worlds || {};
+      const wall = document.getElementById('wall');
+      if (!fam.ok || !fam.data.kids || !fam.data.kids.length) {
+        wall.innerHTML = '<p class="empty" style="text-align:center;">No kids on this account yet.</p>';
+        return;
+      }
+      wall.innerHTML = fam.data.kids.map(k => {
+        const passed = (k.unitsPassed || []).slice().sort((a, b) => a - b);
+        const certs = passed.map(u => {
+          const w = worlds[u] || {};
+          return `<div class="mini-cert">
+            <div class="seal">🏆</div>
+            <div class="kicker">Certificate of Achievement</div>
+            <h3>${(w.emoji || '🗺️')} ${C4K.esc(w.name || ('World ' + u))}</h3>
+            <div class="score">Conquered by ${C4K.esc(k.name)}</div>
+          </div>`;
+        }).join('');
+        return `<div class="cw-kid">
+          <h2>${C4K.esc(k.name)}${passed.length ? ` — ${passed.length} certificate${passed.length===1?'':'s'}` : ''}</h2>
+          ${passed.length ? `<div class="cw-grid">${certs}</div>` : `<p class="empty">No certificates yet — beat a world's boss battle to earn the first one!</p>`}
+        </div>`;
+      }).join('');
+    })();
+  </script>
+  <script src="pwa.js?v=157" defer></script>
+</body>
+</html>

@@ -160,6 +160,30 @@ const C4K = {
     levelup() { C4K._tone([392, 523, 659, 784, 1047], 0.15, 'triangle'); },
   },
 
+  // ── Confetti burst (no assets — plain DOM+CSS) for lesson/boss wins ──
+  confetti(count) {
+    try {
+      const colors = ['#7c3aed','#db2777','#f59e0b','#10b981','#0ea5e9','#ec4899'];
+      const n = count || 40;
+      for (let i = 0; i < n; i++) {
+        const d = document.createElement('div');
+        const size = 6 + Math.random() * 6;
+        d.style.cssText = `position:fixed;top:-20px;left:${Math.random()*100}%;width:${size}px;height:${size}px;` +
+          `background:${colors[i % colors.length]};z-index:99999;pointer-events:none;` +
+          `border-radius:${Math.random() > 0.5 ? '50%' : '2px'};` +
+          `animation:c4kfall ${1.8 + Math.random()*1.4}s linear forwards;` +
+          `transform:rotate(${Math.random()*360}deg);`;
+        document.body.appendChild(d);
+        setTimeout(() => d.remove(), 3400);
+      }
+      if (!document.getElementById('c4kConfettiStyle')) {
+        const s = document.createElement('style'); s.id = 'c4kConfettiStyle';
+        s.textContent = '@keyframes c4kfall{to{transform:translateY(105vh) rotate(540deg);opacity:0.2;}}';
+        document.head.appendChild(s);
+      }
+    } catch {}
+  },
+
   // ── Super-admin impersonation ("log in as") ──
   SUPER_BACKUP: 'c4k_super_token',
   startImpersonation(targetToken) {

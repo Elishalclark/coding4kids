@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=156" />
+  <link rel="stylesheet" href="styles.css?v=157" />
   <style>
     body { background: #07050f; }
     .vs { display: flex; flex-direction: column; height: calc(100vh - 56px); }
@@ -78,6 +78,7 @@
       <span style="font-size:1.3rem;">🎨</span>
       <input class="vs-title-in" id="projTitle" placeholder="My awesome project" maxlength="60" />
       <span class="vs-status" id="vsStatus">Tell Byte what you want to build →</span>
+      <button class="btn btn-outline" onclick="surpriseMe()" style="font-size:0.85rem;padding:8px 16px;">🎲 Surprise me</button>
       <button class="btn btn-outline" id="myProjBtn" onclick="showMyProjects()" style="font-size:0.85rem;padding:8px 16px;display:none;">📂 My projects</button>
       <button class="btn btn-primary" id="saveBtn" onclick="saveProject()" style="font-size:0.85rem;padding:8px 16px;display:none;">💾 Save my project</button>
     </div>
@@ -136,7 +137,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=156"></script>
+  <script src="auth.js?v=157"></script>
   <script>
   const TEMPLATES = [
     { id:'website', name:'My Website', emoji:'🌐',
@@ -391,6 +392,12 @@
     }
   }
 
+  function surpriseMe(){
+    const t=TEMPLATES[Math.floor(Math.random()*TEMPLATES.length)];
+    addMsg(`🎲 Surprise! Let's build a <strong>${t.emoji} ${t.name}</strong>!`,'ai');
+    loadTemplate(t);
+  }
+
   function loadTemplate(t){
     curTmpl=t; curF={};
     t.fields.forEach(f=>{ curF[f.id]=f.def; });
@@ -450,8 +457,24 @@
     addMsg('Here are your saved projects — tap one to keep working on it:<br>'+list.map((p,i)=>
       `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
          <button onclick="openProject(${i})" style="flex:1;text-align:left;background:var(--surface-2,#221d3d);border:1px solid var(--border,#3a2f63);border-radius:10px;padding:9px 12px;color:inherit;font-family:inherit;font-weight:800;font-size:0.85rem;cursor:pointer;">📄 ${e(p.title)} <span style="font-weight:600;opacity:.6;font-size:0.75rem;">· ${e(p.updatedAt)}</span></button>
+         <button onclick="remixProject(${i})" title="Remix (make a copy to edit)" style="background:none;border:1px solid rgba(124,58,237,.4);border-radius:8px;color:#a78bfa;padding:8px 10px;cursor:pointer;font-family:inherit;">🔀</button>
          <button onclick="deleteProject(${i})" title="Delete" style="background:none;border:1px solid rgba(239,68,68,.4);border-radius:8px;color:#f87171;padding:8px 10px;cursor:pointer;font-family:inherit;">🗑️</button>
        </div>`).join(''),'ai');
+  }
+  function remixProject(i){
+    const p=(window._myProjects||[])[i]; if(!p)return;
+    let payload=null;
+    if((p.code||'').startsWith('VIBE:')){ try{payload=JSON.parse(p.code.slice(5));}catch{} }
+    if(!payload||!payload.templateId){ addMsg('This one is too old to remix — try opening it instead.','ai'); return; }
+    const t=TEMPLATES.find(x=>x.id===payload.templateId);
+    if(!t){ addMsg('Could not find that template anymore.','ai'); return; }
+    curTmpl=t; curF=Object.assign({},payload.fields||{}); projId=null; // null = will SAVE AS a new project, original stays untouched
+    document.getElementById('editorPanel').classList.remove('hidden');
+    buildEditor(); refreshPreview();
+    document.getElementById('saveBtn').style.display='';
+    document.getElementById('projTitle').value=(p.title||t.name)+' (remix)';
+    document.getElementById('vsStatus').textContent='🔀 Remixing — make it your own, then save!';
+    addMsg(`🔀 Remixing <strong>${e(p.title)}</strong> — change it up and hit <strong>Save</strong> to keep both versions! ✨`,'ai');
   }
   function openProject(i){
     const p=(window._myProjects||[])[i]; if(!p)return;
@@ -486,6 +509,6 @@
     else alert(data.error||'Could not delete.');
   }
   </script>
-  <script src="pwa.js?v=156" defer></script>
+  <script src="pwa.js?v=157" defer></script>
 </body>
 </html>

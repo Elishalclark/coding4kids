@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embed a KidVibers Badge</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=157" />
+  <style>
+    .bd { max-width: 720px; margin: 0 auto; padding: 0 18px 80px; }
+    .bd-hero { text-align:center; padding:50px 20px 24px; }
+    .bd-hero h1 { font-size:2rem; font-weight:900; margin:10px 0; }
+    .bd-hero p { color:var(--text-dim); font-size:1.05rem; line-height:1.5; }
+    .bd-sec { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px 26px; margin-bottom:20px; }
+    .bd-sec h2 { font-size:1.1rem; font-weight:900; margin-bottom:12px; color:var(--purple); }
+    .badges { display:flex; gap:16px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    .kv-badge { display:inline-flex; align-items:center; gap:8px; background:linear-gradient(135deg,#1a1730,#0f0c1e); border:1px solid #3a2f63; border-radius:50px; padding:8px 16px; color:#fff; font-family:'Nunito',sans-serif; font-weight:800; font-size:0.85rem; text-decoration:none; }
+    .kv-badge .ic { font-size:1.1rem; }
+    .kv-badge.light { background:#fff; color:#1c1640; border-color:#ddd; }
+    pre.code-box { background:#0a0618; border:1px solid var(--border); border-radius:12px; padding:14px 16px; overflow-x:auto; font-size:0.8rem; color:#93c5fd; margin-bottom:8px; }
+    .copy-btn { font-size:0.78rem; padding:6px 12px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="for-libraries.html" class="btn btn-ghost" style="margin-left:auto;">📚 For Libraries</a>
+    </div>
+  </nav>
+
+  <main class="bd" id="main">
+    <section class="bd-hero">
+      <h1>🏅 Add a "Powered by KidVibers" badge</h1>
+      <p>Running KidVibers at your library or school? Add a small badge to your site so families know where to find it.</p>
+    </section>
+
+    <div class="bd-sec">
+      <h2>Dark badge</h2>
+      <div class="badges">
+        <a class="kv-badge" href="https://kidvibers.com" target="_blank" rel="noopener"><span class="ic">🚀</span> Powered by KidVibers</a>
+      </div>
+      <pre class="code-box" id="darkCode">&lt;a href="https://kidvibers.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#1a1730,#0f0c1e);border:1px solid #3a2f63;border-radius:50px;padding:8px 16px;color:#fff;font-family:sans-serif;font-weight:800;font-size:14px;text-decoration:none;"&gt;🚀 Powered by KidVibers&lt;/a&gt;</pre>
+      <button class="btn btn-outline copy-btn" onclick="copyCode('darkCode')">📋 Copy code</button>
+    </div>
+
+    <div class="bd-sec">
+      <h2>Light badge</h2>
+      <div class="badges">
+        <a class="kv-badge light" href="https://kidvibers.com" target="_blank" rel="noopener"><span class="ic">🚀</span> Powered by KidVibers</a>
+      </div>
+      <pre class="code-box" id="lightCode">&lt;a href="https://kidvibers.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #ddd;border-radius:50px;padding:8px 16px;color:#1c1640;font-family:sans-serif;font-weight:800;font-size:14px;text-decoration:none;"&gt;🚀 Powered by KidVibers&lt;/a&gt;</pre>
+      <button class="btn btn-outline copy-btn" onclick="copyCode('lightCode')">📋 Copy code</button>
+    </div>
+
+    <p style="text-align:center;color:var(--text-dim);font-size:0.85rem;">Just paste the code anywhere on your library or school's website. Thank you for spreading the word! 💜</p>
+  </main>
+
+  <script>
+    function copyCode(id) {
+      const text = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const t = btn.textContent; btn.textContent = '✅ Copied!';
+        setTimeout(() => btn.textContent = t, 1500);
+      }).catch(() => prompt('Copy this code:', text));
+    }
+  </script>
+  <script src="pwa.js?v=157" defer></script>
+</body>
+</html>
