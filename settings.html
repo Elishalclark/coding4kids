@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=158" />
+  <link rel="stylesheet" href="styles.css?v=159" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -79,6 +79,13 @@
       <div id="twoFaMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;color:var(--text-dim);"></div>
     </div>
 
+    <!-- Recent logins (account security) -->
+    <div class="card" id="loginsCard" style="display:none;">
+      <h2>🕵️ Recent logins</h2>
+      <p class="hint">The last few times your account signed in. Don't recognize one? Change your password right away.</p>
+      <div id="loginsList" style="font-size:0.85rem;color:var(--text-dim);">Loading…</div>
+    </div>
+
     <!-- Kids (parents/teachers) -->
     <div class="card" id="kidsCard" style="display:none;">
       <h2>👧 Your kids</h2>
@@ -93,7 +100,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=158"></script>
+  <script src="auth.js?v=159"></script>
   <script>
     let ME = null;
     (async () => {
@@ -130,6 +137,16 @@
         document.getElementById('twoFaCard').style.display = '';
         document.getElementById('twoFaToggle').checked = !!ME.twoFactorEnabled;
         if (!ME.parentEmail) document.getElementById('twoFaMsg').textContent = '⚠️ Add an email above first — that\'s where codes are sent.';
+      }
+      // Recent logins — shown for any account role that isn't a kid (kids share family devices a lot).
+      if (!isKid) {
+        document.getElementById('loginsCard').style.display = '';
+        const { ok: lOk, data: lData } = await C4K.api('/api/my-logins');
+        const list = document.getElementById('loginsList');
+        const logins = (lOk && lData.logins) || [];
+        list.innerHTML = logins.length
+          ? logins.map(l => `<div style="padding:5px 0;border-bottom:1px solid var(--border);">${C4K.esc(l.at)} · ${C4K.esc(l.ip)}</div>`).join('')
+          : 'No login history recorded yet.';
       }
     })();
 
@@ -189,7 +206,7 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=158" defer></script>
-  <script src="editor.js?v=158" defer></script>
+  <script src="pwa.js?v=159" defer></script>
+  <script src="editor.js?v=159" defer></script>
 </body>
 </html>

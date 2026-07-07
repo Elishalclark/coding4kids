@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=158" />
+  <link rel="stylesheet" href="styles.css?v=159" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -103,6 +103,9 @@
         <div style="flex:1;min-width:180px;">
           <strong style="font-size:1.1rem;">Live drop-in session</strong>
           <div style="color:#dcfce7;font-size:0.85rem;">Perfect for a library program: start a session and kids join with just a nickname — no sign-up, no passwords. Guest accounts clean themselves up afterward.</div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
+            <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session
+          </label>
         </div>
         <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
       </div>
@@ -115,6 +118,10 @@
           <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);" onclick="newSessionCode()">🔄 New code</button>
           <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);">🖨️ Print session flyer</a>
           <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5);" onclick="endLiveSession()">End session</button>
+        </div>
+        <div style="margin-top:14px;text-align:left;">
+          <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
+          <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
         </div>
       </div>
     </div>
@@ -311,7 +318,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=158"></script>
+  <script src="auth.js?v=159"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -471,11 +478,12 @@
     }
     async function startLiveSession() {
       const btn = document.getElementById('startSessBtn'); btn.disabled = true; btn.textContent = 'Starting…';
-      const { ok, data } = await C4K.api('/api/session/start', 'POST', {});
-      if (ok) showSession(data.code, data.expiresAt);
+      const photoConsent = document.getElementById('photoConsentBox') ? document.getElementById('photoConsentBox').checked : false;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { photoConsent });
+      if (ok) { showSession(data.code, data.expiresAt); startSessFeed(); }
       else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
     }
-    let _sessLocked = false;
+    let _sessLocked = false, _sessFeedTimer = null;
     async function newSessionCode() {
       if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
       const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
@@ -487,6 +495,7 @@
       if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins';
     }
     async function toggleLockSession() {
+      if (!_sessLocked && !confirm('Lock joins now? Make sure every kid who wants in has already joined — nobody new will be able to after this.')) return;
       const { ok, data } = await C4K.api('/api/session/lock', 'POST', { locked: !_sessLocked });
       if (ok) { _sessLocked = data.locked; setLockBtn(); }
       else alert(data.error || 'Could not update.');
@@ -496,11 +505,24 @@
       const { ok, data } = await C4K.api('/api/session/end', 'POST', {});
       document.getElementById('sessLive').style.display = 'none';
       const btn = document.getElementById('startSessBtn'); btn.disabled = false; btn.textContent = 'Start a session';
+      if (_sessFeedTimer) { clearInterval(_sessFeedTimer); _sessFeedTimer = null; }
       if (ok && data.recap) {
         const r = data.recap;
         const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
         alert('📊 Session recap\n\n🙋 Kids joined: ' + (r.joins||0) + '\n🎨 Creations built: ' + (r.creations||0) + '\n⏱️ Length: ' + mins + '\n\nGreat job! 🎉');
       }
+    }
+    function startSessFeed() {
+      if (_sessFeedTimer) clearInterval(_sessFeedTimer);
+      const load = async () => {
+        const { ok, data } = await C4K.api('/api/session/feed');
+        const el = document.getElementById('sessFeed'); if (!el) return;
+        if (ok && data.feed && data.feed.length) {
+          el.innerHTML = data.feed.map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">🎨 <strong>${C4K.esc(f.name||'?')}</strong> saved "${C4K.esc(f.title||'Untitled')}" · ${f.at}</div>`).join('');
+        } else if (ok) { el.textContent = "Nobody's saved anything yet."; }
+      };
+      load();
+      _sessFeedTimer = setInterval(load, 15000);
     }
 
     async function saveLogoutPin() {
@@ -812,7 +834,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=158" defer></script>
-  <script src="editor.js?v=158" defer></script>
+  <script src="pwa.js?v=159" defer></script>
+  <script src="editor.js?v=159" defer></script>
 </body>
 </html>

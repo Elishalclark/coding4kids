@@ -54,6 +54,9 @@ function escHtml(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").r
 const BAD_WORDS = [
   "fuck","shit","bitch","asshole","bastard","dick","piss","cunt","slut","whore","fag","faggot",
   "nigger","nigga","retard","rape","kys","dumbass","douche","penis","vagina","porn","nude","sex",
+  // Spanish coverage — the site is bilingual (English/Spanish), so the filter needs to be too.
+  "mierda","puta","puto","pendejo","cabron","cabrón","idiota","imbecil","imbécil","verga","coño",
+  "maricon","maricón","perra","zorra","culero","chinga","joder","polla",
 ];
 // Child-welfare watchlist: phrases that suggest self-harm, suicidal thoughts, abuse, or serious
 // bullying. These are NOT blocked (a kid reaching out for help must get through) — instead they
@@ -62,6 +65,9 @@ const WELFARE_PATTERNS = [
   /\bkill (myself|my self)\b/, /\bkms\b/, /\bwant to die\b/, /\bend it all\b/, /\bsuicid/, /\bself harm\b/,
   /\bcut(ting)? myself\b/, /\bhurt myself\b/, /\bno reason to live\b/, /\bhate my life\b/, /\bwish i was dead\b/,
   /\bbeing bullied\b/, /\bthey hit me\b/, /\bsomeone hurts me\b/, /\bhits me\b/, /\bscared to go home\b/,
+  // Spanish coverage
+  /\bquiero morir\b/, /\bme quiero morir\b/, /\bmatarme\b/, /\bsuicid/, /\bhacerme daño\b/,
+  /\bcortarme\b/, /\bme lastiman\b/, /\bme pegan\b/, /\bme golpean\b/, /\bmiedo de ir a casa\b/, /\bme molestan\b/,
 ];
 function welfareFlag(text) {
   const low = (text || "").toString().toLowerCase();
@@ -659,6 +665,30 @@ async function apiLogin(env, request, data, allow) {
     return json({ error: msg, suspended: true }, 403);
   }
   clearLoginFails(key);
+  // New-device login alert for staff/parent/admin accounts (not kids — too noisy, and kids
+  // often share family devices anyway). Keeps the last few IPs seen; a brand-new one gets an email.
+  if (row.parent_email && ["teacher", "parent", "admin", "super_admin"].includes(row.role)) {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const seenKey = `loginips:${row.id}`;
+    let seen = await getSetting(env, seenKey, []);
+    if (!Array.isArray(seen)) seen = [];
+    if (ip !== "unknown" && !seen.includes(ip)) {
+      if (seen.length > 0) {  // don't alert on the very first login ever (nothing to compare to)
+        await sendEmail(env, row.parent_email, "New sign-in to your KidVibers account",
+          `<p>Hi ${escHtml(row.name || "")},</p><p>Your KidVibers account (@${escHtml(row.username)}) was just signed into from a new location.</p>
+           <p style="color:#666;">If this was you, no action is needed. If it wasn't, change your password right away and let us know at support@kidvibers.com.</p>`,
+          "KidVibers Security <support@kidvibers.com>");
+      }
+      seen.push(ip); if (seen.length > 5) seen = seen.slice(-5);
+      await setSetting(env, seenKey, seen);
+    }
+    // Keep a small rolling log of recent logins for the account holder to review in Settings.
+    let log = await getSetting(env, `loginlog:${row.id}`, []);
+    if (!Array.isArray(log)) log = [];
+    log.push({ at: nowIso(), ip });
+    if (log.length > 10) log = log.slice(-10);
+    await setSetting(env, `loginlog:${row.id}`, log);
+  }
   // Optional staff 2FA: if this staff account turned on email codes, don't hand out a session
   // yet — email a 6-digit code and make them confirm it. Opt-in per account, so default logins
   // are never affected (and nobody can get locked out unless they choose to enable it).
@@ -1180,6 +1210,14 @@ async function sendCertificateEmail(env, request, kid, unit, score) {
     "KidVibers <support@kidvibers.com>");
 }
 
+// Recent-logins list for the account holder to review in Settings (login audit trail).
+async function apiMyLogins(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const log = await getSetting(env, `loginlog:${u.id}`, []);
+  return json({ logins: (Array.isArray(log) ? log : []).slice().reverse().map(l => ({ at: (l.at || "").slice(0, 16).replace("T", " "), ip: l.ip })) });
+}
+
 async function apiNotices(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
@@ -1218,9 +1256,9 @@ async function apiIncidentLog(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
   const rows = (await env.DB.prepare(
-    "SELECT id,kind,body,created_at,resolved FROM notices WHERE user_id=? AND kind IN ('safety','kid_report') ORDER BY id DESC LIMIT 200"
+    "SELECT id,kind,body,created_at,resolved,escalated FROM notices WHERE user_id=? AND kind IN ('safety','kid_report') ORDER BY id DESC LIMIT 200"
   ).bind(u.id).all()).results || [];
-  return json({ incidents: rows.map(r => ({ id: r.id, kind: r.kind, body: r.body, resolved: !!r.resolved, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+  return json({ incidents: rows.map(r => ({ id: r.id, kind: r.kind, body: r.body, resolved: !!r.resolved, escalated: !!r.escalated, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
 
 // ───────────────────────── avatar shop / Byte AI / upgrade / class join ─────────────────────────
@@ -1439,9 +1477,12 @@ async function apiKidHelp(env, request, data) {
     `🆘 *Kid used the "Something's wrong?" button*\n• Kid: ${u.name} (@${u.username})\n• Reason: ${reasonText}${note ? `\n• Message: ${note}` : ""}\n• Parent notified: ${u.parent_email ? "yes" : "no parent email on file"}`);
   // Alert the teacher/school too — in a classroom they're the first responder. Escalate hard
   // if the note trips the welfare watchlist (self-harm / abuse / serious bullying).
-  const welfare = welfareFlag(note) || reasonKey === "scary" || reasonKey === "mean";
+  const crisisText = welfareFlag(note);
+  const welfare = crisisText || reasonKey === "scary" || reasonKey === "mean";
   await alertSchool(env, u, welfare ? "used the safety button — may need urgent attention" : "used the \"Something's wrong?\" button", `${reasonText}${note ? " — \"" + note.slice(0, 120) + "\"" : ""}`);
-  return json({ ok: true, parentNotified: !!u.parent_email });
+  // If the note itself sounded like a real crisis (not just "someone was mean"), gently surface
+  // a crisis line to the kid too — a grown-up is already being told, but help shouldn't wait.
+  return json({ ok: true, parentNotified: !!u.parent_email, showCrisisLine: !!crisisText });
 }
 
 // Parent/teacher "nudge" — sends an encouragement push notification to a kid right now.
@@ -2071,10 +2112,29 @@ async function apiStartSession(env, request, data) {
   }
   let code; for (let i = 0; i < 40; i++) { code = sessionCode(); if (!(await getSetting(env, `session:${code}`, null))) break; }
   const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
-  await setSetting(env, `session:${code}`, { teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires, started: Date.now(), joins: 0 });
+  await setSetting(env, `session:${code}`, {
+    teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires,
+    started: Date.now(), joins: 0, photoConsent: !!data.photoConsent,
+  });
   await setSetting(env, `activesession:${u.id}`, { code });
   await bumpStat(env, "sessions_started");   // lifetime counter for the admin panel
   return json({ ok: true, code, expiresAt: new Date(expires).toISOString() });
+}
+
+// Live moderation feed for an in-progress session: what session guests have saved so far, so
+// the adult running the room has visibility without needing to watch every screen constantly.
+async function apiSessionFeed(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const active = await getSetting(env, `activesession:${u.id}`, null);
+  if (!active || !active.code) return json({ feed: [] });
+  const info = await getSetting(env, `session:${active.code}`, null);
+  if (!info || !info.started) return json({ feed: [] });
+  const rows = (await env.DB.prepare(
+    "SELECT p.author_name, p.title, p.updated_at FROM projects p JOIN users u ON u.id=p.user_id " +
+    "WHERE u.family_id=? AND p.updated_at>=? ORDER BY p.updated_at DESC LIMIT 30"
+  ).bind(info.familyId, new Date(info.started).toISOString()).all()).results || [];
+  return json({ feed: rows.map(r => ({ name: r.author_name, title: r.title, at: (r.updated_at || "").slice(11, 16) })) });
 }
 
 async function apiEndSession(env, request) {
@@ -2980,6 +3040,21 @@ async function adminSetCredentials(env, request, data) {
     await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, target.id).run();
     await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
     changed.push("password");
+    // Prompt the account holder to set their OWN password rather than keep the admin-chosen
+    // one indefinitely — email a self-service reset link (doesn't block login in the meantime).
+    if (target.parent_email) {
+      const resetToken = randToken(24);
+      const resetExpires = new Date(Date.now() + 3 * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+      await env.DB.prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?").bind(resetToken, resetExpires, target.id).run();
+      const url = `${siteUrl(env, request)}/reset.html?token=${resetToken}`;
+      await sendEmail(env, target.parent_email, "Your KidVibers password was reset by an admin",
+        `<p>Hi ${escHtml(target.name || "")},</p>
+         <p>An administrator just reset the password on your KidVibers account (@${escHtml(target.username)}).</p>
+         <p>For security, we'd recommend choosing your own password now:</p>
+         <p><a href="${url}" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Set your own password →</a></p>
+         <p style="color:#666;font-size:0.9rem;">This link is valid for 3 days. If you didn't expect this, contact support@kidvibers.com right away.</p>`,
+        FROM_PASSWORD);
+    }
   }
   return json({ ok: true, changed, username: changed.includes("username") ? newUser : target.username });
 }
@@ -3753,6 +3828,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/quiz/answer" && method === "POST") return apiQuizAnswer(env, request, data);
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
   if (path === "/api/incident-log" && method === "GET") return apiIncidentLog(env, request);
+  if (path === "/api/my-logins" && method === "GET") return apiMyLogins(env, request);
+  if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
@@ -4110,12 +4187,29 @@ async function sendWebPush(env, sub) {
   } catch { return false; }
 }
 
+// If a safety notice has sat unresolved for 24+ hours, re-notify the admin team — a flagged
+// alert that nobody has acted on is exactly the kind of thing that shouldn't go quiet.
+async function runSafetyEscalation(env) {
+  const cutoff = new Date(Date.now() - 24 * 3600000).toISOString();
+  const rows = (await env.DB.prepare(
+    "SELECT n.id, n.body, n.created_at, u.name, u.username FROM notices n JOIN users u ON u.id=n.user_id " +
+    "WHERE n.kind='safety' AND n.resolved=0 AND n.escalated=0 AND n.created_at < ?"
+  ).bind(cutoff).all()).results || [];
+  for (const r of rows) {
+    await notifyAdmin(env, `⏰ Unresolved safety alert (24h+): ${r.name}`,
+      `⏰ *A safety alert has been open for 24+ hours with no resolution.*\n• Account: ${r.name} (@${r.username})\n• Original alert: ${r.body}\n• Raised: ${(r.created_at || "").slice(0, 16)}`);
+    await env.DB.prepare("UPDATE notices SET escalated=1 WHERE id=?").bind(r.id).run();
+  }
+  return rows.length;
+}
+
 export default {
   async scheduled(event, env, ctx) {
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
     if (now.getUTCDay() === 1) ctx.waitUntil(runWeeklyDigest(env));
     ctx.waitUntil(runReengagement(env));
+    ctx.waitUntil(runSafetyEscalation(env));
     ctx.waitUntil(runPushReminders(env));
     ctx.waitUntil(runRenewalReminders(env));
     // Housekeeping: drop expired session rows (userFromToken already rejects them).

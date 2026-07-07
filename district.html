@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=158" />
+  <link rel="stylesheet" href="styles.css?v=159" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -94,6 +94,9 @@
         <div style="flex:1;min-width:200px;">
           <h2 style="margin-bottom:2px;color:#fff;">Live drop-in session</h2>
           <p style="margin:0;color:#dcfce7;font-size:0.85rem;">Great for library programs: kids join with just a nickname — no sign-up, no passwords. Guest accounts clean up after the session.</p>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
+            <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session (separate from data consent)
+          </label>
         </div>
         <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
       </div>
@@ -106,6 +109,10 @@
           <button class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="newSessionCode()">🔄 New code</button>
           <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
           <button class="mini" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+        </div>
+        <div style="margin-top:14px;text-align:left;">
+          <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
+          <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
         </div>
       </div>
     </div>
@@ -360,7 +367,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=158"></script>
+  <script src="auth.js?v=159"></script>
   <script>
     let ME = null;
 
@@ -485,11 +492,12 @@
     }
     async function startLiveSession() {
       const btn = document.getElementById('startSessBtn'); btn.disabled = true; btn.textContent = 'Starting…';
-      const { ok, data } = await C4K.api('/api/session/start', 'POST', {});
-      if (ok) showSession(data.code, data.expiresAt);
+      const photoConsent = document.getElementById('photoConsentBox') ? document.getElementById('photoConsentBox').checked : false;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { photoConsent });
+      if (ok) { showSession(data.code, data.expiresAt); startSessFeed(); }
       else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
     }
-    let _sessLocked = false;
+    let _sessLocked = false, _sessFeedTimer = null;
     async function newSessionCode() {
       if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
       const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
@@ -498,6 +506,8 @@
     }
     function setLockBtn() { const b = document.getElementById('sessLockBtn'); if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins'; }
     async function toggleLockSession() {
+      // A quick headcount check before locking — an easy thing to forget mid-session.
+      if (!_sessLocked && !confirm('Lock joins now? Make sure every kid who wants in has already joined — nobody new will be able to after this.')) return;
       const { ok, data } = await C4K.api('/api/session/lock', 'POST', { locked: !_sessLocked });
       if (ok) { _sessLocked = data.locked; setLockBtn(); }
       else alert(data.error || 'Could not update.');
@@ -507,7 +517,20 @@
       const { ok, data } = await C4K.api('/api/session/end', 'POST', {});
       document.getElementById('sessLive').style.display = 'none';
       const btn = document.getElementById('startSessBtn'); btn.disabled = false; btn.textContent = 'Start a session';
+      if (_sessFeedTimer) { clearInterval(_sessFeedTimer); _sessFeedTimer = null; }
       if (ok && data.recap) showSessionRecap(data.recap);
+    }
+    function startSessFeed() {
+      if (_sessFeedTimer) clearInterval(_sessFeedTimer);
+      const load = async () => {
+        const { ok, data } = await C4K.api('/api/session/feed');
+        const el = document.getElementById('sessFeed'); if (!el) return;
+        if (ok && data.feed && data.feed.length) {
+          el.innerHTML = data.feed.map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">🎨 <strong>${C4K.esc(f.name||'?')}</strong> saved "${C4K.esc(f.title||'Untitled')}" · ${f.at}</div>`).join('');
+        } else if (ok) { el.textContent = "Nobody's saved anything yet."; }
+      };
+      load();
+      _sessFeedTimer = setInterval(load, 15000);
     }
     function showSessionRecap(r) {
       const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
@@ -940,7 +963,7 @@
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=158" defer></script>
-  <script src="editor.js?v=158" defer></script>
+  <script src="pwa.js?v=159" defer></script>
+  <script src="editor.js?v=159" defer></script>
 </body>
 </html>

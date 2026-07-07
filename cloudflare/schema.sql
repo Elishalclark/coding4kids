@@ -51,7 +51,7 @@ CREATE TABLE consent_log (
         );
 CREATE TABLE notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL, kind TEXT, body TEXT, created_at TEXT, resolved INTEGER DEFAULT 0
+            user_id INTEGER NOT NULL, kind TEXT, body TEXT, created_at TEXT, resolved INTEGER DEFAULT 0, escalated INTEGER DEFAULT 0
         );
 CREATE TABLE projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
