@@ -15,7 +15,7 @@ CREATE TABLE users (
             owned_items TEXT,
             link_token TEXT,
             created_at TEXT NOT NULL
-        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0, kid_email TEXT, referral_code TEXT, referred_by TEXT, referral_count INTEGER DEFAULT 0, last_nudge TEXT, card_token TEXT, plan_interval TEXT, plan_renews_at TEXT, promo_pro_until TEXT);
+        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0, kid_email TEXT, referral_code TEXT, referred_by TEXT, referral_count INTEGER DEFAULT 0, last_nudge TEXT, card_token TEXT, plan_interval TEXT, plan_renews_at TEXT, promo_pro_until TEXT, last_login_at TEXT, counselor_email TEXT);
 CREATE TABLE messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             to_email TEXT, kind TEXT, body TEXT, child_id INTEGER,
@@ -29,7 +29,7 @@ CREATE TABLE email_events (
             peer_email TEXT,  -- recipient (outbound) or sender (inbound)
             subject TEXT, body TEXT, handled INTEGER DEFAULT 0, created_at TEXT
         );
-CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL, ip TEXT);
 CREATE TABLE preview_sessions (token TEXT PRIMARY KEY, role TEXT NOT NULL, expires_at TEXT NOT NULL);
 CREATE TABLE progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);

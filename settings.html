@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=159" />
+  <link rel="stylesheet" href="styles.css?v=160" />
   <style>
     .st { max-width: 640px; margin: 0 auto; padding: 24px 18px 90px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:18px; }
@@ -79,6 +79,15 @@
       <div id="twoFaMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;color:var(--text-dim);"></div>
     </div>
 
+    <!-- Safety/counselor contact (teacher / school / district accounts) -->
+    <div class="card" id="counselorCard" style="display:none;">
+      <h2>🛟 Safety contact</h2>
+      <p class="hint">Optional: a counselor or safety lead who should also be cc'd on safety alerts for your students.</p>
+      <div class="field"><label>Counselor / safety contact email</label><input id="counselorEmail" type="email" placeholder="counselor@school.edu" /></div>
+      <button class="btn btn-primary" onclick="saveCounselor()">Save</button>
+      <div class="msg" id="counselorMsg"></div>
+    </div>
+
     <!-- Recent logins (account security) -->
     <div class="card" id="loginsCard" style="display:none;">
       <h2>🕵️ Recent logins</h2>
@@ -100,7 +109,7 @@
     <a href="index.html?login=1" class="btn btn-primary">Go to log in</a>
   </div>
 
-  <script src="auth.js?v=159"></script>
+  <script src="auth.js?v=160"></script>
   <script>
     let ME = null;
     (async () => {
@@ -137,18 +146,27 @@
         document.getElementById('twoFaCard').style.display = '';
         document.getElementById('twoFaToggle').checked = !!ME.twoFactorEnabled;
         if (!ME.parentEmail) document.getElementById('twoFaMsg').textContent = '⚠️ Add an email above first — that\'s where codes are sent.';
+        document.getElementById('counselorCard').style.display = '';
+        document.getElementById('counselorEmail').value = ME.counselorEmail || '';
       }
       // Recent logins — shown for any account role that isn't a kid (kids share family devices a lot).
-      if (!isKid) {
-        document.getElementById('loginsCard').style.display = '';
-        const { ok: lOk, data: lData } = await C4K.api('/api/my-logins');
-        const list = document.getElementById('loginsList');
-        const logins = (lOk && lData.logins) || [];
-        list.innerHTML = logins.length
-          ? logins.map(l => `<div style="padding:5px 0;border-bottom:1px solid var(--border);">${C4K.esc(l.at)} · ${C4K.esc(l.ip)}</div>`).join('')
-          : 'No login history recorded yet.';
-      }
+      if (!isKid) { document.getElementById('loginsCard').style.display = ''; loadLogins(); }
     })();
+    async function loadLogins() {
+      const { ok: lOk, data: lData } = await C4K.api('/api/my-logins');
+      const list = document.getElementById('loginsList');
+      const logins = (lOk && lData.logins) || [];
+      list.innerHTML = logins.length
+        ? logins.map(l => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+            <span style="flex:1;">${C4K.esc(l.at)} · ${C4K.esc(l.ip)}${l.current ? ' <strong style="color:var(--green,#4ade80);">(this device)</strong>' : ''}</span>
+            ${l.current ? '' : `<button class="btn btn-outline" style="font-size:0.72rem;padding:4px 10px;" onclick="revokeLogin('${l.tokenTail}')">Sign out</button>`}
+          </div>`).join('')
+        : 'No login history recorded yet.';
+    }
+    async function revokeLogin(tail) {
+      await C4K.api('/api/my-logins/revoke', 'POST', { tokenTail: tail });
+      loadLogins();
+    }
 
     async function toggle2fa(cb) {
       const msg = document.getElementById('twoFaMsg');
@@ -179,6 +197,15 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
 
+    async function saveCounselor() {
+      const msg = document.getElementById('counselorMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const counselorEmail = document.getElementById('counselorEmail').value.trim();
+      const { ok, data } = await C4K.api('/api/account/update', 'POST', { counselorEmail });
+      if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Saved.'; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
+    }
+
     async function loadKids() {
       const { ok, data } = await C4K.api('/api/parent/family');
       if (!ok) return;
@@ -206,7 +233,7 @@
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
     }
   </script>
-  <script src="pwa.js?v=159" defer></script>
-  <script src="editor.js?v=159" defer></script>
+  <script src="pwa.js?v=160" defer></script>
+  <script src="editor.js?v=160" defer></script>
 </body>
 </html>

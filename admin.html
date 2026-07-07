@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=159" />
+  <link rel="stylesheet" href="styles.css?v=160" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -203,6 +203,43 @@
             <tbody id="breakdownRows"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- Security dashboard (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🛡️ Security Dashboard <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">one-glance safety status</span></h3>
+        <div id="secDashGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+          <div style="color:var(--text-faint);">Loading…</div>
+        </div>
+        <button class="btn btn-outline" style="font-size:0.8rem;" onclick="runBackupCheck()">🩺 Run database sanity check</button>
+        <span id="backupCheckMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
+        <details style="margin-top:16px;">
+          <summary style="cursor:pointer;color:#f87171;font-weight:800;font-size:0.85rem;">🚨 Emergency: send a data-breach notice (use only if actually needed)</summary>
+          <div style="margin-top:10px;padding:14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;">
+            <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px;">Emails EVERY account holder with an email on file. Only use this for a real incident.</p>
+            <textarea id="breachMsg" rows="4" placeholder="Describe what happened and what people should do..." style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:8px;"></textarea>
+            <input id="breachConfirm" placeholder='Type exactly: SEND BREACH NOTICE' style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:8px;" />
+            <button class="btn" style="background:#dc2626;color:#fff;" onclick="sendBreachNotice()">Send to all account holders</button>
+            <div id="breachMsgOut" style="font-size:0.82rem;margin-top:8px;font-weight:700;"></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Data export/deletion request tracker (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>📄 Data Requests <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">COPPA/FERPA export & deletion requests</span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <input id="drWho" class="le-in" placeholder="Who / district requested this?" style="flex:1;min-width:180px;" />
+          <select id="drKind" class="le-in" style="width:140px;">
+            <option value="export">Data export</option>
+            <option value="delete">Data deletion</option>
+          </select>
+          <button class="btn btn-primary" onclick="addDataRequest()">+ Add</button>
+        </div>
+        <table class="admin-table">
+          <thead><tr><th>Who</th><th>Type</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <tbody id="dataReqRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <!-- Admin action audit log (SUPER ADMIN ONLY) -->
@@ -535,13 +572,15 @@
         <label class="le-lbl">New password <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
           <input id="credsPass" class="le-in" autocomplete="new-password" placeholder="at least 6 characters" /></label>
         <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">Changing the password signs that account out of its current sessions. Tell the person their new login.</p>
+        <label class="le-lbl">Confirm it's you — your own password
+          <input id="credsMyPass" type="password" class="le-in" autocomplete="current-password" placeholder="Your super-admin password" /></label>
         <div id="credsErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;"></div>
         <button class="btn btn-primary btn-lg" onclick="confirmCreds()">Save login</button>
       </div>
     </div>
   </div>
 
-  <script src="auth.js?v=159"></script>
+  <script src="auth.js?v=160"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -678,6 +717,8 @@
               <td style="font-size:0.82rem;">${C4K.esc(r.detail || '')}</td>
             </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No admin actions recorded yet.</td></tr>';
         }
+        loadSecurityDashboard();
+        loadDataRequests();
       }
       const roleTag = (r, plan) => r === 'parent' ? '👨‍👩‍👧 parent'
         : (r === 'admin' ? '🛠️ admin'
@@ -729,6 +770,64 @@
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
       }
+    }
+
+    // ── Security dashboard ──
+    async function loadSecurityDashboard() {
+      const { ok, data } = await C4K.api('/api/admin/security-dashboard');
+      const grid = document.getElementById('secDashGrid');
+      if (!grid) return;
+      if (!ok) { grid.innerHTML = '<div style="color:var(--text-faint);">Could not load.</div>'; return; }
+      const stat = (n, label, warn) => `<div style="background:var(--surface-2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:1.5rem;font-weight:900;color:${warn && n > 0 ? '#f87171' : 'var(--purple)'};">${n}</div>
+        <div style="font-size:0.7rem;color:var(--text-faint);font-weight:800;text-transform:uppercase;">${label}</div></div>`;
+      grid.innerHTML = stat(data.openIncidents, 'Open Incidents', true)
+        + stat(data.incidents24h, 'New (24h)', true)
+        + stat(data.escalated, 'Escalated', true)
+        + stat(data.suspended, 'Suspended Accts')
+        + stat(data.openRequests, 'Open Data Requests');
+    }
+    async function runBackupCheck() {
+      const msg = document.getElementById('backupCheckMsg');
+      msg.textContent = 'Checking…';
+      const { ok, data } = await C4K.api('/api/admin/backup-check');
+      msg.textContent = ok ? `✅ DB reachable — ${data.userCount} users, ${data.responseMs}ms.` : '⚠️ Database did not respond normally.';
+    }
+
+    // ── Data export/deletion request tracker ──
+    async function loadDataRequests() {
+      const { ok, data } = await C4K.api('/api/admin/data-requests');
+      const rows = document.getElementById('dataReqRows');
+      if (!rows) return;
+      const list = (ok && data.requests) || [];
+      rows.innerHTML = list.length ? list.map(r => `<tr${r.done ? ' style="opacity:.5;"' : ''}>
+          <td>${C4K.esc(r.who)}</td>
+          <td>${r.kind === 'delete' ? '🗑️ Deletion' : '📤 Export'}</td>
+          <td style="font-size:0.82rem;">${(r.due || '').slice(0,10)}</td>
+          <td>${r.done ? '✅ Done' : '⏳ Open'}</td>
+          <td>${r.done ? '' : `<button class="btn btn-outline" style="font-size:0.72rem;padding:4px 10px;" onclick="completeDataRequest('${r.id}')">Mark done</button>`}
+              <button class="btn btn-outline" style="font-size:0.72rem;padding:4px 10px;color:#f87171;" onclick="removeDataRequest('${r.id}')">Remove</button></td>
+        </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No data requests logged.</td></tr>';
+    }
+    async function addDataRequest() {
+      const who = document.getElementById('drWho').value.trim();
+      const kind = document.getElementById('drKind').value;
+      if (!who) return;
+      await C4K.api('/api/admin/data-requests', 'POST', { action: 'add', who, kind, dueDays: 14 });
+      document.getElementById('drWho').value = '';
+      loadDataRequests();
+    }
+    async function completeDataRequest(id) { await C4K.api('/api/admin/data-requests', 'POST', { action: 'complete', id }); loadDataRequests(); }
+    async function removeDataRequest(id) { await C4K.api('/api/admin/data-requests', 'POST', { action: 'remove', id }); loadDataRequests(); }
+    async function sendBreachNotice() {
+      const message = document.getElementById('breachMsg').value.trim();
+      const confirmText = document.getElementById('breachConfirm').value;
+      const out = document.getElementById('breachMsgOut');
+      if (!confirm('This will email EVERY account holder. Are you absolutely sure?')) return;
+      out.style.color = 'var(--text-dim)'; out.textContent = 'Sending…';
+      const { ok, data } = await C4K.api('/api/admin/breach-notice', 'POST', { message, confirm: confirmText });
+      out.style.color = ok ? 'var(--green,#4ade80)' : '#f87171';
+      out.textContent = ok ? `✅ Sent to ${data.sent} account holders.` : (data.error || 'Could not send.');
     }
 
     // ── Create account (super admin: instant; admin: request) ──
@@ -1295,6 +1394,7 @@
       document.getElementById('credsWho').textContent = name + ' (@' + username + ')';
       document.getElementById('credsUser').value = '';
       document.getElementById('credsPass').value = '';
+      document.getElementById('credsMyPass').value = '';
       document.getElementById('credsErr').textContent = '';
       document.getElementById('credsModal').classList.remove('hidden');
     }
@@ -1303,9 +1403,11 @@
       const userId = +document.getElementById('credsId').value;
       const username = document.getElementById('credsUser').value.trim();
       const password = document.getElementById('credsPass').value;
+      const myPassword = document.getElementById('credsMyPass').value;
       const err = document.getElementById('credsErr');
       if (!username && !password) { err.textContent = 'Enter a new username and/or password.'; return; }
-      const { ok, data } = await C4K.api('/api/admin/set-credentials', 'POST', { userId, username, password });
+      if (!myPassword) { err.textContent = 'Confirm your own password to continue.'; return; }
+      const { ok, data } = await C4K.api('/api/admin/set-credentials', 'POST', { userId, username, password, myPassword });
       if (ok) {
         closeCreds();
         alert('✅ Login updated' + (data.changed && data.changed.length ? ' (' + data.changed.join(' + ') + ')' : '') + '.');
@@ -1397,7 +1499,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=159" defer></script>
-  <script src="editor.js?v=159" defer></script>
+  <script src="pwa.js?v=160" defer></script>
+  <script src="editor.js?v=160" defer></script>
 </body>
 </html>

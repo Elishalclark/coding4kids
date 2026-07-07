@@ -73,10 +73,17 @@ function welfareFlag(text) {
   const low = (text || "").toString().toLowerCase();
   return WELFARE_PATTERNS.some((re) => re.test(low));
 }
+// Common lookalike-character substitutions kids (and bots) use to dodge a profanity filter —
+// swap them back to real letters BEFORE stripping symbols, so "f4ck" and "b!tch" still match.
+function deleet(s) {
+  return s.replace(/0/g, "o").replace(/1/g, "i").replace(/3/g, "e").replace(/4/g, "a")
+    .replace(/5/g, "s").replace(/7/g, "t").replace(/@/g, "a").replace(/\$/g, "s");
+}
 function contentIssue(text) {
   const t = (text || "").toString();
   const low = t.toLowerCase();
-  const squashed = low.replace(/[^a-z]/g, "");
+  const deleeted = deleet(low);
+  const squashed = deleeted.replace(/[^a-z]/g, "");
   for (const w of BAD_WORDS) { if (squashed.includes(w) || low.includes(w)) return "Let's keep it kind and clean. 🙂"; }
   if (/(\+?\d[\s().-]?){10,}/.test(t)) return "Please don't share phone numbers — keep personal info private. 🔒";
   if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return "Please don't share email addresses — keep personal info private. 🔒";
@@ -87,29 +94,42 @@ function contentIssue(text) {
 // Send a safety alert to the child's SCHOOL/TEACHER (the family owner) so the adult responsible
 // for them in class is a real-time first responder — plus the KidVibers team. Stored as a notice
 // on the teacher/district account (kind='safety'), which their dashboard surfaces.
-async function alertSchool(env, kid, title, detail) {
+async function alertSchool(env, kid, title, detail, followUp) {
   try {
+    let ownerContact = null;
     if (kid && kid.family_id != null) {
-      const owner = await env.DB.prepare("SELECT id,role,parent_email,name FROM users WHERE id=?").bind(kid.family_id).first();
+      const owner = await env.DB.prepare("SELECT id,role,parent_email,name,counselor_email FROM users WHERE id=?").bind(kid.family_id).first();
       if (owner) {
+        ownerContact = owner.parent_email || null;
+        const followUpNote = followUp ? " (the kid asked to be checked on again later)" : "";
         // Notify whoever is responsible for this kid — a teacher/school/district, OR the
         // parent directly on a family account. Either way it lands as a 'safety' notice.
         await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at,resolved) VALUES (?,?,?,?,0)")
-          .bind(owner.id, "safety", `🚩 SAFETY ALERT — ${kid.name} (@${kid.username}): ${title}${detail ? " — " + detail : ""}`, nowIso()).run();
+          .bind(owner.id, "safety", `🚩 SAFETY ALERT — ${kid.name} (@${kid.username}): ${title}${detail ? " — " + detail : ""}${followUpNote}`, nowIso()).run();
         // Parents get this by email too, since they may not check the dashboard daily and this is urgent.
         if (owner.role === "parent" && owner.parent_email) {
           await sendEmail(env, owner.parent_email, `⚠️ Safety alert for ${kid.name} on KidVibers`,
             `<p style="font-size:1.05rem;">Hi ${escHtml(owner.name || "")},</p>
              <p>Our safety system flagged something ${escHtml(kid.name)} typed on KidVibers and wanted you to know right away:</p>
              <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;color:#991b1b;font-weight:700;">${escHtml(title)}${detail ? " — " + escHtml(detail) : ""}</p>
+             ${followUp ? `<p style="color:#991b1b;font-weight:700;">${escHtml(kid.name)} asked to be checked on again later — please follow up when you can. 💜</p>` : ""}
              <p>This doesn't block their account — it's just a heads-up so you can check in with them. 💜</p>
              <p><a href="https://kidvibers.com/parent.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Open dashboard →</a></p>`,
             "KidVibers Safety <support@kidvibers.com>");
         }
+        // A school/district can optionally set a counselor contact who gets cc'd on these too.
+        if (owner.role === "teacher" && owner.counselor_email) {
+          await sendEmail(env, owner.counselor_email, `⚠️ Safety alert (student, via KidVibers)`,
+            `<p>A safety alert was raised for a student at your school/district on KidVibers:</p>
+             <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;color:#991b1b;font-weight:700;">${escHtml(title)}${detail ? " — " + escHtml(detail) : ""}</p>
+             <p style="color:#666;font-size:0.9rem;">You're receiving this because you're listed as the safety/counselor contact for this account.</p>`,
+            "KidVibers Safety <support@kidvibers.com>");
+        }
       }
     }
-    await notifyAdmin(env, `🚩 Safety alert: ${kid && kid.name}`, `🚩 *Safety alert*\n• Student: ${kid && kid.name} (@${kid && kid.username})\n• ${title}${detail ? `\n• Detail: ${detail}` : ""}`);
-  } catch {}
+    await notifyAdmin(env, `🚩 Safety alert: ${kid && kid.name}`, `🚩 *Safety alert*\n• Student: ${kid && kid.name} (@${kid && kid.username})\n• ${title}${detail ? `\n• Detail: ${detail}` : ""}${followUp ? "\n• Kid asked to be followed up with later" : ""}`);
+    return ownerContact;
+  } catch { return null; }
 }
 
 // Track repeated content-filter blocks per kid — one or two blocked messages is normal kid
@@ -360,6 +380,7 @@ async function publicUser(env, user) {
       logoutPinSet: !!(await getLogoutPin(env, user.family_id)),
       retentionMonths: parseInt((await getSetting(env, `retention:${user.family_id}`, "0")), 10) || 0,
       twoFactorEnabled: await twoFAEnabled(env, user.id),
+      counselorEmail: user.counselor_email || null,
     };
   }
   const kidBrand = user.role === "kid" ? await familyBranding(env, user.family_id) : {};
@@ -512,9 +533,9 @@ async function userFromToken(env, token) {
   const cutoff = new Date(Date.now() - SESSION_MAX_DAYS * 86400000).toISOString();
   return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at >= ?").bind(token, cutoff).first();
 }
-async function createSession(env, userId) {
+async function createSession(env, userId, ip) {
   const token = randToken(32);
-  await env.DB.prepare("INSERT INTO sessions (token,user_id,created_at) VALUES (?,?,?)").bind(token, userId, nowIso()).run();
+  await env.DB.prepare("INSERT INTO sessions (token,user_id,created_at,ip) VALUES (?,?,?,?)").bind(token, userId, nowIso(), ip || null).run();
   return token;
 }
 
@@ -649,6 +670,15 @@ async function apiLogin(env, request, data, allow) {
   const row = await env.DB.prepare("SELECT * FROM users WHERE username=?").bind(username).first();
   if (!row || !(await verifyPassword(password, row.salt, row.password_hash))) {
     recordLoginFail(key);
+    // Staff/admin accounts are higher-value targets — a burst of wrong passwords against one
+    // of these is worth telling the KidVibers team about, separate from the generic throttle.
+    if (row && ["teacher", "admin", "super_admin"].includes(row.role)) {
+      const fk = `staffloginfails:${row.id}:${todayStr()}`;
+      const rr = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(fk).first();
+      const n = (parseInt(rr && rr.value, 10) || 0) + 1;
+      await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(fk, String(n)).run();
+      if (n === 5) await notifyAdmin(env, `⚠️ Repeated failed logins: ${row.name}`, `⚠️ *${row.name}* (@${row.username}, role: ${row.role}) has had ${n} failed login attempts today. Might be a targeted attempt.`);
+    }
     return json({ error: "Wrong username or password." }, 401);
   }
   if (!allow.includes(row.role)) return json({ error: "Those credentials can't be used here." }, 403);
@@ -682,12 +712,7 @@ async function apiLogin(env, request, data, allow) {
       seen.push(ip); if (seen.length > 5) seen = seen.slice(-5);
       await setSetting(env, seenKey, seen);
     }
-    // Keep a small rolling log of recent logins for the account holder to review in Settings.
-    let log = await getSetting(env, `loginlog:${row.id}`, []);
-    if (!Array.isArray(log)) log = [];
-    log.push({ at: nowIso(), ip });
-    if (log.length > 10) log = log.slice(-10);
-    await setSetting(env, `loginlog:${row.id}`, log);
+    // (Recent-logins list for Settings is now read straight from the sessions table itself.)
   }
   // Optional staff 2FA: if this staff account turned on email codes, don't hand out a session
   // yet — email a 6-digit code and make them confirm it. Opt-in per account, so default logins
@@ -702,7 +727,8 @@ async function apiLogin(env, request, data, allow) {
     const hint = em.replace(/^(.{1,2}).*(@.*)$/, "$1***$2");
     return json({ twoFactor: true, challenge, emailHint: hint });
   }
-  const token = await createSession(env, row.id);
+  await env.DB.prepare("UPDATE users SET last_login_at=? WHERE id=?").bind(nowIso(), row.id).run();
+  const token = await createSession(env, row.id, request.headers.get("CF-Connecting-IP") || null);
   return json({ token, user: await publicUser(env, row) });
 }
 
@@ -740,7 +766,8 @@ async function apiLogin2FA(env, request, data) {
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`2fachal:${challenge}`).run();
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(rec.userId).first();
   if (!row) return json({ error: "Account not found." }, 404);
-  const token = await createSession(env, row.id);
+  await env.DB.prepare("UPDATE users SET last_login_at=? WHERE id=?").bind(nowIso(), row.id).run();
+  const token = await createSession(env, row.id, request.headers.get("CF-Connecting-IP") || null);
   return json({ token, user: await publicUser(env, row) });
 }
 
@@ -799,6 +826,9 @@ async function apiLaunchSlots(env) {
 }
 
 async function apiSignup(env, request, data) {
+  // Honeypot: a hidden field real users never see or fill. A bot filling every field on the
+  // form will fill this too — silently reject without giving away that it's a trap.
+  if ((data.website || "").toString().trim()) return json({ error: "Something went wrong. Please try again." }, 400);
   if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
   // Throttle mass account creation: max 6 new accounts per IP per hour.
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -1211,11 +1241,27 @@ async function sendCertificateEmail(env, request, kid, unit, score) {
 }
 
 // Recent-logins list for the account holder to review in Settings (login audit trail).
+// Real device/session list — pulled from the actual sessions table (not just a settings log),
+// so a user can see AND revoke individual active sessions if something looks off.
 async function apiMyLogins(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
-  const log = await getSetting(env, `loginlog:${u.id}`, []);
-  return json({ logins: (Array.isArray(log) ? log : []).slice().reverse().map(l => ({ at: (l.at || "").slice(0, 16).replace("T", " "), ip: l.ip })) });
+  const myToken = bearer(request);
+  const rows = (await env.DB.prepare("SELECT token,created_at,ip FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 15").bind(u.id).all()).results || [];
+  return json({ logins: rows.map(r => ({
+    tokenTail: (r.token || "").slice(-6), at: (r.created_at || "").slice(0, 16).replace("T", " "),
+    ip: r.ip || "unknown", current: r.token === myToken,
+  })) });
+}
+
+// Revoke one specific session (device) without logging out everywhere else.
+async function apiRevokeSession(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const tail = (data.tokenTail || "").toString();
+  if (!tail) return json({ error: "Missing session." }, 400);
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=? AND substr(token, -6)=?").bind(u.id, tail).run();
+  return json({ ok: true });
 }
 
 async function apiNotices(env, request) {
@@ -1248,6 +1294,104 @@ async function apiAdminAuditLog(env, request) {
     "WHERE method IN ('deleted','suspended','reinstated') ORDER BY id DESC LIMIT 200"
   ).all()).results || [];
   return json({ log: rows.map(r => ({ id: r.id, username: r.child_username, action: r.method, by: r.granted_by, detail: r.detail, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+
+// A school/district clicks "I have read and accept the DPA" — logged with who + when, so you
+// have proof they actually acknowledged it (not just that the page exists).
+async function apiAcceptDPA(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a school/district account can accept the DPA." }, 403);
+  await logConsent(env, u.id, u.username, "dpa_accepted", `${u.name} (@${u.username})`, "Accepted the Data Privacy Agreement");
+  return json({ ok: true });
+}
+async function apiDPAStatus(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const row = await env.DB.prepare("SELECT created_at FROM consent_log WHERE child_id=? AND method='dpa_accepted' ORDER BY id DESC LIMIT 1").bind(u.id).first();
+  return json({ accepted: !!row, at: row ? row.created_at.slice(0, 10) : null });
+}
+
+// A super-admin's manual log of incoming student-data export/deletion requests (COPPA/FERPA
+// "right to access/delete") — nothing automatic here, just a place to track due dates so
+// nothing falls through the cracks. Stored as a small list in settings.
+async function apiDataRequests(env, request, data, method) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  let list = await getSetting(env, "data_requests", []);
+  if (!Array.isArray(list)) list = [];
+  if (method === "GET") return json({ requests: list });
+  if (method === "POST") {
+    if (data.action === "add") {
+      const who = (data.who || "").toString().trim().slice(0, 200);
+      if (!who) return json({ error: "Who is this request from?" }, 400);
+      const dueDays = parseInt(data.dueDays, 10) || 14;
+      list.push({ id: randToken(6), who, kind: data.kind || "export", raised: nowIso(), due: new Date(Date.now() + dueDays * 86400000).toISOString(), done: false });
+    } else if (data.action === "complete") {
+      const item = list.find(x => x.id === data.id);
+      if (item) item.done = true;
+    } else if (data.action === "remove") {
+      list = list.filter(x => x.id !== data.id);
+    }
+    await setSetting(env, "data_requests", list);
+    return json({ ok: true, requests: list });
+  }
+  return json({ error: "method not allowed" }, 405);
+}
+
+// One-glance security dashboard for the super admin: everything that matters, in one call.
+async function apiSecurityDashboard(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const since24h = new Date(Date.now() - 24 * 3600000).toISOString();
+  const openIncidents = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND resolved=0").first()).c || 0;
+  const incidents24h = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND created_at>=?").bind(since24h).first()).c || 0;
+  const escalated = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND escalated=1 AND resolved=0").first()).c || 0;
+  const suspended = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE suspended=1").first()).c || 0;
+  const dataRequests = await getSetting(env, "data_requests", []);
+  const openRequests = (Array.isArray(dataRequests) ? dataRequests : []).filter(r => !r.done).length;
+  return json({
+    openIncidents, incidents24h, escalated, suspended, openRequests,
+    checkedAt: nowIso(),
+  });
+}
+
+// A lightweight sanity check (NOT a full restore test — that has to be done manually against a
+// real recovery process) that confirms the database is reachable and readable right now.
+async function apiBackupCheck(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  try {
+    const t0 = Date.now();
+    const row = await env.DB.prepare("SELECT COUNT(*) c FROM users").first();
+    const ms = Date.now() - t0;
+    return json({ ok: true, userCount: row.c, responseMs: ms, note: "This confirms the live database is reachable and readable — it does NOT verify an actual backup restore. Test real restores manually on a schedule." });
+  } catch (e) {
+    return json({ ok: false, error: "Database did not respond normally." }, 500);
+  }
+}
+
+// A deliberately manual, hard-to-trigger-by-accident tool for the worst-case scenario: notify
+// every account holder with an email on file that something happened. Requires typing an exact
+// confirmation phrase (not just a checkbox) so this can never fire from a stray click.
+async function apiSendBreachNotice(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if ((data.confirm || "").toString() !== "SEND BREACH NOTICE") {
+    return json({ error: 'Type exactly "SEND BREACH NOTICE" to confirm — this emails every account holder.' }, 400);
+  }
+  const message = (data.message || "").toString().trim();
+  if (!message || message.length < 20) return json({ error: "Write a real message (20+ characters) describing what happened and what to do." }, 400);
+  const rows = (await env.DB.prepare("SELECT DISTINCT parent_email FROM users WHERE parent_email IS NOT NULL AND parent_email != ''").all()).results || [];
+  let sent = 0;
+  for (const r of rows) {
+    const ok = await sendEmail(env, r.parent_email, "Important security notice from KidVibers",
+      `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#222;line-height:1.6;">
+        <div style="background:#dc2626;color:#fff;padding:16px 22px;border-radius:10px 10px 0 0;font-weight:800;">⚠️ Important Security Notice</div>
+        <div style="border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:22px;">
+          ${escHtml(message).replace(/\n/g, "<br>")}
+          <p style="color:#888;font-size:0.85rem;margin-top:20px;">— The KidVibers Team · <a href="https://kidvibers.com">kidvibers.com</a> · support@kidvibers.com</p>
+        </div></div>`,
+      "KidVibers Security <support@kidvibers.com>");
+    if (ok) sent++;
+  }
+  await notifyAdmin(env, "🚨 Breach notice sent", `🚨 A data-breach notice was sent to ${sent} account holder(s) by a super admin.`);
+  return json({ ok: true, sent });
 }
 
 // Full history of safety-kind notices for this account (teacher/school/district/parent) —
@@ -1479,10 +1623,11 @@ async function apiKidHelp(env, request, data) {
   // if the note trips the welfare watchlist (self-harm / abuse / serious bullying).
   const crisisText = welfareFlag(note);
   const welfare = crisisText || reasonKey === "scary" || reasonKey === "mean";
-  await alertSchool(env, u, welfare ? "used the safety button — may need urgent attention" : "used the \"Something's wrong?\" button", `${reasonText}${note ? " — \"" + note.slice(0, 120) + "\"" : ""}`);
+  const followUp = !!data.checkOnMeLater;
+  const ownerContact = await alertSchool(env, u, welfare ? "used the safety button — may need urgent attention" : "used the \"Something's wrong?\" button", `${reasonText}${note ? " — \"" + note.slice(0, 120) + "\"" : ""}`, followUp);
   // If the note itself sounded like a real crisis (not just "someone was mean"), gently surface
   // a crisis line to the kid too — a grown-up is already being told, but help shouldn't wait.
-  return json({ ok: true, parentNotified: !!u.parent_email, showCrisisLine: !!crisisText });
+  return json({ ok: true, parentNotified: !!u.parent_email, showCrisisLine: !!crisisText, trustedAdultContact: ownerContact });
 }
 
 // Parent/teacher "nudge" — sends an encouragement push notification to a kid right now.
@@ -1545,6 +1690,12 @@ async function apiProjectSave(env, request, data) {
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
+  // Session guests are temporary, unverified accounts — cap how many saves one can rack up so a
+  // runaway script (or a kid mashing the button) can't spam the database during a live session.
+  if (u.consent_method === "library_session" && !data.id) {
+    const cnt = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(u.id).first()).c || 0;
+    if (cnt >= 20) return json({ error: "You've saved a lot of projects this session! Ask your teacher or librarian if you need more room." }, 429);
+  }
   // Welfare check first (a cry for help must be caught even if the text is also "blocked").
   if (welfareFlag(data.title)) await alertSchool(env, u, "typed something concerning in Vibe Studio", (data.title || "").toString().slice(0, 120));
   { const _ci = contentIssue(data.title); if (_ci) {
@@ -2180,22 +2331,41 @@ async function apiLockSession(env, request, data) {
 }
 
 async function apiJoinSession(env, request, data) {
+  // Honeypot — same trick as signup: a hidden field bots fill in but real kids never see.
+  if ((data.website || "").toString().trim()) return json({ error: "Something went wrong. Please try again." }, 400);
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   if (rateLimited(`joinsession:${ip}`, 20, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
   const code = (data.code || "").toString().trim().toUpperCase();
   const chosen = (data.name || data.username || "").toString().trim();
+  // Detect session-code guessing: one IP hammering many DIFFERENT codes in a short window looks
+  // like a bot trying to find a live session, not a kid who mistyped once or twice.
+  { const gk = `codeguess:${ip}`;
+    let seen = await getSetting(env, gk, { codes: [], day: todayStr() });
+    if (seen.day !== todayStr()) seen = { codes: [], day: todayStr() };
+    if (code && !seen.codes.includes(code)) {
+      seen.codes.push(code); if (seen.codes.length > 30) seen.codes = seen.codes.slice(-30);
+      await setSetting(env, gk, seen);
+      if (seen.codes.length === 8) await notifyAdmin(env, `⚠️ Possible session-code guessing`, `⚠️ IP ${ip} has tried ${seen.codes.length} different session codes today. Might be a bot probing for live sessions.`);
+    }
+  }
   const info = await getSetting(env, `session:${code}`, null);
   if (!info || info.expires < Date.now()) return json({ error: "That session code isn't active. Ask your teacher or librarian for the current code." }, 404);
   if (info.locked) return json({ error: "This session is locked — no new joins right now. Ask your teacher." }, 403);
+  // If this IP was muted from THIS session after repeated bad nicknames, stop it here.
+  const muteKey = `sessionmute:${code}:${ip}`;
+  if (await getSetting(env, muteKey, false)) return json({ error: "You've been temporarily blocked from this session for repeated inappropriate names. Ask your teacher or librarian for help." }, 403);
   if (!/^[A-Za-z0-9 _.-]{2,20}$/.test(chosen)) return json({ error: "Pick a name using 2-20 letters or numbers." }, 400);
   { const ci = contentIssue(chosen); if (ci) {
       // A session guest has no account yet, so track repeated bad tries by IP instead of user id —
       // a burst of inappropriate names in one session is worth a heads-up to the KidVibers team.
-      const fk = `sessionbadtries:${ip}:${todayStr()}`;
+      const fk = `sessionbadtries:${code}:${ip}`;
       const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(fk).first();
       const n = (parseInt(row && row.value, 10) || 0) + 1;
       await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(fk, String(n)).run();
-      if (n === 3) await notifyAdmin(env, `⚠️ Repeated inappropriate names in a session`, `⚠️ Someone joining session code ${code} has tried ${n} inappropriate nicknames today (IP ${ip}). Might be worth a look.`);
+      if (n === 3) {
+        await notifyAdmin(env, `⚠️ Repeated inappropriate names in a session`, `⚠️ Someone joining session code ${code} tried ${n} inappropriate nicknames today (IP ${ip}), last attempt: "${chosen}". This IP has been muted from this session.`);
+        await setSetting(env, muteKey, true);  // auto-mute this IP from THIS session (not the whole site)
+      }
       return json({ error: ci }, 400);
   } }
   // Respect the group's seat cap so a session can't blow past the plan limit.
@@ -2661,6 +2831,15 @@ async function apiAccountUpdate(env, request, data) {
     await env.DB.prepare("UPDATE users SET parent_email=? WHERE id=?").bind(newEmail, u.id).run();
     changed.push("email");
   }
+  // Schools/districts can set a counselor/safety contact who gets cc'd on safety alerts.
+  if (u.role === "teacher" && "counselorEmail" in data) {
+    const ce = (data.counselorEmail || "").trim();
+    if (ce && !/^\S+@\S+\.\S+$/.test(ce)) return json({ error: "Enter a valid counselor email address." }, 400);
+    if (ce !== (u.counselor_email || "")) {
+      await env.DB.prepare("UPDATE users SET counselor_email=? WHERE id=?").bind(ce || null, u.id).run();
+      changed.push("counselor contact");
+    }
+  }
   if (!changed.length) return json({ error: "Nothing changed." }, 400);
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.id).first();
   return json({ ok: true, changed, user: await publicUser(env, row) });
@@ -3021,7 +3200,13 @@ async function adminSuspend(env, request, data) {
   return json({ ok: true, name: target.name, suspended: suspend, until });
 }
 async function adminSetCredentials(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  // Step-up auth: changing someone else's login credentials is sensitive enough to re-confirm
+  // the admin's OWN password first, even though they're already logged in.
+  const confirmPass = (data.myPassword || "").toString();
+  if (!confirmPass || !(await verifyPassword(confirmPass, u.salt, u.password_hash))) {
+    return json({ error: "Re-enter your own password to confirm this change." }, 401);
+  }
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
   if (!target) return json({ error: "Account not found." }, 404);
   const newUser = (data.username || "").trim(), newPass = data.password || "";
@@ -3829,8 +4014,15 @@ async function handleApi(env, request, path) {
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
   if (path === "/api/incident-log" && method === "GET") return apiIncidentLog(env, request);
   if (path === "/api/my-logins" && method === "GET") return apiMyLogins(env, request);
+  if (path === "/api/my-logins/revoke" && method === "POST") return apiRevokeSession(env, request, data);
   if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
+  if (path === "/api/dpa/accept" && method === "POST") return apiAcceptDPA(env, request);
+  if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);
+  if (path === "/api/admin/data-requests" && (method === "GET" || method === "POST")) return apiDataRequests(env, request, data, method);
+  if (path === "/api/admin/security-dashboard" && method === "GET") return apiSecurityDashboard(env, request);
+  if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
+  if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
   if (path === "/api/shop/buy" && method === "POST") return apiShopBuy(env, request, data);
@@ -3999,6 +4191,22 @@ async function handleApi(env, request, path) {
 }
 
 // Daily re-engagement: email parents of kids who haven't coded in a while.
+// Monthly report of dormant staff accounts (haven't logged in for 12+ months) — flagged for
+// YOUR manual review, not auto-suspended, since silently locking someone out could break things
+// unexpectedly. A stale staff account with student access is worth a look, though.
+async function runDormantStaffReport(env) {
+  const now = new Date();
+  if (now.getUTCDate() !== 1) return; // once a month
+  const cutoff = new Date(Date.now() - 365 * 86400000).toISOString();
+  const rows = (await env.DB.prepare(
+    "SELECT name,username,role,last_login_at,created_at FROM users WHERE role IN ('teacher','admin') " +
+    "AND (last_login_at IS NULL OR last_login_at < ?) AND created_at < ?"
+  ).bind(cutoff, cutoff).all()).results || [];
+  if (!rows.length) return;
+  const list = rows.map(r => `• ${r.name} (@${r.username}, ${r.role}) — last login: ${r.last_login_at ? r.last_login_at.slice(0,10) : "never"}`).join("\n");
+  await notifyAdmin(env, `📋 Dormant staff accounts (12+ months)`, `📋 *These staff accounts haven't logged in for 12+ months — worth a look:*\n${list}`);
+}
+
 async function runReengagement(env) {
   const now = Date.now();
   const since14 = new Date(now - 14 * 86400000).toISOString();
@@ -4203,6 +4411,42 @@ async function runSafetyEscalation(env) {
   return rows.length;
 }
 
+// Auto-lock a live session that's been open 3+ hours with zero kids ever joining — almost
+// certainly a code someone forgot to close, and a stale open join code is just needless exposure.
+async function runStaleSessionLock(env) {
+  const rows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'session:%'").all()).results || [];
+  let locked = 0;
+  for (const r of rows) {
+    let info; try { info = JSON.parse(r.value); } catch { continue; }
+    if (!info || info.locked || !info.started || (info.joins || 0) > 0) continue;
+    if (Date.now() - info.started > 3 * 3600000) {
+      info.locked = true;
+      await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(r.key, JSON.stringify(info)).run();
+      locked++;
+    }
+  }
+  return locked;
+}
+
+// Once a year, remind the KidVibers team to re-walk the safety checklist and check dependencies
+// (fonts CDN, QR code API, etc.) for anything that needs updating.
+async function runAnnualSafetyReminder(env) {
+  const now = new Date();
+  if (now.getUTCMonth() === 0 && now.getUTCDate() === 1) {
+    await notifyAdmin(env, "📅 Annual safety & dependency review", "📅 It's a new year — time to walk through the KidVibers safety checklist again and double-check third-party dependencies (fonts CDN, QR code API, email provider) for anything that needs updating.");
+  }
+}
+
+// A daily rollup of the day's safety-relevant activity, so nothing needs to be pieced together
+// from individual alert emails — one summary a day.
+async function runDailySafetyDigest(env) {
+  const since = new Date(Date.now() - 24 * 3600000).toISOString();
+  const openIncidents = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND resolved=0").first()).c || 0;
+  const newIncidents = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND created_at>=?").bind(since).first()).c || 0;
+  if (newIncidents === 0 && openIncidents === 0) return; // quiet day — don't add noise
+  await notifyAdmin(env, "🌙 Daily safety digest", `🌙 *Daily safety summary*\n• New safety alerts today: ${newIncidents}\n• Still open (unresolved): ${openIncidents}\n\nCheck the admin panel's Audit Log or any account's Incident Log for details.`);
+}
+
 export default {
   async scheduled(event, env, ctx) {
     const now = new Date();
@@ -4210,6 +4454,10 @@ export default {
     if (now.getUTCDay() === 1) ctx.waitUntil(runWeeklyDigest(env));
     ctx.waitUntil(runReengagement(env));
     ctx.waitUntil(runSafetyEscalation(env));
+    ctx.waitUntil(runStaleSessionLock(env));
+    ctx.waitUntil(runAnnualSafetyReminder(env));
+    ctx.waitUntil(runDailySafetyDigest(env));
+    ctx.waitUntil(runDormantStaffReport(env));
     ctx.waitUntil(runPushReminders(env));
     ctx.waitUntil(runRenewalReminders(env));
     // Housekeeping: drop expired session rows (userFromToken already rejects them).

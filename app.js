@@ -52,7 +52,8 @@ async function handleSignup(e) {
     username: document.getElementById('suUsername').value.trim(),
     password: document.getElementById('suPassword').value,
     age: document.getElementById('suAgeYears').value,
-    referralCode: ref
+    referralCode: ref,
+    website: document.getElementById('suWebsite') ? document.getElementById('suWebsite').value : '',  // honeypot
   };
   const { ok, data } = await C4K.signup(payload);
   success.classList.remove('hidden');

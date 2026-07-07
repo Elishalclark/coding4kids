@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=159" />
+  <link rel="stylesheet" href="styles.css?v=160" />
   <style>
     .sp { max-width: 820px; margin: 0 auto; padding: 28px 20px 90px; }
     .sp-hero { text-align:center; background:linear-gradient(150deg,#0f3d2e,#15803d 60%,#16a34a); border:1px solid var(--border-bright); border-radius:var(--radius); padding:36px 24px; margin-bottom:26px; }
@@ -121,10 +121,39 @@
       <strong>To request a signed DPA:</strong> email <a href="mailto:support@kidvibers.com?subject=DPA%20request">support@kidvibers.com</a> with your district name and any specific terms your legal team requires, and we'll turn it around quickly. If your district has its own standard student-data DPA, send it over and we'll review and sign.
     </div>
 
+    <div class="card" id="dpaAckCard" style="display:none;background:var(--surface-2);border:1px dashed var(--border-bright);">
+      <strong>Acknowledge you've read this page:</strong>
+      <p style="font-size:0.88rem;color:var(--text-dim);margin:6px 0 10px;">If you're a school/district account holder, you can log a record that you've read and accept this policy — useful for your own compliance records.</p>
+      <div id="dpaStatus" style="font-size:0.85rem;font-weight:700;margin-bottom:8px;"></div>
+      <button class="btn btn-primary" id="dpaAcceptBtn" onclick="acceptDPA()">✅ I have read and accept this policy</button>
+    </div>
+
     <p style="margin-top:24px;color:var(--text-faint);font-size:0.85rem;">See also our <a href="privacy.html">Privacy Policy</a>, <a href="terms.html">Terms</a>, and <a href="trust.html">Trust &amp; Safety Center</a>.</p>
   </main>
 
+  <script src="auth.js?v=160"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me || me.role !== 'teacher') return;
+      document.getElementById('dpaAckCard').style.display = '';
+      const { ok, data } = await C4K.api('/api/dpa/status');
+      if (ok && data.accepted) {
+        document.getElementById('dpaStatus').textContent = '✅ Accepted on ' + data.at;
+        document.getElementById('dpaAcceptBtn').textContent = '✅ Update acceptance (re-confirm)';
+      }
+    })();
+    async function acceptDPA() {
+      const btn = document.getElementById('dpaAcceptBtn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { ok } = await C4K.api('/api/dpa/accept', 'POST', {});
+      btn.disabled = false;
+      document.getElementById('dpaStatus').textContent = ok ? '✅ Accepted just now.' : '⚠️ Could not save — try again.';
+      btn.textContent = '✅ I have read and accept this policy';
+    }
+  </script>
+
   <footer class="footer"><div class="footer-bottom" style="padding-top:30px;"><p>© 2026 KidVibers.com · Owner: Elisha Clark</p></div></footer>
-  <script src="pwa.js?v=159" defer></script>
+  <script src="pwa.js?v=160" defer></script>
 </body>
 </html>

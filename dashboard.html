@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=159" />
+  <link rel="stylesheet" href="styles.css?v=160" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -105,7 +105,10 @@
         <button class="btn btn-outline help-reason" data-r="scary" style="justify-content:flex-start;" onclick="pickHelpReason('scary')">😨 I saw something that scared or confused me</button>
         <button class="btn btn-outline help-reason" data-r="other" style="justify-content:flex-start;" onclick="pickHelpReason('other')">💬 Something else</button>
       </div>
-      <textarea id="helpNote" placeholder="Want to add anything? (optional)" style="width:100%;min-height:70px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:600;resize:vertical;margin-bottom:12px;"></textarea>
+      <textarea id="helpNote" placeholder="Want to add anything? (optional)" style="width:100%;min-height:70px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:600;resize:vertical;margin-bottom:10px;"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:0.85rem;color:var(--text-dim);cursor:pointer;">
+        <input type="checkbox" id="checkOnMeLater" /> Please check on me again later
+      </label>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-outline" style="flex:1;" onclick="closeHelpModal()">Cancel</button>
         <button class="btn btn-primary" id="helpSendBtn" style="flex:1;" onclick="sendHelp()" disabled>Send to a grown-up</button>
@@ -290,7 +293,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=159"></script>
+  <script src="auth.js?v=160"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -351,15 +354,19 @@
       const btn = document.getElementById('helpSendBtn');
       btn.disabled = true; btn.textContent = 'Sending…';
       const message = document.getElementById('helpNote').value.trim();
-      const { ok, data } = await C4K.api('/api/kid/help', 'POST', { reason: _helpReason, message });
+      const checkOnMeLater = document.getElementById('checkOnMeLater').checked;
+      const { ok, data } = await C4K.api('/api/kid/help', 'POST', { reason: _helpReason, message, checkOnMeLater });
       btn.textContent = 'Send to a grown-up';
       if (ok) {
         msg.style.color = 'var(--green,#4ade80)';
         msg.textContent = data.parentNotified ? '✅ Done — your parent/teacher was told right away.' : '✅ Done — the KidVibers team was told right away.';
+        if (data.trustedAdultContact) {
+          msg.textContent += ` (${data.trustedAdultContact})`;
+        }
         if (data.showCrisisLine) {
           const c = document.createElement('div');
           c.style.cssText = 'margin-top:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);border-radius:12px;padding:12px 14px;font-size:0.85rem;line-height:1.5;color:var(--text);';
-          c.innerHTML = '💙 If you or someone you know needs to talk to someone <strong>right now</strong>, you can call or text <strong>988</strong> (Suicide &amp; Crisis Lifeline) anytime — it\'s free and always available.';
+          c.innerHTML = '💙 If you or someone you know needs to talk to someone <strong>right now</strong>, you can call or text <strong>988</strong> (US Suicide &amp; Crisis Lifeline) anytime — it\'s free and always available. Outside the US, please contact your local emergency services or a local crisis line.';
           document.getElementById('helpModal').querySelector('div[style*="max-width:420px"]').appendChild(c);
           return; // don't auto-close — let them read this
         }
@@ -1203,7 +1210,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=159" defer></script>
-  <script src="editor.js?v=159" defer></script>
+  <script src="pwa.js?v=160" defer></script>
+  <script src="editor.js?v=160" defer></script>
 </body>
 </html>

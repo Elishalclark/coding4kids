@@ -47,6 +47,24 @@ check "POST /api/login (bad creds)" 401 "$(code_post /api/login '{"username":"sm
 # ── Signup validation alive (bad username = 400, never 500) ──
 check "POST /api/signup (rejects bad input)" 400 "$(code_post /api/signup '{"name":"x","username":"ab","password":"123"}')"
 
+# ── Honeypot: a filled hidden field must be rejected as bad input (never a 500, never a 200) ──
+check "POST /api/signup (honeypot filled)" 400 "$(code_post /api/signup '{"name":"x","username":"validname","password":"123456","website":"http://spam.example"}')"
+
+# ── Security-sensitive endpoints must reject anonymous requests (403/401, never a 200 or 500) ──
+check "GET /api/admin/security-dashboard" 403 "$(code_get /api/admin/security-dashboard)"
+check "GET /api/admin/audit-log"          403 "$(code_get /api/admin/audit-log)"
+check "GET /api/admin/backup-check"       403 "$(code_get /api/admin/backup-check)"
+check "GET /api/admin/data-requests"      403 "$(code_get /api/admin/data-requests)"
+check "POST /api/admin/breach-notice"     403 "$(code_post /api/admin/breach-notice)"
+check "GET /api/incident-log"             403 "$(code_get /api/incident-log)"
+check "GET /api/my-logins"                401 "$(code_get /api/my-logins)"
+
+# ── Baseline security headers present on every response ──
+HEADERS=$(curl -s -D - -o /dev/null --max-time 15 "$BASE/index.html")
+check "X-Frame-Options header present"      1 "$(echo "$HEADERS" | grep -ic 'X-Frame-Options')"
+check "Content-Security-Policy header present" 1 "$(echo "$HEADERS" | grep -ic 'Content-Security-Policy')"
+check "X-Content-Type-Options header present"  1 "$(echo "$HEADERS" | grep -ic 'X-Content-Type-Options')"
+
 echo ""
 if [ "$FAILS" -gt 0 ]; then
   echo "🔥 $FAILS SMOKE TEST(S) FAILED — the deploy may be broken. Investigate before walking away!"
