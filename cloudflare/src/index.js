@@ -1686,6 +1686,8 @@ function rateLimited(key, max, windowSec) {
 function firstName(u) { return cleanName((u.name || u.username || "").split(" ")[0]) || "A coder"; }
 
 async function apiProjectSave(env, request, data) {
+  const flags = await getSetting(env, "feature_flags", {});
+  if (flags.vibeStudio === false) return json({ error: "Vibe Studio is temporarily unavailable. Please check back soon." }, 503);
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   if (!consentOk(u)) return json({ error: "A parent needs to approve this account first." }, 403);
@@ -1871,6 +1873,8 @@ async function apiReferral(env, request) {
 // stacks on top of any free days they already have, so referring more friends = more free days.
 async function applyReferral(env, newKidId, refCode) {
   if (!refCode) return;
+  const flags = await getSetting(env, "feature_flags", {});
+  if (flags.referrals === false) return;
   const referrer = await env.DB.prepare("SELECT id, referral_count FROM users WHERE referral_code=? AND role='kid'").bind(refCode.trim().toUpperCase()).first();
   if (!referrer || referrer.id === newKidId) return;
   await env.DB.prepare("UPDATE users SET referred_by=? WHERE id=?").bind(referrer.id, newKidId).run();
@@ -2249,6 +2253,8 @@ async function getStat(env, name) {
 }
 
 async function apiStartSession(env, request, data) {
+  const flags = await getSetting(env, "feature_flags", {});
+  if (flags.liveSessions === false) return json({ error: "Live sessions are temporarily unavailable. Please check back soon." }, 503);
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher") return json({ error: "Only a teacher, school, or district can start a session." }, 403);
   const regen = data && data.regen;
@@ -2957,12 +2963,165 @@ async function adminAccounts(env, request) {
   const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const roles = u.role === "super_admin" ? ["kid", "parent", "teacher", "admin", "super_admin"] : ["kid", "parent", "teacher"];
   const ph = roles.map(() => "?").join(",");
-  const rows = (await env.DB.prepare(`SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason,suspend_until FROM users WHERE role IN (${ph}) ORDER BY id`).bind(...roles).all()).results || [];
+  const rows = (await env.DB.prepare(`SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason,suspend_until,admin_notes,trial_ends,plan_renews_at FROM users WHERE role IN (${ph}) ORDER BY id`).bind(...roles).all()).results || [];
   return json({ accounts: rows.map((r) => ({
     id: r.id, name: r.name, username: r.username, role: r.role, plan: r.plan, parentEmail: r.parent_email,
     familyId: r.family_id, joined: (r.created_at || "").slice(0, 10), suspended: suspensionStatus(r)[0],
     suspendReason: r.suspend_reason ?? null, suspendUntil: r.suspend_until ?? null,
+    notes: r.admin_notes || "", trialEnds: r.trial_ends || null, renewsAt: r.plan_renews_at || null,
   })) });
+}
+
+// A quick free-text note super admin can leave on any account ("talked to them 6/1, wants X").
+async function apiSetAdminNotes(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const notes = (data.notes || "").toString().slice(0, 1000);
+  await env.DB.prepare("UPDATE users SET admin_notes=? WHERE id=?").bind(notes, data.userId).run();
+  return json({ ok: true });
+}
+
+// Bulk actions: suspend or message many accounts at once instead of one at a time.
+async function apiBulkSuspend(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const ids = Array.isArray(data.userIds) ? data.userIds.slice(0, 200) : [];
+  const suspend = !!data.suspended, reason = (data.reason || "").toString().slice(0, 300);
+  let done = 0;
+  for (const id of ids) {
+    const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
+    if (!target || target.role === "super_admin") continue;
+    if (suspend) { await env.DB.prepare("UPDATE users SET suspended=1, suspend_reason=? WHERE id=?").bind(reason, id).run(); await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run(); }
+    else await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(id).run();
+    await logConsent(env, target.id, target.username, suspend ? "suspended" : "reinstated", `super admin (${u.username}, bulk action)`, reason);
+    done++;
+  }
+  return json({ ok: true, count: done });
+}
+async function apiBulkMessage(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const ids = Array.isArray(data.userIds) ? data.userIds.slice(0, 200) : [];
+  const msg = (data.message || "").toString().slice(0, 1000);
+  if (!msg) return json({ error: "Write a message." }, 400);
+  let done = 0;
+  for (const id of ids) {
+    await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)").bind(id, "notice", msg, nowIso()).run();
+    done++;
+  }
+  return json({ ok: true, count: done });
+}
+
+// (A sitewide maintenance/announcement banner already exists — see /api/site-message — so we
+// reuse that instead of building a second parallel banner system.)
+
+// Sitewide feature flags — turn a feature off for everyone without a redeploy (e.g. if something
+// is misbehaving mid-pitch and you need to disable it fast).
+const FEATURE_FLAG_KEYS = ["vibeStudio", "liveSessions", "referrals"];
+async function apiSetFeatureFlags(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const cur = await getSetting(env, "feature_flags", {});
+  for (const k of FEATURE_FLAG_KEYS) if (k in data) cur[k] = !!data[k];
+  await setSetting(env, "feature_flags", cur);
+  return json({ ok: true, flags: cur });
+}
+async function apiGetFeatureFlags(env) {
+  const flags = await getSetting(env, "feature_flags", {});
+  return json({ flags: Object.assign({ vibeStudio: true, liveSessions: true, referrals: true }, flags) });
+}
+
+// Health score per school/district: a rough green/yellow/red based on recent activity, so you
+// can spot an account drifting toward churn before they actually cancel.
+async function apiSchoolHealth(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const schools = (await env.DB.prepare("SELECT id,name,username,plan,family_id,created_at FROM users WHERE role='teacher' AND plan IN ('teacher','school','district')").all()).results || [];
+  const since14 = new Date(Date.now() - 14 * 86400000).toISOString();
+  const out = [];
+  for (const s of schools) {
+    const studentCount = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?").bind(s.family_id).first()).c || 0;
+    const activeStudents = studentCount ? (await env.DB.prepare(
+      "SELECT COUNT(DISTINCT p.user_id) c FROM progress p JOIN users u ON u.id=p.user_id WHERE u.family_id=? AND p.completed_at>=?"
+    ).bind(s.family_id, since14).first()).c : 0;
+    const activePct = studentCount ? Math.round((activeStudents / studentCount) * 100) : 0;
+    const health = studentCount === 0 ? "gray" : activePct >= 40 ? "green" : activePct >= 15 ? "yellow" : "red";
+    out.push({ id: s.id, name: s.name, username: s.username, plan: s.plan, studentCount, activeStudents, activePct, health });
+  }
+  out.sort((a, b) => ({ red: 0, yellow: 1, gray: 2, green: 3 }[a.health] - { red: 0, yellow: 1, gray: 2, green: 3 }[b.health]));
+  return json({ schools: out });
+}
+
+// Trials and paid renewals coming up soon, so you can reach out before someone lapses.
+async function apiExpiryQueue(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const in14 = new Date(Date.now() + 14 * 86400000).toISOString();
+  const trials = (await env.DB.prepare("SELECT name,username,parent_email,trial_ends FROM users WHERE role='kid' AND plan='trial' AND trial_ends IS NOT NULL AND trial_ends < ? ORDER BY trial_ends").bind(in14).all()).results || [];
+  const renewals = (await env.DB.prepare("SELECT name,username,parent_email,plan,plan_renews_at FROM users WHERE plan_renews_at IS NOT NULL AND plan_renews_at < ? AND stripe_subscription_id IS NOT NULL ORDER BY plan_renews_at").bind(in14).all()).results || [];
+  return json({
+    trials: trials.map(t => ({ name: t.name, username: t.username, email: t.parent_email, ends: (t.trial_ends || "").slice(0, 10) })),
+    renewals: renewals.map(r => ({ name: r.name, username: r.username, email: r.parent_email, plan: r.plan, renews: (r.plan_renews_at || "").slice(0, 10) })),
+  });
+}
+
+// Lesson-level analytics: which lessons get reported most / failed most, so you know what to fix.
+async function apiLessonAnalytics(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const reportRows = (await env.DB.prepare(
+    "SELECT key, value FROM settings WHERE key LIKE 'lessonreports:%'"
+  ).all()).results || [];
+  const reports = reportRows.map(r => ({ lessonId: r.key.replace("lessonreports:", ""), count: parseInt(r.value, 10) || 0 })).sort((a, b) => b.count - a.count).slice(0, 20);
+  return json({ reports });
+}
+
+// Simple error log viewer — every unhandled API error, queryable instead of piecing together emails.
+async function apiErrorLog(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT id,path,message,created_at FROM error_log ORDER BY id DESC LIMIT 100").all()).results || [];
+  return json({ errors: rows.map(r => ({ id: r.id, path: r.path, message: r.message, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
+}
+
+// One-click export of the core tables as JSON (for your own offsite backup peace of mind —
+// not a substitute for a real database backup/restore process).
+async function apiFullExport(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const tables = ["users", "progress", "unit_tests", "consent_log", "notices", "projects"];
+  const out = {};
+  for (const t of tables) {
+    try { out[t] = (await env.DB.prepare(`SELECT * FROM ${t}`).all()).results || []; } catch { out[t] = []; }
+  }
+  return new Response(JSON.stringify(out, null, 2), {
+    headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="kidvibers-export-${todayStr()}.json"` },
+  });
+}
+
+// Promo codes: a super admin can mint a one-off code (e.g. "ARLINGTON2026") that grants free
+// Pro/Family days on signup or redemption — for outreach to a specific library/school.
+async function apiCreatePromo(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const code = (data.code || "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{4,20}$/.test(code)) return json({ error: "Code must be 4-20 letters/numbers." }, 400);
+  const days = Math.max(1, Math.min(365, parseInt(data.days, 10) || 30));
+  const maxUses = Math.max(1, Math.min(10000, parseInt(data.maxUses, 10) || 100));
+  const codes = await getSetting(env, "promo_codes", {});
+  codes[code] = { days, maxUses, used: 0, createdAt: nowIso(), note: (data.note || "").toString().slice(0, 200) };
+  await setSetting(env, "promo_codes", codes);
+  return json({ ok: true, code });
+}
+async function apiListPromos(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const codes = await getSetting(env, "promo_codes", {});
+  return json({ codes });
+}
+async function apiRedeemPromo(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "Please log in first." }, 401);
+  const code = (data.code || "").toString().trim().toUpperCase();
+  const codes = await getSetting(env, "promo_codes", {});
+  const promo = codes[code];
+  if (!promo) return json({ error: "That code isn't valid." }, 404);
+  if ((promo.used || 0) >= promo.maxUses) return json({ error: "That code has been fully redeemed." }, 400);
+  const until = new Date(Date.now() + promo.days * 86400000).toISOString();
+  await env.DB.prepare("UPDATE users SET promo_pro_until=? WHERE id=?").bind(until, u.id).run();
+  promo.used = (promo.used || 0) + 1;
+  codes[code] = promo;
+  await setSetting(env, "promo_codes", codes);
+  return json({ ok: true, until });
 }
 async function adminStats(env, request) {
   const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
@@ -3916,6 +4075,19 @@ async function handleApi(env, request, path) {
   // admin GETs
   if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
   if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
+  if (path === "/api/admin/notes" && method === "POST") return apiSetAdminNotes(env, request, data);
+  if (path === "/api/admin/bulk-suspend" && method === "POST") return apiBulkSuspend(env, request, data);
+  if (path === "/api/admin/bulk-message" && method === "POST") return apiBulkMessage(env, request, data);
+  if (path === "/api/feature-flags" && method === "GET") return apiGetFeatureFlags(env);
+  if (path === "/api/admin/feature-flags" && method === "POST") return apiSetFeatureFlags(env, request, data);
+  if (path === "/api/admin/school-health" && method === "GET") return apiSchoolHealth(env, request);
+  if (path === "/api/admin/expiry-queue" && method === "GET") return apiExpiryQueue(env, request);
+  if (path === "/api/admin/lesson-analytics" && method === "GET") return apiLessonAnalytics(env, request);
+  if (path === "/api/admin/error-log" && method === "GET") return apiErrorLog(env, request);
+  if (path === "/api/admin/export" && method === "GET") return apiFullExport(env, request);
+  if (path === "/api/admin/promo/create" && method === "POST") return apiCreatePromo(env, request, data);
+  if (path === "/api/admin/promo/list" && method === "GET") return apiListPromos(env, request);
+  if (path === "/api/promo/redeem" && method === "POST") return apiRedeemPromo(env, request, data);
   if (path === "/api/admin/stats" && method === "GET") return adminStats(env, request);
   if (path === "/api/admin/analytics" && method === "GET") return adminAnalytics(env, request);
   if (path === "/api/admin/find-kid" && method === "GET") return adminFindKid(env, request);
@@ -4090,6 +4262,11 @@ async function handleApi(env, request, path) {
     const reason = (data.reason || "").trim().slice(0, 500) || "No reason given";
     await notifyAdmin(env, `🚩 Lesson flagged: ${lessonId}`,
       `🚩 *Lesson content report*\nLesson: ${lessonId}\nFrom: @${u.username} (${u.role})\nReason: ${reason}`);
+    // Keep a persistent count per lesson so reports are queryable later, not just email alerts.
+    const rk = `lessonreports:${lessonId}`;
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(rk).first();
+    const n = (parseInt(row && row.value, 10) || 0) + 1;
+    await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(rk, String(n)).run();
     return json({ ok: true });
   }
 
@@ -4540,6 +4717,9 @@ export default {
           ctx.waitUntil(notifyAdmin(env, `🔥 API error: ${url.pathname}`,
             `🔥 *Unhandled API error*\n• Route: ${request.method} ${url.pathname}\n• Error: ${(e && e.message) || e}\n• Stack: ${((e && e.stack) || "").slice(0, 800)}`).catch(() => {}));
         }
+        // Also keep a queryable log (the email alert throttles at 5/hr, but every error matters for debugging).
+        ctx.waitUntil(env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
+          .bind(`${request.method} ${url.pathname}`, ((e && e.message) || String(e)).slice(0, 500), nowIso()).run().catch(() => {}));
         return json({ error: "Something went wrong. Please try again." }, 500);
       }
     }

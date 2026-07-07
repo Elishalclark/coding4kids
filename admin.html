@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=160" />
+  <link rel="stylesheet" href="styles.css?v=161" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -142,9 +142,9 @@
 
       <!-- Kid search (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="searchPanel" style="display:none;">
-        <h3>🔎 Find a Student <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">search by username or name</span></h3>
+        <h3>🔎 Find Any Account <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">kids, parents, teachers, schools, districts — search by username or name</span></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type a username, e.g. demokid" oninput="searchKids()" />
+          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type any name, username, or school…" oninput="searchKids()" />
         </div>
         <div id="searchResults"></div>
       </div>
@@ -223,6 +223,73 @@
             <div id="breachMsgOut" style="font-size:0.82rem;margin-top:8px;font-weight:700;"></div>
           </div>
         </details>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">📦 Export full data (JSON)</summary>
+          <p style="font-size:0.8rem;color:var(--text-dim);margin:8px 0;">Downloads users, progress, tests, consent log, notices &amp; projects as one JSON file — for your own offsite backup peace of mind. Not a substitute for real backups.</p>
+          <button class="btn btn-outline" onclick="downloadFullExport()">⬇️ Download export</button>
+        </details>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">🐛 Error log <span id="errCount" style="color:var(--text-faint);font-weight:600;"></span></summary>
+          <table class="admin-table" style="margin-top:8px;">
+            <thead><tr><th>When</th><th>Route</th><th>Error</th></tr></thead>
+            <tbody id="errorRows"><tr><td colspan="3" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+          </table>
+        </details>
+      </div>
+
+      <!-- Feature flags (SUPER ADMIN ONLY) — for a sitewide maintenance banner, use the Site Message tool below instead -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🚩 Feature Flags</h3>
+        <div>
+          <div style="font-weight:800;font-size:0.85rem;margin-bottom:8px;">Turn a feature off instantly for everyone, no redeploy needed</div>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="flagVibe" onchange="saveFlags()" /> 🎨 Vibe Studio</label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="flagSessions" onchange="saveFlags()" /> 🎟️ Live Sessions</label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;"><input type="checkbox" id="flagReferrals" onchange="saveFlags()" /> 🎁 Referrals</label>
+          <div id="flagsMsgOut" style="font-size:0.8rem;margin-top:8px;color:var(--text-dim);"></div>
+        </div>
+      </div>
+
+      <!-- School health scores (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🩺 School/District Health <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">engagement over the last 14 days</span></h3>
+        <table class="admin-table">
+          <thead><tr><th>School/District</th><th>Plan</th><th>Students</th><th>Active (14d)</th><th>Status</th></tr></thead>
+          <tbody id="healthRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Expiring trials & renewals (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>⏳ Expiring Soon <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">trials &amp; renewals in the next 14 days</span></h3>
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Date</th><th>Contact</th></tr></thead>
+          <tbody id="expiryRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Lesson content reports (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🚩 Most-Reported Lessons</h3>
+        <table class="admin-table">
+          <thead><tr><th>Lesson ID</th><th>Reports</th></tr></thead>
+          <tbody id="lessonReportRows"><tr><td colspan="2" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Promo codes (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🎟️ Promo Codes <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">for outreach — e.g. a code for a specific library</span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <input id="promoCode" class="le-in" placeholder="CODE (e.g. ARLINGTON2026)" style="width:180px;" />
+          <input id="promoDays" class="le-in" type="number" placeholder="Free days" value="30" style="width:110px;" />
+          <input id="promoMax" class="le-in" type="number" placeholder="Max uses" value="100" style="width:110px;" />
+          <input id="promoNote" class="le-in" placeholder="Note (optional)" style="flex:1;min-width:140px;" />
+          <button class="btn btn-primary" onclick="createPromo()">+ Create</button>
+        </div>
+        <table class="admin-table">
+          <thead><tr><th>Code</th><th>Free days</th><th>Used / Max</th><th>Note</th></tr></thead>
+          <tbody id="promoRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <!-- Data export/deletion request tracker (SUPER ADMIN ONLY) -->
@@ -426,8 +493,14 @@
       <div class="panel">
         <h3>📋 All Registered Accounts <span id="acctCount" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
         <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:14px;">Every name that registers is kept permanently - kids and parents.</p>
+        <div id="bulkBar" class="super-only" style="display:none;margin-bottom:10px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <span id="bulkCount" style="font-size:0.8rem;color:var(--text-faint);font-weight:700;">0 selected</span>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(true)">⏸️ Suspend selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(false)">▶️ Unsuspend selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkMessage()">📨 Message selected</button>
+        </div>
         <table class="admin-table">
-          <thead><tr><th>#</th><th>Name</th><th>Username</th><th>Role</th><th>Plan</th><th>Joined</th><th id="acctActionHead"></th></tr></thead>
+          <thead><tr><th class="super-only" style="display:none;"><input type="checkbox" onchange="toggleAllBulk(this)" /></th><th>#</th><th>Name</th><th>Username</th><th>Role</th><th>Plan</th><th>Joined</th><th id="acctActionHead"></th></tr></thead>
           <tbody id="acctRows"></tbody>
         </table>
       </div>
@@ -580,7 +653,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=160"></script>
+  <script src="auth.js?v=161"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -731,8 +804,9 @@
         const suspTip = a.suspended ? (a.suspendUntil ? ('til ' + a.suspendUntil.slice(0,10)) : 'permanent') : '';
         const suspBadge = a.suspended ? ` <span title="${a.suspendReason ? C4K.esc(a.suspendReason) : ''}" style="font-size:0.66rem;font-weight:900;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:50px;padding:1px 7px;">⏸️ SUSPENDED (${suspTip})</span>` : '';
         return `<tr${a.suspended ? ' style="opacity:.6;"' : ''}>
+           <td class="super-only" style="display:none;"><input type="checkbox" class="bulkCb" data-id="${a.id}" ${a.role === 'super_admin' ? 'disabled' : ''} onchange="updateBulkCount()" /></td>
            <td>${i + 1}</td>
-           <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}</td>
+           <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}${a.notes ? ` <span title="${C4K.esc(a.notes)}" style="cursor:help;">📝</span>` : ''}</td>
            <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span>${(sup && a.role === 'kid' && a.parentEmail) ? `<br><span style="color:var(--text-faint);font-size:0.72rem;">📧 ${C4K.esc(a.parentEmail)}</span>` : ''}</td>
            <td>${roleTag(a.role, a.plan)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
@@ -741,6 +815,7 @@
              <button class="mini-btn" onclick="impersonate(${a.id},'${a.role}')">Log in as</button>
              <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);" onclick="setCreds(${a.id},'${nm}','${a.username}')">🔑 Login</button>
              <button class="mini-btn" onclick="sendNotice(${a.id},'${nm}')">📨 Notice</button>
+             <button class="mini-btn" onclick="editNotes(${a.id},'${nm}','${(a.notes||'').replace(/'/g,"\\'").replace(/</g,'').replace(/>/g,'')}')">📝 Notes</button>
              ${(a.role === 'super_admin') ? '' : (a.suspended
                ? `<button class="mini-btn" style="color:#34d399;border-color:rgba(52,211,153,.4);" onclick="suspendUser(${a.id},'${nm}',false)">▶️ Unsuspend</button>`
                : `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="suspendUser(${a.id},'${nm}',true)">⏸️ Suspend</button>`)}
@@ -766,10 +841,52 @@
         loadEmails();
         loadAnalytics();
         loadConsentGroups();
+        document.getElementById('bulkBar').style.display = 'flex';
+        loadSchoolHealth();
+        loadExpiryQueue();
+        loadLessonReports();
+        loadErrorLog();
+        loadFeatureFlags();
+        loadPromoCodes();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
       }
+    }
+
+    // ── Bulk actions ──
+    function toggleAllBulk(master) {
+      document.querySelectorAll('.bulkCb').forEach(cb => { if (!cb.disabled) cb.checked = master.checked; });
+      updateBulkCount();
+    }
+    function selectedBulkIds() {
+      return Array.from(document.querySelectorAll('.bulkCb:checked')).map(cb => +cb.dataset.id);
+    }
+    function updateBulkCount() {
+      document.getElementById('bulkCount').textContent = selectedBulkIds().length + ' selected';
+    }
+    async function bulkSuspend(suspend) {
+      const ids = selectedBulkIds();
+      if (!ids.length) return alert('Select at least one account first.');
+      const reason = suspend ? (prompt('Reason for suspending these ' + ids.length + ' accounts?') || '') : '';
+      if (suspend === null) return;
+      if (!confirm((suspend ? 'Suspend' : 'Unsuspend') + ' ' + ids.length + ' accounts?')) return;
+      const { ok, data } = await C4K.api('/api/admin/bulk-suspend', 'POST', { userIds: ids, suspended: suspend, reason });
+      if (ok) { alert('✅ Updated ' + data.count + ' accounts.'); loadData(); } else alert(data.error || 'Could not update.');
+    }
+    async function bulkMessage() {
+      const ids = selectedBulkIds();
+      if (!ids.length) return alert('Select at least one account first.');
+      const message = prompt('Message to send to ' + ids.length + ' accounts:');
+      if (!message) return;
+      const { ok, data } = await C4K.api('/api/admin/bulk-message', 'POST', { userIds: ids, message });
+      if (ok) alert('✅ Sent to ' + data.count + ' accounts.'); else alert(data.error || 'Could not send.');
+    }
+    async function editNotes(userId, name, current) {
+      const notes = prompt('Notes for ' + name + ':', current || '');
+      if (notes === null) return;
+      await C4K.api('/api/admin/notes', 'POST', { userId, notes });
+      loadData();
     }
 
     // ── Security dashboard ──
@@ -819,6 +936,112 @@
     }
     async function completeDataRequest(id) { await C4K.api('/api/admin/data-requests', 'POST', { action: 'complete', id }); loadDataRequests(); }
     async function removeDataRequest(id) { await C4K.api('/api/admin/data-requests', 'POST', { action: 'remove', id }); loadDataRequests(); }
+
+    // ── Maintenance banner + feature flags ──
+    async function loadFeatureFlags() {
+      const { ok, data } = await C4K.api('/api/feature-flags');
+      if (!ok) return;
+      document.getElementById('flagVibe').checked = data.flags.vibeStudio !== false;
+      document.getElementById('flagSessions').checked = data.flags.liveSessions !== false;
+      document.getElementById('flagReferrals').checked = data.flags.referrals !== false;
+    }
+    async function saveFlags() {
+      const out = document.getElementById('flagsMsgOut');
+      out.textContent = 'Saving…';
+      const { ok } = await C4K.api('/api/admin/feature-flags', 'POST', {
+        vibeStudio: document.getElementById('flagVibe').checked,
+        liveSessions: document.getElementById('flagSessions').checked,
+        referrals: document.getElementById('flagReferrals').checked,
+      });
+      out.textContent = ok ? '✅ Saved.' : '⚠️ Could not save.';
+    }
+
+    // ── School/district health ──
+    async function loadSchoolHealth() {
+      const { ok, data } = await C4K.api('/api/admin/school-health');
+      const rows = document.getElementById('healthRows');
+      if (!rows) return;
+      const list = (ok && data.schools) || [];
+      const dot = { green: '🟢', yellow: '🟡', red: '🔴', gray: '⚪' };
+      rows.innerHTML = list.length ? list.map(s => `<tr>
+          <td><strong>${C4K.esc(s.name)}</strong> <span style="color:var(--text-faint);">@${C4K.esc(s.username)}</span></td>
+          <td>${C4K.esc(s.plan)}</td>
+          <td>${s.studentCount}</td>
+          <td>${s.activeStudents} (${s.activePct}%)</td>
+          <td>${dot[s.health] || ''} ${s.health}</td>
+        </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No paid school/district accounts yet.</td></tr>';
+    }
+
+    // ── Expiring trials & renewals ──
+    async function loadExpiryQueue() {
+      const { ok, data } = await C4K.api('/api/admin/expiry-queue');
+      const rows = document.getElementById('expiryRows');
+      if (!rows) return;
+      if (!ok) { rows.innerHTML = '<tr><td colspan="4" style="color:var(--text-faint);">Could not load.</td></tr>'; return; }
+      const items = [
+        ...(data.trials || []).map(t => ({ name: t.name, type: 'Trial', date: t.ends, contact: t.email })),
+        ...(data.renewals || []).map(r => ({ name: r.name, type: 'Renewal (' + r.plan + ')', date: r.renews, contact: r.email })),
+      ].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      rows.innerHTML = items.length ? items.map(i => `<tr>
+          <td>${C4K.esc(i.name)}</td><td>${C4K.esc(i.type)}</td><td>${C4K.esc(i.date)}</td><td>${C4K.esc(i.contact || '—')}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">Nothing expiring in the next 14 days.</td></tr>';
+    }
+
+    // ── Lesson content reports ──
+    async function loadLessonReports() {
+      const { ok, data } = await C4K.api('/api/admin/lesson-analytics');
+      const rows = document.getElementById('lessonReportRows');
+      if (!rows) return;
+      const list = (ok && data.reports) || [];
+      rows.innerHTML = list.length ? list.map(r => `<tr><td>${C4K.esc(r.lessonId)}</td><td>${r.count}</td></tr>`).join('')
+        : '<tr><td colspan="2" style="color:var(--text-faint);">No lessons reported. 🎉</td></tr>';
+    }
+
+    // ── Error log ──
+    async function loadErrorLog() {
+      const { ok, data } = await C4K.api('/api/admin/error-log');
+      const rows = document.getElementById('errorRows');
+      if (!rows) return;
+      const list = (ok && data.errors) || [];
+      document.getElementById('errCount').textContent = list.length ? `(${list.length} recent)` : '';
+      rows.innerHTML = list.length ? list.map(e => `<tr>
+          <td style="white-space:nowrap;color:var(--text-faint);font-size:0.78rem;">${C4K.esc(e.at)}</td>
+          <td style="font-size:0.8rem;">${C4K.esc(e.path)}</td>
+          <td style="font-size:0.8rem;color:#f87171;">${C4K.esc(e.message)}</td>
+        </tr>`).join('') : '<tr><td colspan="3" style="color:var(--text-faint);">No errors logged. 🎉</td></tr>';
+    }
+
+    // ── Full data export ──
+    async function downloadFullExport() {
+      const res = await fetch('/api/admin/export', { headers: { Authorization: 'Bearer ' + C4K.token() } });
+      if (!res.ok) return alert('Could not export — try again.');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-export.json'; a.click();
+    }
+
+    // ── Promo codes ──
+    async function loadPromoCodes() {
+      const { ok, data } = await C4K.api('/api/admin/promo/list');
+      const rows = document.getElementById('promoRows');
+      if (!rows) return;
+      const codes = (ok && data.codes) || {};
+      const entries = Object.entries(codes);
+      rows.innerHTML = entries.length ? entries.map(([code, p]) => `<tr>
+          <td><strong>${C4K.esc(code)}</strong></td><td>${p.days}</td><td>${p.used || 0} / ${p.maxUses}</td><td style="color:var(--text-dim);">${C4K.esc(p.note || '')}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">No promo codes yet.</td></tr>';
+    }
+    async function createPromo() {
+      const code = document.getElementById('promoCode').value.trim();
+      const days = document.getElementById('promoDays').value;
+      const maxUses = document.getElementById('promoMax').value;
+      const note = document.getElementById('promoNote').value.trim();
+      if (!code) return alert('Enter a code.');
+      const { ok, data } = await C4K.api('/api/admin/promo/create', 'POST', { code, days, maxUses, note });
+      if (ok) { document.getElementById('promoCode').value = ''; document.getElementById('promoNote').value = ''; loadPromoCodes(); }
+      else alert(data.error || 'Could not create code.');
+    }
+
     async function sendBreachNotice() {
       const message = document.getElementById('breachMsg').value.trim();
       const confirmText = document.getElementById('breachConfirm').value;
@@ -1499,7 +1722,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=160" defer></script>
-  <script src="editor.js?v=160" defer></script>
+  <script src="pwa.js?v=161" defer></script>
+  <script src="editor.js?v=161" defer></script>
 </body>
 </html>
