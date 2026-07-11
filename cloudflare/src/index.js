@@ -4958,11 +4958,16 @@ export default {
     const assetRes = await env.ASSETS.fetch(request);
     const out = new Response(assetRes.body, assetRes);
     for (const k in SECURITY_HEADERS) out.headers.set(k, SECURITY_HEADERS[k]);
-    // Never let the browser cache HTML pages, so a normal refresh always loads the
-    // latest version (no private tab / hard-refresh needed). Versioned CSS/JS (?v=NN)
-    // keep their own caching since their URL changes whenever they change.
+    // Never let the browser OR Cloudflare's own edge cache HTML pages, so a normal refresh
+    // always loads the latest version (no private tab / hard-refresh needed) and a stale edge
+    // cache can never serve outdated security headers again. Cache-Control governs the browser;
+    // Cloudflare-CDN-Cache-Control is the header Cloudflare's edge specifically checks for its
+    // own caching decision — setting both closes the gap that let a stale cached response with
+    // old headers get served for a while after a deploy. Versioned CSS/JS (?v=NN) keep their
+    // own caching since their URL changes whenever they change.
     if ((out.headers.get("content-type") || "").includes("text/html")) {
       out.headers.set("Cache-Control", "no-store, must-revalidate");
+      out.headers.set("Cloudflare-CDN-Cache-Control", "no-store");
     }
     return out;
   },
