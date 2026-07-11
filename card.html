@@ -160,9 +160,9 @@
         <h1>💻 Coding Session Today!</h1>
         <div class="ssub">Join in 10 seconds — no sign-up, no password.</div>
         <div class="steps">
-          <div class="step"><div class="sn">1</div><p>Go to <b>kidvibers.com</b></p></div>
-          <div class="step"><div class="sn">2</div><p>Tap <b>“🎟️ Join a Session”</b></p></div>
-          <div class="step"><div class="sn">3</div><p>Enter the code below &amp; pick a name</p></div>
+          <div class="step"><div class="sn">1</div><p>Go to <b>kidvibers.com/live</b></p></div>
+          <div class="step"><div class="sn">2</div><p>Enter the code below</p></div>
+          <div class="step"><div class="sn">3</div><p>Pick a name</p></div>
           <div class="step"><div class="sn">4</div><p>Start coding! 🚀</p></div>
         </div>
         <div class="codebox">
@@ -170,10 +170,10 @@
           <input class="code" id="flyerCode" maxlength="6" placeholder="------" oninput="updateCode(this.value)" autocomplete="off" spellcheck="false" />
         </div>
         <div class="qr sqr" style="display:inline-block;">
-          <img id="sessionQr" src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=https://kidvibers.com" alt="Scan to join" />
+          <img id="sessionQr" src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=https://kidvibers.com/live" alt="Scan to join" />
           <div class="scan" style="font-size:0.85rem;">📷 OR SCAN TO JOIN</div>
         </div>
-        <div class="surl">kidvibers.com</div>
+        <div class="surl">kidvibers.com/live</div>
       </div>
     </div>
   </div>
@@ -272,12 +272,12 @@
       const flyer = document.getElementById('flyerCode'), bar = document.getElementById('codeInput');
       if (flyer.value.toUpperCase() !== code) flyer.value = code;
       if (bar.value.toUpperCase() !== code) bar.value = code;
-      const url = 'https://kidvibers.com/' + (code ? ('?join=' + encodeURIComponent(code)) : '');
+      const url = 'https://kidvibers.com/live' + (code ? ('?code=' + encodeURIComponent(code)) : '');
       document.getElementById('sessionQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=440x440&color=000000&bgcolor=ffffff&data=' + encodeURIComponent(url);
     }
     // Pre-fill the session code from ?code=ABC123 if provided (e.g. a link from the dashboard).
     (() => { const c = new URLSearchParams(location.search).get('code'); if (c) { updateCode(c); show('session'); } })();
   </script>
-  <script src="pwa.js?v=172" defer></script>
+  <script src="pwa.js?v=173" defer></script>
 </body>
 </html>

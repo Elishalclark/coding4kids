@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join a Session - KidVibers</title>
+  <meta name="description" content="Join a live KidVibers coding session — enter your code and a nickname, no sign-up needed." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: 'Nunito', system-ui, sans-serif;
+      background: linear-gradient(160deg, #0f3d2e, #15803d 55%, #16a34a);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      max-width: 420px; width: 100%; background: rgba(0,0,0,0.18); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.25); border-radius: 24px; padding: 34px 28px; color: #fff;
+    }
+    .logo { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 900; font-size: 1.3rem; margin-bottom: 6px; }
+    .ticket { font-size: 2.2rem; text-align: center; }
+    h1 { font-size: 1.5rem; font-weight: 900; text-align: center; margin: 6px 0; }
+    p.sub { color: #dcfce7; font-size: 0.92rem; text-align: center; margin-bottom: 22px; line-height: 1.5; }
+    label { font-size: 0.72rem; font-weight: 900; color: #dcfce7; text-transform: uppercase; letter-spacing: 0.06em; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 14px 16px; border-radius: 14px; border: none;
+      font-family: inherit; font-weight: 900; margin: 6px 0 16px; color: #15803d; outline: none;
+    }
+    #code { font-size: 1.5rem; text-align: center; letter-spacing: 7px; text-transform: uppercase; }
+    #name { font-size: 1.05rem; }
+    #website { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    button#go {
+      width: 100%; padding: 16px; border: none; border-radius: 14px; background: #fff; color: #15803d;
+      font-weight: 900; font-size: 1.1rem; cursor: pointer; font-family: inherit;
+    }
+    button#go:disabled { opacity: 0.6; cursor: default; }
+    #err { color: #fecaca; font-weight: 800; font-size: 0.85rem; min-height: 20px; text-align: center; margin-top: 10px; }
+    .monitored { font-size: 0.74rem; color: #dcfce7; text-align: center; margin-top: 4px; opacity: 0.9; }
+    .home-link { display: block; text-align: center; margin-top: 18px; color: #dcfce7; font-size: 0.82rem; font-weight: 700; text-decoration: none; }
+    .home-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">🚀 Kid<strong>Vibers</strong></div>
+    <div class="ticket">🎟️</div>
+    <h1>Join a Session</h1>
+    <p class="sub">Enter the code your teacher or librarian gave you, then pick a name. No sign-up needed!</p>
+
+    <form id="joinForm" onsubmit="return false;">
+      <label for="code">Session code</label>
+      <input id="code" maxlength="6" placeholder="ABC123" autocomplete="off" autocapitalize="characters" />
+
+      <label for="name">Your name</label>
+      <input id="name" maxlength="20" placeholder="e.g. CoderSam" autocomplete="off" />
+
+      <input id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+      <button id="go" type="submit" onclick="doJoin()">Let's code! 🚀</button>
+      <div id="err"></div>
+      <p class="monitored">🛡️ This session is monitored for safety by the adult running it.</p>
+    </form>
+
+    <a class="home-link" href="index.html">← Back to kidvibers.com</a>
+  </div>
+
+  <script src="auth.js?v=173"></script>
+  <script>
+    async function doJoin() {
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      const name = document.getElementById('name').value.trim();
+      const website = document.getElementById('website').value;
+      const err = document.getElementById('err'), go = document.getElementById('go');
+      if (!code || !name) { err.textContent = 'Enter the code and a name.'; return; }
+      go.disabled = true; go.textContent = 'Joining…'; err.textContent = '';
+      try {
+        const r = await fetch('/api/session/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name, website }) });
+        const data = await r.json();
+        if (r.ok && data.token) { C4K.setToken(data.token); location.href = 'dashboard.html'; }
+        else { err.textContent = data.error || 'Could not join.'; go.disabled = false; go.textContent = "Let's code! 🚀"; }
+      } catch (e) { err.textContent = 'Network error — try again.'; go.disabled = false; go.textContent = "Let's code! 🚀"; }
+    }
+    // Deep link support: kidvibers.com/live?code=ABC123 pre-fills the code.
+    (() => {
+      const c = new URLSearchParams(location.search).get('code') || new URLSearchParams(location.search).get('join');
+      if (c) { document.getElementById('code').value = c.toUpperCase(); document.getElementById('name').focus(); }
+      else document.getElementById('code').focus();
+    })();
+  </script>
+</body>
+</html>
