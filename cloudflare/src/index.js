@@ -533,6 +533,7 @@ function mockUserForRole(role) {
   if (role === "teacher")  return { ...base, role: "teacher", plan: "teacher", name: "Preview Teacher", username: "preview_teacher", age_band: "", age_years: null, parent_email: "", district_id: null };
   if (role === "school")   return { ...base, role: "teacher", plan: "school",  name: "Preview School Admin", username: "preview_school", age_band: "", age_years: null, parent_email: "", district_id: null };
   if (role === "district") return { ...base, role: "teacher", plan: "district", name: "Preview District Admin", username: "preview_district", age_band: "", age_years: null, parent_email: "", district_id: null };
+  if (role === "admin")    return { ...base, role: "admin", plan: "pro", name: "Preview Admin", username: "preview_admin", age_band: "", age_years: null, parent_email: "" };
   return base;
 }
 const SESSION_MAX_DAYS = 90;   // tokens older than this stop working (kid just logs in again)
@@ -3574,7 +3575,7 @@ async function adminResolveRequest(env, request, data) {
 // Creates a short-lived (2hr) preview session with synthetic user data.
 async function apiAdminPreview(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
-  const VALID_ROLES = ["kid", "parent", "teacher", "school", "district"];
+  const VALID_ROLES = ["kid", "parent", "teacher", "school", "district", "admin"];
   const role = (data.role || "").trim().toLowerCase();
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role. Choose: " + VALID_ROLES.join(", ") }, 400);
   // Clean up expired previews for tidiness.
@@ -3582,7 +3583,7 @@ async function apiAdminPreview(env, request, data) {
   const token = randToken(32);
   const expiresAt = new Date(Date.now() + 2 * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   await env.DB.prepare("INSERT INTO preview_sessions (token, role, expires_at) VALUES (?,?,?)").bind(token, role, expiresAt).run();
-  const redirects = { kid: "dashboard.html", parent: "parent.html", teacher: "parent.html", school: "district.html", district: "district.html" };
+  const redirects = { kid: "dashboard.html", parent: "parent.html", teacher: "parent.html", school: "district.html", district: "district.html", admin: "admin.html" };
   return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt });
 }
 

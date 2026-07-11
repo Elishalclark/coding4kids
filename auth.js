@@ -443,7 +443,7 @@ const C4K = {
   function mount() {
     if (document.getElementById('c4kPreviewBar')) return true;
     if (!C4K.user || !C4K.user.isPreview) return false;
-    const labels = { kid: '👦 Kid dashboard', parent: '👨‍👩‍👧 Parent dashboard', teacher: '🍎 Teacher dashboard', school: '🏫 School dashboard', district: '🏛️ District dashboard' };
+    const labels = { kid: '👦 Kid dashboard', parent: '👨‍👩‍👧 Parent dashboard', teacher: '🍎 Teacher dashboard', school: '🏫 School dashboard', district: '🏛️ District dashboard', admin: '🛠️ Admin panel (non-super)' };
     const label = labels[C4K.user.previewRole] || '👁️ Preview';
     const bar = document.createElement('div');
     bar.id = 'c4kPreviewBar';

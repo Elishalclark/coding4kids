@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=169" />
+  <link rel="stylesheet" href="styles.css?v=170" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -407,6 +407,7 @@
           <button class="btn btn-outline" onclick="previewRole('teacher')" style="font-size:0.88rem;">🍎 Teacher dashboard</button>
           <button class="btn btn-outline" onclick="previewRole('school')" style="font-size:0.88rem;">🏫 School dashboard</button>
           <button class="btn btn-outline" onclick="previewRole('district')" style="font-size:0.88rem;">🏛️ District dashboard</button>
+          <button class="btn btn-outline" onclick="previewRole('admin')" style="font-size:0.88rem;">🛠️ Admin panel (non-super)</button>
         </div>
         <div id="previewMsg" style="font-size:0.82rem;font-weight:700;margin-top:10px;min-height:1em;"></div>
       </div>
@@ -706,7 +707,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=169"></script>
+  <script src="auth.js?v=170"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1916,7 +1917,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=169" defer></script>
-  <script src="editor.js?v=169" defer></script>
+  <script src="pwa.js?v=170" defer></script>
+  <script src="editor.js?v=170" defer></script>
 </body>
 </html>
