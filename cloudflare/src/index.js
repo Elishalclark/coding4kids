@@ -1326,7 +1326,8 @@ async function apiAdminAuditLog(env, request) {
 // have proof they actually acknowledged it (not just that the page exists).
 async function apiAcceptDPA(env, request) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "Only a school/district account can accept the DPA." }, 403);
+  if (!u) return json({ error: "Please log in first." }, 401);
+  if (u.role !== "teacher") return json({ error: "Only a school/district account can accept the DPA." }, 403);
   await logConsent(env, u.id, u.username, "dpa_accepted", `${u.name} (@${u.username})`, "Accepted the Data Privacy Agreement");
   return json({ ok: true });
 }
