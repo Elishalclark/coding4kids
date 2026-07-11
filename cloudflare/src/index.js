@@ -3067,7 +3067,7 @@ async function apiBulkSuspend(env, request, data) {
   let done = 0;
   for (const id of ids) {
     const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
-    if (!target || target.role === "super_admin") continue;
+    if (!target || target.role === "super_admin" || target.username === DEMO_USERNAME) continue;
     if (suspend) { await env.DB.prepare("UPDATE users SET suspended=1, suspend_reason=? WHERE id=?").bind(reason, id).run(); await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run(); }
     else await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(id).run();
     await logConsent(env, target.id, target.username, suspend ? "suspended" : "reinstated", `super admin (${u.username}, bulk action)`, reason);
@@ -3411,12 +3411,17 @@ async function adminNotice(env, request, data) {
   await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)").bind(target.id, data.kind || "notice", msg, nowIso()).run();
   return json({ ok: true });
 }
+// Protects the seeded pitch-demo account ("demo") from ever being suspended/deleted/bulk-acted
+// on by mistake — it's kept intentionally populated (lessons, boss wins, tokens) for live demos.
+const DEMO_USERNAME = "demo";
+
 async function adminDeleteUser(env, request, data) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const reason = (data.reason || "").trim();
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
   if (!target) return json({ error: "User not found." }, 404);
   if (target.role === "super_admin") return json({ error: "The super-admin account can't be deleted." }, 403);
+  if (target.username === DEMO_USERNAME) return json({ error: "The pitch demo account is protected and can't be deleted." }, 403);
   if (target.parent_email) {
     const body = `Notice: the KidVibers account '${target.name}' (@${target.username}) has been deleted by an administrator.` + (reason ? ` Reason: ${reason}` : "");
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)").bind(target.parent_email, "account_deleted", body, target.id, nowIso()).run();
@@ -3431,6 +3436,7 @@ async function adminSuspend(env, request, data) {
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
   if (!target) return json({ error: "User not found." }, 404);
   if (target.role === "super_admin") return json({ error: "The super-admin account can't be suspended." }, 403);
+  if (target.username === DEMO_USERNAME) return json({ error: "The pitch demo account is protected and can't be suspended." }, 403);
   const suspend = !!data.suspended, reason = (data.reason || "").trim();
   let until = null;
   if (suspend) {
@@ -3454,6 +3460,7 @@ async function adminSetCredentials(env, request, data) {
   }
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
   if (!target) return json({ error: "Account not found." }, 404);
+  if (target.username === DEMO_USERNAME) return json({ error: "The pitch demo account's login is protected — changing it would break the one-click demo." }, 403);
   const newUser = (data.username || "").trim(), newPass = data.password || "";
   if (!newUser && !newPass) return json({ error: "Enter a new username and/or password." }, 400);
   const changed = [];
@@ -4282,6 +4289,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/data-requests" && (method === "GET" || method === "POST")) return apiDataRequests(env, request, data, method);
   if (path === "/api/admin/security-dashboard" && method === "GET") return apiSecurityDashboard(env, request);
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
+  if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
   if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
@@ -4712,11 +4720,44 @@ async function runDailySafetyDigest(env) {
   await notifyAdmin(env, "🌙 Daily safety digest", `🌙 *Daily safety summary*\n• New safety alerts today: ${newIncidents}\n• Still open (unresolved): ${openIncidents}\n\nCheck the admin panel's Audit Log or any account's Incident Log for details.`);
 }
 
+// Weekly executive summary — a read-only report, never an automated action. Growth, revenue,
+// and safety in one email every Monday, so you don't have to open the admin panel to know
+// whether the week was healthy or something needs attention.
+async function runWeeklyExecSummary(env) {
+  const c = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).c;
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const newKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid' AND created_at>=?", since7);
+  const totalKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid'");
+  const active7 = await c("SELECT COUNT(DISTINCT user_id) c FROM progress WHERE completed_at>=?", since7);
+  const PRICE = { pro: 9, family: 15, teacher: 24, school: 105, district: 125 };
+  const subRows = (await env.DB.prepare("SELECT plan, COUNT(*) c FROM users WHERE stripe_subscription_id IS NOT NULL GROUP BY plan").all()).results || [];
+  let mrr = 0; subRows.forEach(r => { mrr += (PRICE[r.plan] || 0) * r.c; });
+  const newIncidents7 = await c("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND created_at>=?", since7);
+  const openIncidents = await c("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND resolved=0");
+  const sessions7 = await c("SELECT COUNT(*) c FROM consent_log WHERE method='dpa_accepted' AND created_at>=?", since7);
+  await notifyAdmin(env, "📊 Weekly executive summary", [
+    "📊 *Your week at KidVibers*",
+    `• New kids: ${newKids} (${totalKids} total)`,
+    `• Active this week: ${active7}`,
+    `• Estimated MRR: $${mrr}`,
+    `• New safety alerts: ${newIncidents7} · still open: ${openIncidents}`,
+    `• New DPA acceptances: ${sessions7}`,
+    "",
+    "Full detail: admin panel → Analytics / Security Dashboard.",
+  ].join("\n"));
+}
+
+async function apiRunExecSummaryNow(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await runWeeklyExecSummary(env);
+  return json({ ok: true });
+}
+
 export default {
   async scheduled(event, env, ctx) {
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
-    if (now.getUTCDay() === 1) ctx.waitUntil(runWeeklyDigest(env));
+    if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); }
     ctx.waitUntil(runReengagement(env));
     ctx.waitUntil(runSafetyEscalation(env));
     ctx.waitUntil(runStaleSessionLock(env));
