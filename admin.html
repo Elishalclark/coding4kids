@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=168" />
+  <link rel="stylesheet" href="styles.css?v=169" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -110,8 +110,17 @@
     <div class="admin-bar">
       <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
       <span style="font-weight:800;color:var(--text-dim);" id="panelLabel">/ Admin Panel</span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:800;color:var(--text-dim);cursor:pointer;margin-left:auto;margin-right:12px;" title="Browse the whole panel safely — every button still works, but nothing actually gets saved, suspended, deleted, or sent.">
+        <input type="checkbox" id="previewToggle" onchange="toggleAdminPreview(this)" />
+        🔍 Preview Mode
+      </label>
       <span class="who">👤 Logged in as <strong id="whoName">owner</strong></span>
       <button class="btn btn-outline" onclick="doLogout()">Log Out</button>
+    </div>
+
+    <div id="previewBanner" style="display:none;align-items:center;gap:10px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;font-weight:800;font-size:0.88rem;padding:10px 20px;">
+      🔍 <strong>Preview Mode is ON</strong> — click anything you want. Nothing will actually be suspended, deleted, changed, or sent.
+      <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
     </div>
 
     <div class="admin-main">
@@ -697,8 +706,49 @@
     </div>
   </div>
 
-  <script src="auth.js?v=168"></script>
+  <script src="auth.js?v=169"></script>
   <script>
+    // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
+    // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
+    // intercepted and answered with a fake "would have worked" response instead of actually
+    // hitting the server — GET calls (loading data) still go through normally, so every panel
+    // still shows real data, you just can't accidentally suspend/delete/change anything.
+    let _adminPreviewMode = localStorage.getItem('c4k_admin_preview') === '1';
+    const _realC4KApi = C4K.api.bind(C4K);
+    // Never intercept these, even in Preview Mode: login/logout/2FA (breaking login would lock
+    // you out entirely, including if preview mode was left on from a previous session), and
+    // role-preview/impersonate (those are themselves safe, non-mutating "view as" tools).
+    const _PREVIEW_BYPASS = ['/api/admin/login', '/api/login', '/api/logout', '/api/login/2fa',
+      '/api/admin/preview', '/api/admin/impersonate'];
+    C4K.api = async function (path, method, body) {
+      const isMutating = method && method.toUpperCase() !== 'GET';
+      const bypassed = _PREVIEW_BYPASS.some(p => path === p || path.startsWith(p + '?'));
+      if (_adminPreviewMode && isMutating && !bypassed) {
+        console.log('[Admin Preview Mode] blocked:', method, path, body);
+        showPreviewToast(method + ' ' + path);
+        return { ok: true, status: 200, data: { ok: true, preview: true, count: 0, changed: [], sent: 0 } };
+      }
+      return _realC4KApi(path, method, body);
+    };
+    function showPreviewToast(action) {
+      let t = document.getElementById('previewToast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'previewToast';
+        t.style.cssText = 'position:fixed;bottom:70px;right:20px;z-index:99999;background:#0f766e;color:#fff;font-family:inherit;font-weight:800;font-size:0.85rem;padding:10px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:320px;';
+        document.body.appendChild(t);
+      }
+      t.textContent = '🔍 Preview Mode: blocked "' + action + '" — nothing was changed.';
+      t.style.display = 'block';
+      clearTimeout(t._hideTimer);
+      t._hideTimer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+    function toggleAdminPreview(cb) {
+      _adminPreviewMode = cb.checked;
+      localStorage.setItem('c4k_admin_preview', _adminPreviewMode ? '1' : '0');
+      document.getElementById('previewBanner').style.display = _adminPreviewMode ? 'flex' : 'none';
+    }
+
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
 
@@ -708,6 +758,8 @@
       if (C4K.user && C4K.user.username) document.getElementById('whoName').textContent = C4K.user.username;
       const isSuper = C4K.user && C4K.user.role === 'super_admin';
       document.getElementById('panelLabel').textContent = isSuper ? '/ Super Admin Panel 👑' : '/ Admin Panel 🛠️';
+      document.getElementById('previewToggle').checked = _adminPreviewMode;
+      document.getElementById('previewBanner').style.display = _adminPreviewMode ? 'flex' : 'none';
       await loadData();
     }
 
@@ -1864,7 +1916,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=168" defer></script>
-  <script src="editor.js?v=168" defer></script>
+  <script src="pwa.js?v=169" defer></script>
+  <script src="editor.js?v=169" defer></script>
 </body>
 </html>
