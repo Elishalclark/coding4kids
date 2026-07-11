@@ -255,7 +255,9 @@ const SECURITY_HEADERS = {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...SECURITY_HEADERS },
+    // no-store on every API response: much of what this app returns is personal (progress,
+    // email, family data) and none of it should ever be cached by a browser, proxy, or CDN.
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS },
   });
 }
 
@@ -2328,6 +2330,34 @@ async function apiSessionFeed(env, request) {
   return json({ feed: rows.map(r => ({ name: r.author_name, title: r.title, at: (r.updated_at || "").slice(11, 16) })) });
 }
 
+// Live roster of guests currently in the active session, so the host can see who's in the
+// room and — if needed — remove a single disruptive kid without ending the whole session.
+async function apiSessionRoster(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const active = await getSetting(env, `activesession:${u.id}`, null);
+  if (!active || !active.code) return json({ roster: [] });
+  const info = await getSetting(env, `session:${active.code}`, null);
+  if (!info) return json({ roster: [] });
+  const kids = (await env.DB.prepare("SELECT id,name,username,created_at FROM users WHERE role='kid' AND family_id=? AND consent_method='library_session' ORDER BY id DESC LIMIT 100").bind(info.familyId).all()).results || [];
+  return json({ roster: kids.map(k => ({ id: k.id, name: k.name, username: k.username, joinedAt: (k.created_at || "").slice(11, 16) })) });
+}
+// Remove ONE guest from the live session (their account is deleted, same as a normal removal) —
+// a lighter touch than locking or ending the whole session over one disruptive kid.
+async function apiKickGuest(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  const active = await getSetting(env, `activesession:${u.id}`, null);
+  if (!active || !active.code) return json({ error: "No active session." }, 400);
+  const info = await getSetting(env, `session:${active.code}`, null);
+  if (!info) return json({ error: "No active session." }, 400);
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=? AND consent_method='library_session'").bind(data.kidId, info.familyId).first();
+  if (!kid) return json({ error: "That guest isn't in your active session." }, 404);
+  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM notices WHERE user_id=?", "DELETE FROM settings WHERE key=?", "DELETE FROM users WHERE id=?"])
+    await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${kid.id}` : kid.id).run();
+  return json({ ok: true, name: kid.name });
+}
+
 async function apiEndSession(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
@@ -2702,6 +2732,15 @@ async function apiBulkStudents(env, request, data) {
   if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can do this." }, 403);
   const action = (data.action || "").trim();
   if (!["suspend", "unsuspend", "signout", "delete"].includes(action)) return json({ error: "Unknown action." }, 400);
+  // Step-up auth specifically for bulk delete — this can permanently erase up to 500 students'
+  // accounts and progress in one click, so it gets the same "re-enter your password" protection
+  // as a single-kid delete, and then some (this is the highest-blast-radius action in the app).
+  if (action === "delete") {
+    const confirmPass = (data.myPassword || "").toString();
+    if (!confirmPass || !(await verifyPassword(confirmPass, u.salt, u.password_hash))) {
+      return json({ error: "Re-enter your password to confirm this permanent bulk deletion." }, 401);
+    }
+  }
   const ids = Array.isArray(data.kidIds) ? data.kidIds.slice(0, 500) : [];
   if (!ids.length) return json({ error: "No students selected." }, 400);
   const reason = (data.reason || "").toString().trim().slice(0, 200);
@@ -2728,6 +2767,12 @@ async function apiBulkStudents(env, request, data) {
 async function apiParentDeleteKid(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !GUARDIAN_ROLES.includes(u.role) || u.family_id == null) return json({ error: "Only a parent or teacher can do this." }, 403);
+  // Step-up auth: this is permanent and irreversible, so re-confirm the guardian's own password
+  // even though they're already logged in — the same protection admin credential changes get.
+  const confirmPass = (data.myPassword || "").toString();
+  if (!confirmPass || !(await verifyPassword(confirmPass, u.salt, u.password_hash))) {
+    return json({ error: "Re-enter your password to confirm this permanent deletion." }, 401);
+  }
   const kid = await managedKid(env, u, data.kidId);
   if (!kid) return json({ error: "That kid isn't in your family." }, 403);
   for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?",
@@ -3264,7 +3309,10 @@ async function adminAnalytics(env, request) {
 
 // Super-admin search: look up a kid by username (partial) and return full info.
 async function adminFindKid(env, request) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  // Sanity cap, not a real security boundary (this is already super_admin-only) — just stops a
+  // runaway script or a stuck browser tab from hammering the DB with search queries.
+  if (await rateLimited(env, `findkid:${u.id}`, 120, 60)) return json({ error: "Searching too fast — slow down a moment." }, 429);
   const q = (new URL(request.url).searchParams.get("q") || "").trim();
   if (!q) return json({ kids: [] });
   const rows = (await env.DB.prepare(
@@ -4226,6 +4274,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/my-logins" && method === "GET") return apiMyLogins(env, request);
   if (path === "/api/my-logins/revoke" && method === "POST") return apiRevokeSession(env, request, data);
   if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
+  if (path === "/api/session/roster" && method === "GET") return apiSessionRoster(env, request);
+  if (path === "/api/session/kick" && method === "POST") return apiKickGuest(env, request, data);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
   if (path === "/api/dpa/accept" && method === "POST") return apiAcceptDPA(env, request);
   if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);

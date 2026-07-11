@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=165" />
+  <link rel="stylesheet" href="styles.css?v=166" />
   <style>
     .dd { max-width: 1000px; margin: 0 auto; padding: 24px 18px 90px; }
     .dd-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
@@ -114,6 +114,10 @@
         <div style="margin-top:14px;text-align:left;">
           <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
           <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
+        </div>
+        <div style="margin-top:14px;text-align:left;">
+          <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🙋 Who's in the room</div>
+          <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
         </div>
       </div>
     </div>
@@ -368,7 +372,7 @@
     <a href="index.html" class="btn btn-primary" id="gateBtn">Go home</a>
   </div>
 
-  <script src="auth.js?v=165"></script>
+  <script src="auth.js?v=166"></script>
   <script>
     let ME = null;
 
@@ -529,9 +533,22 @@
         if (ok && data.feed && data.feed.length) {
           el.innerHTML = data.feed.map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">🎨 <strong>${C4K.esc(f.name||'?')}</strong> saved "${C4K.esc(f.title||'Untitled')}" · ${f.at}</div>`).join('');
         } else if (ok) { el.textContent = "Nobody's saved anything yet."; }
+        const rEl = document.getElementById('sessRoster');
+        const { ok: rOk, data: rData } = await C4K.api('/api/session/roster');
+        if (rEl && rOk && rData.roster && rData.roster.length) {
+          rEl.innerHTML = rData.roster.map(k => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">
+              <span style="flex:1;">🙋 <strong>${C4K.esc(k.name||'?')}</strong> · joined ${k.joinedAt}</span>
+              <button onclick="kickGuest(${k.id},'${C4K.esc(k.name).replace(/'/g,"\\'")}')" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);color:#fff;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:800;cursor:pointer;font-family:inherit;">Remove</button>
+            </div>`).join('');
+        } else if (rEl && rOk) { rEl.textContent = "No one's joined yet."; }
       };
       load();
       _sessFeedTimer = setInterval(load, 15000);
+    }
+    async function kickGuest(kidId, name) {
+      if (!confirm('Remove ' + name + ' from this session? They\'ll be signed out immediately.')) return;
+      const { ok, data } = await C4K.api('/api/session/kick', 'POST', { kidId });
+      if (!ok) alert('⚠️ ' + (data.error || 'Could not remove.'));
     }
     function showSessionRecap(r) {
       const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
@@ -814,7 +831,12 @@
       let reason = '';
       if (action === 'suspend') { reason = prompt('Reason for suspending ' + ids.length + ' student(s)? (optional)') || ''; }
       if (!confirm(verb + ' ' + ids.length + ' student' + (ids.length===1?'':'s') + '?' + (action==='delete'?'\n\nThis erases their accounts and data and cannot be undone.':''))) return;
-      const { ok, data } = await C4K.api('/api/teacher/bulk', 'POST', { action, kidIds: ids, reason });
+      let myPassword;
+      if (action === 'delete') {
+        myPassword = prompt('This is permanent for ' + ids.length + ' student(s). Re-enter your password to confirm:');
+        if (!myPassword) return;
+      }
+      const { ok, data } = await C4K.api('/api/teacher/bulk', 'POST', { action, kidIds: ids, reason, myPassword });
       if (ok) { alert('✅ Done — ' + data.count + ' student' + (data.count===1?'':'s') + ' updated.'); document.getElementById('bulkAll').checked = false; loadRoster(); }
       else alert('❌ ' + (data.error || 'Could not complete.'));
     }
@@ -959,12 +981,14 @@
 
     async function removeStudent(kidId, name) {
       if (!confirm('Delete ' + name + '? This erases their account and all their progress. This cannot be undone.')) return;
-      const { ok, data } = await C4K.api('/api/parent/delete-kid', 'POST', { kidId });
+      const myPassword = prompt('Re-enter your password to confirm this permanent deletion:');
+      if (!myPassword) return;
+      const { ok, data } = await C4K.api('/api/parent/delete-kid', 'POST', { kidId, myPassword });
       if (!ok) alert('❌ ' + (data.error || 'Could not delete.'));
       loadRoster();
     }
   </script>
-  <script src="pwa.js?v=165" defer></script>
-  <script src="editor.js?v=165" defer></script>
+  <script src="pwa.js?v=166" defer></script>
+  <script src="editor.js?v=166" defer></script>
 </body>
 </html>
