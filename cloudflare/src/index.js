@@ -232,9 +232,22 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-  // Safe CSP directives that don't restrict scripts/styles (so nothing breaks) but block
-  // clickjacking, base-tag injection, plugins, and form-hijacking.
-  "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  // CSP: locks script/style/image/connect/font sources down to this site + the small, fixed
+  // list of third parties it actually uses (Google Sign-In, Google Fonts, QR code image API,
+  // Dicebear avatars). 'unsafe-inline' is still needed for script-src/style-src because the
+  // app relies on inline onclick= handlers and inline <script> blocks throughout — removing
+  // that would require a large refactor (moving every handler to addEventListener + a nonce
+  // or hash allowlist per page) that's out of scope for a header change. This CSP still stops
+  // an XSS payload from loading a script or exfiltrating data to an attacker-controlled domain,
+  // which is the most damaging part of an injection even when inline execution itself isn't blocked.
+  "Content-Security-Policy": "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com; " +
+    "connect-src 'self' https://accounts.google.com; " +
+    "frame-src https://accounts.google.com; " +
+    "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
   // Turn off device APIs the site never uses.
   "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=()",
   "X-Permitted-Cross-Domain-Policies": "none",
@@ -539,18 +552,28 @@ async function createSession(env, userId, ip) {
   return token;
 }
 
-// ───────────────────────── login brute-force guard (best-effort, per isolate) ─────────────────────────
-const loginFails = new Map();
-function tooManyLogins(key) {
-  const e = loginFails.get(key);
+// ───────────────────────── login brute-force guard (D1-backed) ─────────────────────────
+// This used to be an in-memory Map, which only throttles within ONE Worker isolate — an
+// attacker distributing requests across isolates (or just hitting a cold start) could bypass
+// it entirely. Storing the counter in D1 (via the settings table, same pattern used elsewhere
+// in this file) makes it durable and shared across every isolate handling this account's logins.
+async function tooManyLogins(env, key) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`loginfail:${key}`).first();
+  if (!row) return false;
+  let e; try { e = JSON.parse(row.value); } catch { return false; }
   return !!(e && e.count >= 8 && Date.now() - e.first < 15 * 60 * 1000);
 }
-function recordLoginFail(key) {
-  let e = loginFails.get(key) || { count: 0, first: Date.now() };
-  if (Date.now() - e.first > 15 * 60 * 1000) e = { count: 0, first: Date.now() };
-  e.count++; loginFails.set(key, e);
+async function recordLoginFail(env, key) {
+  const k = `loginfail:${key}`;
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(k).first();
+  let e; try { e = row ? JSON.parse(row.value) : null; } catch { e = null; }
+  if (!e || Date.now() - e.first > 15 * 60 * 1000) e = { count: 0, first: Date.now() };
+  e.count++;
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(k, JSON.stringify(e)).run();
 }
-function clearLoginFails(key) { loginFails.delete(key); }
+async function clearLoginFails(env, key) {
+  await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`loginfail:${key}`).run();
+}
 
 function suspensionStatus(user) {
   if (!user.suspended) return [false, null];
@@ -666,10 +689,10 @@ async function apiLogin(env, request, data, allow) {
   const username = (data.username || "").trim();
   const password = data.password || "";
   const key = username.toLowerCase();
-  if (tooManyLogins(key)) return json({ error: "Too many login attempts. Please wait a few minutes and try again." }, 429);
+  if (await tooManyLogins(env, key)) return json({ error: "Too many login attempts. Please wait a few minutes and try again." }, 429);
   const row = await env.DB.prepare("SELECT * FROM users WHERE username=?").bind(username).first();
   if (!row || !(await verifyPassword(password, row.salt, row.password_hash))) {
-    recordLoginFail(key);
+    await recordLoginFail(env, key);
     // Staff/admin accounts are higher-value targets — a burst of wrong passwords against one
     // of these is worth telling the KidVibers team about, separate from the generic throttle.
     if (row && ["teacher", "admin", "super_admin"].includes(row.role)) {
@@ -688,13 +711,13 @@ async function apiLogin(env, request, data, allow) {
   if (!active && row.suspended) {
     await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(row.id).run();
   } else if (active) {
-    clearLoginFails(key);
+    await clearLoginFails(env, key);
     let msg = "This account has been suspended by an administrator.";
     if (row.suspend_reason) msg += ` Reason: ${row.suspend_reason}`;
     msg += until ? ` It will be reinstated on ${until.slice(0, 16).replace("T", " ")} UTC.` : " Please contact kidvibers.help@outlook.com.";
     return json({ error: msg, suspended: true }, 403);
   }
-  clearLoginFails(key);
+  await clearLoginFails(env, key);
   // New-device login alert for staff/parent/admin accounts (not kids — too noisy, and kids
   // often share family devices anyway). Keeps the last few IPs seen; a brand-new one gets an email.
   if (row.parent_email && ["teacher", "parent", "admin", "super_admin"].includes(row.role)) {
@@ -4653,6 +4676,9 @@ export default {
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizok:%' AND value < ?").bind(d(7)).run();
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'quizfail:%' AND substr(key,-10) < ?").bind(d(2).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'challenge:%' AND substr(key,-10) < ?").bind(d(90).slice(0, 10)).run();
+        // loginfail: counters only matter within their own 15-minute window (see tooManyLogins),
+        // so a daily sweep is safe — it doesn't weaken the throttle, just keeps the table tidy.
+        await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'loginfail:%'").run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).

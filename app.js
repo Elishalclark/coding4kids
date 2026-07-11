@@ -710,8 +710,10 @@ const BOTS = {
     intro: "Hi! Tell me a hero's name and a place, like 'Luna in space' and I'll write a story! ✨",
     reply: (q) => {
       const words = q.replace(/\bin\b/gi, '|').split('|');
-      const hero = (words[0] || 'a brave coder').trim() || 'a brave coder';
-      const place = (words[1] || 'a magic forest').trim() || 'a magic forest';
+      // Escape before interpolating — this is raw kid-typed text going straight into innerHTML,
+      // so without escaping a name like "<img src=x onerror=alert(1)>" would execute as script.
+      const hero = C4K.esc((words[0] || 'a brave coder').trim() || 'a brave coder').slice(0, 60);
+      const place = C4K.esc((words[1] || 'a magic forest').trim() || 'a magic forest').slice(0, 60);
       return "Once upon a time, <strong>" + hero + "</strong> arrived in <strong>" + place + "</strong>. 🌟 Suddenly a glowing puzzle appeared! Using clever code and a brave heart, " + hero + " solved it and unlocked a secret treasure. The end! 📖 Want another story?";
     }
   },
