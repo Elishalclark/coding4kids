@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Class Progress Report - KidVibers</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=163" />
+  <style>
+    .cr { max-width: 900px; margin: 0 auto; padding: 24px 18px 80px; }
+    .toolbar { display:flex; gap:10px; justify-content:flex-end; margin-bottom:14px; flex-wrap:wrap; }
+    .cr-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px; }
+    .cr-head .av { font-size:2.6rem; }
+    .cr-head h1 { font-size:1.5rem; font-weight:900; color:#fff; }
+    .cr-head p { color:#ede9fe; font-size:0.9rem; }
+    .cr-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-bottom:20px; }
+    .cr-stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; text-align:center; }
+    .cr-stat .n { font-size:1.5rem; font-weight:900; color:var(--purple); }
+    .cr-stat .l { font-size:0.72rem; color:var(--text-dim); font-weight:700; }
+    table.admin-table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+    table.admin-table th { text-align:left; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); padding:10px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); }
+    table.admin-table td { padding:11px 12px; border-bottom:1px solid var(--border); font-size:0.88rem; }
+    table.admin-table tr:last-child td { border-bottom:none; }
+    .empty { color: var(--text-dim); text-align: center; padding: 40px 0; }
+    @media print {
+      nav, .toolbar { display:none !important; }
+      body { background:#fff !important; color:#000 !important; }
+      .cr-head { background:#fff !important; border-bottom:3px solid #000; border-radius:0; }
+      .cr-head h1, .cr-head p { color:#000 !important; }
+      .cr-stat, table.admin-table { border:1px solid #999 !important; background:#fff !important; break-inside:avoid; }
+      .cr-stat .n { color:#000 !important; }
+      table.admin-table th { background:#eee !important; color:#000 !important; }
+      table.admin-table td { color:#222 !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="javascript:history.back()" class="btn btn-ghost" style="margin-left:auto;">← Back</a>
+    </div>
+  </nav>
+
+  <main class="cr" id="main">
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    </div>
+
+    <div class="cr-head">
+      <div class="av">📊</div>
+      <div>
+        <h1 id="crTitle">Class Progress Report</h1>
+        <p id="crDate"></p>
+      </div>
+    </div>
+
+    <div class="cr-stats" id="crStats"></div>
+
+    <table class="admin-table">
+      <thead><tr><th>Student</th><th>Lessons Done</th><th>Worlds Cleared</th><th>Avg Boss Score</th><th>XP</th><th>Last Active</th></tr></thead>
+      <tbody id="crRows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </main>
+
+  <script src="auth.js?v=163"></script>
+  <script>
+    (async () => {
+      const me = await C4K.loadMe();
+      if (!me || me.role !== 'teacher') { location.href = 'index.html?login=1'; return; }
+      document.getElementById('crTitle').textContent = (me.brandName || me.school || me.name) + "'s Class Progress Report";
+      document.getElementById('crDate').textContent = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+      const { ok, data } = await C4K.api('/api/teacher/progress');
+      const rows = document.getElementById('crRows');
+      const statsEl = document.getElementById('crStats');
+      if (!ok || !data.students || !data.students.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="empty">No students yet.</td></tr>';
+        return;
+      }
+      const students = data.students;
+      const totalStudents = students.length;
+      const avgPct = Math.round(students.reduce((s, x) => s + (x.percent || 0), 0) / totalStudents);
+      const totalWorlds = students.reduce((s, x) => s + (x.worldsCleared || 0), 0);
+      const activeRecently = students.filter(x => x.lastActive && (Date.now() - new Date(x.lastActive).getTime()) < 7 * 86400000).length;
+
+      statsEl.innerHTML = `
+        <div class="cr-stat"><div class="n">${totalStudents}</div><div class="l">Students</div></div>
+        <div class="cr-stat"><div class="n">${avgPct}%</div><div class="l">Avg. Curriculum</div></div>
+        <div class="cr-stat"><div class="n">${totalWorlds}</div><div class="l">Worlds Conquered</div></div>
+        <div class="cr-stat"><div class="n">${activeRecently}</div><div class="l">Active This Week</div></div>
+      `;
+
+      rows.innerHTML = students.map(s => `<tr>
+          <td><strong>${C4K.esc(s.name)}</strong> <span style="color:var(--text-faint);">@${C4K.esc(s.username)}</span></td>
+          <td>${s.lessonsDone} / ${s.totalLessons} (${s.percent}%)</td>
+          <td>${s.worldsCleared} 🏆</td>
+          <td>${s.avgScore ? s.avgScore + '%' : '—'}</td>
+          <td>${s.xp} ⚡</td>
+          <td style="color:var(--text-dim);">${s.lastActive || 'Never'}</td>
+        </tr>`).join('');
+    })();
+  </script>
+  <script src="pwa.js?v=163" defer></script>
+</body>
+</html>

@@ -10,6 +10,15 @@ FAILS=0
 check() { # check <label> <expected_code> <actual_code>
   if [ "$2" = "$3" ]; then echo "  ✅ $1"; else echo "  ❌ $1 (expected $2, got $3)"; FAILS=$((FAILS+1)); fi
 }
+# checkAny <label> <actual_code> <ok_code1> [ok_code2...]  — for endpoints where more than one
+# code is a legitimate "this route is alive and working" signal, e.g. signup validation can
+# correctly return 400 (bad input) OR 429 (rate-limited from repeated smoke-test runs hitting
+# the same durable per-IP counter) — both mean the route works, only a real 5xx means it's broken.
+checkAny() {
+  local label="$1" actual="$2"; shift 2
+  for ok in "$@"; do if [ "$actual" = "$ok" ]; then echo "  ✅ $label"; return; fi done
+  echo "  ❌ $label (expected one of: $* — got $actual)"; FAILS=$((FAILS+1))
+}
 
 # --retry-all-errors: rapid sequential requests occasionally get a dropped connection (curl
 # code 000) that isn't a real outage — retry a couple of times before calling it a failure.
@@ -45,10 +54,10 @@ check "POST /api/test/submit"  401 "$(code_post /api/test/submit)"
 check "POST /api/login (bad creds)" 401 "$(code_post /api/login '{"username":"smoke_test_x","password":"wrong"}')"
 
 # ── Signup validation alive (bad username = 400, never 500) ──
-check "POST /api/signup (rejects bad input)" 400 "$(code_post /api/signup '{"name":"x","username":"ab","password":"123"}')"
+checkAny "POST /api/signup (rejects bad input)" "$(code_post /api/signup '{"name":"x","username":"ab","password":"123"}')" 400 429
 
 # ── Honeypot: a filled hidden field must be rejected as bad input (never a 500, never a 200) ──
-check "POST /api/signup (honeypot filled)" 400 "$(code_post /api/signup '{"name":"x","username":"validname","password":"123456","website":"http://spam.example"}')"
+checkAny "POST /api/signup (honeypot filled)" "$(code_post /api/signup '{"name":"x","username":"validname","password":"123456","website":"http://spam.example"}')" 400 429
 
 # ── Security-sensitive endpoints must reject anonymous requests (403/401, never a 200 or 500) ──
 check "GET /api/admin/security-dashboard" 403 "$(code_get /api/admin/security-dashboard)"
