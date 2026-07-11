@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=170" />
+  <link rel="stylesheet" href="styles.css?v=171" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -158,8 +158,9 @@
         <div id="searchResults"></div>
       </div>
 
-      <!-- Founder analytics (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" id="analyticsPanel" style="display:none;">
+      <!-- Analytics (aggregate only — available to admin AND super admin; individual account
+           detail is super-admin only, gated separately above) -->
+      <div class="panel" id="analyticsPanel">
         <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
@@ -707,7 +708,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=170"></script>
+  <script src="auth.js?v=171"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -835,45 +836,58 @@
         showDataError('The stat boxes failed to load (' + e.message + '). If you just deployed, give it a moment and tap Retry.');
       }
 
-      const users = (await C4K.api('/api/admin/users')).data.users || [];
-      const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
-      document.querySelector('#userRows').closest('table').querySelector('thead th:last-child').textContent = sup ? 'Change Plan' : 'Plan Control';
-      document.getElementById('userRows').innerHTML = users.length ? users.map(u =>
-        `<tr>
-           <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${(sup && u.parentEmail) ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
-           <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
-           <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
-           <td>${sup ? `
-             <select onchange="setPlan(${u.id}, this.value)" class="mini-btn" style="padding:5px 8px;">
-               <option ${u.plan==='free'?'selected':''}>free</option>
-               <option ${u.plan==='trial'?'selected':''}>trial</option>
-               <option ${u.plan==='pro'?'selected':''}>pro</option>
-               <option ${u.plan==='family'?'selected':''}>family</option>
-             </select>` : '<span style="color:var(--text-faint);font-size:0.8rem;">🔒 super admin only</span>'}
-           </td>
-         </tr>`).join('')
-        : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
+      // Individual kid/account detail (names, usernames, emails) is super-admin only — a plain
+      // admin sees analytics/totals (already loaded above via /api/admin/stats) but never the
+      // per-kid or per-account list. The backend enforces this too (not just hidden in the UI).
+      if (sup) {
+        const users = (await C4K.api('/api/admin/users')).data.users || [];
+        const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
+        document.querySelector('#userRows').closest('table').querySelector('thead th:last-child').textContent = 'Change Plan';
+        document.getElementById('userRows').innerHTML = users.length ? users.map(u =>
+          `<tr>
+             <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
+             <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
+             <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
+             <td>
+               <select onchange="setPlan(${u.id}, this.value)" class="mini-btn" style="padding:5px 8px;">
+                 <option ${u.plan==='free'?'selected':''}>free</option>
+                 <option ${u.plan==='trial'?'selected':''}>trial</option>
+                 <option ${u.plan==='pro'?'selected':''}>pro</option>
+                 <option ${u.plan==='family'?'selected':''}>family</option>
+               </select>
+             </td>
+           </tr>`).join('')
+          : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
 
-      // every registered account, kept forever
-      const accts = (await C4K.api('/api/admin/accounts')).data.accounts || [];
-      document.getElementById('acctCount').textContent = `· ${accts.length} kept`;
-      _allAccts = accts; _sup = sup;
+        // every registered account, kept forever
+        const accts = (await C4K.api('/api/admin/accounts')).data.accounts || [];
+        document.getElementById('acctCount').textContent = `· ${accts.length} kept`;
+        _allAccts = accts; _sup = sup;
 
-      // Real account breakdown by type (computed from the live accounts list).
-      const bd = { kid: 0, guest: 0, parent: 0, teacher: 0, school: 0, district: 0, admin: 0, super_admin: 0 };
-      accts.forEach(a => {
-        if (a.role === 'kid') { bd.kid++; }
-        else if (a.role === 'teacher') { bd[(a.plan === 'district' ? 'district' : a.plan === 'school' ? 'school' : 'teacher')]++; }
-        else if (bd[a.role] !== undefined) { bd[a.role]++; }
-      });
-      const bdDefs = [
-        ['👦 Kids', bd.kid], ['👨‍👩‍👧 Parents', bd.parent], ['🍎 Teachers', bd.teacher],
-        ['🏫 Schools', bd.school], ['🏛️ Districts', bd.district], ['🛠️ Admins', bd.admin + bd.super_admin],
-      ];
-      const bdTotal = accts.length || 1;
-      document.getElementById('breakdownRows').innerHTML = bdDefs.map(([label, n]) =>
-        `<tr><td><strong>${label}</strong></td><td style="font-weight:900;">${n}</td>
-           <td style="width:110px;"><div style="height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(n / bdTotal * 100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div></td></tr>`).join('');
+        // Real account breakdown by type (computed from the live accounts list).
+        const bd = { kid: 0, guest: 0, parent: 0, teacher: 0, school: 0, district: 0, admin: 0, super_admin: 0 };
+        accts.forEach(a => {
+          if (a.role === 'kid') { bd.kid++; }
+          else if (a.role === 'teacher') { bd[(a.plan === 'district' ? 'district' : a.plan === 'school' ? 'school' : 'teacher')]++; }
+          else if (bd[a.role] !== undefined) { bd[a.role]++; }
+        });
+        const bdDefs = [
+          ['👦 Kids', bd.kid], ['👨‍👩‍👧 Parents', bd.parent], ['🍎 Teachers', bd.teacher],
+          ['🏫 Schools', bd.school], ['🏛️ Districts', bd.district], ['🛠️ Admins', bd.admin + bd.super_admin],
+        ];
+        const bdTotal = accts.length || 1;
+        document.getElementById('breakdownRows').innerHTML = bdDefs.map(([label, n]) =>
+          `<tr><td><strong>${label}</strong></td><td style="font-weight:900;">${n}</td>
+             <td style="width:110px;"><div style="height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(n / bdTotal * 100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div></td></tr>`).join('');
+      } else {
+        // Plain admin: no individual account data fetched or shown at all — just a note pointing
+        // at the analytics panel, which IS available to them.
+        const usersTable = document.querySelector('#userRows');
+        if (usersTable) usersTable.closest('.panel').innerHTML = '<h3>👥 Recent Members</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 Individual member details are restricted to super admin. See the <strong>📈 Analytics</strong> panel below for aggregate numbers.</p>';
+        const acctPanel = document.querySelector('#acctRows');
+        if (acctPanel) acctPanel.closest('.panel').innerHTML = '<h3>📋 All Registered Accounts</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 The full account list is restricted to super admin. See the <strong>📈 Analytics</strong> panel below for aggregate numbers.</p>';
+      }
+      loadAnalytics();   // available to both plain admin and super admin — aggregate data only
 
       if (sup) {
         const { ok: aOk, data: aData } = await C4K.api('/api/admin/audit-log');
@@ -909,7 +923,6 @@
         loadEmailEvents();
         loadQuiz();
         loadEmails();
-        loadAnalytics();
         loadConsentGroups();
         document.getElementById('bulkBar').style.display = 'flex';
         loadSchoolHealth();
@@ -1917,7 +1930,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=170" defer></script>
-  <script src="editor.js?v=170" defer></script>
+  <script src="pwa.js?v=171" defer></script>
+  <script src="editor.js?v=171" defer></script>
 </body>
 </html>

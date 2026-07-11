@@ -3034,14 +3034,17 @@ async function requireRole(env, request, roles) {
 }
 
 async function adminUsers(env, request) {
-  const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  // Kid-level detail (names, emails) is super-admin only — a plain admin gets analytics/totals
+  // only, not individual student info.
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' ORDER BY id DESC").all()).results || [];
   const out = []; for (const r of rows) out.push({ ...(await publicUser(env, r)), createdAt: r.created_at, parentEmail: r.parent_email });
   return json({ users: out });
 }
 async function adminAccounts(env, request) {
-  const { u, err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
-  const roles = u.role === "super_admin" ? ["kid", "parent", "teacher", "admin", "super_admin"] : ["kid", "parent", "teacher"];
+  // Full account list (names, usernames, emails) is super-admin only.
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const roles = ["kid", "parent", "teacher", "admin", "super_admin"];
   const ph = roles.map(() => "?").join(",");
   const rows = (await env.DB.prepare(`SELECT id,name,username,role,plan,parent_email,family_id,created_at,suspended,suspend_reason,suspend_until,admin_notes,trial_ends,plan_renews_at FROM users WHERE role IN (${ph}) ORDER BY id`).bind(...roles).all()).results || [];
   return json({ accounts: rows.map((r) => ({
@@ -3227,7 +3230,9 @@ async function adminStats(env, request) {
 }
 // Founder analytics: growth, activity, and conversion (super admin).
 async function adminAnalytics(env, request) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  // Aggregate/anonymous only (counts, percentages, MRR totals — never individual names, emails,
+  // or usernames), so a plain admin CAN see this, unlike the account-level endpoints above.
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const c = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()).c;
 
   const totalKids = await c("SELECT COUNT(*) c FROM users WHERE role='kid'");
