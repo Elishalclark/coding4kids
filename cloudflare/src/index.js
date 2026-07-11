@@ -764,7 +764,7 @@ const STAFF_2FA_ROLES = ["teacher"];
 // platform looks alive instantly (no password to fumble at a pitch). Rate-limited per IP.
 async function apiDemoLogin(env, request) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  if (rateLimited(`demo:${ip}`, 12, 3600)) return json({ error: "Too many demo logins — try again shortly." }, 429);
+  if (await rateLimited(env, `demo:${ip}`, 12, 3600)) return json({ error: "Too many demo logins — try again shortly." }, 429);
   const row = await env.DB.prepare("SELECT * FROM users WHERE username='demo' AND role='kid'").first();
   if (!row) return json({ error: "Demo isn't set up yet." }, 404);
   const token = await createSession(env, row.id);
@@ -855,7 +855,7 @@ async function apiSignup(env, request, data) {
   if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily disabled. Please check back soon." }, 403);
   // Throttle mass account creation: max 6 new accounts per IP per hour.
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  if (rateLimited(`signup:${ip}`, 6, 3600)) return json({ error: "Too many sign-ups from here. Please try again later." }, 429);
+  if (await rateLimited(env, `signup:${ip}`, 6, 3600)) return json({ error: "Too many sign-ups from here. Please try again later." }, 429);
   const name = (data.name || "").trim();
   const username = (data.username || "").trim();
   const password = data.password || "";
@@ -1026,7 +1026,7 @@ async function apiQuizAnswer(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
   // Light rate limit: generous for real lesson-taking, slows bulk answer-scraping.
-  if (!u.isPreview && rateLimited(`quizans:${u.id}`, 120, 3600)) return json({ error: "Whoa, that's a lot of answers! Take a short break. 🙂" }, 429);
+  if (!u.isPreview && await rateLimited(env, `quizans:${u.id}`, 120, 3600)) return json({ error: "Whoa, that's a lot of answers! Take a short break. 🙂" }, 429);
   const lessonId = (data.lessonId || "").trim();
   const choice = parseInt(data.choice, 10);
   if (!lessonId || isNaN(choice)) return json({ error: "lessonId and choice required" }, 400);
@@ -1630,7 +1630,7 @@ const HELP_REASONS = {
 async function apiKidHelp(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
-  if (rateLimited(`kidhelp:${u.id}`, 3, 3600)) return json({ error: "You've already sent a few — a grown-up has been told. Try again later if it's still happening." }, 429);
+  if (await rateLimited(env, `kidhelp:${u.id}`, 3, 3600)) return json({ error: "You've already sent a few — a grown-up has been told. Try again later if it's still happening." }, 429);
   const reasonKey = (data.reason || "other").trim();
   const reasonText = HELP_REASONS[reasonKey] || HELP_REASONS.other;
   const note = (data.message || "").toString().slice(0, 500).trim();
@@ -1660,7 +1660,7 @@ async function apiParentNudge(env, request, data) {
   const kidId = data.kidId | 0;
   const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=?").bind(kidId, u.family_id).first();
   if (!kid) return json({ error: "Not your student/kid." }, 403);
-  if (rateLimited(`nudge:${u.id}:${kidId}`, 5, 3600)) return json({ error: "Too many nudges sent — give it a little while." }, 429);
+  if (await rateLimited(env, `nudge:${u.id}:${kidId}`, 5, 3600)) return json({ error: "Too many nudges sent — give it a little while." }, 429);
   if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return json({ error: "Push notifications aren't set up yet.", noPush: true }, 400);
   const subs = (await env.DB.prepare("SELECT endpoint,p256dh,auth,user_id FROM push_subs WHERE user_id=?").bind(kidId).all()).results || [];
   if (!subs.length) return json({ error: `${kid.name} hasn't turned on notifications, so we can't nudge them right now.`, noPush: true }, 400);
@@ -1698,12 +1698,19 @@ async function apiClassJoin(env, request, data) {
 // Projects are private to the child's own account. There is no public gallery,
 // sharing, likes, or comments feature — kids only save their own work.
 const PROJECT_MAX = 50, CODE_MAX = 20000, TITLE_MAX = 60;
-// simple in-memory rate limiter (best-effort per isolate)
-const rlMap = new Map();
-function rateLimited(key, max, windowSec) {
-  const now = Date.now(); let e = rlMap.get(key);
-  if (!e || now - e.first > windowSec * 1000) { e = { count: 0, first: now }; }
-  e.count++; rlMap.set(key, e);
+// D1-backed rate limiter (durable across Worker isolates — an in-memory Map only throttles
+// within the single isolate handling a given request, which an attacker can bypass just by
+// spreading requests across isolates or hitting cold starts). Same settings-table pattern used
+// for the login brute-force guard. Not sub-millisecond, but every call site here is a low-frequency
+// action (signup, nudge, report, etc.), not a hot path, so the extra DB round-trip is a non-issue.
+async function rateLimited(env, key, max, windowSec) {
+  const k = `ratelimit:${key}`;
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(k).first();
+  let e; try { e = row ? JSON.parse(row.value) : null; } catch { e = null; }
+  const now = Date.now();
+  if (!e || now - e.first > windowSec * 1000) e = { count: 0, first: now };
+  e.count++;
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(k, JSON.stringify(e)).run();
   return e.count > max;
 }
 function firstName(u) { return cleanName((u.name || u.username || "").split(" ")[0]) || "A coder"; }
@@ -2181,7 +2188,7 @@ async function apiTeacherAnnounce(env, request, data) {
   if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can post announcements." }, 403);
   const msg = (data.message || "").toString().trim().slice(0, 500);
   if (!msg) return json({ error: "Write a message first." }, 400);
-  if (rateLimited(`announce:${u.id}`, 10, 3600)) return json({ error: "You've posted a lot of announcements — take a short break." }, 429);
+  if (await rateLimited(env, `announce:${u.id}`, 10, 3600)) return json({ error: "You've posted a lot of announcements — take a short break." }, 429);
   const fams = await managedFamilyIds(env, u);
   const ph = fams.map(() => "?").join(",");
   const kids = (await env.DB.prepare(`SELECT id FROM users WHERE role='kid' AND family_id IN (${ph})`).bind(...fams).all()).results || [];
@@ -2203,7 +2210,7 @@ async function apiTeacherConcern(env, request, data) {
   if (!kid) return json({ error: "That student isn't in your school." }, 403);
   const reason = cleanName(data.reason || "").slice(0, 100) || "Concern";
   const notes = (data.notes || "").toString().trim().slice(0, 800);
-  if (rateLimited(`concern:${u.id}`, 20, 3600)) return json({ error: "Too many reports at once — take a short break." }, 429);
+  if (await rateLimited(env, `concern:${u.id}`, 20, 3600)) return json({ error: "Too many reports at once — take a short break." }, 429);
   const org = u.brand_name || u.school || u.username;
   // Keep a record for the KidVibers team and log it against the student's consent/history trail.
   await notifyAdmin(env, `🏫 Teacher concern: ${kid.name}`,
@@ -2249,7 +2256,7 @@ async function apiKidSessionLogout(env, request, data) {
   if (!u || u.role !== "kid") return json({ error: "Kids only." }, 403);
   const pin = await getLogoutPin(env, u.family_id);
   if (!pin) return json({ error: "Your teacher hasn't turned on session logout.", noPin: true }, 403);
-  if (rateLimited(`kidlogout:${u.id}`, 8, 600)) return json({ error: "Too many tries — ask a grown-up for help." }, 429);
+  if (await rateLimited(env, `kidlogout:${u.id}`, 8, 600)) return json({ error: "Too many tries — ask a grown-up for help." }, 429);
   if ((data.pin || "").toString().trim() !== pin) return json({ error: "That's not the right session PIN. Ask your teacher/librarian." }, 403);
   await env.DB.prepare("DELETE FROM sessions WHERE token=?").bind(bearer(request)).run();
   return json({ ok: true });
@@ -2363,7 +2370,7 @@ async function apiJoinSession(env, request, data) {
   // Honeypot — same trick as signup: a hidden field bots fill in but real kids never see.
   if ((data.website || "").toString().trim()) return json({ error: "Something went wrong. Please try again." }, 400);
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  if (rateLimited(`joinsession:${ip}`, 20, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
+  if (await rateLimited(env, `joinsession:${ip}`, 20, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
   const code = (data.code || "").toString().trim().toUpperCase();
   const chosen = (data.name || data.username || "").toString().trim();
   // Detect session-code guessing: one IP hammering many DIFFERENT codes in a short window looks
@@ -2456,7 +2463,7 @@ async function apiMyLeaderboard(env, request) {
 // "Recommend KidVibers to my library/school" — a warm B2B lead. Emails the KidVibers team.
 async function apiRecommend(env, request, data) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  if (rateLimited(`recommend:${ip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
+  if (await rateLimited(env, `recommend:${ip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
   const org = cleanName(data.org || "").slice(0, 150);
   const contact = (data.contact || "").toString().trim().slice(0, 200);
   const from = cleanName(data.fromName || "").slice(0, 100);
@@ -2528,7 +2535,7 @@ async function apiEmailCertificate(env, request, data) {
 async function apiTeacherBulkCertificates(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher"].includes(u.role)) return json({ error: "forbidden" }, 403);
-  if (rateLimited(`bulkcert:${u.id}`, 1, 3600)) return json({ error: "Already sent recently — try again in a bit." }, 429);
+  if (await rateLimited(env, `bulkcert:${u.id}`, 1, 3600)) return json({ error: "Already sent recently — try again in a bit." }, 429);
   let familyIds = [u.family_id];
   if (u.role === "teacher" && DISTRICT_PLANS.includes(u.plan)) {
     const schools = (await env.DB.prepare("SELECT family_id,id FROM users WHERE district_id=? AND role='teacher'").bind(u.id).all()).results || [];
@@ -3863,7 +3870,7 @@ async function apiBillingPortal(env, request) {
 async function apiForgotPassword(env, request, data) {
   const who = (data.usernameOrEmail || "").trim();
   const generic = json({ ok: true, message: "If an account matches, we've emailed a reset link." });
-  if (!who || rateLimited(`forgot:${who.toLowerCase()}`, 3, 600)) return generic;
+  if (!who || await rateLimited(env, `forgot:${who.toLowerCase()}`, 3, 600)) return generic;
   const row = await env.DB.prepare("SELECT * FROM users WHERE (username=? OR parent_email=?) AND role IN ('parent','teacher') LIMIT 1").bind(who, who).first();
   if (row && row.parent_email) {
     const token = randToken(24);
@@ -3981,7 +3988,7 @@ async function apiAdminInterest(env, request) {
 async function apiNotifyInterest(env, request, data) {
   const email = (data.email || "").trim().slice(0, 120);
   if (!/^\S+@\S+\.\S+$/.test(email)) return json({ error: "Enter a valid email." }, 400);
-  if (rateLimited(`notify:${email.toLowerCase()}`, 5, 3600)) return json({ ok: true });
+  if (await rateLimited(env, `notify:${email.toLowerCase()}`, 5, 3600)) return json({ ok: true });
   const plan = (data.plan || "").trim().slice(0, 40) || "pro";
   await env.DB.prepare("INSERT INTO messages (to_email,kind,body,created_at) VALUES (?,?,?,?)")
     .bind(email, "plan_interest", plan, nowIso()).run();
@@ -4280,7 +4287,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/report-lesson" && method === "POST") {
     const u = await userFromToken(env, bearer(request));
     if (!u) return json({ error: "Please log in to report." }, 401);
-    if (rateLimited(`report-lesson:${u.id}`, 5, 3600)) return json({ ok: true });  // max 5/hr, silently drop extras
+    if (await rateLimited(env, `report-lesson:${u.id}`, 5, 3600)) return json({ ok: true });  // max 5/hr, silently drop extras
     const lessonId = (data.lessonId || "").trim().slice(0, 50);
     const reason = (data.reason || "").trim().slice(0, 500) || "No reason given";
     await notifyAdmin(env, `🚩 Lesson flagged: ${lessonId}`,
@@ -4366,7 +4373,7 @@ async function handleApi(env, request, path) {
   // ── School/district quote request (lead capture) ──
   if (path === "/api/school-quote" && method === "POST") {
     const qip = request.headers.get("CF-Connecting-IP") || "unknown";
-    if (rateLimited(`quote:${qip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
+    if (await rateLimited(env, `quote:${qip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
     const name = cleanName(data.name || "").slice(0, 100);
     const email = (data.email || "").trim().slice(0, 200);
     const org = cleanName(data.org || "").slice(0, 150);
@@ -4496,7 +4503,7 @@ async function apiSendDigestNow(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher"].includes(u.role)) return json({ error: "Only a parent or teacher can do this." }, 403);
   if (!u.parent_email) return json({ error: "Add a contact email in Settings first." }, 400);
-  if (rateLimited(`digestnow:${u.id}`, 3, 3600)) return json({ error: "You can only send this a few times per hour — try again soon." }, 429);
+  if (await rateLimited(env, `digestnow:${u.id}`, 3, 3600)) return json({ error: "You can only send this a few times per hour — try again soon." }, 429);
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
   const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=?").bind(u.family_id).all()).results || [];
   if (!kids.length) return json({ error: "No kids on this account yet." }, 400);
@@ -4679,6 +4686,8 @@ export default {
         // loginfail: counters only matter within their own 15-minute window (see tooManyLogins),
         // so a daily sweep is safe — it doesn't weaken the throttle, just keeps the table tidy.
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'loginfail:%'").run();
+        // Same reasoning: every rate-limit window used across the app is <=1hr, so a daily sweep is safe.
+        await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'ratelimit:%'").run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).
@@ -4739,7 +4748,7 @@ export default {
         console.log("api error:", e && e.stack || e);
         // Error monitoring: email the admin about unhandled 500s (max 5/hr so a hot bug
         // can't email-storm; the alert includes the route + stack to fix it fast).
-        if (!rateLimited("err-alert", 5, 3600)) {
+        if (!await rateLimited(env, "err-alert", 5, 3600)) {
           ctx.waitUntil(notifyAdmin(env, `🔥 API error: ${url.pathname}`,
             `🔥 *Unhandled API error*\n• Route: ${request.method} ${url.pathname}\n• Error: ${(e && e.message) || e}\n• Stack: ${((e && e.stack) || "").slice(0, 800)}`).catch(() => {}));
         }
