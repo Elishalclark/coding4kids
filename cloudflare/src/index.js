@@ -19,6 +19,10 @@ const REFERRAL_FREE_DAYS = 7;   // + days of free Pro (AI + unlimited lessons) f
 const REFERRAL_MAX_REWARDED = 5; // a referrer earns rewards for at most this many sign-ups (anti-farming)
 const PASS_PERCENT = 70;
 const ADMIN_ROLES = ["admin", "super_admin"];
+// Who can start/run a Live Session: teachers/schools/districts (their normal use case) PLUS
+// admin/super_admin, so the KidVibers team can start a demo/pitch session straight from the
+// admin panel without needing a separate teacher account.
+const SESSION_HOST_ROLES = ["teacher", "admin", "super_admin"];
 const DISTRICT_PLANS = ["school", "district"];
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 
@@ -2293,7 +2297,7 @@ async function apiStartSession(env, request, data) {
   const flags = await getSetting(env, "feature_flags", {});
   if (flags.liveSessions === false) return json({ error: "Live sessions are temporarily unavailable. Please check back soon." }, 503);
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "Only a teacher, school, or district can start a session." }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "Only a teacher, school, district, or admin can start a session." }, 403);
   const regen = data && data.regen;
   const prev = await getSetting(env, `activesession:${u.id}`, null);
   if (regen && prev && prev.code) {
@@ -2319,7 +2323,7 @@ async function apiStartSession(env, request, data) {
 // the adult running the room has visibility without needing to watch every screen constantly.
 async function apiSessionFeed(env, request) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const active = await getSetting(env, `activesession:${u.id}`, null);
   if (!active || !active.code) return json({ feed: [] });
   const info = await getSetting(env, `session:${active.code}`, null);
@@ -2335,7 +2339,7 @@ async function apiSessionFeed(env, request) {
 // room and — if needed — remove a single disruptive kid without ending the whole session.
 async function apiSessionRoster(env, request) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const active = await getSetting(env, `activesession:${u.id}`, null);
   if (!active || !active.code) return json({ roster: [] });
   const info = await getSetting(env, `session:${active.code}`, null);
@@ -2347,7 +2351,7 @@ async function apiSessionRoster(env, request) {
 // a lighter touch than locking or ending the whole session over one disruptive kid.
 async function apiKickGuest(env, request, data) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const active = await getSetting(env, `activesession:${u.id}`, null);
   if (!active || !active.code) return json({ error: "No active session." }, 400);
   const info = await getSetting(env, `session:${active.code}`, null);
@@ -2361,7 +2365,7 @@ async function apiKickGuest(env, request, data) {
 
 async function apiEndSession(env, request) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const prev = await getSetting(env, `activesession:${u.id}`, null);
   let recap = null;
   if (prev && prev.code) {
@@ -2391,7 +2395,7 @@ async function apiEndSession(env, request) {
 // (stops a stranger who got the code from wandering in mid-program).
 async function apiLockSession(env, request, data) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "forbidden" }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const prev = await getSetting(env, `activesession:${u.id}`, null);
   if (!prev || !prev.code) return json({ error: "No active session." }, 400);
   const s = await getSetting(env, `session:${prev.code}`, null);
@@ -2439,9 +2443,14 @@ async function apiJoinSession(env, request, data) {
       }
       return json({ error: ci }, 400);
   } }
-  // Respect the group's seat cap so a session can't blow past the plan limit.
-  const owner = await env.DB.prepare("SELECT plan FROM users WHERE id=?").bind(info.teacherId).first();
-  if (owner) { const cfg = teacherPlanCfg(owner.plan); if (cfg.students !== -1 && (await studentsInFamily(env, info.familyId)) >= cfg.students) return json({ error: "This session is full — ask your teacher." }, 403); }
+  // Respect the group's seat cap so a session can't blow past the plan limit. Sessions hosted
+  // by an admin/super_admin account (e.g. a KidVibers-run pitch demo) aren't on a teacher plan
+  // at all, so they're exempt from the cap entirely rather than getting treated as 0 seats.
+  const owner = await env.DB.prepare("SELECT plan,role FROM users WHERE id=?").bind(info.teacherId).first();
+  if (owner && !ADMIN_ROLES.includes(owner.role)) {
+    const cfg = teacherPlanCfg(owner.plan);
+    if (cfg.students !== -1 && (await studentsInFamily(env, info.familyId)) >= cfg.students) return json({ error: "This session is full — ask your teacher." }, 403);
+  }
   // Build a unique username (guests never log in again, so it just needs to be unique).
   let base = chosen.replace(/[^A-Za-z0-9_]/g, "") || "coder"; if (base.length < 3) base = base + "coder";
   let uname = base.slice(0, 16);
@@ -3579,7 +3588,9 @@ async function adminResolveRequest(env, request, data) {
 // Role preview: super admin can see any dashboard view without a real account.
 // Creates a short-lived (2hr) preview session with synthetic user data.
 async function apiAdminPreview(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  // Available to plain admin too — it only ever hands out mock/fake data (see mockUserForRole),
+  // never a real account, so there's nothing sensitive to protect here.
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const VALID_ROLES = ["kid", "parent", "teacher", "school", "district", "admin"];
   const role = (data.role || "").trim().toLowerCase();
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role. Choose: " + VALID_ROLES.join(", ") }, 400);

@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=171" />
+  <link rel="stylesheet" href="styles.css?v=172" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -137,6 +137,41 @@
         <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
         <span id="dashErrorMsg"></span>
         <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
+      </div>
+
+      <!-- Live drop-in session — admin AND super admin can start one (e.g. for a pitch demo),
+           not just teacher/school/district accounts. -->
+      <div class="panel" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="font-size:1.8rem;">▶️</div>
+          <div style="flex:1;min-width:200px;">
+            <h3 style="margin-bottom:2px;color:#fff;">🎟️ Live drop-in session</h3>
+            <p style="margin:0;color:#dcfce7;font-size:0.85rem;">Start a session straight from the admin panel — great for a live pitch/demo. Kids join with just a nickname, no sign-up needed.</p>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
+              <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session
+            </label>
+          </div>
+          <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
+        </div>
+        <div id="sessLive" style="display:none;margin-top:14px;background:rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;text-align:center;">
+          <div style="font-size:0.78rem;font-weight:800;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Kids: kidvibers.com → "Join a session" → enter</div>
+          <div id="sessCode" style="font-size:2.4rem;font-weight:900;letter-spacing:8px;margin:6px 0;color:#fff;">------</div>
+          <div style="font-size:0.8rem;color:#dcfce7;" id="sessExpiry"></div>
+          <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button id="sessLockBtn" class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="toggleLockSession()">🔒 Lock joins</button>
+            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="newSessionCode()">🔄 New code</button>
+            <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
+            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+          </div>
+          <div style="margin-top:14px;text-align:left;">
+            <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
+            <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
+          </div>
+          <div style="margin-top:14px;text-align:left;">
+            <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🙋 Who's in the room</div>
+            <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
+          </div>
+        </div>
       </div>
 
       <div class="stat-grid">
@@ -398,9 +433,9 @@
         </table>
       </div>
 
-      <!-- Role Preview (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" id="previewPanel" style="display:none;">
-        <h3>👁️ Preview Dashboards <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+      <!-- Role Preview — available to admin AND super admin (mock/fake data only, no real accounts) -->
+      <div class="panel" id="previewPanel">
+        <h3>👁️ Preview Dashboards</h3>
         <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">See exactly what each account type sees — no real account needed. Opens a demo view in the same tab; a banner at the bottom lets you return here.</p>
         <div style="display:flex;flex-wrap:wrap;gap:10px;">
           <button class="btn btn-outline" onclick="previewRole('kid')" style="font-size:0.88rem;">👦 Kid dashboard</button>
@@ -708,7 +743,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=171"></script>
+  <script src="auth.js?v=172"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -749,6 +784,73 @@
       _adminPreviewMode = cb.checked;
       localStorage.setItem('c4k_admin_preview', _adminPreviewMode ? '1' : '0');
       document.getElementById('previewBanner').style.display = _adminPreviewMode ? 'flex' : 'none';
+    }
+
+    // ── Live drop-in session (admin/super admin can host one too, e.g. for a pitch demo) ──
+    function showSession(code, expiresAt) {
+      document.getElementById('sessLive').style.display = '';
+      document.getElementById('sessCode').textContent = code;
+      document.getElementById('sessFlyer').href = 'card.html?code=' + encodeURIComponent(code);
+      const b = document.getElementById('startSessBtn'); b.textContent = 'Session live'; b.disabled = true;
+      if (expiresAt) { const h = Math.max(1, Math.round((new Date(expiresAt) - Date.now()) / 3600000)); document.getElementById('sessExpiry').textContent = `Code works for about ${h} more hour${h===1?'':'s'}.`; }
+    }
+    async function startLiveSession() {
+      const btn = document.getElementById('startSessBtn'); btn.disabled = true; btn.textContent = 'Starting…';
+      const photoConsent = document.getElementById('photoConsentBox') ? document.getElementById('photoConsentBox').checked : false;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { photoConsent });
+      if (ok) { showSession(data.code, data.expiresAt); startSessFeed(); }
+      else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
+    }
+    let _sessLocked = false, _sessFeedTimer = null;
+    async function newSessionCode() {
+      if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
+      if (ok) { _sessLocked = false; setLockBtn(); showSession(data.code, data.expiresAt); }
+      else alert(data.error || 'Could not change the code.');
+    }
+    function setLockBtn() { const b = document.getElementById('sessLockBtn'); if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins'; }
+    async function toggleLockSession() {
+      if (!_sessLocked && !confirm('Lock joins now? Make sure every kid who wants in has already joined — nobody new will be able to after this.')) return;
+      const { ok, data } = await C4K.api('/api/session/lock', 'POST', { locked: !_sessLocked });
+      if (ok) { _sessLocked = data.locked; setLockBtn(); }
+      else alert(data.error || 'Could not update.');
+    }
+    async function endLiveSession() {
+      if (!confirm('End the live session? The join code will stop working.')) return;
+      const { ok, data } = await C4K.api('/api/session/end', 'POST', {});
+      document.getElementById('sessLive').style.display = 'none';
+      const btn = document.getElementById('startSessBtn'); btn.disabled = false; btn.textContent = 'Start a session';
+      if (_sessFeedTimer) { clearInterval(_sessFeedTimer); _sessFeedTimer = null; }
+      if (ok && data.recap) showSessionRecap(data.recap);
+    }
+    function startSessFeed() {
+      if (_sessFeedTimer) clearInterval(_sessFeedTimer);
+      const load = async () => {
+        const { ok, data } = await C4K.api('/api/session/feed');
+        const el = document.getElementById('sessFeed'); if (!el) return;
+        if (ok && data.feed && data.feed.length) {
+          el.innerHTML = data.feed.map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">🎨 <strong>${C4K.esc(f.name||'?')}</strong> saved "${C4K.esc(f.title||'Untitled')}" · ${f.at}</div>`).join('');
+        } else if (ok) { el.textContent = "Nobody's saved anything yet."; }
+        const rEl = document.getElementById('sessRoster');
+        const { ok: rOk, data: rData } = await C4K.api('/api/session/roster');
+        if (rEl && rOk && rData.roster && rData.roster.length) {
+          rEl.innerHTML = rData.roster.map(k => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">
+              <span style="flex:1;">🙋 <strong>${C4K.esc(k.name||'?')}</strong> · joined ${k.joinedAt}</span>
+              <button onclick="kickSessionGuest(${k.id},'${C4K.esc(k.name).replace(/'/g,"\\'")}')" style="background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);color:#fff;border-radius:6px;padding:2px 8px;font-size:0.72rem;font-weight:800;cursor:pointer;font-family:inherit;">Remove</button>
+            </div>`).join('');
+        } else if (rEl && rOk) { rEl.textContent = "No one's joined yet."; }
+      };
+      load();
+      _sessFeedTimer = setInterval(load, 15000);
+    }
+    async function kickSessionGuest(kidId, name) {
+      if (!confirm('Remove ' + name + ' from this session? They\'ll be signed out immediately.')) return;
+      const { ok, data } = await C4K.api('/api/session/kick', 'POST', { kidId });
+      if (!ok) alert('⚠️ ' + (data.error || 'Could not remove.'));
+    }
+    function showSessionRecap(r) {
+      const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
+      alert('📊 Session recap\n\n🙋 Kids joined: ' + (r.joins || 0) + '\n🎨 Creations built: ' + (r.creations || 0) + '\n⏱️ Length: ' + mins + '\n\nGreat job! 🎉');
     }
 
     // ── Real super-admin auth via backend (auth.js / C4K) ──
@@ -880,12 +982,13 @@
           `<tr><td><strong>${label}</strong></td><td style="font-weight:900;">${n}</td>
              <td style="width:110px;"><div style="height:7px;background:var(--surface-2);border-radius:50px;overflow:hidden;"><div style="height:100%;width:${Math.round(n / bdTotal * 100)}%;background:linear-gradient(90deg,#7c3aed,#db2777);"></div></div></td></tr>`).join('');
       } else {
-        // Plain admin: no individual account data fetched or shown at all — just a note pointing
-        // at the analytics panel, which IS available to them.
+        // Plain admin: no individual account data fetched or shown at all — pointing at the two
+        // things that ARE available instead: aggregate Analytics, and the Preview Dashboards
+        // tool (real-looking mock data, no actual account exposure).
         const usersTable = document.querySelector('#userRows');
-        if (usersTable) usersTable.closest('.panel').innerHTML = '<h3>👥 Recent Members</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 Individual member details are restricted to super admin. See the <strong>📈 Analytics</strong> panel below for aggregate numbers.</p>';
+        if (usersTable) usersTable.closest('.panel').innerHTML = '<h3>👥 Recent Members</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 Individual member details are restricted to super admin. See <strong>📈 Analytics</strong> for aggregate numbers, or <strong>👁️ Preview Dashboards</strong> to see what an account looks like with realistic sample data.</p>';
         const acctPanel = document.querySelector('#acctRows');
-        if (acctPanel) acctPanel.closest('.panel').innerHTML = '<h3>📋 All Registered Accounts</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 The full account list is restricted to super admin. See the <strong>📈 Analytics</strong> panel below for aggregate numbers.</p>';
+        if (acctPanel) acctPanel.closest('.panel').innerHTML = '<h3>📋 All Registered Accounts</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 The full account list is restricted to super admin. See <strong>📈 Analytics</strong> for aggregate numbers, or <strong>👁️ Preview Dashboards</strong> to see what an account looks like with realistic sample data.</p>';
       }
       loadAnalytics();   // available to both plain admin and super admin — aggregate data only
 
@@ -1930,7 +2033,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=171" defer></script>
-  <script src="editor.js?v=171" defer></script>
+  <script src="pwa.js?v=172" defer></script>
+  <script src="editor.js?v=172" defer></script>
 </body>
 </html>
