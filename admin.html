@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=167" />
+  <link rel="stylesheet" href="styles.css?v=168" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -281,9 +281,10 @@
         </table>
       </div>
 
-      <!-- Promo codes (SUPER ADMIN ONLY) -->
+      <!-- KidVibers-internal promo codes (SUPER ADMIN ONLY) -->
       <div class="panel super-only" style="display:none;">
-        <h3>🎟️ Promo Codes <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">for outreach — e.g. a code for a specific library</span></h3>
+        <h3>🎟️ KidVibers Promo Codes <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">grants free Pro days directly — no Stripe/billing involved</span></h3>
+        <p style="color:var(--text-dim);font-size:0.82rem;margin:-4px 0 12px;">Good for outreach where nobody needs to enter a card — e.g. a free-trial code for a specific library. This does NOT touch Stripe or real payments.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           <input id="promoCode" class="le-in" placeholder="CODE (e.g. ARLINGTON2026)" style="width:180px;" />
           <input id="promoDays" class="le-in" type="number" placeholder="Free days" value="30" style="width:110px;" />
@@ -294,6 +295,31 @@
         <table class="admin-table">
           <thead><tr><th>Code</th><th>Free days</th><th>Used / Max</th><th>Note</th></tr></thead>
           <tbody id="promoRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Real Stripe discount codes (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>💳 Stripe Discount Codes <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">real % / $ off a paid checkout</span></h3>
+        <p style="color:var(--text-dim);font-size:0.82rem;margin:-4px 0 12px;">These are REAL Stripe promotion codes — a family/school still pays with a real card, just at a discount. Checkout already has a "promo code" field ready to accept these. Creating one here costs nothing until someone actually checks out.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+          <input id="scCode" class="le-in" placeholder="CODE (e.g. SCHOOLS20)" style="width:170px;" />
+          <input id="scPercent" class="le-in" type="number" placeholder="% off (e.g. 20)" style="width:110px;" />
+          <span style="color:var(--text-faint);font-size:0.78rem;">or</span>
+          <input id="scAmountCents" class="le-in" type="number" placeholder="$ off (in cents)" style="width:130px;" />
+          <select id="scDuration" class="le-in" style="width:130px;">
+            <option value="once">Once (first payment)</option>
+            <option value="repeating">Repeating (N months)</option>
+            <option value="forever">Forever</option>
+          </select>
+          <input id="scDurationMonths" class="le-in" type="number" placeholder="Months" style="width:90px;" />
+          <input id="scMaxRedemptions" class="le-in" type="number" placeholder="Max uses (optional)" style="width:150px;" />
+          <button class="btn btn-primary" onclick="createStripeCoupon()">+ Create in Stripe</button>
+        </div>
+        <div id="scMsg" style="font-size:0.85rem;font-weight:700;margin-bottom:10px;min-height:1em;"></div>
+        <table class="admin-table">
+          <thead><tr><th>Code</th><th>Discount</th><th>Duration</th><th>Redeemed</th><th>Status</th><th></th></tr></thead>
+          <tbody id="scRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
       </div>
 
@@ -671,7 +697,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=167"></script>
+  <script src="auth.js?v=168"></script>
   <script>
     // ── Real super-admin auth via backend (auth.js / C4K) ──
     const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -839,6 +865,7 @@
         loadErrorLog();
         loadFeatureFlags();
         loadPromoCodes();
+        loadStripeCoupons();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
@@ -1100,6 +1127,50 @@
       const { ok, data } = await C4K.api('/api/admin/promo/create', 'POST', { code, days, maxUses, note });
       if (ok) { document.getElementById('promoCode').value = ''; document.getElementById('promoNote').value = ''; loadPromoCodes(); }
       else alert(data.error || 'Could not create code.');
+    }
+
+    // ── Real Stripe discount codes ──
+    async function loadStripeCoupons() {
+      const { ok, data } = await C4K.api('/api/admin/stripe-coupon/list');
+      const rows = document.getElementById('scRows');
+      if (!rows) return;
+      if (!ok) { rows.innerHTML = `<tr><td colspan="6" style="color:var(--text-faint);">${C4K.esc((data && data.error) || 'Stripe not connected on this environment.')}</td></tr>`; return; }
+      const codes = data.codes || [];
+      rows.innerHTML = codes.length ? codes.map(c => {
+        const discount = c.percentOff ? c.percentOff + '% off' : (c.amountOff ? '$' + (c.amountOff / 100).toFixed(2) + ' off' : '—');
+        return `<tr>
+          <td><strong>${C4K.esc(c.code)}</strong></td>
+          <td>${discount}</td>
+          <td>${C4K.esc(c.duration || '')}</td>
+          <td>${c.timesRedeemed || 0}${c.maxRedemptions ? ' / ' + c.maxRedemptions : ''}</td>
+          <td>${c.active ? '✅ active' : '⏸️ inactive'}</td>
+          <td>${c.active ? `<button class="mini-btn" onclick="deactivateStripeCoupon('${c.id}','${C4K.esc(c.code)}')">Deactivate</button>` : ''}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="6" style="color:var(--text-faint);">No Stripe codes yet.</td></tr>';
+      window._scCodesById = {}; codes.forEach(c => window._scCodesById[c.code] = c);
+    }
+    async function createStripeCoupon() {
+      const msg = document.getElementById('scMsg');
+      const code = document.getElementById('scCode').value.trim();
+      const percentOff = document.getElementById('scPercent').value;
+      const amountOffCents = document.getElementById('scAmountCents').value;
+      const duration = document.getElementById('scDuration').value;
+      const durationMonths = document.getElementById('scDurationMonths').value;
+      const maxRedemptions = document.getElementById('scMaxRedemptions').value;
+      if (!code) { msg.style.color = '#f87171'; msg.textContent = 'Enter a code.'; return; }
+      if (!percentOff && !amountOffCents) { msg.style.color = '#f87171'; msg.textContent = 'Set a % off or a $ off amount.'; return; }
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating in Stripe…';
+      const { ok, data } = await C4K.api('/api/admin/stripe-coupon/create', 'POST', { code, percentOff, amountOffCents, duration, durationMonths, maxRedemptions });
+      if (ok) {
+        msg.style.color = 'var(--green,#4ade80)'; msg.textContent = `✅ Created ${data.code} — it's live at checkout right now.`;
+        document.getElementById('scCode').value = ''; document.getElementById('scPercent').value = ''; document.getElementById('scAmountCents').value = '';
+        loadStripeCoupons();
+      } else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not create.'; }
+    }
+    async function deactivateStripeCoupon(promoId, code) {
+      if (!confirm('Deactivate ' + code + '? It will stop working at checkout immediately.')) return;
+      const { ok, data } = await C4K.api('/api/admin/stripe-coupon/deactivate', 'POST', { promoId });
+      if (ok) loadStripeCoupons(); else alert(data.error || 'Could not deactivate.');
     }
 
     async function sendBreachNotice() {
@@ -1793,7 +1864,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=167" defer></script>
-  <script src="editor.js?v=167" defer></script>
+  <script src="pwa.js?v=168" defer></script>
+  <script src="editor.js?v=168" defer></script>
 </body>
 </html>

@@ -3744,6 +3744,72 @@ async function stripeVerifySig(env, payload, sigHeader) {
   return Math.abs(Date.now() / 1000 - parseInt(parts.t, 10)) < 300;
 }
 
+// ── Real Stripe coupons/promotion codes (separate from the internal KidVibers free-days promo
+// system) — these give an actual % or $ discount on a real paid checkout. Nothing here charges
+// anyone; creating a coupon just defines a discount rule for future checkouts to use. The
+// Checkout Session already has allow_promotion_codes:"true" set, so any code created here is
+// immediately usable at checkout.html without further wiring.
+async function apiCreateStripeCoupon(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (!stripeEnabled(env)) return json({ error: "Stripe isn't configured on this environment." }, 503);
+  const code = (data.code || "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{4,20}$/.test(code)) return json({ error: "Code must be 4-20 letters/numbers." }, 400);
+  const percentOff = parseFloat(data.percentOff);
+  const amountOffCents = parseInt(data.amountOffCents, 10);
+  if (!(percentOff > 0 && percentOff <= 100) && !(amountOffCents > 0)) {
+    return json({ error: "Set either a percent off (1-100) or an amount off (in cents)." }, 400);
+  }
+  const duration = ["once", "repeating", "forever"].includes(data.duration) ? data.duration : "once";
+  const couponParams = { duration, name: `KidVibers ${code}` };
+  if (percentOff > 0) couponParams.percent_off = String(percentOff);
+  else { couponParams.amount_off = String(amountOffCents); couponParams.currency = "usd"; }
+  if (duration === "repeating") couponParams.duration_in_months = String(Math.max(1, parseInt(data.durationMonths, 10) || 3));
+  if (data.maxRedemptions) couponParams.max_redemptions = String(Math.max(1, parseInt(data.maxRedemptions, 10)));
+  try {
+    const coupon = await stripeRequest(env, "/coupons", couponParams);
+    const promoParams = { coupon: coupon.id, code };
+    if (data.maxRedemptions) promoParams.max_redemptions = String(Math.max(1, parseInt(data.maxRedemptions, 10)));
+    const promo = await stripeRequest(env, "/promotion_codes", promoParams);
+    return json({ ok: true, code: promo.code, couponId: coupon.id, promoId: promo.id });
+  } catch (e) {
+    return json({ error: (e && e.message) || "Could not create the Stripe promo code." }, 502);
+  }
+}
+
+// List real Stripe promotion codes (their state lives in Stripe, not our DB, so this always
+// asks Stripe directly — no separate copy to keep in sync).
+async function apiListStripeCoupons(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (!stripeEnabled(env)) return json({ codes: [] });
+  try {
+    const res = await fetch("https://api.stripe.com/v1/promotion_codes?limit=50&expand[]=data.coupon", {
+      headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY },
+    });
+    const j = await res.json();
+    if (!res.ok) return json({ error: (j.error && j.error.message) || "Stripe error" }, 502);
+    const codes = (j.data || []).map(p => ({
+      id: p.id, code: p.code, active: p.active, timesRedeemed: p.times_redeemed, maxRedemptions: p.max_redemptions,
+      percentOff: p.coupon ? p.coupon.percent_off : null, amountOff: p.coupon ? p.coupon.amount_off : null,
+      duration: p.coupon ? p.coupon.duration : null,
+    }));
+    return json({ codes });
+  } catch (e) {
+    return json({ error: "Could not reach Stripe." }, 502);
+  }
+}
+async function apiDeactivateStripeCoupon(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (!stripeEnabled(env)) return json({ error: "Stripe isn't configured." }, 503);
+  const promoId = (data.promoId || "").toString().trim();
+  if (!promoId) return json({ error: "Missing promo code id." }, 400);
+  try {
+    await stripeRequest(env, `/promotion_codes/${encodeURIComponent(promoId)}`, { active: "false" });
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: (e && e.message) || "Could not deactivate." }, 502);
+  }
+}
+
 async function apiCheckout(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "Please log in to upgrade." }, 401);
@@ -4179,6 +4245,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/error-log" && method === "GET") return apiErrorLog(env, request);
   if (path === "/api/admin/export" && method === "GET") return apiFullExport(env, request);
   if (path === "/api/admin/promo/create" && method === "POST") return apiCreatePromo(env, request, data);
+  if (path === "/api/admin/stripe-coupon/create" && method === "POST") return apiCreateStripeCoupon(env, request, data);
+  if (path === "/api/admin/stripe-coupon/list" && method === "GET") return apiListStripeCoupons(env, request);
+  if (path === "/api/admin/stripe-coupon/deactivate" && method === "POST") return apiDeactivateStripeCoupon(env, request, data);
   if (path === "/api/admin/promo/list" && method === "GET") return apiListPromos(env, request);
   if (path === "/api/promo/redeem" && method === "POST") return apiRedeemPromo(env, request, data);
   if (path === "/api/admin/stats" && method === "GET") return adminStats(env, request);

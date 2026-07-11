@@ -69,7 +69,7 @@ check "GET /api/incident-log"             403 "$(code_get /api/incident-log)"
 check "GET /api/my-logins"                401 "$(code_get /api/my-logins)"
 
 # ── Baseline security headers present on every response ──
-HEADERS=$(curl -s -D - -o /dev/null --max-time 15 "$BASE/index.html")
+HEADERS=$(curl -s -D - -o /dev/null --max-time 15 "$BASE/")
 check "X-Frame-Options header present"      1 "$(echo "$HEADERS" | grep -ic 'X-Frame-Options')"
 check "Content-Security-Policy header present" 1 "$(echo "$HEADERS" | grep -ic 'Content-Security-Policy')"
 check "X-Content-Type-Options header present"  1 "$(echo "$HEADERS" | grep -ic 'X-Content-Type-Options')"
