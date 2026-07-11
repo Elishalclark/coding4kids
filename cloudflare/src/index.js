@@ -1224,7 +1224,10 @@ async function apiTestSubmit(env, request, data) {
   // 🎉 First-time boss win → email the parent a celebration + progress + upgrade nudge.
   const firstWin = passedNow && !(existing && existing.passed);
   if (firstWin && u.parent_email) {
-    try { await sendCertificateEmail(env, request, u, unit, best); } catch (e) {}
+    // This silently failed before with no trace — logging it means a broken celebration email
+    // (a real, if minor, user-facing miss) shows up in the error log instead of vanishing.
+    try { await sendCertificateEmail(env, request, u, unit, best); }
+    catch (e) { await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)").bind("sendCertificateEmail", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run().catch(() => {}); }
   }
   return json({
     score, correct, total, passed: passedNow, passPercent: passPct,
@@ -3141,6 +3144,10 @@ async function apiListPromos(env, request) {
 async function apiRedeemPromo(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "Please log in first." }, 401);
+  // Codes can be as short as 4 characters — without a throttle, someone could script a brute-force
+  // guess against the small keyspace and grab free Pro days. 10 tries/hour is generous for a human
+  // typing a real code, but stops automated guessing.
+  if (await rateLimited(env, `redeempromo:${u.id}`, 10, 3600)) return json({ error: "Too many tries — please wait a bit." }, 429);
   const code = (data.code || "").toString().trim().toUpperCase();
   const codes = await getSetting(env, "promo_codes", {});
   const promo = codes[code];
@@ -4672,7 +4679,10 @@ export default {
       try {
         const cutoff = new Date(Date.now() - SESSION_MAX_DAYS * 86400000).toISOString();
         await env.DB.prepare("DELETE FROM sessions WHERE created_at < ?").bind(cutoff).run();
-      } catch {}
+      } catch (e) {
+        // This used to fail silently forever — if cleanup breaks, it's worth knowing about.
+        await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)").bind("cron:session-cleanup", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run().catch(() => {});
+      }
     })());
     // Housekeeping: purge short-lived bookkeeping keys from the settings table so it
     // doesn't grow forever. quizok markers only matter between quiz + completion (keep 7d);
@@ -4688,6 +4698,9 @@ export default {
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'loginfail:%'").run();
         // Same reasoning: every rate-limit window used across the app is <=1hr, so a daily sweep is safe.
         await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'ratelimit:%'").run();
+        // error_log had no cleanup at all — keep 30 days, which is plenty to debug a bug from
+        // an email alert without letting the table grow forever.
+        await env.DB.prepare("DELETE FROM error_log WHERE created_at < ?").bind(d(30)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).
@@ -4711,7 +4724,11 @@ export default {
           for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM settings WHERE key=?","DELETE FROM users WHERE id=?"])
             await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${g.id}` : g.id).run();
         }
-      } catch {}
+      } catch (e) {
+        // Retention/guest-cleanup failing silently is a real compliance risk — we tell schools
+        // guest accounts auto-delete within 24h, so a silent failure here breaks that promise.
+        await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)").bind("cron:retention-cleanup", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run().catch(() => {});
+      }
     })());
   },
   async fetch(request, env, ctx) {

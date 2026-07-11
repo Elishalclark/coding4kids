@@ -9,6 +9,16 @@ command -v wrangler >/dev/null 2>&1 || {
   W=$(ls "$NVM_DIR"/versions/node/*/bin/wrangler 2>/dev/null | head -1)
   [ -n "$W" ] && export PATH="$(dirname "$W"):$PATH"
 } || true
+echo "🔢 Auto-bumping the cache-busting version..."
+# Every asset URL uses ?v=NNN for cache-busting; this used to be bumped by hand before every
+# deploy (easy to forget on a new file, and easy to typo). Find the current highest ?v=NNN
+# across every page in the parent dir, bump it by 1, and apply it everywhere in one shot.
+CUR_V=$(grep -ohE '\?v=[0-9]+' ../*.html 2>/dev/null | grep -oE '[0-9]+' | sort -n | tail -1)
+CUR_V="${CUR_V:-1}"
+NEW_V=$((CUR_V + 1))
+sed -i '' "s/?v=${CUR_V}\"/?v=${NEW_V}\"/g" ../*.html 2>/dev/null || true
+echo "   v${CUR_V} → v${NEW_V}"
+
 echo "📦 Copying the latest site files..."
 cp ../*.html public/ 2>/dev/null || true
 cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true

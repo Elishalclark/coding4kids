@@ -54,6 +54,7 @@ CREATE TABLE notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL, kind TEXT, body TEXT, created_at TEXT, resolved INTEGER DEFAULT 0, escalated INTEGER DEFAULT 0
         );
+CREATE INDEX IF NOT EXISTS idx_notices_user ON notices(user_id);
 CREATE TABLE projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL, author_name TEXT, title TEXT, code TEXT,
