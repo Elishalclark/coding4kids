@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=191" />
+  <link rel="stylesheet" href="styles.css?v=192" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -385,9 +385,27 @@
            the whole platform, in one place, so a stolen credential shows up even if the account
            owner never checks their own login history. -->
       <div class="panel super-only" style="display:none;">
-        <h3>🕵️ Staff Login Activity <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">teachers, admins &amp; super admins — most recent 100</span></h3>
+        <h3>🕵️ Staff Login Activity <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="staffLoginCount"></span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="staffLoginSearch" class="le-in" placeholder="🔎 Filter by name, username, or IP…" style="flex:1;min-width:200px;" oninput="renderStaffLogins()" />
+          <select id="staffLoginRole" class="le-in" style="width:auto;" onchange="renderStaffLogins()">
+            <option value="">All roles</option>
+            <option value="super_admin">👑 Super admin</option>
+            <option value="admin">🛠️ Admin</option>
+            <option value="teacher">🍎 Teacher</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:700;color:var(--text-dim);cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="staffLoginNewOnly" onchange="renderStaffLogins()" /> ⚠️ New IPs only
+          </label>
+          <button class="mini-btn" onclick="exportStaffLoginsCsv()">⬇️ Export CSV</button>
+        </div>
         <table class="admin-table">
-          <thead><tr><th>Who</th><th>Role</th><th>IP</th><th>When</th></tr></thead>
+          <thead><tr>
+            <th style="cursor:pointer;" onclick="sortStaffLogins('name')">Who <span id="slSortIcon-name"></span></th>
+            <th style="cursor:pointer;" onclick="sortStaffLogins('role')">Role <span id="slSortIcon-role"></span></th>
+            <th style="cursor:pointer;" onclick="sortStaffLogins('ip')">IP <span id="slSortIcon-ip"></span></th>
+            <th style="cursor:pointer;" onclick="sortStaffLogins('at')">When <span id="slSortIcon-at">▼</span></th>
+          </tr></thead>
           <tbody id="staffLoginRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -852,7 +870,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=191"></script>
+  <script src="auth.js?v=192"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1460,18 +1478,64 @@
     }
 
     // ── Staff login activity (who's logging into teacher/admin/super_admin accounts, from where) ──
+    let _staffLogins = [], _slSortKey = 'at', _slSortDir = -1;
+    const roleTag = r => r === 'super_admin' ? '👑 super admin' : (r === 'admin' ? '🛠️ admin' : '🍎 teacher');
     async function loadStaffLogins() {
       const { ok, data } = await C4K.api('/api/admin/staff-logins');
+      if (!ok) return;
+      const list = data.logins || [];
+      // Flag any login from an IP we haven't seen before FOR THAT PERSON, within this window —
+      // the earliest entry per person is the baseline (nothing to compare it to yet).
+      const seenByUser = new Map();
+      const chrono = list.slice().sort((a, b) => a.at < b.at ? -1 : 1);   // oldest first, so "first seen" is really first
+      for (const l of chrono) {
+        const key = l.username;
+        if (!seenByUser.has(key)) seenByUser.set(key, new Set());
+        const ips = seenByUser.get(key);
+        l.newIp = ips.size > 0 && !ips.has(l.ip);
+        ips.add(l.ip);
+      }
+      _staffLogins = list;
+      renderStaffLogins();
+    }
+    function sortStaffLogins(key) {
+      if (_slSortKey === key) _slSortDir *= -1; else { _slSortKey = key; _slSortDir = 1; }
+      ['name', 'role', 'ip', 'at'].forEach(k => {
+        const el = document.getElementById('slSortIcon-' + k);
+        if (el) el.textContent = (k === _slSortKey) ? (_slSortDir === 1 ? '▲' : '▼') : '';
+      });
+      renderStaffLogins();
+    }
+    function renderStaffLogins() {
       const rows = document.getElementById('staffLoginRows');
       if (!rows) return;
-      const list = (ok && data.logins) || [];
-      const roleTag = r => r === 'super_admin' ? '👑 super admin' : (r === 'admin' ? '🛠️ admin' : '🍎 teacher');
-      rows.innerHTML = list.length ? list.map(l => `<tr>
+      const q = (document.getElementById('staffLoginSearch') ? document.getElementById('staffLoginSearch').value : '').trim().toLowerCase();
+      const role = document.getElementById('staffLoginRole') ? document.getElementById('staffLoginRole').value : '';
+      const newOnly = document.getElementById('staffLoginNewOnly') ? document.getElementById('staffLoginNewOnly').checked : false;
+      let list = _staffLogins.filter(l =>
+        (!role || l.role === role) && (!newOnly || l.newIp) &&
+        (!q || (l.name||'').toLowerCase().includes(q) || (l.username||'').toLowerCase().includes(q) || (l.ip||'').toLowerCase().includes(q)));
+      if (_slSortKey) {
+        list = list.slice().sort((a, b) => {
+          const av = (a[_slSortKey] || '').toString().toLowerCase(), bv = (b[_slSortKey] || '').toString().toLowerCase();
+          return av < bv ? -_slSortDir : av > bv ? _slSortDir : 0;
+        });
+      }
+      document.getElementById('staffLoginCount').textContent = `${list.length} of ${_staffLogins.length} logins (most recent 100)`;
+      rows.innerHTML = list.length ? list.map(l => `<tr${l.newIp ? ' style="background:rgba(245,158,11,0.08);"' : ''}>
           <td><strong>${C4K.esc(l.name || '')}</strong> <span style="color:var(--text-faint);">@${C4K.esc(l.username)}</span></td>
           <td>${roleTag(l.role)}</td>
-          <td style="font-family:monospace;font-size:0.82rem;">${C4K.esc(l.ip)}</td>
+          <td style="font-family:monospace;font-size:0.82rem;">${C4K.esc(l.ip)}${l.newIp ? ' <span title="First time this IP has been seen for this person" style="color:#f59e0b;">⚠️ new</span>' : ''}</td>
           <td style="color:var(--text-dim);">${C4K.esc(l.at)}</td>
-        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">No staff logins recorded yet.</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">No staff logins match.</td></tr>';
+    }
+    function exportStaffLoginsCsv() {
+      const rows = [['Name', 'Username', 'Role', 'IP', 'When', 'New IP?']];
+      _staffLogins.forEach(l => rows.push([l.name || '', l.username || '', l.role || '', l.ip || '', l.at || '', l.newIp ? 'yes' : '']));
+      const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-staff-logins-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
     }
 
     // ── Weekly cohort retention (signup week x weeks-since-signup activity %) ──
@@ -2356,7 +2420,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=191" defer></script>
-  <script src="editor.js?v=191" defer></script>
+  <script src="pwa.js?v=192" defer></script>
+  <script src="editor.js?v=192" defer></script>
 </body>
 </html>
