@@ -2608,6 +2608,17 @@ async function apiSessionSaveAccount(env, request, data) {
   return json({ ok: true, username, joinedClass: inClass });
 }
 
+// The other half of "save my account": if the kid (or the grown-up with them) explicitly says
+// "no thanks", delete the account and everything in it right then instead of waiting for the
+// next day's cleanup cron. They already made the call — no reason to keep the data around
+// in the meantime.
+async function apiSessionSkipSave(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid" || u.consent_method !== "library_session") return json({ ok: true });   // nothing to do for any other account
+  await deleteGuestKid(env, u.id);
+  return json({ ok: true });
+}
+
 // Daily login reward: a small token bonus, once per calendar day, just for showing up.
 const DAILY_REWARD = 15;
 async function apiDailyReward(env, request) {
@@ -4660,6 +4671,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/session/extend" && method === "POST") return apiExtendSession(env, request, data);
   if (path === "/api/session/kick" && method === "POST") return apiKickGuest(env, request, data);
   if (path === "/api/session/save-account" && method === "POST") return apiSessionSaveAccount(env, request, data);
+  if (path === "/api/session/skip-save" && method === "POST") return apiSessionSkipSave(env, request);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
   if (path === "/api/dpa/accept" && method === "POST") return apiAcceptDPA(env, request);
   if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);
