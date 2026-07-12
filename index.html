@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=196" />
+  <link rel="stylesheet" href="styles.css?v=197" />
   <!-- Structured data: helps Google understand KidVibers is an educational app -->
   <script type="application/ld+json">
   {
@@ -991,31 +991,14 @@
   </div>
 
   <script>
-    // ── What's New: bump WN_VERSION whenever you add new entries. Shows once per version. ──
-    const WN_VERSION = "1.9";
-    const WN_ITEMS = [
-      { emoji: "🎟️", title: "Live drop-in sessions", text: "At a library or class? Tap \"Join a Session\", enter the code, pick a name — and code instantly. No sign-up!" },
-      { emoji: "🌐", title: "Español", text: "A one-tap English / Spanish toggle on the homepage. ¡Aprende a programar!" },
-      { emoji: "💳", title: "Monthly or Annual plans", text: "Pick month-to-month or yearly billing right on the pricing page." },
-      { emoji: "🔥", title: "Streak calendar & daily bonus", text: "See your last 14 coding days, and grab a token bonus just for coming back." },
-      { emoji: "🏅", title: "Classmate leaderboard", text: "See how you rank against your own class this week." },
-      { emoji: "🛡️", title: "Safer under the hood", text: "A content filter, server-checked quizzes, and shared-computer safety features." },
-    ];
+    // ── What's New — shared item list + version live in auth.js (C4K.WN_ITEMS), tagged by
+    // audience so kid/staff/admin dashboards each only show what's relevant to them. This page
+    // (public homepage) shows the 'general' bucket to every visitor, logged in or not. ──
     function openWhatsNew(force) {
-      try { if (!force && localStorage.getItem('c4k_wn_seen') === WN_VERSION) return; } catch (e) {}
-      const list = document.getElementById('wnList');
-      document.getElementById('wnVersion').textContent = 'v' + WN_VERSION;
-      list.innerHTML = WN_ITEMS.map(i => `
-        <li style="display:flex;gap:12px;align-items:flex-start;">
-          <span style="font-size:1.4rem;flex-shrink:0;">${i.emoji}</span>
-          <div><div style="font-weight:800;color:#fff;font-size:0.95rem;">${i.title}</div>
-          <div style="color:var(--text-dim);font-size:0.84rem;line-height:1.4;">${i.text}</div></div>
-        </li>`).join('');
-      document.getElementById('whatsNew').style.display = 'flex';
+      C4K.showWhatsNew({ audience: 'general', storageKey: 'c4k_wn_seen', listId: 'wnList', versionId: 'wnVersion', popupId: 'whatsNew', force });
     }
     function closeWhatsNew() {
-      try { localStorage.setItem('c4k_wn_seen', WN_VERSION); } catch (e) {}
-      document.getElementById('whatsNew').style.display = 'none';
+      C4K.closeWhatsNew({ storageKey: 'c4k_wn_seen', popupId: 'whatsNew' });
     }
     // Show on entry, shortly after load.
     window.addEventListener('load', () => setTimeout(() => openWhatsNew(false), 800));
@@ -1108,9 +1091,9 @@
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js?v=196"></script>
-  <script src="app.js?v=196"></script>
-  <script src="pwa.js?v=196" defer></script>
-  <script src="editor.js?v=196" defer></script>
+  <script src="auth.js?v=197"></script>
+  <script src="app.js?v=197"></script>
+  <script src="pwa.js?v=197" defer></script>
+  <script src="editor.js?v=197" defer></script>
 </body>
 </html>

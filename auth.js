@@ -127,6 +127,60 @@ const C4K = {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   },
 
+  // ── What's New — one shared list, tagged by who it's actually for, so a kid isn't shown a
+  // teacher billing update and an admin isn't shown a kid gamification feature. 'general' items
+  // show on the homepage (index.html) for everyone, logged in or not. Bump WN_VERSION whenever
+  // items are added; each audience tracks "seen" separately (own localStorage key/version) so
+  // dismissing the kid popup doesn't silently mark the admin one as seen too.
+  WN_VERSION: '2.0',
+  WN_ITEMS: [
+    { emoji: '🎟️', title: 'Live drop-in sessions', text: 'At a library or class? Tap "Join a Session", enter the code, pick a name — and code instantly. No sign-up!', audience: ['general', 'kid', 'staff'] },
+    { emoji: '🌐', title: 'Español', text: 'A one-tap English / Spanish toggle on the homepage. ¡Aprende a programar!', audience: ['general', 'kid'] },
+    { emoji: '💳', title: 'Monthly or Annual plans', text: 'Pick month-to-month or yearly billing right on the pricing page.', audience: ['general', 'staff'] },
+    { emoji: '🔥', title: 'Streak calendar & daily bonus', text: 'See your last 14 coding days, and grab a token bonus just for coming back.', audience: ['general', 'kid'] },
+    { emoji: '🏅', title: 'Classmate leaderboard', text: 'See how you rank against your own class this week.', audience: ['general', 'kid'] },
+    { emoji: '🛡️', title: 'Safer under the hood', text: 'A content filter, server-checked quizzes, and shared-computer safety features.', audience: ['general', 'kid', 'staff', 'admin'] },
+    // Session hosting — for teachers/schools/districts
+    { emoji: '⏱️', title: 'Pick your own session length', text: 'Starting a Live Session now lets you choose 1–24 hours instead of a fixed 8 — and a "Session logout code" so kids can end their own turn on shared computers.', audience: ['staff'] },
+    { emoji: '💾', title: 'Kids can save their work after a session', text: 'When a session ends, a parent can enter their email right there to keep the account instead of it being cleared — and it auto-enrolls in your class if you have a class code.', audience: ['staff'] },
+    { emoji: '⬇️', title: 'Export a session roster', text: 'A one-click CSV of who joined and when — handy for a program attendance report, no personal info beyond the nickname they typed.', audience: ['staff'] },
+    // Kid-facing
+    { emoji: '🔒', title: 'A real "end my turn" button', text: 'On a shared library/class computer, there\'s now a visible button to enter the session code and sign yourself out — no more hunting for it.', audience: ['kid'] },
+    { emoji: '🎉', title: 'Keep what you build', text: "If your session ends, you'll see an option to save your account (with a grown-up's help) instead of losing your work.", audience: ['kid'] },
+    // Admin/super-admin panel
+    { emoji: '🛑', title: 'Live session controls', text: 'Browse every currently-active session platform-wide, end one individually, or hit the emergency "end all sessions" button.', audience: ['admin'] },
+    { emoji: '🕵️', title: 'Staff login activity', text: "Every teacher/admin/super-admin login in one place, grouped by role, with new/unrecognized IPs flagged automatically.", audience: ['admin'] },
+    { emoji: '📉', title: 'Weekly cohort retention', text: "See whether each week's new signups are sticking around better or worse over time, not just a single snapshot number.", audience: ['admin'] },
+    { emoji: '🛡️', title: 'Admin account management', text: 'Super admins can now create/suspend other admin accounts and see a full staff login history, right from the panel.', audience: ['admin'] },
+    { emoji: '🔐', title: 'Force-logout-everyone', text: "A one-click incident-response tool that revokes every active login platform-wide — for a suspected credential leak.", audience: ['admin'] },
+  ],
+  wnItemsFor(audience) { return this.WN_ITEMS.filter(i => (i.audience || []).includes(audience)); },
+  // Shared popup renderer — each page provides the DOM ids it already has (they all follow the
+  // same markup pattern) plus which audience bucket to filter to and its own storage key, so
+  // "seen" state never collides between the kid/staff/admin/general popups.
+  showWhatsNew(cfg) {
+    const items = this.wnItemsFor(cfg.audience);
+    if (!items.length) return;
+    try { if (!cfg.force && localStorage.getItem(cfg.storageKey) === this.WN_VERSION) return; } catch (e) {}
+    const list = document.getElementById(cfg.listId);
+    const ver = document.getElementById(cfg.versionId);
+    const popup = document.getElementById(cfg.popupId);
+    if (!list || !popup) return;
+    if (ver) ver.textContent = 'v' + this.WN_VERSION;
+    list.innerHTML = items.map(i => `
+      <li style="display:flex;gap:12px;align-items:flex-start;">
+        <span style="font-size:1.4rem;flex-shrink:0;">${i.emoji}</span>
+        <div><div style="font-weight:800;color:#fff;font-size:0.95rem;">${this.esc(i.title)}</div>
+        <div style="color:var(--text-dim);font-size:0.84rem;line-height:1.4;">${this.esc(i.text)}</div></div>
+      </li>`).join('');
+    popup.style.display = 'flex';
+  },
+  closeWhatsNew(cfg) {
+    try { localStorage.setItem(cfg.storageKey, this.WN_VERSION); } catch (e) {}
+    const popup = document.getElementById(cfg.popupId);
+    if (popup) popup.style.display = 'none';
+  },
+
   // ── Sound effects (Web Audio API — no asset files, respects the mute setting) ──
   _actx: null,
   soundOn() { try { return localStorage.getItem('c4k_sound') !== 'off'; } catch { return true; } },

@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=196" />
+  <link rel="stylesheet" href="styles.css?v=197" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -106,6 +106,20 @@
       <div class="login-hint">
         🔐 Admin &amp; Super Admin only. Credentials live in your private <code>admin_config.json</code>.
       </div>
+    </div>
+  </div>
+
+  <!-- ✨ What's New — admin-facing items only (auth.js has the shared, audience-tagged list) -->
+  <div id="whatsNew" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(8,6,18,0.88);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:460px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:22px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:1.8rem;">✨</span>
+        <h2 style="font-size:1.4rem;font-weight:900;color:#fff;margin:0;flex:1;">What's New</h2>
+        <span id="wnVersion" style="font-size:0.72rem;font-weight:900;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;padding:3px 10px;border-radius:50px;">v1</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Here's the latest on KidVibers 🚀</p>
+      <ul id="wnList" style="list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:12px;"></ul>
+      <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
     </div>
   </div>
 
@@ -884,7 +898,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=196"></script>
+  <script src="auth.js?v=197"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1067,7 +1081,15 @@
       document.getElementById('panelLabel').textContent = isSuper ? '/ Super Admin Panel 👑' : '/ Admin Panel 🛠️';
       document.getElementById('previewToggle').checked = _adminPreviewMode;
       document.getElementById('previewBanner').style.display = _adminPreviewMode ? 'flex' : 'none';
+      if (!(C4K.user && C4K.user.isPreview)) openWhatsNew();
       await loadData();
+    }
+    // ── What's New — admin-only items (auth.js has the shared, audience-tagged list) ──
+    function openWhatsNew(force) {
+      C4K.showWhatsNew({ audience: 'admin', storageKey: 'c4k_wn_seen_admin', listId: 'wnList', versionId: 'wnVersion', popupId: 'whatsNew', force });
+    }
+    function closeWhatsNew() {
+      C4K.closeWhatsNew({ storageKey: 'c4k_wn_seen_admin', popupId: 'whatsNew' });
     }
 
     async function doLogin(e) {
@@ -2495,7 +2517,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=196" defer></script>
-  <script src="editor.js?v=196" defer></script>
+  <script src="pwa.js?v=197" defer></script>
+  <script src="editor.js?v=197" defer></script>
 </body>
 </html>

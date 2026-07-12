@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=196" />
+  <link rel="stylesheet" href="styles.css?v=197" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -52,6 +52,20 @@
       </div>
     </div>
   </nav>
+
+  <!-- ✨ What's New — staff-facing items only (auth.js has the shared, audience-tagged list) -->
+  <div id="whatsNew" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(8,6,18,0.88);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:460px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:22px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:1.8rem;">✨</span>
+        <h2 style="font-size:1.4rem;font-weight:900;color:#fff;margin:0;flex:1;">What's New</h2>
+        <span id="wnVersion" style="font-size:0.72rem;font-weight:900;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;padding:3px 10px;border-radius:50px;">v1</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Here's the latest on KidVibers 🚀</p>
+      <ul id="wnList" style="list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:12px;"></ul>
+      <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
+    </div>
+  </div>
 
   <main class="pd-main">
     <div class="pd-head">
@@ -333,7 +347,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=196"></script>
+  <script src="auth.js?v=197"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -644,6 +658,14 @@
       setTimeout(() => b.textContent = t, 1200);
     }
 
+    // ── What's New — staff-only items (auth.js has the shared, audience-tagged list) ──
+    function openWhatsNew(force) {
+      C4K.showWhatsNew({ audience: 'staff', storageKey: 'c4k_wn_seen_staff', listId: 'wnList', versionId: 'wnVersion', popupId: 'whatsNew', force });
+    }
+    function closeWhatsNew() {
+      C4K.closeWhatsNew({ storageKey: 'c4k_wn_seen_staff', popupId: 'whatsNew' });
+    }
+
     let ME_ROLE = 'parent';
     async function load() {
       const me = await C4K.loadMe();
@@ -654,6 +676,9 @@
       const isTeacher = me.role === 'teacher';
       ME_ROLE = me.role;
       window.C4K_ME = me;
+      // Session-hosting "What's New" items are only relevant to teachers (parents can't host a
+      // Live Session) — the general/kid items already cover the homepage for a plain parent.
+      if (isTeacher && !me.isPreview) openWhatsNew();
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
       const paidFamily = me.plan === 'family';
@@ -884,7 +909,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=196" defer></script>
-  <script src="editor.js?v=196" defer></script>
+  <script src="pwa.js?v=197" defer></script>
+  <script src="editor.js?v=197" defer></script>
 </body>
 </html>
