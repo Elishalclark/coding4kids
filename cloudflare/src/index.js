@@ -2363,6 +2363,35 @@ async function apiKickGuest(env, request, data) {
   return json({ ok: true, name: kid.name });
 }
 
+// Add more time to the CURRENT session without changing the code — "New code" forces every kid
+// to rejoin, which is disruptive mid-session; this just pushes the expiry out so nobody notices.
+async function apiExtendSession(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const active = await getSetting(env, `activesession:${u.id}`, null);
+  if (!active || !active.code) return json({ error: "No active session." }, 400);
+  const info = await getSetting(env, `session:${active.code}`, null);
+  if (!info) return json({ error: "No active session." }, 400);
+  info.expires = Date.now() + SESSION_HOURS * 3600 * 1000;
+  await setSetting(env, `session:${active.code}`, info);
+  return json({ ok: true, expiresAt: new Date(info.expires).toISOString() });
+}
+
+// A guest kid's dashboard polls this every ~20s to know whether the Live Session they joined
+// is still running. Handles BOTH cases uniformly: the host manually ending it (session:CODE
+// deleted right away) and it naturally timing out (expires < now) — either way this flips to
+// false and the kid's browser shows a friendly "session ended" screen instead of just silently
+// breaking on the next API call. No-op (always active) for regular, non-guest kid accounts.
+async function apiSessionMyStatus(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid" || u.consent_method !== "library_session") return json({ active: true });
+  const marker = await getSetting(env, `sessionguest:${u.id}`, null);
+  if (!marker || !marker.code) return json({ active: false });
+  const info = await getSetting(env, `session:${marker.code}`, null);
+  const active = !!(info && info.expires > Date.now());
+  return json({ active, expiresAt: info ? new Date(info.expires).toISOString() : null });
+}
+
 async function apiEndSession(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
@@ -2386,6 +2415,13 @@ async function apiEndSession(env, request) {
       recap = { joins: info.joins || 0, minutes, creations };
     }
     await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
+    // Actively sign out every guest kid who joined THIS session, right now — not just when the
+    // 24h cleanup cron eventually gets to them. Their device will see this on its next status
+    // check (dashboard polls every 20s) and show a friendly "session ended" screen.
+    if (info) {
+      const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id=? AND consent_method='library_session'").bind(info.familyId).all()).results || [];
+      for (const g of guests) await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(g.id).run();
+    }
   }
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
   return json({ ok: true, recap });
@@ -4368,6 +4404,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/my-logins/revoke" && method === "POST") return apiRevokeSession(env, request, data);
   if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
   if (path === "/api/session/roster" && method === "GET") return apiSessionRoster(env, request);
+  if (path === "/api/session/my-status" && method === "GET") return apiSessionMyStatus(env, request);
+  if (path === "/api/session/extend" && method === "POST") return apiExtendSession(env, request);
   if (path === "/api/session/kick" && method === "POST") return apiKickGuest(env, request, data);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
   if (path === "/api/dpa/accept" && method === "POST") return apiAcceptDPA(env, request);

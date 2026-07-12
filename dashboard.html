@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=175" />
+  <link rel="stylesheet" href="styles.css?v=176" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -293,7 +293,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=175"></script>
+  <script src="auth.js?v=176"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -330,6 +330,52 @@
       const { ok, data } = await C4K.api('/api/kid/session-logout', 'POST', { pin: pin.trim() });
       if (ok) { try { localStorage.removeItem('c4k_token'); } catch(e){} location.href = 'index.html'; }
       else alert(data.error || 'Could not sign out.');
+    }
+
+    // ── Live Session guest: watch for the session ending, then auto-refresh & kick out ──
+    let _sessWatchTimer = null;
+    function startSessionWatch() {
+      renderSessionBadge(null);   // show a placeholder immediately, filled in once we hear back
+      const check = async () => {
+        const { ok, data } = await C4K.api('/api/session/my-status');
+        if (!ok) return;   // network hiccup — don't kick anyone over a dropped request, just retry next tick
+        if (!data.active) { clearInterval(_sessWatchTimer); showSessionEndedOverlay(); return; }
+        renderSessionBadge(data.expiresAt);
+      };
+      check();
+      _sessWatchTimer = setInterval(check, 20000);
+    }
+    function renderSessionBadge(expiresAt) {
+      let bar = document.getElementById('sessWatchBadge');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'sessWatchBadge';
+        bar.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:500;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;font-family:inherit;font-weight:800;font-size:0.78rem;padding:6px 16px;border-radius:50px;box-shadow:0 4px 14px rgba(0,0,0,0.35);';
+        document.body.appendChild(bar);
+      }
+      if (!expiresAt) { bar.textContent = '🎟️ Live session'; return; }
+      const mins = Math.round((new Date(expiresAt) - Date.now()) / 60000);
+      bar.textContent = mins > 60
+        ? '🎟️ Live session — plenty of time left'
+        : (mins > 5 ? `🎟️ Live session — about ${mins} min left` : `🎟️ Live session — ending soon!`);
+    }
+    function showSessionEndedOverlay() {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#0f3d2e,#15803d 55%,#16a34a);display:flex;align-items:center;justify-content:center;padding:20px;';
+      ov.innerHTML = `
+        <div style="max-width:420px;width:100%;background:rgba(0,0,0,0.2);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.25);border-radius:24px;padding:38px 30px;color:#fff;text-align:center;font-family:inherit;">
+          <div style="font-size:3rem;">🎉</div>
+          <h1 style="font-size:1.4rem;font-weight:900;margin:10px 0;">Session ended — great coding!</h1>
+          <p style="color:#dcfce7;font-size:0.92rem;line-height:1.6;">Thanks for building something today. Ask a grown-up if you'd like to keep coding at home — you can sign up free anytime!</p>
+          <p id="sessRedirectMsg" style="color:#dcfce7;font-size:0.8rem;margin-top:18px;">Heading back in <span id="sessRedirectN">5</span>…</p>
+        </div>`;
+      document.body.appendChild(ov);
+      try { localStorage.removeItem('c4k_token'); } catch (e) {}
+      let n = 5;
+      const t = setInterval(() => {
+        n--; const el = document.getElementById('sessRedirectN'); if (el) el.textContent = n;
+        if (n <= 0) { clearInterval(t); location.href = 'live.html'; }
+      }, 1000);
     }
 
     // ── Kid safety button ──
@@ -738,6 +784,9 @@
       // COPPA: under-13 accounts are fully locked until a grown-up approves - nothing works.
       if (C4K.consentLock(ME)) return;
       if (C4K.scheduleLock(ME)) return;
+      // Library/school Live Session guest: watch for the session ending (host ends it, or it
+      // naturally times out) and show a friendly goodbye instead of the app just breaking.
+      if (ME.consentMethod === 'library_session') startSessionWatch();
       schoolBrandBar();
       document.getElementById('dAv').innerHTML = C4K.renderAvatar(ME.avatar, 70);
       document.getElementById('avPreview').innerHTML = C4K.renderAvatar(ME.avatar, 80);
@@ -1210,7 +1259,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=175" defer></script>
-  <script src="editor.js?v=175" defer></script>
+  <script src="pwa.js?v=176" defer></script>
+  <script src="editor.js?v=176" defer></script>
 </body>
 </html>
