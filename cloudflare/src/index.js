@@ -2335,6 +2335,21 @@ async function apiSessionFeed(env, request) {
   return json({ feed: rows.map(r => ({ name: r.author_name, title: r.title, at: (r.updated_at || "").slice(11, 16) })) });
 }
 
+// Fully delete a session-guest kid account and every trace of their data — used when a session
+// ends, when a host manually kicks someone, and by the 24h retention cron. One shared place so
+// all three stay consistent (this used to be duplicated 3x and each copy was missing `projects`,
+// meaning a guest's saved Vibe Studio work never actually got cleaned up — fixed here for good).
+async function deleteGuestKid(env, kidId) {
+  for (const sql of [
+    "DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
+    "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
+    "DELETE FROM notices WHERE user_id=?", "DELETE FROM projects WHERE user_id=?",
+    "DELETE FROM settings WHERE key=?", "DELETE FROM users WHERE id=?",
+  ]) {
+    await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${kidId}` : kidId).run();
+  }
+}
+
 // Live roster of guests currently in the active session, so the host can see who's in the
 // room and — if needed — remove a single disruptive kid without ending the whole session.
 async function apiSessionRoster(env, request) {
@@ -2344,7 +2359,7 @@ async function apiSessionRoster(env, request) {
   if (!active || !active.code) return json({ roster: [] });
   const info = await getSetting(env, `session:${active.code}`, null);
   if (!info) return json({ roster: [] });
-  const kids = (await env.DB.prepare("SELECT id,name,username,created_at FROM users WHERE role='kid' AND family_id=? AND consent_method='library_session' ORDER BY id DESC LIMIT 100").bind(info.familyId).all()).results || [];
+  const kids = (await env.DB.prepare("SELECT id,name,username,created_at FROM users WHERE role='kid' AND family_id IS ? AND consent_method='library_session' ORDER BY id DESC LIMIT 100").bind(info.familyId).all()).results || [];
   return json({ roster: kids.map(k => ({ id: k.id, name: k.name, username: k.username, joinedAt: (k.created_at || "").slice(11, 16) })) });
 }
 // Remove ONE guest from the live session (their account is deleted, same as a normal removal) —
@@ -2356,10 +2371,9 @@ async function apiKickGuest(env, request, data) {
   if (!active || !active.code) return json({ error: "No active session." }, 400);
   const info = await getSetting(env, `session:${active.code}`, null);
   if (!info) return json({ error: "No active session." }, 400);
-  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id=? AND consent_method='library_session'").bind(data.kidId, info.familyId).first();
+  const kid = await env.DB.prepare("SELECT * FROM users WHERE id=? AND role='kid' AND family_id IS ? AND consent_method='library_session'").bind(data.kidId, info.familyId).first();
   if (!kid) return json({ error: "That guest isn't in your active session." }, 404);
-  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM notices WHERE user_id=?", "DELETE FROM settings WHERE key=?", "DELETE FROM users WHERE id=?"])
-    await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${kid.id}` : kid.id).run();
+  await deleteGuestKid(env, kid.id);
   return json({ ok: true, name: kid.name });
 }
 
@@ -2415,12 +2429,14 @@ async function apiEndSession(env, request) {
       recap = { joins: info.joins || 0, minutes, creations };
     }
     await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
-    // Actively sign out every guest kid who joined THIS session, right now — not just when the
-    // 24h cleanup cron eventually gets to them. Their device will see this on its next status
-    // check (dashboard polls every 20s) and show a friendly "session ended" screen.
+    // Fully delete every guest kid who joined THIS session, right now — account, progress,
+    // projects, everything — instead of waiting for the 24h cleanup cron. Their device will see
+    // this on its next status check (dashboard polls every 20s) and show a friendly goodbye
+    // screen before it redirects (the recap above was already computed from their data, so
+    // nothing the host sees is lost by deleting it immediately after).
     if (info) {
-      const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id=? AND consent_method='library_session'").bind(info.familyId).all()).results || [];
-      for (const g of guests) await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(g.id).run();
+      const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id IS ? AND consent_method='library_session'").bind(info.familyId).all()).results || [];
+      for (const g of guests) await deleteGuestKid(env, g.id);
     }
   }
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
@@ -4936,10 +4952,7 @@ export default {
         // Clean up finished library-session guest accounts (and their data + markers).
         const guestCutoff = new Date(Date.now() - 24 * 3600000).toISOString();  // grace period after session ends
         const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND consent_method='library_session' AND created_at < ?").bind(guestCutoff).all()).results || [];
-        for (const g of guests) {
-          for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM settings WHERE key=?","DELETE FROM users WHERE id=?"])
-            await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${g.id}` : g.id).run();
-        }
+        for (const g of guests) await deleteGuestKid(env, g.id);
       } catch (e) {
         // Retention/guest-cleanup failing silently is a real compliance risk — we tell schools
         // guest accounts auto-delete within 24h, so a silent failure here breaks that promise.
