@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=186" />
+  <link rel="stylesheet" href="styles.css?v=187" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -724,9 +724,25 @@
           <thead><tr><th>Child</th><th>Age</th><th>Status</th><th>Method</th><th>Action</th></tr></thead>
           <tbody id="consentRows"></tbody>
         </table>
-        <h4 style="font-size:0.95rem;font-weight:900;margin:20px 0 10px;">📜 Consent audit log</h4>
+        <h4 style="font-size:0.95rem;font-weight:900;margin:20px 0 10px;">📜 Consent audit log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="consentLogCount"></span></h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="consentLogSearch" class="le-in" placeholder="🔎 Filter by child, who, or detail…" style="flex:1;min-width:200px;" oninput="renderConsentLog()" />
+          <select id="consentLogType" class="le-in" style="width:auto;" onchange="renderConsentLog()">
+            <option value="">All event types</option>
+            <option value="granted">✅ Consent granted</option>
+            <option value="revoked">🚫 Revoked / suspended / deleted</option>
+            <option value="account">👤 Account changes</option>
+            <option value="other">Other</option>
+          </select>
+          <button class="mini-btn" onclick="exportConsentLogCsv()">⬇️ Export CSV</button>
+        </div>
         <table class="admin-table">
-          <thead><tr><th>When</th><th>Child</th><th>Method</th><th>By</th><th>Detail</th></tr></thead>
+          <thead><tr>
+            <th style="cursor:pointer;" onclick="sortConsentLog('at')">When <span id="cSortIcon-at">▼</span></th>
+            <th style="cursor:pointer;" onclick="sortConsentLog('child')">Child <span id="cSortIcon-child"></span></th>
+            <th style="cursor:pointer;" onclick="sortConsentLog('method')">Method <span id="cSortIcon-method"></span></th>
+            <th>By</th><th>Detail</th>
+          </tr></thead>
           <tbody id="consentLog"></tbody>
         </table>
       </div>
@@ -810,7 +826,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=186"></script>
+  <script src="auth.js?v=187"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1671,9 +1687,65 @@
               ? `<button class="mini-btn" style="color:#f87171;" onclick="revokeConsent(${k.id})">Revoke</button>`
               : `<button class="mini-btn" onclick="document.getElementById('consentKid').value=${k.id};document.getElementById('consentNote').focus();">Record ↑</button>`}</td>
          </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No kid accounts yet.</td></tr>';
-      document.getElementById('consentLog').innerHTML = (data.log || []).length ? data.log.map(l =>
-        `<tr><td style="color:var(--text-faint);font-size:0.78rem;">${C4K.esc(l.at)}</td><td>${C4K.esc(l.child)}</td><td>${C4K.esc(l.method)}</td><td style="font-size:0.8rem;">${C4K.esc(l.by || '')}</td><td style="font-size:0.8rem;color:var(--text-dim);">${C4K.esc(l.detail || '')}</td></tr>`
-      ).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No consent events yet.</td></tr>';
+      _consentLog = data.log || [];
+      _cSortKey = 'at'; _cSortDir = -1;   // newest first by default, matches how the backend returns it
+      renderConsentLog();
+    }
+    // Bucket every method string we actually log into one of a few readable categories, so the
+    // filter dropdown and badge colors stay meaningful even as new method strings get added.
+    const CONSENT_GRANTED = new Set(['google_parent', 'signup_parent_email', 'verified_parent', 'verifiable_parent_confirm',
+      'class_join', 'class_code', 'library_session_saved', 'parent_account', 'admin_recorded', 'signed_form', 'phone',
+      'in_person', 'government_id', 'credit_card', 'email_plus', 'dpa_accepted']);
+    const CONSENT_REVOKED = new Set(['revoked', 'suspended', 'deleted']);
+    const CONSENT_ACCOUNT = new Set(['reinstated', 'admin_created', 'parent_created', 'concern_reported']);
+    function consentBucket(method) {
+      if (CONSENT_GRANTED.has(method)) return 'granted';
+      if (CONSENT_REVOKED.has(method)) return 'revoked';
+      if (CONSENT_ACCOUNT.has(method)) return 'account';
+      return 'other';
+    }
+    function consentBadge(method) {
+      const bucket = consentBucket(method);
+      const style = bucket === 'granted' ? 'color:#4ade80;border-color:rgba(74,222,128,.4);'
+        : bucket === 'revoked' ? 'color:#f87171;border-color:rgba(248,113,113,.4);'
+        : bucket === 'account' ? 'color:#60a5fa;border-color:rgba(96,165,250,.4);'
+        : 'color:var(--text-dim);border-color:var(--border);';
+      return `<span class="pill" style="${style}font-size:0.72rem;">${C4K.esc(method)}</span>`;
+    }
+    let _consentLog = [], _cSortKey = 'at', _cSortDir = -1;
+    function sortConsentLog(key) {
+      if (_cSortKey === key) _cSortDir *= -1; else { _cSortKey = key; _cSortDir = 1; }
+      ['at', 'child', 'method'].forEach(k => {
+        const el = document.getElementById('cSortIcon-' + k);
+        if (el) el.textContent = (k === _cSortKey) ? (_cSortDir === 1 ? '▲' : '▼') : '';
+      });
+      renderConsentLog();
+    }
+    function renderConsentLog() {
+      const q = (document.getElementById('consentLogSearch') ? document.getElementById('consentLogSearch').value : '').trim().toLowerCase();
+      const type = document.getElementById('consentLogType') ? document.getElementById('consentLogType').value : '';
+      let list = _consentLog.filter(l =>
+        (!type || consentBucket(l.method) === type) &&
+        (!q || (l.child||'').toLowerCase().includes(q) || (l.method||'').toLowerCase().includes(q) ||
+          (l.by||'').toLowerCase().includes(q) || (l.detail||'').toLowerCase().includes(q)));
+      if (_cSortKey) {
+        list = list.slice().sort((a, b) => {
+          const av = (a[_cSortKey] || '').toString().toLowerCase(), bv = (b[_cSortKey] || '').toString().toLowerCase();
+          return av < bv ? -_cSortDir : av > bv ? _cSortDir : 0;
+        });
+      }
+      document.getElementById('consentLogCount').textContent = `${list.length} of ${_consentLog.length} event${_consentLog.length===1?'':'s'}`;
+      document.getElementById('consentLog').innerHTML = list.length ? list.map(l =>
+        `<tr><td style="color:var(--text-faint);font-size:0.78rem;white-space:nowrap;">${C4K.esc(l.at)}</td><td>${C4K.esc(l.child)}</td><td>${consentBadge(l.method)}</td><td style="font-size:0.8rem;">${C4K.esc(l.by || '')}</td><td style="font-size:0.8rem;color:var(--text-dim);">${C4K.esc(l.detail || '')}</td></tr>`
+      ).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No consent events match.</td></tr>';
+    }
+    function exportConsentLogCsv() {
+      const rows = [['When', 'Child', 'Method', 'By', 'Detail']];
+      _consentLog.forEach(l => rows.push([l.at || '', l.child || '', l.method || '', l.by || '', l.detail || '']));
+      const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-consent-log-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
     }
 
     async function recordConsent() {
@@ -2185,7 +2257,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=186" defer></script>
-  <script src="editor.js?v=186" defer></script>
+  <script src="pwa.js?v=187" defer></script>
+  <script src="editor.js?v=187" defer></script>
 </body>
 </html>
