@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=188" />
+  <link rel="stylesheet" href="styles.css?v=189" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -219,6 +219,16 @@
         <div class="stat-box"><div class="big" id="statPro">-</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div>
         <div class="stat-box"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
         <div class="stat-box"><div class="big" id="statSessions">-</div><div class="lbl">Live Sessions Made</div><div class="trend" id="statSessionsTrend">library drop-ins</div></div>
+        <div class="stat-box"><div class="big" id="statSessionsActive">-</div><div class="lbl">Live Right Now</div><div class="trend">across every host</div></div>
+      </div>
+
+      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
+      <div class="panel" id="activeSessionsPanel">
+        <h3 style="display:flex;align-items:center;gap:10px;">🎟️ Currently Active Sessions <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadActiveSessions()">↻ Refresh</button></h3>
+        <table class="admin-table">
+          <thead><tr><th>Host</th><th>Code</th><th>Kids joined</th><th>Locked</th><th>Expires</th><th></th></tr></thead>
+          <tbody id="activeSessionRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <h2 class="super-only admin-section" style="display:none;">📊 Overview &amp; Growth</h2>
@@ -826,7 +836,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=188"></script>
+  <script src="auth.js?v=189"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -914,6 +924,32 @@
       const { ok, data } = await C4K.api('/api/admin/end-all-sessions', 'POST', {});
       if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.ended ? `✅ Ended ${data.ended} session(s).` : '✅ No active sessions to end.'; }
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not end sessions.'; }
+      loadActiveSessions();
+    }
+    async function loadActiveSessions() {
+      const { ok, data } = await C4K.api('/api/admin/active-sessions');
+      const rows = document.getElementById('activeSessionRows');
+      if (!rows) return;
+      if (!ok) { rows.innerHTML = '<tr><td colspan="6" style="color:var(--text-faint);">Could not load.</td></tr>'; return; }
+      const list = data.sessions || [];
+      rows.innerHTML = list.length ? list.map(s => {
+        const mins = Math.max(0, Math.round((new Date(s.expiresAt) - Date.now()) / 60000));
+        const hostTag = s.hostRole === 'admin' || s.hostRole === 'super_admin' ? '🛠️ ' : (s.hostRole === 'teacher' ? '🍎 ' : '');
+        return `<tr>
+          <td>${hostTag}${C4K.esc(s.hostName || 'Unknown')}${s.hostUsername ? ` <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(s.hostUsername)}</span>` : ''}</td>
+          <td style="font-weight:900;letter-spacing:2px;">${C4K.esc(s.code)}</td>
+          <td>${s.joins}</td>
+          <td>${s.locked ? '🔒 locked' : '—'}</td>
+          <td style="color:var(--text-dim);">${mins < 60 ? `${mins} min left` : `${Math.round(mins/60)} hr left`}</td>
+          <td><button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="endOneSession('${C4K.esc(s.code)}')">End</button></td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="6" style="color:var(--text-faint);">No sessions are live right now.</td></tr>';
+    }
+    async function endOneSession(code) {
+      if (!confirm(`End session ${code}? Kids in it will see the session-ended screen.`)) return;
+      const { ok, data } = await C4K.api('/api/admin/end-session', 'POST', { code });
+      if (ok) loadActiveSessions();
+      else alert(data.error || 'Could not end that session.');
     }
     function setLockBtn() { const b = document.getElementById('sessLockBtn'); if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins'; }
     async function toggleLockSession() {
@@ -1050,8 +1086,8 @@
         document.getElementById('statPro').textContent = stats.proKids ?? '-';
         document.getElementById('statTrial').textContent = stats.trialKids ?? '-';
         document.getElementById('statSessions').textContent = stats.sessionsStarted ?? '-';
-        document.getElementById('statSessionsTrend').textContent =
-          `${stats.sessionJoins ?? 0} kids joined · ${stats.sessionsActive ?? 0} live now`;
+        document.getElementById('statSessionsTrend').textContent = `${stats.sessionJoins ?? 0} kids joined lifetime`;
+        document.getElementById('statSessionsActive').textContent = stats.sessionsActive ?? '-';
         renderDbStatus(stats.environment, stats.totalKids);
       } catch (e) {
         showDataError('The stat boxes failed to load (' + e.message + '). If you just deployed, give it a moment and tap Retry.');
@@ -1110,6 +1146,7 @@
         if (acctPanel) acctPanel.closest('.panel').innerHTML = '<h3>📋 All Registered Accounts</h3><p style="color:var(--text-dim);font-size:0.9rem;">🔒 The full account list is restricted to super admin. See <strong>📈 Analytics</strong> for aggregate numbers, or <strong>👁️ Preview Dashboards</strong> to see what an account looks like with realistic sample data.</p>';
       }
       loadAnalytics();   // available to both plain admin and super admin — aggregate data only
+      loadActiveSessions();   // ditto — no individual kid data, just who's hosting + a headcount
 
       if (sup) {
         const { ok: aOk, data: aData } = await C4K.api('/api/admin/audit-log');
@@ -2257,7 +2294,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=188" defer></script>
-  <script src="editor.js?v=188" defer></script>
+  <script src="pwa.js?v=189" defer></script>
+  <script src="editor.js?v=189" defer></script>
 </body>
 </html>

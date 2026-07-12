@@ -3249,6 +3249,35 @@ async function apiAdminEndAllSessions(env, request) {
   }
   return json({ ok: true, ended });
 }
+// Browse every currently-active Live Session platform-wide (who's hosting, how many kids,
+// when it expires) instead of only having the all-or-nothing emergency stop above.
+async function apiAdminActiveSessions(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT key FROM settings WHERE key LIKE 'session:%'").all()).results || [];
+  const out = [];
+  for (const row of rows) {
+    const code = row.key.slice("session:".length);
+    const info = await getSetting(env, `session:${code}`, null);
+    if (!info) continue;
+    const host = info.teacherId ? await env.DB.prepare("SELECT name,username,role FROM users WHERE id=?").bind(info.teacherId).first() : null;
+    out.push({
+      code, hostName: host ? host.name : "Unknown", hostUsername: host ? host.username : null, hostRole: host ? host.role : null,
+      joins: info.joins || 0, locked: !!info.locked, startedAt: info.started ? new Date(info.started).toISOString() : null,
+      expiresAt: new Date(info.expires).toISOString(),
+    });
+  }
+  out.sort((a, b) => (a.expiresAt < b.expiresAt ? -1 : 1));
+  return json({ sessions: out });
+}
+async function apiAdminEndOneSession(env, request, data) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const code = (data.code || "").toString().trim().toUpperCase();
+  const info = await getSetting(env, `session:${code}`, null);
+  if (!info) return json({ error: "That session isn't active." }, 404);
+  await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${code}`).run();
+  if (info.teacherId) await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${info.teacherId}`).run();
+  return json({ ok: true });
+}
 
 // Health score per school/district: a rough green/yellow/red based on recent activity, so you
 // can spot an account drifting toward churn before they actually cancel.
@@ -4556,6 +4585,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
   if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
   if (path === "/api/admin/end-all-sessions" && method === "POST") return apiAdminEndAllSessions(env, request);
+  if (path === "/api/admin/active-sessions" && method === "GET") return apiAdminActiveSessions(env, request);
+  if (path === "/api/admin/end-session" && method === "POST") return apiAdminEndOneSession(env, request, data);
   if (path === "/api/admin/reset-demo" && method === "POST") return apiAdminResetDemo(env, request);
   if (path === "/api/admin/admins" && method === "GET") return apiAdminListAdmins(env, request);
   if (path === "/api/admin/admins" && method === "POST") return apiAdminCreateAdmin(env, request, data);
