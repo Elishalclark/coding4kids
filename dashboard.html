@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=177" />
+  <link rel="stylesheet" href="styles.css?v=178" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -293,7 +293,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=177"></script>
+  <script src="auth.js?v=178"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -360,21 +360,53 @@
         : (mins > 5 ? `🎟️ Live session — about ${mins} min left` : `🎟️ Live session — ending soon!`);
     }
     function showSessionEndedOverlay() {
+      // Note: we deliberately do NOT clear the login token here — the kid still needs it to
+      // call "save my account" below. It only gets cleared once they save or explicitly skip.
       const ov = document.createElement('div');
-      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#0f3d2e,#15803d 55%,#16a34a);display:flex;align-items:center;justify-content:center;padding:20px;';
+      ov.id = 'sessEndOverlay';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#0f3d2e,#15803d 55%,#16a34a);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
       ov.innerHTML = `
-        <div style="max-width:420px;width:100%;background:rgba(0,0,0,0.2);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.25);border-radius:24px;padding:38px 30px;color:#fff;text-align:center;font-family:inherit;">
+        <div style="max-width:420px;width:100%;background:rgba(0,0,0,0.2);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.25);border-radius:24px;padding:32px 28px;color:#fff;text-align:center;font-family:inherit;">
           <div style="font-size:3rem;">🎉</div>
           <h1 style="font-size:1.4rem;font-weight:900;margin:10px 0;">Session ended — great coding!</h1>
-          <p style="color:#dcfce7;font-size:0.92rem;line-height:1.6;">Thanks for building something today. Ask a grown-up if you'd like to keep coding at home — you can sign up free anytime!</p>
-          <p id="sessRedirectMsg" style="color:#dcfce7;font-size:0.8rem;margin-top:18px;">Heading back in <span id="sessRedirectN">5</span>…</p>
+          <p style="color:#dcfce7;font-size:0.92rem;line-height:1.6;">Thanks for building something today. Everything you made is still here — but it'll be deleted tomorrow unless a grown-up saves it below.</p>
+          <div id="sessSaveForm" style="margin-top:16px;text-align:left;background:rgba(0,0,0,0.18);border-radius:14px;padding:16px;">
+            <label style="font-size:0.78rem;font-weight:800;color:#dcfce7;">💾 Keep ${(window.ME && ME.name) || 'this'}'s account &amp; everything they built</label>
+            <input id="sessSaveEmail" type="email" placeholder="Parent/guardian email" style="width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#111;font-size:0.9rem;" />
+            <input id="sessSavePw" type="password" placeholder="Set a password (6+ characters)" style="width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#111;font-size:0.9rem;" />
+            <p id="sessSaveMsg" style="font-size:0.78rem;color:#fecaca;margin-top:6px;min-height:16px;"></p>
+            <button id="sessSaveBtn" onclick="saveSessionAccount()" class="btn btn-primary" style="width:100%;margin-top:6px;">💾 Save my account</button>
+          </div>
+          <button onclick="skipSaveSessionAccount()" style="background:none;border:none;color:#dcfce7;text-decoration:underline;font-size:0.8rem;margin-top:14px;cursor:pointer;">No thanks, I'm done</button>
+          <p id="sessRedirectMsg" style="color:#dcfce7;font-size:0.78rem;margin-top:10px;"></p>
         </div>`;
       document.body.appendChild(ov);
-      try { localStorage.removeItem('c4k_token'); } catch (e) {}
-      let n = 5;
+    }
+    async function saveSessionAccount() {
+      const btn = document.getElementById('sessSaveBtn');
+      const msg = document.getElementById('sessSaveMsg');
+      const parentEmail = (document.getElementById('sessSaveEmail').value || '').trim();
+      const password = document.getElementById('sessSavePw').value || '';
+      if (!parentEmail || !password) { msg.textContent = 'Please fill in both fields.'; return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/session/save-account', 'POST', { parentEmail, password });
+      if (!ok) { msg.textContent = data.error || 'Could not save — try again.'; btn.disabled = false; btn.textContent = '💾 Save my account'; return; }
+      document.getElementById('sessSaveForm').innerHTML = `<p style="font-size:0.9rem;line-height:1.5;">✅ Saved! Log in anytime with username <strong>${data.username}</strong> and the password you just set. A confirmation was emailed to ${parentEmail}.</p>`;
+      document.getElementById('sessRedirectMsg').textContent = 'Heading back in 6…';
+      let n = 6;
       const t = setInterval(() => {
-        n--; const el = document.getElementById('sessRedirectN'); if (el) el.textContent = n;
-        if (n <= 0) { clearInterval(t); location.href = 'live.html'; }
+        n--; document.getElementById('sessRedirectMsg').textContent = `Heading back in ${n}…`;
+        if (n <= 0) { clearInterval(t); location.href = 'index.html'; }
+      }, 1000);
+    }
+    function skipSaveSessionAccount() {
+      try { localStorage.removeItem('c4k_token'); } catch (e) {}
+      const form = document.getElementById('sessSaveForm'); if (form) form.style.display = 'none';
+      let n = 5;
+      const el = document.getElementById('sessRedirectMsg');
+      const t = setInterval(() => {
+        el.textContent = `Heading back in ${n}…`; n--;
+        if (n < 0) { clearInterval(t); location.href = 'live.html'; }
       }, 1000);
     }
 
@@ -1259,7 +1291,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=177" defer></script>
-  <script src="editor.js?v=177" defer></script>
+  <script src="pwa.js?v=178" defer></script>
+  <script src="editor.js?v=178" defer></script>
 </body>
 </html>

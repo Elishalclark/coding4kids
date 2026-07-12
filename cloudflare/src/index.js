@@ -2429,15 +2429,14 @@ async function apiEndSession(env, request) {
       recap = { joins: info.joins || 0, minutes, creations };
     }
     await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
-    // Fully delete every guest kid who joined THIS session, right now — account, progress,
-    // projects, everything — instead of waiting for the 24h cleanup cron. Their device will see
-    // this on its next status check (dashboard polls every 20s) and show a friendly goodbye
-    // screen before it redirects (the recap above was already computed from their data, so
-    // nothing the host sees is lost by deleting it immediately after).
-    if (info) {
-      const guests = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id IS ? AND consent_method='library_session'").bind(info.familyId).all()).results || [];
-      for (const g of guests) await deleteGuestKid(env, g.id);
-    }
+    // Kids don't lose their work the instant the session ends: their device sees this on its
+    // next status check (dashboard polls every 20s, keyed off the session code's own expiry —
+    // not their login) and shows a friendly goodbye screen with a one-click "save my account"
+    // option, so a grown-up can enter a parent email right there and keep everything the kid
+    // built. We deliberately do NOT touch their login or delete anything here, so that option
+    // has something to save. If nobody saves it, the daily cleanup cron fully deletes the
+    // account and all its data the next day (see deleteGuestKid / consent_method='library_session'
+    // in scheduled()) — saving changes consent_method so the cron leaves it alone forever after.
   }
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
   return json({ ok: true, recap });
@@ -2520,6 +2519,40 @@ async function apiJoinSession(env, request, data) {
   await bumpStat(env, "session_joins");   // lifetime counter for the admin panel
   const token = await createSession(env, r.uid);
   return json({ ok: true, token, user: await publicUser(env, r.row), displayName: chosen });
+}
+
+// After a Live Session ends, a guest kid's account (and everything they built) is normally
+// deleted by the next day's cleanup cron. This lets a grown-up "keep" the account instead —
+// based on the data the kid already has, not a fresh signup — by putting a parent email and a
+// real password on the existing account. Institutional consent was already granted when they
+// joined the session, so this doesn't need a second consent round-trip; it just converts the
+// throwaway guest login into one the family can actually use again, and takes it out of the
+// cron's deletion query (consent_method is no longer exactly 'library_session' afterward).
+async function apiSessionSaveAccount(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid" || u.consent_method !== "library_session") return json({ error: "This isn't available for this account." }, 403);
+  const parentEmail = (data.parentEmail || "").toString().trim();
+  const password = (data.password || "").toString();
+  let username = (data.username || "").toString().trim().replace(/[^A-Za-z0-9_]/g, "").slice(0, 20);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) return json({ error: "Please enter a valid parent/guardian email." }, 400);
+  if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+  if (username && username.length < 3) return json({ error: "Username must be at least 3 characters." }, 400);
+  if (username && username !== u.username) {
+    const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(username, u.id).first();
+    if (taken) return json({ error: "That username is already taken — try another." }, 400);
+  } else {
+    username = u.username;
+  }
+  const { hash, salt } = await hashPassword(password);
+  await env.DB.prepare(
+    "UPDATE users SET username=?, password_hash=?, salt=?, parent_email=?, consent_method='library_session_saved', consent_by=?, consent_at=? WHERE id=?"
+  ).bind(username, hash, salt, parentEmail, `Saved after session by ${parentEmail}`, nowIso(), u.id).run();
+  await logConsent(env, u.id, username, "library_session_saved", parentEmail, "Guest account converted to a saved account after a Live Session ended.");
+  await sendEmail(env, parentEmail, `${u.name}'s KidVibers account has been saved!`,
+    `Good news — ${u.name}'s work from today's KidVibers session has been saved. ` +
+    `They can log back in anytime at kidvibers.com with the username <strong>${username}</strong> and the password they just set. ` +
+    `If this wasn't you, just ignore this email and the account will be automatically removed.`);
+  return json({ ok: true, username });
 }
 
 // Daily login reward: a small token bonus, once per calendar day, just for showing up.
@@ -4423,6 +4456,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/session/my-status" && method === "GET") return apiSessionMyStatus(env, request);
   if (path === "/api/session/extend" && method === "POST") return apiExtendSession(env, request);
   if (path === "/api/session/kick" && method === "POST") return apiKickGuest(env, request, data);
+  if (path === "/api/session/save-account" && method === "POST") return apiSessionSaveAccount(env, request, data);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
   if (path === "/api/dpa/accept" && method === "POST") return apiAcceptDPA(env, request);
   if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);
