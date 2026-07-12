@@ -3220,6 +3220,24 @@ async function apiGetFeatureFlags(env) {
   return json({ flags: Object.assign({ vibeStudio: true, liveSessions: true, referrals: true }, flags) });
 }
 
+// Emergency stop: end EVERY currently-active Live Session platform-wide, no matter who's
+// hosting it. Handy before/after a demo, or if something's gone wrong mid-event and you need
+// every room shut down at once instead of hunting down each host individually.
+async function apiAdminEndAllSessions(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT key FROM settings WHERE key LIKE 'session:%'").all()).results || [];
+  let ended = 0;
+  for (const row of rows) {
+    const code = row.key.slice("session:".length);
+    const info = await getSetting(env, `session:${code}`, null);
+    if (!info) continue;
+    await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${code}`).run();
+    if (info.teacherId) await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${info.teacherId}`).run();
+    ended++;
+  }
+  return json({ ok: true, ended });
+}
+
 // Health score per school/district: a rough green/yellow/red based on recent activity, so you
 // can spot an account drifting toward churn before they actually cancel.
 async function apiSchoolHealth(env, request) {
@@ -3610,6 +3628,50 @@ async function adminSetCredentials(env, request, data) {
     }
   }
   return json({ ok: true, changed, username: changed.includes("username") ? newUser : target.username });
+}
+// Tidy up the pitch-demo account between live demos — WITHOUT touching the seeded lessons/boss
+// wins/tokens that make it look "lived-in." This only clears the mess a demo can leave behind:
+// extra Vibe Studio projects someone clicked through, today's AI chat quota (so it isn't maxed
+// out for the next demo), any safety notices, and a stuck suspension if one somehow got applied.
+// Deliberately does NOT touch progress/unit_tests/tokens — that's the account's intended seeded
+// state, not something to reset.
+async function apiAdminResetDemo(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT * FROM users WHERE username=?").bind(DEMO_USERNAME).first();
+  if (!target) return json({ error: "Demo account not found." }, 404);
+  const cleared = [];
+  const projCount = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(target.id).first()).c || 0;
+  if (projCount) { await env.DB.prepare("DELETE FROM projects WHERE user_id=?").bind(target.id).run(); cleared.push(`${projCount} project(s)`); }
+  const noticeCount = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE user_id=?").bind(target.id).first()).c || 0;
+  if (noticeCount) { await env.DB.prepare("DELETE FROM notices WHERE user_id=?").bind(target.id).run(); cleared.push(`${noticeCount} notice(s)`); }
+  await env.DB.prepare("DELETE FROM chat_usage WHERE user_id=?").bind(target.id).run();
+  await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(target.id).run();
+  await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`sessionguest:${target.id}`).run();
+  return json({ ok: true, cleared });
+}
+// Who else can get into the admin panel? Super admin only — a plain admin shouldn't be able to
+// see or manage the list of admin accounts (including their own promotion path).
+async function apiAdminListAdmins(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT id,name,username,role,suspended,created_at,last_login_at FROM users WHERE role IN ('admin','super_admin') ORDER BY role DESC, created_at ASC"
+  ).all()).results || [];
+  return json({ admins: rows.map(r => ({ id: r.id, name: r.name, username: r.username, role: r.role, suspended: !!r.suspended, createdAt: r.created_at, lastLoginAt: r.last_login_at })) });
+}
+// Create a new admin account. Deliberately can only ever create role='admin' (never
+// 'super_admin') from this form — a second super_admin has to be made by hand in the database,
+// so a compromised admin session can't mint itself (or anyone else) full super-admin power.
+async function apiAdminCreateAdmin(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const username = (data.username || "").trim();
+  const password = (data.password || "").toString();
+  const name = (data.name || username).toString();
+  if (!USERNAME_RE.test(username)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+  if (password.length < 8) return json({ error: "Admin passwords need at least 8 characters." }, 400);
+  const r = await createUser(env, { role: "admin", name, username, password, email: "", age: "", plan: "family" });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  await logConsent(env, r.uid, username, "admin_created", `super admin (${u.username})`, "New admin account created from the admin panel.");
+  return json({ ok: true, id: r.uid, username });
 }
 async function adminToggles(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
@@ -4481,6 +4543,10 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
   if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
+  if (path === "/api/admin/end-all-sessions" && method === "POST") return apiAdminEndAllSessions(env, request);
+  if (path === "/api/admin/reset-demo" && method === "POST") return apiAdminResetDemo(env, request);
+  if (path === "/api/admin/admins" && method === "GET") return apiAdminListAdmins(env, request);
+  if (path === "/api/admin/admins" && method === "POST") return apiAdminCreateAdmin(env, request, data);
 
   // kid dashboard: shop / avatar / AI / upgrade / class join
   if (path === "/api/shop/buy" && method === "POST") return apiShopBuy(env, request, data);

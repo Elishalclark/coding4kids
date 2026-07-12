@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=184" />
+  <link rel="stylesheet" href="styles.css?v=185" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -60,6 +60,10 @@
     .admin-section:first-of-type { margin-top: 10px; }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
     .panel h3 { font-size: 1.1rem; font-weight: 900; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    /* For row-style panels (icon + text + button) that also get toggled by .super-only — the
+       toggle clears inline display, so the row layout needs to live in a class, not an inline
+       style, or it'd collapse back to block whenever a super admin's view re-shows it. */
+    .panel-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .admin-table { width: 100%; border-collapse: collapse; }
     .admin-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 12px; border-bottom: 1px solid var(--border); }
     .admin-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
@@ -197,6 +201,18 @@
         <button class="mini-btn" onclick="saveLogoutPin()">Save code</button>
       </div>
 
+      <!-- Emergency stop — ends every currently-active Live Session platform-wide, no matter
+           who's hosting it. For "something's gone wrong, shut every room down right now." -->
+      <div class="panel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(239,68,68,0.4);">
+        <div style="font-size:1.8rem;">🛑</div>
+        <div style="flex:1;min-width:200px;">
+          <h3 style="margin-bottom:2px;">Emergency: end ALL live sessions</h3>
+          <p class="hint" style="margin:0;">Ends every active Live Session platform-wide right now, no matter who's hosting it. Use before/after a pitch, or if something's wrong mid-event.</p>
+          <div class="msg" id="endAllMsg"></div>
+        </div>
+        <button class="mini-btn" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.5);color:#f87171;" onclick="endAllSessions()">🛑 End all sessions</button>
+      </div>
+
       <div class="stat-grid">
         <div class="stat-box"><div class="big" id="statKids">-</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
         <div class="stat-box"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
@@ -320,6 +336,34 @@
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;"><input type="checkbox" id="flagReferrals" onchange="saveFlags()" /> 🎁 Referrals</label>
           <div id="flagsMsgOut" style="font-size:0.8rem;margin-top:8px;color:var(--text-dim);"></div>
         </div>
+      </div>
+
+      <!-- Reset demo account (SUPER ADMIN ONLY) -->
+      <div class="panel panel-row super-only" style="display:none;">
+        <div style="font-size:1.8rem;">🧹</div>
+        <div style="flex:1;min-width:200px;">
+          <h3 style="margin-bottom:2px;">Reset demo account</h3>
+          <p class="hint" style="margin:0;">Clears whatever a demo left behind — extra Vibe Studio projects, today's AI chat quota, safety notices. Leaves the seeded lessons, boss wins, and tokens untouched.</p>
+          <div class="msg" id="resetDemoMsg"></div>
+        </div>
+        <button class="mini-btn" onclick="resetDemoAccount()">🧹 Reset demo</button>
+      </div>
+
+      <!-- Admin accounts (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🛡️ Admin Accounts</h3>
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead>
+          <tbody id="adminRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+          <input id="newAdminName" placeholder="Name" style="width:140px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;" />
+          <input id="newAdminUser" placeholder="Username" style="width:140px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;" />
+          <input id="newAdminPass" type="password" placeholder="Password (8+ chars)" style="width:160px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;" />
+          <button class="mini-btn" onclick="createAdmin()">+ Add admin</button>
+        </div>
+        <p class="hint" style="margin-top:6px;">New accounts are always plain "admin" — a second super admin can only be made by hand in the database, so a compromised admin session can never mint one.</p>
+        <div class="msg" id="newAdminMsg"></div>
       </div>
 
       <!-- School health scores (SUPER ADMIN ONLY) -->
@@ -766,7 +810,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=184"></script>
+  <script src="auth.js?v=185"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -846,6 +890,14 @@
       const { ok, data } = await C4K.api('/api/teacher/logout-pin', 'POST', { pin });
       if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.pinSet ? `✅ Session code set to "${pin}". Share it with kids.` : '✅ Session logout turned off.'; document.getElementById('pinInput').value=''; }
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
+    }
+    async function endAllSessions() {
+      if (!confirm("End EVERY active Live Session right now, for every host on the platform? This can't be undone.")) return;
+      const msg = document.getElementById('endAllMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Ending…';
+      const { ok, data } = await C4K.api('/api/admin/end-all-sessions', 'POST', {});
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.ended ? `✅ Ended ${data.ended} session(s).` : '✅ No active sessions to end.'; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not end sessions.'; }
     }
     function setLockBtn() { const b = document.getElementById('sessLockBtn'); if (b) b.textContent = _sessLocked ? '🔓 Unlock joins' : '🔒 Lock joins'; }
     async function toggleLockSession() {
@@ -1084,6 +1136,7 @@
         loadLessonReports();
         loadErrorLog();
         loadFeatureFlags();
+        loadAdmins();
         loadPromoCodes();
         loadStripeCoupons();
       } else {
@@ -1261,6 +1314,54 @@
         referrals: document.getElementById('flagReferrals').checked,
       });
       out.textContent = ok ? '✅ Saved.' : '⚠️ Could not save.';
+    }
+
+    // ── Reset the pitch-demo account ──
+    async function resetDemoAccount() {
+      if (!confirm('Reset the demo account? This clears extra projects, chat quota, and notices — but keeps its seeded lessons, boss wins, and tokens.')) return;
+      const msg = document.getElementById('resetDemoMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Resetting…';
+      const { ok, data } = await C4K.api('/api/admin/reset-demo', 'POST', {});
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = data.cleared && data.cleared.length ? `✅ Cleared: ${data.cleared.join(', ')}.` : '✅ Already clean — nothing to clear.'; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not reset.'; }
+    }
+
+    // ── Admin accounts (who else can get into this panel) ──
+    async function loadAdmins() {
+      const { ok, data } = await C4K.api('/api/admin/admins');
+      const rows = document.getElementById('adminRows');
+      if (!rows) return;
+      if (!ok || !data.admins || !data.admins.length) { rows.innerHTML = '<tr><td colspan="5" style="color:var(--text-faint);">No admin accounts found.</td></tr>'; return; }
+      rows.innerHTML = data.admins.map(a => `<tr>
+          <td>${C4K.esc(a.name || '')}</td>
+          <td>@${C4K.esc(a.username)}</td>
+          <td>${a.role === 'super_admin' ? '👑 Super Admin' : '🛠️ Admin'}</td>
+          <td>${a.suspended ? '⛔ Suspended' : '✅ Active'}</td>
+          <td>${a.role === 'super_admin' ? '<span style="color:var(--text-faint);font-size:0.8rem;">—</span>' :
+            `<button class="mini-btn" onclick="toggleAdminSuspend(${a.id}, '${C4K.esc(a.name || a.username).replace(/'/g, "\\'")}', ${!a.suspended})">${a.suspended ? 'Reinstate' : 'Suspend'}</button>`}</td>
+        </tr>`).join('');
+    }
+    async function createAdmin() {
+      const name = document.getElementById('newAdminName').value.trim();
+      const username = document.getElementById('newAdminUser').value.trim();
+      const password = document.getElementById('newAdminPass').value;
+      const msg = document.getElementById('newAdminMsg');
+      if (!username || !password) { msg.style.color = '#f87171'; msg.textContent = 'Enter a username and password.'; return; }
+      if (!confirm(`Create a new admin account for @${username}? They'll have full admin-panel access (not super admin).`)) return;
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Creating…';
+      const { ok, data } = await C4K.api('/api/admin/admins', 'POST', { name, username, password });
+      if (ok) {
+        msg.style.color = 'var(--green,#4ade80)'; msg.textContent = `✅ Created @${data.username}.`;
+        document.getElementById('newAdminName').value = ''; document.getElementById('newAdminUser').value = ''; document.getElementById('newAdminPass').value = '';
+        loadAdmins();
+      } else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not create account.'; }
+    }
+    async function toggleAdminSuspend(userId, name, suspend) {
+      const verb = suspend ? 'suspend' : 'reinstate';
+      if (!confirm(`${suspend ? 'Suspend' : 'Reinstate'} ${name}'s admin account?`)) return;
+      const { ok, data } = await C4K.api('/api/admin/suspend', 'POST', { userId, suspended: suspend, days: 0 });
+      if (ok) loadAdmins();
+      else alert(data.error || `Could not ${verb} account.`);
     }
 
     // ── School/district health ──
@@ -2084,7 +2185,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=184" defer></script>
-  <script src="editor.js?v=184" defer></script>
+  <script src="pwa.js?v=185" defer></script>
+  <script src="editor.js?v=185" defer></script>
 </body>
 </html>
