@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=178" />
+  <link rel="stylesheet" href="styles.css?v=179" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -114,6 +114,22 @@
         <button class="btn btn-primary" id="helpSendBtn" style="flex:1;" onclick="sendHelp()" disabled>Send to a grown-up</button>
       </div>
       <div id="helpMsg" style="font-size:0.85rem;font-weight:700;margin-top:10px;text-align:center;"></div>
+    </div>
+  </div>
+
+  <!-- Session logout: a visible place for a kid on a shared library/class computer to enter
+       the teacher/librarian's session PIN and end their own turn. -->
+  <button id="sessLogoutBtn" onclick="openSessionLogoutModal()" style="display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:499;background:var(--surface);border:1px solid var(--border-bright);border-radius:50px;padding:5px 14px;font-weight:800;font-size:0.76rem;color:var(--text);cursor:pointer;font-family:inherit;box-shadow:0 4px 12px rgba(0,0,0,0.3);">🔒 Enter session code to sign out</button>
+  <div id="sessLogoutModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(6,4,14,0.85);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px;">
+    <div style="max-width:360px;width:100%;margin-top:14vh;background:var(--surface);border:1px solid var(--border-bright);border-radius:16px;padding:24px;text-align:center;">
+      <h2 style="font-size:1.1rem;font-weight:900;margin-bottom:6px;">🔒 End my turn</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:14px;">Ask your teacher or librarian for the session code, then enter it here to sign out.</p>
+      <input id="sessLogoutPin" type="text" inputmode="numeric" placeholder="Session code" autocomplete="off" style="width:100%;text-align:center;letter-spacing:2px;font-size:1.1rem;font-weight:800;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:10px;" />
+      <div id="sessLogoutMsg" style="font-size:0.82rem;font-weight:700;color:#f87171;min-height:18px;margin-bottom:6px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeSessionLogoutModal()">Cancel</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="submitSessionLogout()">Sign out</button>
+      </div>
     </div>
   </div>
 
@@ -293,7 +309,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=178"></script>
+  <script src="auth.js?v=179"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -323,13 +339,23 @@
       if (ME && ME.name) document.getElementById('dHi').textContent = (next === 'es' ? `¡Hola ${ME.name}! 👋` : `Hey ${ME.name}! 👋`);
     }
 
-    // Kid ends their own session by entering the teacher/library session PIN.
-    async function sessionLogout() {
-      const pin = prompt('Enter the session PIN from your teacher or librarian to sign out:');
-      if (pin === null) return;
-      const { ok, data } = await C4K.api('/api/kid/session-logout', 'POST', { pin: pin.trim() });
+    // Kid ends their own session by entering the teacher/library session PIN — via a proper
+    // on-screen form (not a browser prompt()) so it's an obvious, always-reachable place to
+    // do it, not something hidden behind a popup.
+    function openSessionLogoutModal() {
+      document.getElementById('sessLogoutPin').value = '';
+      document.getElementById('sessLogoutMsg').textContent = '';
+      document.getElementById('sessLogoutModal').style.display = 'flex';
+      setTimeout(() => document.getElementById('sessLogoutPin').focus(), 50);
+    }
+    function closeSessionLogoutModal() { document.getElementById('sessLogoutModal').style.display = 'none'; }
+    async function submitSessionLogout() {
+      const pin = (document.getElementById('sessLogoutPin').value || '').trim();
+      const msg = document.getElementById('sessLogoutMsg');
+      if (!pin) { msg.textContent = 'Enter the code first.'; return; }
+      const { ok, data } = await C4K.api('/api/kid/session-logout', 'POST', { pin });
       if (ok) { try { localStorage.removeItem('c4k_token'); } catch(e){} location.href = 'index.html'; }
-      else alert(data.error || 'Could not sign out.');
+      else msg.textContent = data.error || 'Could not sign out.';
     }
 
     // ── Live Session guest: watch for the session ending, then auto-refresh & kick out ──
@@ -839,11 +865,11 @@
       document.getElementById('sTokens').textContent = ME.tokens || 0;
       if (ME.username && ME.username.toLowerCase().includes('demo')) document.getElementById('demoLogout').style.display = '';
       // Session logout: on a shared library/class computer, the teacher can turn on a session
-      // PIN so a kid can end their own session (a random kid can't — they need the PIN).
-      if (ME.hasLogoutPin) {
-        const b = document.getElementById('demoLogout');
-        b.style.display = ''; b.textContent = '🔒 End session';
-        b.setAttribute('onclick', 'sessionLogout()');
+      // PIN so a kid can end their own session (a random kid can't — they need the PIN). Show
+      // the visible on-screen entry point whenever a PIN is available, and always for guests
+      // who joined via a Live Session (so it's easy to find on the shared device either way).
+      if (ME.hasLogoutPin || ME.consentMethod === 'library_session') {
+        document.getElementById('sessLogoutBtn').style.display = '';
       }
       loadCardToken();
 
@@ -1291,7 +1317,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=178" defer></script>
-  <script src="editor.js?v=178" defer></script>
+  <script src="pwa.js?v=179" defer></script>
+  <script src="editor.js?v=179" defer></script>
 </body>
 </html>
