@@ -2353,6 +2353,7 @@ async function deleteGuestKid(env, kidId) {
     "DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
     "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
     "DELETE FROM notices WHERE user_id=?", "DELETE FROM projects WHERE user_id=?",
+    "DELETE FROM messages WHERE child_id=?",
     "DELETE FROM settings WHERE key=?", "DELETE FROM users WHERE id=?",
   ]) {
     await env.DB.prepare(sql).bind(sql.includes("settings") ? `sessionguest:${kidId}` : kidId).run();
@@ -2542,12 +2543,16 @@ async function apiJoinSession(env, request, data) {
 async function apiSessionSaveAccount(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid" || u.consent_method !== "library_session") return json({ error: "This isn't available for this account." }, 403);
+  if (await rateLimited(env, `savesession:${u.id}`, 8, 600)) return json({ error: "Too many tries — ask a grown-up for help." }, 429);
   const parentEmail = (data.parentEmail || "").toString().trim();
   const password = (data.password || "").toString();
   let username = (data.username || "").toString().trim().replace(/[^A-Za-z0-9_]/g, "").slice(0, 20);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) return json({ error: "Please enter a valid parent/guardian email." }, 400);
   if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
   if (username && username.length < 3) return json({ error: "Username must be at least 3 characters." }, 400);
+  // The original join-time nickname already passed this filter — but the username can be
+  // changed here, so re-check it the same way join does (badwords, impersonation, etc).
+  if (username) { const ci = contentIssue(username); if (ci) return json({ error: ci }, 400); }
   if (username && username !== u.username) {
     const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(username, u.id).first();
     if (taken) return json({ error: "That username is already taken — try another." }, 400);
