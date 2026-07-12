@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=179" />
+  <link rel="stylesheet" href="styles.css?v=180" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -105,6 +105,13 @@
           <div style="color:#dcfce7;font-size:0.85rem;">Perfect for a library program: start a session and kids join with just a nickname — no sign-up, no passwords. Guest accounts clean themselves up afterward.</div>
           <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
             <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;">
+            ⏱️ Session length:
+            <select id="sessHours" style="padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-family:inherit;">
+              <option value="1">1 hour</option><option value="2">2 hours</option><option value="4">4 hours</option>
+              <option value="8" selected>8 hours</option><option value="12">12 hours</option><option value="24">24 hours</option>
+            </select>
           </label>
         </div>
         <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
@@ -323,7 +330,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=179"></script>
+  <script src="auth.js?v=180"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -486,19 +493,22 @@
     async function startLiveSession() {
       const btn = document.getElementById('startSessBtn'); btn.disabled = true; btn.textContent = 'Starting…';
       const photoConsent = document.getElementById('photoConsentBox') ? document.getElementById('photoConsentBox').checked : false;
-      const { ok, data } = await C4K.api('/api/session/start', 'POST', { photoConsent });
+      const hours = parseFloat(document.getElementById('sessHours').value) || 8;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { photoConsent, hours });
       if (ok) { showSession(data.code, data.expiresAt); startSessFeed(); }
       else { btn.disabled = false; btn.textContent = 'Start a session'; alert(data.error || 'Could not start.'); }
     }
     let _sessLocked = false, _sessFeedTimer = null;
     async function newSessionCode() {
       if (!confirm('Make a new session code? The current code stops working (kids already in stay signed in).')) return;
-      const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true });
+      const hours = parseFloat(document.getElementById('sessHours').value) || 8;
+      const { ok, data } = await C4K.api('/api/session/start', 'POST', { regen: true, hours });
       if (ok) { _sessLocked = false; setLockBtn(); showSession(data.code, data.expiresAt); }
       else alert(data.error || 'Could not change the code.');
     }
     async function extendSession() {
-      const { ok, data } = await C4K.api('/api/session/extend', 'POST', {});
+      const hours = parseFloat(document.getElementById('sessHours').value) || 8;
+      const { ok, data } = await C4K.api('/api/session/extend', 'POST', { hours });
       if (ok) showSession(document.getElementById('sessCode').textContent, data.expiresAt);
       else alert(data.error || 'Could not extend — start a session first.');
     }
@@ -859,7 +869,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=179" defer></script>
-  <script src="editor.js?v=179" defer></script>
+  <script src="pwa.js?v=180" defer></script>
+  <script src="editor.js?v=180" defer></script>
 </body>
 </html>

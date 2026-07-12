@@ -2237,7 +2237,7 @@ async function apiTeacherConcern(env, request, data) {
 // teacher/school/district sets a "session logout PIN"; a kid must enter it to sign out.
 async function apiSetLogoutPin(env, request, data) {
   const u = await userFromToken(env, bearer(request));
-  if (!u || u.role !== "teacher") return json({ error: "Only a teacher/school/district can set this." }, 403);
+  if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "Only a teacher/school/district/admin can set this." }, 403);
   const pin = (data.pin || "").toString().trim();
   if (pin && !/^[A-Za-z0-9]{3,12}$/.test(pin)) return json({ error: "PIN must be 3-12 letters or numbers." }, 400);
   const key = `logoutpin:${u.family_id}`;
@@ -2257,7 +2257,9 @@ async function apiSetRetention(env, request, data) {
   return json({ ok: true, months });
 }
 async function getLogoutPin(env, familyId) {
-  if (familyId == null) return null;
+  // familyId can legitimately be null here: guest kids in an admin/super_admin-hosted Live
+  // Session (those host accounts have no family_id of their own) inherit family_id=null, same
+  // as the host — so this still needs to look the PIN up rather than bailing out early.
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`logoutpin:${familyId}`).first();
   return row && row.value ? row.value : null;
 }
@@ -2278,7 +2280,13 @@ async function apiKidSessionLogout(env, request, data) {
 // homepage, tap "Join a session", enter the code, and pick a display name — they get a
 // TEMPORARY guest account (no password, joins the teacher's group, school-consented) so they
 // can code right away with no sign-up. Guest accounts are auto-cleaned by the daily cron.
-const SESSION_HOURS = 8;              // a session code stays joinable for this long
+const SESSION_HOURS = 8;              // default a session code stays joinable for this long
+const SESSION_HOURS_MIN = 1, SESSION_HOURS_MAX = 24;  // the host can pick anything in this range
+function clampSessionHours(v) {
+  const n = parseFloat(v);
+  if (!n || isNaN(n)) return SESSION_HOURS;
+  return Math.min(SESSION_HOURS_MAX, Math.max(SESSION_HOURS_MIN, n));
+}
 function sessionCode() { let c = ""; const b = new Uint8Array(6); crypto.getRandomValues(b); for (let i = 0; i < 6; i++) c += CODE_ALPHABET[b[i] % CODE_ALPHABET.length]; return c; }
 // Lifetime counters kept in the settings table (key `stat:<name>`), for the admin panel.
 async function bumpStat(env, name) {
@@ -2309,14 +2317,15 @@ async function apiStartSession(env, request, data) {
     if (s && s.expires > Date.now()) return json({ ok: true, code: prev.code, expiresAt: new Date(s.expires).toISOString(), reused: true });
   }
   let code; for (let i = 0; i < 40; i++) { code = sessionCode(); if (!(await getSetting(env, `session:${code}`, null))) break; }
-  const expires = Date.now() + SESSION_HOURS * 3600 * 1000;
+  const hours = clampSessionHours(data.hours);
+  const expires = Date.now() + hours * 3600 * 1000;
   await setSetting(env, `session:${code}`, {
     teacherId: u.id, familyId: u.family_id, name: u.brand_name || u.school || "Coding Session", expires,
-    started: Date.now(), joins: 0, photoConsent: !!data.photoConsent,
+    started: Date.now(), joins: 0, photoConsent: !!data.photoConsent, hours,
   });
   await setSetting(env, `activesession:${u.id}`, { code });
   await bumpStat(env, "sessions_started");   // lifetime counter for the admin panel
-  return json({ ok: true, code, expiresAt: new Date(expires).toISOString() });
+  return json({ ok: true, code, expiresAt: new Date(expires).toISOString(), hours });
 }
 
 // Live moderation feed for an in-progress session: what session guests have saved so far, so
@@ -2379,16 +2388,18 @@ async function apiKickGuest(env, request, data) {
 
 // Add more time to the CURRENT session without changing the code — "New code" forces every kid
 // to rejoin, which is disruptive mid-session; this just pushes the expiry out so nobody notices.
-async function apiExtendSession(env, request) {
+async function apiExtendSession(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !SESSION_HOST_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
   const active = await getSetting(env, `activesession:${u.id}`, null);
   if (!active || !active.code) return json({ error: "No active session." }, 400);
   const info = await getSetting(env, `session:${active.code}`, null);
   if (!info) return json({ error: "No active session." }, 400);
-  info.expires = Date.now() + SESSION_HOURS * 3600 * 1000;
+  const hours = clampSessionHours((data && data.hours) || info.hours);
+  info.expires = Date.now() + hours * 3600 * 1000;
+  info.hours = hours;
   await setSetting(env, `session:${active.code}`, info);
-  return json({ ok: true, expiresAt: new Date(info.expires).toISOString() });
+  return json({ ok: true, expiresAt: new Date(info.expires).toISOString(), hours });
 }
 
 // A guest kid's dashboard polls this every ~20s to know whether the Live Session they joined
@@ -4454,7 +4465,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
   if (path === "/api/session/roster" && method === "GET") return apiSessionRoster(env, request);
   if (path === "/api/session/my-status" && method === "GET") return apiSessionMyStatus(env, request);
-  if (path === "/api/session/extend" && method === "POST") return apiExtendSession(env, request);
+  if (path === "/api/session/extend" && method === "POST") return apiExtendSession(env, request, data);
   if (path === "/api/session/kick" && method === "POST") return apiKickGuest(env, request, data);
   if (path === "/api/session/save-account" && method === "POST") return apiSessionSaveAccount(env, request, data);
   if (path === "/api/admin/audit-log" && method === "GET") return apiAdminAuditLog(env, request);
