@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=185" />
+  <link rel="stylesheet" href="styles.css?v=186" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -309,7 +309,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=185"></script>
+  <script src="auth.js?v=186"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -417,7 +417,8 @@
       btn.disabled = true; btn.textContent = 'Saving…';
       const { ok, data } = await C4K.api('/api/session/save-account', 'POST', { parentEmail, password });
       if (!ok) { msg.textContent = data.error || 'Could not save — try again.'; btn.disabled = false; btn.textContent = '💾 Save my account'; return; }
-      document.getElementById('sessSaveForm').innerHTML = `<p style="font-size:0.9rem;line-height:1.5;">✅ Saved! Log in anytime with username <strong>${C4K.esc(data.username)}</strong> and the password you just set. A confirmation was emailed to ${C4K.esc(parentEmail)}.</p>`;
+      const classNote = data.joinedClass ? " You're also now enrolled in your teacher's class." : '';
+      document.getElementById('sessSaveForm').innerHTML = `<p style="font-size:0.9rem;line-height:1.5;">✅ Saved! Log in anytime with username <strong>${C4K.esc(data.username)}</strong> and the password you just set.${classNote} A confirmation was emailed to ${C4K.esc(parentEmail)}.</p>`;
       document.getElementById('sessRedirectMsg').textContent = 'Heading back in 6…';
       let n = 6;
       const t = setInterval(() => {
@@ -1317,7 +1318,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=185" defer></script>
-  <script src="editor.js?v=185" defer></script>
+  <script src="pwa.js?v=186" defer></script>
+  <script src="editor.js?v=186" defer></script>
 </body>
 </html>

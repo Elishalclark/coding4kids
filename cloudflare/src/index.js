@@ -2560,15 +2560,27 @@ async function apiSessionSaveAccount(env, request, data) {
     username = u.username;
   }
   const { hash, salt } = await hashPassword(password);
+  // A teacher's own family_id is always their own id (set at signup), and a session guest
+  // already inherited the host's family_id when they joined — so if the host who ran this
+  // session is a teacher with a class code, this kid is really enrolling in that classroom, not
+  // just becoming a lone family account. Tag it that way so it shows up correctly on the
+  // teacher's roster/consent views, same as a normal "join with class code" would.
+  const host = u.family_id != null ? await env.DB.prepare("SELECT id, class_code FROM users WHERE id=? AND role='teacher'").bind(u.family_id).first() : null;
+  const inClass = !!(host && host.class_code);
+  const method = inClass ? "class_code" : "library_session_saved";
+  const grantedBy = inClass ? `${parentEmail} (class code ${host.class_code})` : `Saved after session by ${parentEmail}`;
   await env.DB.prepare(
-    "UPDATE users SET username=?, password_hash=?, salt=?, parent_email=?, consent_method='library_session_saved', consent_by=?, consent_at=? WHERE id=?"
-  ).bind(username, hash, salt, parentEmail, `Saved after session by ${parentEmail}`, nowIso(), u.id).run();
-  await logConsent(env, u.id, username, "library_session_saved", parentEmail, "Guest account converted to a saved account after a Live Session ended.");
+    "UPDATE users SET username=?, password_hash=?, salt=?, parent_email=?, consent_method=?, consent_by=?, consent_at=? WHERE id=?"
+  ).bind(username, hash, salt, parentEmail, method, grantedBy, nowIso(), u.id).run();
+  await logConsent(env, u.id, username, method, grantedBy,
+    inClass ? `Guest account converted to a saved account and enrolled in teacher's class (code ${host.class_code}) after a Live Session ended.`
+            : "Guest account converted to a saved account after a Live Session ended.");
   await sendEmail(env, parentEmail, `${u.name}'s KidVibers account has been saved!`,
     `Good news — ${u.name}'s work from today's KidVibers session has been saved. ` +
     `They can log back in anytime at kidvibers.com with the username <strong>${username}</strong> and the password they just set. ` +
+    (inClass ? `They're now also enrolled in their teacher's class. ` : ``) +
     `If this wasn't you, just ignore this email and the account will be automatically removed.`);
-  return json({ ok: true, username });
+  return json({ ok: true, username, joinedClass: inClass });
 }
 
 // Daily login reward: a small token bonus, once per calendar day, just for showing up.
