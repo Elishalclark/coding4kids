@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=187" />
+  <link rel="stylesheet" href="styles.css?v=188" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -826,7 +826,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=187"></script>
+  <script src="auth.js?v=188"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1190,7 +1190,7 @@
       const sup = _sup;
       document.getElementById('acctRows').innerHTML = list.length ? list.map((a, i) => {
         const nm = (a.name||'').replace(/'/g,"\\'").replace(/</g,'').replace(/>/g,'');
-        const isDemo = (a.username || '').toLowerCase() === 'demo';   // never bulk-select the pitch demo account
+        const isDemo = (a.username || '').toLowerCase() === 'demo_kid1';   // never bulk-select the pitch demo account
         const suspTip = a.suspended ? (a.suspendUntil ? ('til ' + a.suspendUntil.slice(0,10)) : 'permanent') : '';
         const suspBadge = a.suspended ? ` <span title="${a.suspendReason ? C4K.esc(a.suspendReason) : ''}" style="font-size:0.66rem;font-weight:900;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:50px;padding:1px 7px;">⏸️ SUSPENDED (${suspTip})</span>` : '';
         const demoBadge = isDemo ? ` <span title="Used for live pitch demos — protected from bulk actions" style="font-size:0.66rem;font-weight:900;color:#22d3ee;border:1px solid rgba(34,211,238,.5);border-radius:50px;padding:1px 7px;">🎭 DEMO</span>` : '';
@@ -2257,7 +2257,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=187" defer></script>
-  <script src="editor.js?v=187" defer></script>
+  <script src="pwa.js?v=188" defer></script>
+  <script src="editor.js?v=188" defer></script>
 </body>
 </html>

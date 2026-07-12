@@ -3557,9 +3557,9 @@ async function adminNotice(env, request, data) {
   await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)").bind(target.id, data.kind || "notice", msg, nowIso()).run();
   return json({ ok: true });
 }
-// Protects the seeded pitch-demo account ("demo") from ever being suspended/deleted/bulk-acted
-// on by mistake — it's kept intentionally populated (lessons, boss wins, tokens) for live demos.
-const DEMO_USERNAME = "demo";
+// Protects the seeded pitch-demo account from ever being suspended/deleted/bulk-acted on by
+// mistake — it's kept intentionally populated (lessons, boss wins, tokens) for live demos.
+const DEMO_USERNAME = "Demo_kid1";
 
 async function adminDeleteUser(env, request, data) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
