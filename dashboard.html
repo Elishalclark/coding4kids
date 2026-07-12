@@ -6,7 +6,7 @@
   <title>My Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=183" />
+  <link rel="stylesheet" href="styles.css?v=184" />
   <style>
     .dash { max-width: 1080px; margin: 0 auto; padding: 24px 24px 80px; }
     .dash-hero {
@@ -309,7 +309,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=183"></script>
+  <script src="auth.js?v=184"></script>
   <script>
     const XP_PER_LEVEL = 200;
     let LESSONS = [], COMPLETED = [], ME = null;
@@ -397,7 +397,7 @@
           <h1 style="font-size:1.4rem;font-weight:900;margin:10px 0;">Session ended — great coding!</h1>
           <p style="color:#dcfce7;font-size:0.92rem;line-height:1.6;">Thanks for building something today. Everything you made is still here — but it'll be deleted tomorrow unless a grown-up saves it below.</p>
           <div id="sessSaveForm" style="margin-top:16px;text-align:left;background:rgba(0,0,0,0.18);border-radius:14px;padding:16px;">
-            <label style="font-size:0.78rem;font-weight:800;color:#dcfce7;">💾 Keep ${(window.ME && ME.name) || 'this'}'s account &amp; everything they built</label>
+            <label style="font-size:0.78rem;font-weight:800;color:#dcfce7;">💾 Keep ${C4K.esc((window.ME && ME.name) || 'this')}'s account &amp; everything they built</label>
             <input id="sessSaveEmail" type="email" placeholder="Parent/guardian email" style="width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#111;font-size:0.9rem;" />
             <input id="sessSavePw" type="password" placeholder="Set a password (6+ characters)" style="width:100%;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#111;font-size:0.9rem;" />
             <p id="sessSaveMsg" style="font-size:0.78rem;color:#fecaca;margin-top:6px;min-height:16px;"></p>
@@ -417,7 +417,7 @@
       btn.disabled = true; btn.textContent = 'Saving…';
       const { ok, data } = await C4K.api('/api/session/save-account', 'POST', { parentEmail, password });
       if (!ok) { msg.textContent = data.error || 'Could not save — try again.'; btn.disabled = false; btn.textContent = '💾 Save my account'; return; }
-      document.getElementById('sessSaveForm').innerHTML = `<p style="font-size:0.9rem;line-height:1.5;">✅ Saved! Log in anytime with username <strong>${data.username}</strong> and the password you just set. A confirmation was emailed to ${parentEmail}.</p>`;
+      document.getElementById('sessSaveForm').innerHTML = `<p style="font-size:0.9rem;line-height:1.5;">✅ Saved! Log in anytime with username <strong>${C4K.esc(data.username)}</strong> and the password you just set. A confirmation was emailed to ${C4K.esc(parentEmail)}.</p>`;
       document.getElementById('sessRedirectMsg').textContent = 'Heading back in 6…';
       let n = 6;
       const t = setInterval(() => {
@@ -1317,7 +1317,7 @@
     </div>
   </div>
 
-  <script src="pwa.js?v=183" defer></script>
-  <script src="editor.js?v=183" defer></script>
+  <script src="pwa.js?v=184" defer></script>
+  <script src="editor.js?v=184" defer></script>
 </body>
 </html>
