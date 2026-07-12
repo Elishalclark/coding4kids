@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=180" />
+  <link rel="stylesheet" href="styles.css?v=181" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -176,7 +176,10 @@
             <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
           </div>
           <div style="margin-top:14px;text-align:left;">
-            <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🙋 Who's in the room</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">🙋 Who's in the room</div>
+              <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);font-size:0.7rem;padding:3px 8px;" onclick="exportRosterCSV()">⬇️ Export CSV</button>
+            </div>
             <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
           </div>
         </div>
@@ -763,7 +766,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=180"></script>
+  <script src="auth.js?v=181"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -869,6 +872,7 @@
         } else if (ok) { el.textContent = "Nobody's saved anything yet."; }
         const rEl = document.getElementById('sessRoster');
         const { ok: rOk, data: rData } = await C4K.api('/api/session/roster');
+        if (rOk) _lastRoster = rData.roster || [];
         if (rEl && rOk && rData.roster && rData.roster.length) {
           rEl.innerHTML = rData.roster.map(k => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.12);">
               <span style="flex:1;">🙋 <strong>${C4K.esc(k.name||'?')}</strong> · joined ${k.joinedAt}</span>
@@ -883,6 +887,17 @@
       if (!confirm('Remove ' + name + ' from this session? They\'ll be signed out immediately.')) return;
       const { ok, data } = await C4K.api('/api/session/kick', 'POST', { kidId });
       if (!ok) alert('⚠️ ' + (data.error || 'Could not remove.'));
+    }
+    let _lastRoster = [];
+    function exportRosterCSV() {
+      if (!_lastRoster.length) { alert('No one has joined this session yet.'); return; }
+      const rows = [['Nickname', 'Joined (local time)'], ..._lastRoster.map(k => [k.name || '', k.joinedAt || ''])];
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `kidvibers-session-roster-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
     }
     function showSessionRecap(r) {
       const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
@@ -2069,7 +2084,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=180" defer></script>
-  <script src="editor.js?v=180" defer></script>
+  <script src="pwa.js?v=181" defer></script>
+  <script src="editor.js?v=181" defer></script>
 </body>
 </html>

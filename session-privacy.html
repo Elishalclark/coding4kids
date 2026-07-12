@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="canonical" href="https://kidvibers.com/session-privacy.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Session Privacy - What We Collect (1-page) - KidVibers</title>
+  <meta name="description" content="A plain-language, one-page explanation of what KidVibers collects when a kid joins a library or classroom drop-in session, and how long it's kept." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=181" />
+  <style>
+    .sp { max-width: 760px; margin: 0 auto; padding: 28px 20px 90px; }
+    .sp-hero { text-align:center; background:linear-gradient(150deg,#0f3d2e,#15803d 60%,#16a34a); border:1px solid var(--border-bright); border-radius:var(--radius); padding:30px 24px; margin-bottom:24px; }
+    .sp-hero h1 { font-size:1.7rem; font-weight:900; color:#fff; }
+    .sp-hero p { color:#dcfce7; margin-top:8px; max-width:560px; margin-left:auto; margin-right:auto; }
+    .sp h2 { font-size:1.1rem; font-weight:900; margin:22px 0 8px; }
+    .sp p, .sp li { color:var(--text-dim); line-height:1.65; font-size:0.94rem; }
+    .sp ul { margin:6px 0 6px 20px; display:flex; flex-direction:column; gap:6px; }
+    .sp .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 20px; margin:12px 0; }
+    .sp .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .sp .grid .box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .sp .grid .box h3 { font-size:0.85rem; font-weight:900; margin-bottom:4px; }
+    .sp .print-btn { text-align:center; margin:0 0 20px; }
+    @media (max-width:560px) { .sp .grid { grid-template-columns:1fr; } }
+    @media print {
+      nav, .print-btn, footer { display:none !important; }
+      body { background:#fff !important; color:#000 !important; }
+      .sp-hero { background:#fff !important; border:none; border-bottom:3px solid #000; padding:0 0 10px; }
+      .sp-hero h1, .sp-hero p { color:#000 !important; }
+      .sp h2 { color:#000 !important; }
+      .sp p, .sp li { color:#222 !important; }
+      .sp .card, .sp .grid .box { border:1px solid #999 !important; break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">← Home</a>
+    </div>
+  </nav>
+
+  <main class="sp" id="main">
+    <div class="print-btn">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print this page</button>
+    </div>
+
+    <div class="sp-hero">
+      <h1>🔒 What we collect during a Live Session</h1>
+      <p>A plain-language, one-page summary for parents and library/school staff — no legal jargon. For the full policy, see our <a href="privacy.html" style="color:#fff;text-decoration:underline;">Privacy Policy</a>.</p>
+    </div>
+
+    <div class="sp grid">
+      <div class="box">
+        <h3>✅ What we ask for</h3>
+        <p style="margin:0;">Just a nickname. No email, no password, no birthdate, no photo — unless the host has separately collected photo/video consent for the in-person event.</p>
+      </div>
+      <div class="box">
+        <h3>🗑️ How long it's kept</h3>
+        <p style="margin:0;">The account is deleted automatically the next day — including anything they built — unless a grown-up chooses to save it.</p>
+      </div>
+      <div class="box">
+        <h3>💾 "Save my account"</h3>
+        <p style="margin:0;">If a kid wants to keep what they made, the session-ended screen lets a parent/guardian enter their email and set a real password on the spot.</p>
+      </div>
+      <div class="box">
+        <h3>👀 Who can see it</h3>
+        <p style="margin:0;">Only the adult running the session (roster + a live feed of what's being built) and KidVibers staff for safety moderation. We never sell or share kid data.</p>
+      </div>
+    </div>
+
+    <h2>Why this is allowed without a parent's email up front</h2>
+    <p>Under COPPA, a school or library acting in a "school official" capacity can consent on behalf of parents for a strictly educational, in-program activity. That's the basis for a drop-in Live Session: the host institution is providing consent for the duration of the program, which is why kids can jump in with just a nickname instead of a full sign-up.</p>
+
+    <h2>What gets deleted</h2>
+    <ul>
+      <li>Their account (nickname, login)</li>
+      <li>Anything they built or saved during the session</li>
+      <li>Lesson progress and quiz results from the session</li>
+      <li>Any chat messages exchanged with Byte (KidVibers' buddy — not a real AI, and not a real person)</li>
+    </ul>
+
+    <h2>Questions?</h2>
+    <p>Reach us any time at <a href="mailto:privacy@kidvibers.com">privacy@kidvibers.com</a>. Library/school staff: our full <a href="for-schools-privacy.html">School Privacy &amp; DPA page</a> has retention tables, sub-processors, and a signable Data Processing Agreement.</p>
+
+    <p style="text-align:center;color:var(--text-dim);font-size:0.82rem;margin-top:20px;">KidVibers · kidvibers.com · Not real AI, not real coding — just kids having fun making stuff. 💜</p>
+  </main>
+
+  <script src="pwa.js?v=181" defer></script>
+</body>
+</html>
