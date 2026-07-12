@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=189" />
+  <link rel="stylesheet" href="styles.css?v=190" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -312,6 +312,9 @@
         <br/>
         <button class="btn btn-outline" style="font-size:0.8rem;margin-top:8px;" onclick="sendExecSummaryNow()">📊 Email me the weekly exec summary now</button>
         <span id="execSummaryMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
+        <br/>
+        <button class="btn btn-outline" style="font-size:0.8rem;margin-top:8px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="forceLogoutAll()">🔐 Force logout — everyone, everywhere</button>
+        <span id="forceLogoutMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
         <details style="margin-top:16px;">
           <summary style="cursor:pointer;color:#f87171;font-weight:800;font-size:0.85rem;">🚨 Emergency: send a data-breach notice (use only if actually needed)</summary>
           <div style="margin-top:10px;padding:14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;">
@@ -836,7 +839,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=189"></script>
+  <script src="auth.js?v=190"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1322,6 +1325,14 @@
       msg.textContent = 'Sending…';
       const { ok } = await C4K.api('/api/admin/exec-summary-now', 'POST', {});
       msg.textContent = ok ? '✅ Sent — check your email/Slack.' : '⚠️ Could not send.';
+    }
+    async function forceLogoutAll() {
+      if (!confirm("Force EVERYONE on the platform to log back in right now — every kid, parent, teacher, and admin except you? Use this only for a real security concern.")) return;
+      const msg = document.getElementById('forceLogoutMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Revoking…';
+      const { ok, data } = await C4K.api('/api/admin/force-logout-all', 'POST', {});
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = `✅ Revoked ${data.revoked} session(s). Everyone else needs to log back in.`; }
+      else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not do this.'; }
     }
 
     // ── Data export/deletion request tracker ──
@@ -2294,7 +2305,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=189" defer></script>
-  <script src="editor.js?v=189" defer></script>
+  <script src="pwa.js?v=190" defer></script>
+  <script src="editor.js?v=190" defer></script>
 </body>
 </html>

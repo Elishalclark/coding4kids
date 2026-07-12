@@ -1386,6 +1386,16 @@ async function apiSecurityDashboard(env, request) {
     checkedAt: nowIso(),
   });
 }
+// Incident-response tool: revoke every active login session platform-wide, forcing everyone
+// (except the admin who clicked it) to log back in. For a suspected credential leak or anything
+// where you need to be certain nobody's still using an old session token.
+async function apiForceLogoutAll(env, request) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const count = (await env.DB.prepare("SELECT COUNT(*) c FROM sessions WHERE token<>?").bind(bearer(request) || "").first()).c || 0;
+  await env.DB.prepare("DELETE FROM sessions WHERE token<>?").bind(bearer(request) || "").run();
+  await notifyAdmin(env, "🔐 Force-logout-all triggered", `Super admin ${u.username} force-logged-out every session platform-wide (${count} session(s) revoked). Everyone will need to log back in.`);
+  return json({ ok: true, revoked: count });
+}
 
 // A lightweight sanity check (NOT a full restore test — that has to be done manually against a
 // real recovery process) that confirms the database is reachable and readable right now.
@@ -4581,6 +4591,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);
   if (path === "/api/admin/data-requests" && (method === "GET" || method === "POST")) return apiDataRequests(env, request, data, method);
   if (path === "/api/admin/security-dashboard" && method === "GET") return apiSecurityDashboard(env, request);
+  if (path === "/api/admin/force-logout-all" && method === "POST") return apiForceLogoutAll(env, request);
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
   if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
