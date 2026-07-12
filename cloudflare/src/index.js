@@ -1287,6 +1287,21 @@ async function apiMyLogins(env, request) {
   })) });
 }
 
+// Cross-account view of who's been logging into staff/admin accounts and from where — a single
+// admin can already see their OWN recent logins (apiMyLogins above); this is the super-admin
+// view across every teacher/admin/super_admin account at once, so a stolen credential shows up
+// here even if the account owner never thinks to check their own login history.
+async function apiStaffLoginActivity(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT s.token,s.created_at,s.ip,u.id uid,u.name,u.username,u.role FROM sessions s JOIN users u ON u.id=s.user_id " +
+    "WHERE u.role IN ('teacher','admin','super_admin') ORDER BY s.created_at DESC LIMIT 100"
+  ).all()).results || [];
+  return json({ logins: rows.map(r => ({
+    name: r.name, username: r.username, role: r.role, ip: r.ip || "unknown",
+    at: (r.created_at || "").slice(0, 16).replace("T", " "), tokenTail: (r.token || "").slice(-6),
+  })) });
+}
 // Revoke one specific session (device) without logging out everywhere else.
 async function apiRevokeSession(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -3492,6 +3507,63 @@ async function adminAnalytics(env, request) {
   });
 }
 
+// Weekly signup-cohort retention: for each week's new kids, what % were still doing lessons
+// 1/2/3/4 weeks later. retention30 above is a single number for "right now" — this shows
+// whether that number is trending better or worse over time, which is what actually matters
+// for a pitch (stickiness, not just a snapshot).
+async function apiCohortRetention(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const WEEKS = 8;
+  const since = new Date(Date.now() - WEEKS * 7 * 86400000).toISOString();
+  const kids = (await env.DB.prepare("SELECT id, created_at FROM users WHERE role='kid' AND created_at >= ?").bind(since).all()).results || [];
+  if (!kids.length) return json({ cohorts: [] });
+  const ids = kids.map(k => k.id);
+  // Pull every completion timestamp for just these kids in one query (cheap even at a few
+  // thousand rows) rather than one query per cohort-week.
+  const placeholders = ids.map(() => "?").join(",");
+  const progRows = (await env.DB.prepare(
+    `SELECT user_id, completed_at FROM progress WHERE user_id IN (${placeholders})`
+  ).bind(...ids).all()).results || [];
+  const completionsByKid = new Map();
+  for (const r of progRows) {
+    if (!completionsByKid.has(r.user_id)) completionsByKid.set(r.user_id, []);
+    completionsByKid.get(r.user_id).push(new Date(r.completed_at).getTime());
+  }
+  // Bucket kids into their signup week (0 = this week, going back WEEKS-1).
+  const now = Date.now();
+  const weekMs = 7 * 86400000;
+  const cohortBuckets = new Map();   // weekIndex -> [kidId, ...]
+  for (const k of kids) {
+    const age = now - new Date(k.created_at).getTime();
+    const weekIndex = Math.floor(age / weekMs);
+    if (weekIndex < 0 || weekIndex >= WEEKS) continue;
+    if (!cohortBuckets.has(weekIndex)) cohortBuckets.set(weekIndex, []);
+    cohortBuckets.get(weekIndex).push(k);
+  }
+  const cohorts = [];
+  for (let w = WEEKS - 1; w >= 0; w--) {
+    const bucket = cohortBuckets.get(w) || [];
+    if (!bucket.length) continue;
+    const retention = [];
+    // How many weeks of data can we possibly have for this cohort (a cohort from 1 week ago
+    // can only show week-0 and week-1 retention so far, not week-4 — don't fake a 0%).
+    const maxOffset = Math.min(4, w);
+    for (let offset = 0; offset <= maxOffset; offset++) {
+      let activeCount = 0;
+      for (const k of bucket) {
+        const signupTime = new Date(k.created_at).getTime();
+        const windowStart = signupTime + offset * weekMs;
+        const windowEnd = windowStart + weekMs;
+        const times = completionsByKid.get(k.id) || [];
+        if (times.some(t => t >= windowStart && t < windowEnd)) activeCount++;
+      }
+      retention.push(Math.round((activeCount / bucket.length) * 100));
+    }
+    cohorts.push({ weekLabel: w === 0 ? "This week" : `${w} wk${w === 1 ? "" : "s"} ago`, size: bucket.length, retention });
+  }
+  return json({ cohorts });
+}
+
 // Super-admin search: look up a kid by username (partial) and return full info.
 async function adminFindKid(env, request) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
@@ -4471,6 +4543,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/feature-flags" && method === "GET") return apiGetFeatureFlags(env);
   if (path === "/api/admin/feature-flags" && method === "POST") return apiSetFeatureFlags(env, request, data);
   if (path === "/api/admin/school-health" && method === "GET") return apiSchoolHealth(env, request);
+  if (path === "/api/admin/cohort-retention" && method === "GET") return apiCohortRetention(env, request);
   if (path === "/api/admin/expiry-queue" && method === "GET") return apiExpiryQueue(env, request);
   if (path === "/api/admin/lesson-analytics" && method === "GET") return apiLessonAnalytics(env, request);
   if (path === "/api/admin/error-log" && method === "GET") return apiErrorLog(env, request);
@@ -4579,6 +4652,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/notices/dismiss" && method === "POST") return apiDismissNotice(env, request, data);
   if (path === "/api/incident-log" && method === "GET") return apiIncidentLog(env, request);
   if (path === "/api/my-logins" && method === "GET") return apiMyLogins(env, request);
+  if (path === "/api/admin/staff-logins" && method === "GET") return apiStaffLoginActivity(env, request);
   if (path === "/api/my-logins/revoke" && method === "POST") return apiRevokeSession(env, request, data);
   if (path === "/api/session/feed" && method === "GET") return apiSessionFeed(env, request);
   if (path === "/api/session/roster" && method === "GET") return apiSessionRoster(env, request);

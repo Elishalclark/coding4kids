@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=190" />
+  <link rel="stylesheet" href="styles.css?v=191" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -277,6 +277,8 @@
         <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
         <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
         <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
+        <div id="cohortChart" style="overflow-x:auto;"></div>
       </div>
 
       <h2 class="super-only admin-section" style="display:none;">👥 People &amp; Accounts</h2>
@@ -377,6 +379,17 @@
         </div>
         <p class="hint" style="margin-top:6px;">New accounts are always plain "admin" — a second super admin can only be made by hand in the database, so a compromised admin session can never mint one.</p>
         <div class="msg" id="newAdminMsg"></div>
+      </div>
+
+      <!-- Staff login activity (SUPER ADMIN ONLY) — every teacher/admin/super_admin login across
+           the whole platform, in one place, so a stolen credential shows up even if the account
+           owner never checks their own login history. -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🕵️ Staff Login Activity <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">teachers, admins &amp; super admins — most recent 100</span></h3>
+        <table class="admin-table">
+          <thead><tr><th>Who</th><th>Role</th><th>IP</th><th>When</th></tr></thead>
+          <tbody id="staffLoginRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <!-- School health scores (SUPER ADMIN ONLY) -->
@@ -839,7 +852,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=190"></script>
+  <script src="auth.js?v=191"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1188,6 +1201,8 @@
         loadConsentGroups();
         document.getElementById('bulkBar').style.display = 'flex';
         loadSchoolHealth();
+        loadStaffLogins();
+        loadCohortRetention();
         loadExpiryQueue();
         loadLessonReports();
         loadErrorLog();
@@ -1442,6 +1457,42 @@
           <td>${s.activeStudents} (${s.activePct}%)</td>
           <td>${dot[s.health] || ''} ${s.health}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No paid school/district accounts yet.</td></tr>';
+    }
+
+    // ── Staff login activity (who's logging into teacher/admin/super_admin accounts, from where) ──
+    async function loadStaffLogins() {
+      const { ok, data } = await C4K.api('/api/admin/staff-logins');
+      const rows = document.getElementById('staffLoginRows');
+      if (!rows) return;
+      const list = (ok && data.logins) || [];
+      const roleTag = r => r === 'super_admin' ? '👑 super admin' : (r === 'admin' ? '🛠️ admin' : '🍎 teacher');
+      rows.innerHTML = list.length ? list.map(l => `<tr>
+          <td><strong>${C4K.esc(l.name || '')}</strong> <span style="color:var(--text-faint);">@${C4K.esc(l.username)}</span></td>
+          <td>${roleTag(l.role)}</td>
+          <td style="font-family:monospace;font-size:0.82rem;">${C4K.esc(l.ip)}</td>
+          <td style="color:var(--text-dim);">${C4K.esc(l.at)}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">No staff logins recorded yet.</td></tr>';
+    }
+
+    // ── Weekly cohort retention (signup week x weeks-since-signup activity %) ──
+    async function loadCohortRetention() {
+      const { ok, data } = await C4K.api('/api/admin/cohort-retention');
+      const host = document.getElementById('cohortChart');
+      if (!host) return;
+      const cohorts = (ok && data.cohorts) || [];
+      if (!cohorts.length) { host.innerHTML = '<div style="color:var(--text-faint);font-size:0.85rem;">Not enough signup history yet.</div>'; return; }
+      const heat = pct => pct >= 60 ? '#15803d' : pct >= 35 ? '#a16207' : pct >= 15 ? '#7c3aed33' : 'var(--surface-2)';
+      const heatTxt = pct => pct >= 35 ? '#fff' : 'var(--text-dim)';
+      const maxCols = Math.max(...cohorts.map(c => c.retention.length));
+      const header = ['Cohort', 'Kids', ...Array.from({length: maxCols}, (_, i) => `Wk ${i}`)];
+      host.innerHTML = `<table class="admin-table"><thead><tr>${header.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+        ${cohorts.map(c => `<tr>
+          <td style="white-space:nowrap;">${C4K.esc(c.weekLabel)}</td>
+          <td style="color:var(--text-dim);">${c.size}</td>
+          ${Array.from({length: maxCols}, (_, i) => c.retention[i] == null ? '<td style="color:var(--text-faint);">—</td>' :
+            `<td style="background:${heat(c.retention[i])};color:${heatTxt(c.retention[i])};font-weight:800;text-align:center;border-radius:6px;">${c.retention[i]}%</td>`).join('')}
+        </tr>`).join('')}
+      </tbody></table>`;
     }
 
     // ── Expiring trials & renewals ──
@@ -2305,7 +2356,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=190" defer></script>
-  <script src="editor.js?v=190" defer></script>
+  <script src="pwa.js?v=191" defer></script>
+  <script src="editor.js?v=191" defer></script>
 </body>
 </html>
