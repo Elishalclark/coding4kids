@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=194" />
+  <link rel="stylesheet" href="styles.css?v=195" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -402,11 +402,10 @@
         <table class="admin-table">
           <thead><tr>
             <th style="cursor:pointer;" onclick="sortStaffLogins('name')">Who <span id="slSortIcon-name"></span></th>
-            <th style="cursor:pointer;" onclick="sortStaffLogins('role')">Role <span id="slSortIcon-role"></span></th>
             <th style="cursor:pointer;" onclick="sortStaffLogins('ip')">IP <span id="slSortIcon-ip"></span></th>
             <th style="cursor:pointer;" onclick="sortStaffLogins('at')">When <span id="slSortIcon-at">▼</span></th>
           </tr></thead>
-          <tbody id="staffLoginRows"><tr><td colspan="4" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+          <tbody id="staffLoginRows"><tr><td colspan="3" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
       </div>
 
@@ -885,7 +884,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=194"></script>
+  <script src="auth.js?v=195"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1532,7 +1531,6 @@
     }
 
     let _staffLogins = [], _slSortKey = 'at', _slSortDir = -1;
-    const roleTag = r => r === 'super_admin' ? '👑 super admin' : (r === 'admin' ? '🛠️ admin' : '🍎 teacher');
     async function loadStaffLogins() {
       const { ok, data } = await C4K.api('/api/admin/staff-logins');
       if (!ok) return;
@@ -1553,34 +1551,45 @@
     }
     function sortStaffLogins(key) {
       if (_slSortKey === key) _slSortDir *= -1; else { _slSortKey = key; _slSortDir = 1; }
-      ['name', 'role', 'ip', 'at'].forEach(k => {
+      ['name', 'ip', 'at'].forEach(k => {
         const el = document.getElementById('slSortIcon-' + k);
         if (el) el.textContent = (k === _slSortKey) ? (_slSortDir === 1 ? '▲' : '▼') : '';
       });
       renderStaffLogins();
     }
+    // Grouped by role (Super Admin, then Admin, then Teacher) instead of one flat interleaved
+    // list — a compromised admin login is a lot easier to spot sitting in its own 5-row section
+    // than buried among 90 teacher logins sorted purely by time.
+    const ROLE_ORDER = ['super_admin', 'admin', 'teacher'];
+    const ROLE_SECTION = { super_admin: '👑 Super Admin', admin: '🛠️ Admin', teacher: '🍎 Teacher' };
     function renderStaffLogins() {
       const rows = document.getElementById('staffLoginRows');
       if (!rows) return;
       const q = (document.getElementById('staffLoginSearch') ? document.getElementById('staffLoginSearch').value : '').trim().toLowerCase();
-      const role = document.getElementById('staffLoginRole') ? document.getElementById('staffLoginRole').value : '';
+      const roleFilter = document.getElementById('staffLoginRole') ? document.getElementById('staffLoginRole').value : '';
       const newOnly = document.getElementById('staffLoginNewOnly') ? document.getElementById('staffLoginNewOnly').checked : false;
       let list = _staffLogins.filter(l =>
-        (!role || l.role === role) && (!newOnly || l.newIp) &&
+        (!roleFilter || l.role === roleFilter) && (!newOnly || l.newIp) &&
         (!q || (l.name||'').toLowerCase().includes(q) || (l.username||'').toLowerCase().includes(q) || (l.ip||'').toLowerCase().includes(q)));
-      if (_slSortKey) {
-        list = list.slice().sort((a, b) => {
-          const av = (a[_slSortKey] || '').toString().toLowerCase(), bv = (b[_slSortKey] || '').toString().toLowerCase();
-          return av < bv ? -_slSortDir : av > bv ? _slSortDir : 0;
-        });
-      }
       document.getElementById('staffLoginCount').textContent = `${list.length} of ${_staffLogins.length} logins (most recent 100)`;
-      rows.innerHTML = list.length ? list.map(l => `<tr${l.newIp ? ' style="background:rgba(245,158,11,0.08);"' : ''}>
+      let html = '';
+      for (const role of ROLE_ORDER) {
+        let group = list.filter(l => l.role === role);
+        if (!group.length) continue;
+        if (_slSortKey) {
+          group = group.slice().sort((a, b) => {
+            const av = (a[_slSortKey] || '').toString().toLowerCase(), bv = (b[_slSortKey] || '').toString().toLowerCase();
+            return av < bv ? -_slSortDir : av > bv ? _slSortDir : 0;
+          });
+        }
+        html += `<tr style="background:var(--surface-2);"><td colspan="3" style="font-weight:900;padding-top:12px;">${ROLE_SECTION[role]} <span style="color:var(--text-faint);font-weight:700;font-size:0.78rem;">(${group.length})</span></td></tr>`;
+        html += group.map(l => `<tr${l.newIp ? ' style="background:rgba(245,158,11,0.08);"' : ''}>
           <td><strong>${C4K.esc(l.name || '')}</strong> <span style="color:var(--text-faint);">@${C4K.esc(l.username)}</span></td>
-          <td>${roleTag(l.role)}</td>
           <td style="font-family:monospace;font-size:0.82rem;">${C4K.esc(l.ip)}${l.newIp ? ' <span title="First time this IP has been seen for this person" style="color:#f59e0b;">⚠️ new</span>' : ''}</td>
           <td style="color:var(--text-dim);">${C4K.esc(l.at)}</td>
-        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-faint);">No staff logins match.</td></tr>';
+        </tr>`).join('');
+      }
+      rows.innerHTML = html || '<tr><td colspan="3" style="color:var(--text-faint);">No staff logins match.</td></tr>';
     }
     function exportStaffLoginsCsv() {
       const rows = [['Name', 'Username', 'Role', 'IP', 'When', 'New IP?']];
@@ -2473,7 +2482,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=194" defer></script>
-  <script src="editor.js?v=194" defer></script>
+  <script src="pwa.js?v=195" defer></script>
+  <script src="editor.js?v=195" defer></script>
 </body>
 </html>
