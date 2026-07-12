@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=192" />
+  <link rel="stylesheet" href="styles.css?v=193" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -498,9 +498,24 @@
 
       <!-- Admin action audit log (SUPER ADMIN ONLY) -->
       <div class="panel super-only" style="display:none;">
-        <h3>🕵️ Audit Log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">account suspend/delete/reinstate history</span></h3>
+        <h3>🕵️ Audit Log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="auditCount"></span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="auditSearch" class="le-in" placeholder="🔎 Filter by account, who, or detail…" style="flex:1;min-width:200px;" oninput="renderAuditLog()" />
+          <select id="auditAction" class="le-in" style="width:auto;" onchange="renderAuditLog()">
+            <option value="">All actions</option>
+            <option value="deleted">🗑️ Deleted</option>
+            <option value="suspended">⏸️ Suspended</option>
+            <option value="reinstated">▶️ Reinstated</option>
+          </select>
+          <button class="mini-btn" onclick="exportAuditLogCsv()">⬇️ Export CSV</button>
+        </div>
         <table class="admin-table">
-          <thead><tr><th>When</th><th>Account</th><th>Action</th><th>By</th><th>Detail</th></tr></thead>
+          <thead><tr>
+            <th style="cursor:pointer;" onclick="sortAuditLog('at')">When <span id="auSortIcon-at">▼</span></th>
+            <th style="cursor:pointer;" onclick="sortAuditLog('username')">Account <span id="auSortIcon-username"></span></th>
+            <th style="cursor:pointer;" onclick="sortAuditLog('action')">Action <span id="auSortIcon-action"></span></th>
+            <th>By</th><th>Detail</th>
+          </tr></thead>
           <tbody id="auditRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -870,7 +885,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=192"></script>
+  <script src="auth.js?v=193"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1183,18 +1198,7 @@
       loadActiveSessions();   // ditto — no individual kid data, just who's hosting + a headcount
 
       if (sup) {
-        const { ok: aOk, data: aData } = await C4K.api('/api/admin/audit-log');
-        const rows = document.getElementById('auditRows');
-        if (rows) {
-          const log = (aOk && aData.log) || [];
-          rows.innerHTML = log.length ? log.map(r => `<tr>
-              <td style="white-space:nowrap;color:var(--text-faint);font-size:0.8rem;">${C4K.esc(r.at)}</td>
-              <td>@${C4K.esc(r.username || '?')}</td>
-              <td><strong>${C4K.esc(r.action)}</strong></td>
-              <td style="font-size:0.82rem;color:var(--text-faint);">${C4K.esc(r.by || '')}</td>
-              <td style="font-size:0.82rem;">${C4K.esc(r.detail || '')}</td>
-            </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No admin actions recorded yet.</td></tr>';
-        }
+        loadAuditLog();
         loadSecurityDashboard();
         loadDataRequests();
       }
@@ -1478,6 +1482,55 @@
     }
 
     // ── Staff login activity (who's logging into teacher/admin/super_admin accounts, from where) ──
+    // ── Admin action audit log (account delete/suspend/reinstate history) ──
+    let _auditLog = [], _auSortKey = 'at', _auSortDir = -1;
+    const auditActionTag = a => a === 'deleted' ? '🗑️ deleted' : (a === 'suspended' ? '⏸️ suspended' : (a === 'reinstated' ? '▶️ reinstated' : a));
+    async function loadAuditLog() {
+      const { ok, data } = await C4K.api('/api/admin/audit-log');
+      if (!ok) return;
+      _auditLog = data.log || [];
+      renderAuditLog();
+    }
+    function sortAuditLog(key) {
+      if (_auSortKey === key) _auSortDir *= -1; else { _auSortKey = key; _auSortDir = 1; }
+      ['at', 'username', 'action'].forEach(k => {
+        const el = document.getElementById('auSortIcon-' + k);
+        if (el) el.textContent = (k === _auSortKey) ? (_auSortDir === 1 ? '▲' : '▼') : '';
+      });
+      renderAuditLog();
+    }
+    function renderAuditLog() {
+      const rows = document.getElementById('auditRows');
+      if (!rows) return;
+      const q = (document.getElementById('auditSearch') ? document.getElementById('auditSearch').value : '').trim().toLowerCase();
+      const action = document.getElementById('auditAction') ? document.getElementById('auditAction').value : '';
+      let list = _auditLog.filter(r =>
+        (!action || r.action === action) &&
+        (!q || (r.username||'').toLowerCase().includes(q) || (r.by||'').toLowerCase().includes(q) || (r.detail||'').toLowerCase().includes(q)));
+      if (_auSortKey) {
+        list = list.slice().sort((a, b) => {
+          const av = (a[_auSortKey] || '').toString().toLowerCase(), bv = (b[_auSortKey] || '').toString().toLowerCase();
+          return av < bv ? -_auSortDir : av > bv ? _auSortDir : 0;
+        });
+      }
+      document.getElementById('auditCount').textContent = `${list.length} of ${_auditLog.length} action${_auditLog.length===1?'':'s'}`;
+      rows.innerHTML = list.length ? list.map(r => `<tr>
+          <td style="white-space:nowrap;color:var(--text-faint);font-size:0.8rem;">${C4K.esc(r.at)}</td>
+          <td>@${C4K.esc(r.username || '?')}</td>
+          <td><strong>${auditActionTag(r.action)}</strong></td>
+          <td style="font-size:0.82rem;color:var(--text-faint);">${C4K.esc(r.by || '')}</td>
+          <td style="font-size:0.82rem;">${C4K.esc(r.detail || '')}</td>
+        </tr>`).join('') : '<tr><td colspan="5" style="color:var(--text-faint);">No admin actions match.</td></tr>';
+    }
+    function exportAuditLogCsv() {
+      const rows = [['When', 'Account', 'Action', 'By', 'Detail']];
+      _auditLog.forEach(r => rows.push([r.at || '', r.username || '', r.action || '', r.by || '', r.detail || '']));
+      const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-audit-log-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+    }
+
     let _staffLogins = [], _slSortKey = 'at', _slSortDir = -1;
     const roleTag = r => r === 'super_admin' ? '👑 super admin' : (r === 'admin' ? '🛠️ admin' : '🍎 teacher');
     async function loadStaffLogins() {
@@ -2420,7 +2473,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=192" defer></script>
-  <script src="editor.js?v=192" defer></script>
+  <script src="pwa.js?v=193" defer></script>
+  <script src="editor.js?v=193" defer></script>
 </body>
 </html>
