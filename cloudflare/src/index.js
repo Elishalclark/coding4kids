@@ -2339,7 +2339,7 @@ async function apiSessionFeed(env, request) {
   if (!info || !info.started) return json({ feed: [] });
   const rows = (await env.DB.prepare(
     "SELECT p.author_name, p.title, p.updated_at FROM projects p JOIN users u ON u.id=p.user_id " +
-    "WHERE u.family_id=? AND p.updated_at>=? ORDER BY p.updated_at DESC LIMIT 30"
+    "WHERE u.family_id IS ? AND p.updated_at>=? ORDER BY p.updated_at DESC LIMIT 30"
   ).bind(info.familyId, new Date(info.started).toISOString()).all()).results || [];
   return json({ feed: rows.map(r => ({ name: r.author_name, title: r.title, at: (r.updated_at || "").slice(11, 16) })) });
 }
@@ -2432,7 +2432,7 @@ async function apiEndSession(env, request) {
       if (started) {
         try {
           const row = await env.DB.prepare(
-            "SELECT COUNT(*) c FROM projects p JOIN users u ON u.id=p.user_id WHERE u.family_id=? AND p.created_at>=?"
+            "SELECT COUNT(*) c FROM projects p JOIN users u ON u.id=p.user_id WHERE u.family_id IS ? AND p.created_at>=?"
           ).bind(info.familyId, new Date(started).toISOString()).first();
           creations = (row && row.c) || 0;
         } catch (e) {}
