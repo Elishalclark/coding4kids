@@ -2694,40 +2694,6 @@ async function handleApi(env, request, path) {
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
-  // TEMPORARY diagnostic — sends a sample of EVERY email type to one address so they can be
-  // reviewed. Key-gated; remove after use.
-  if (path === "/api/_diag_all_emails") {
-    const u = new URL(request.url);
-    if (u.searchParams.get("k") !== "eMz8Qw3Lp9Tx2Rb7Wv4Yn6Hc1Jd5Ae0K") return json({ error: "forbidden" }, 403);
-    if (!env.RESEND_API_KEY) return json({ error: "RESEND_API_KEY not configured" }, 400);
-    const to = u.searchParams.get("to") || env.ADMIN_EMAIL || "support@kidvibers.com";
-    const site = "https://kidvibers.com";
-    const adminHtml = (text) => `<div style="font-family:Arial,sans-serif;max-width:520px;color:#222;line-height:1.6;"><div style="background:#7c3aed;color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;font-weight:800;">🚀 KidVibers — Admin Alert</div><div style="border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:18px 20px;">${text.replace(/\*(.+?)\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>")}</div></div>`;
-    const emails = [
-      { label: "kid_account_ready", subject: "Ava's KidVibers account is ready 🎉", html: `<p>You set up <strong>Ava</strong>'s KidVibers account and confirmed you're the parent/guardian. They're all set to start coding!</p><p>You can manage the account anytime - and if this wasn't you, reply to let us know.</p>` },
-      { label: "kid_just_joined", subject: "Ava just joined KidVibers 🚀", html: `<p><strong>Ava</strong> just started learning to code on KidVibers - a safe, ad-free coding app for kids.</p><p>You're listed as their parent/guardian. You can connect to their account, see their progress, or remove it at any time:</p><p><a href="${site}/parent.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;">Manage Ava's account →</a></p>` },
-      { label: "certificate_earned", subject: "🎉 Ava earned a certificate on KidVibers!", html: `<div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;color:#222;"><div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div><div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;line-height:1.6;"><p style="font-size:1.05rem;"><strong>Ava</strong> just conquered <strong>🐍 Python Peaks</strong> with a score of <strong>92%</strong> and earned a certificate! 🏆</p><p style="color:#444;">Way to go, Ava! Keep the streak alive. 💜</p><p style="margin-top:20px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="${site}" style="color:#7c3aed;">kidvibers.com</a></p></div></div>` },
-      { label: "plan_active", subject: "Your KidVibers plan is active 🎉", html: `<p>Thanks for subscribing! Your <strong>pro</strong> plan is now active.</p>` },
-      { label: "password_reset", subject: "Reset your KidVibers password", from: FROM_PASSWORD, html: `<p>Hi Sam, we got a request to reset your KidVibers password.</p><p><a href="${site}/reset.html?token=SAMPLE">Click here to choose a new password</a> (expires in 2 hours).</p>` },
-      { label: "consent_confirm", subject: "Confirm consent for Ava", html: `One more step to approve Ava. <a href="${site}/index.html?consentconfirm=SAMPLE">Confirm consent →</a>` },
-      { label: "consent_approve", subject: "Approve Ava's KidVibers account", html: `Ava (under 13) wants to use KidVibers. <a href="${site}/index.html?consent=SAMPLE">Review &amp; approve →</a>` },
-      { label: "reengagement_nudge", subject: "We miss Ava! 👋 Ready for the next world?", html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#222;line-height:1.6;"><div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div><div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;"><p style="font-size:1.05rem;">Hi! <strong>Ava</strong> hasn't coded on KidVibers in a little while — there's a whole new world waiting. 🗺️</p><p style="color:#444;">Just 10 minutes keeps their streak alive and their skills growing.</p><p><a href="${site}/dashboard.html" style="display:inline-block;background:#7c3aed;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;">Jump back in →</a></p><p style="margin-top:20px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="${site}" style="color:#7c3aed;">kidvibers.com</a><br>Don't want these? Just reply and we'll stop.</p></div></div>` },
-      { label: "mass_email", subject: "A note from KidVibers", html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;"><div style="background:#7c3aed;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0;font-weight:800;font-size:1.2rem;">🚀 KidVibers</div><div style="border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;padding:24px;color:#222;line-height:1.6;">This is a sample of the "email everyone" broadcast — whatever you type in the admin Mass Email tool appears here.<p style="margin-top:24px;color:#888;font-size:0.85rem;">— The KidVibers Team · <a href="${site}" style="color:#7c3aed;">kidvibers.com</a></p></div></div>` },
-      { label: "admin_new_kid", subject: "🧒 New kid signed up: Ava", html: adminHtml(`🧒 *New kid signed up!*\n• Name: Ava\n• Username: @ava_codes\n• Age: 9\n• Parent email: sam@example.com\n• Plan: pro (Launch Pro 🎉)`) },
-      { label: "admin_new_parent", subject: "👨‍👩‍👧 New parent: Sam", html: adminHtml(`👨‍👩‍👧 *New parent signed up!*\n• Name: Sam\n• Username: @sam_p\n• Email: sam@example.com\n• Linked to kid: Ava`) },
-      { label: "admin_new_teacher", subject: "🏫 New teacher/library: Ms. Lee", html: adminHtml(`🏫 *New teacher/library signed up!*\n• Name: Ms. Lee\n• Username: @mslee\n• School/Org: Sunrise Elementary\n• Email: lee@sunrise.edu`) },
-      { label: "admin_report_sent", subject: "🚩 Report sent to Sunrise Elementary", html: adminHtml(`🚩 *Report sent to school!*\n• School: Sunrise Elementary\n• Student: Ava (@ava_codes)\n• Reason: inappropriate comment`) },
-      { label: "admin_school_action", subject: "🏫 School action: Ava", html: adminHtml(`🏫 *School took action on report!*\n• School: Sunrise Elementary\n• Student: Ava (@ava_codes)\n• Reason: inappropriate comment\n• Action taken: comment removed`) },
-      { label: "admin_contact_form", subject: "📬 Contact form: Jordan", html: adminHtml(`📬 *New contact form message!*\n• From: Jordan (jordan@example.com)\n• Message: Loving the app — one small question about billing.`) },
-    ];
-    const results = [];
-    for (const e of emails) {
-      const ok = await sendEmail(env, to, "[TEST] " + e.subject, e.html, e.from);
-      results.push({ type: e.label, subject: e.subject, accepted: ok });
-    }
-    return json({ to, total: emails.length, sent: results.filter(r => r.accepted).length, results });
-  }
-
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
