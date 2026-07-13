@@ -2694,6 +2694,15 @@ async function handleApi(env, request, path) {
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
+  // TEMPORARY diagnostic — sends one test email. Key-gated; remove after use.
+  if (path === "/api/_diag_one_email") {
+    const u = new URL(request.url);
+    if (u.searchParams.get("k") !== "oNe9Tq4Zx2Lp8Rb5Wv3Yn7Hc1Jd6Ae0M") return json({ error: "forbidden" }, 403);
+    const to = u.searchParams.get("to") || env.ADMIN_EMAIL || "support@kidvibers.com";
+    const ok = await sendEmail(env, to, "✅ KidVibers test email", "<p>This is a single test email from KidVibers. If you received it, email delivery is working. 🎉</p>");
+    return json({ to, accepted_by_resend: ok });
+  }
+
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
