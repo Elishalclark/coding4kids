@@ -2476,6 +2476,18 @@ async function apiEndSession(env, request) {
     // in scheduled()) — saving changes consent_method so the cron leaves it alone forever after.
   }
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${u.id}`).run();
+  // Automatic recap email — the host already sees this on-screen, but a librarian juggling a
+  // dozen things during a program often isn't staring at the dashboard the moment it ends. No
+  // extra click needed; this fires every time a session ends, not just on request.
+  if (recap && u.parent_email) {
+    await sendEmail(env, u.parent_email, `Your KidVibers session recap`,
+      `<p>Hi ${escHtml(u.name || "")},</p>` +
+      `<p>Here's how your Live Session went:</p>` +
+      `<ul><li><strong>${recap.joins}</strong> kid${recap.joins === 1 ? "" : "s"} joined</li>` +
+      `<li><strong>${recap.minutes ?? "?"}</strong> minute${recap.minutes === 1 ? "" : "s"} long</li>` +
+      `<li><strong>${recap.creations}</strong> thing${recap.creations === 1 ? "" : "s"} built</li></ul>` +
+      `<p style="color:#666;font-size:0.9rem;">Nice work running a session! 🎉</p>`);
+  }
   return json({ ok: true, recap });
 }
 
@@ -4493,6 +4505,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
     return json({ signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins"), stripeEnabled: !!env.STRIPE_SECRET_KEY, vapidPublicKey: env.VAPID_PUBLIC_KEY || null });
+  if (path === "/api/status" && method === "GET") return apiPublicStatus(env);
 
   // ── Push notification subscription ──
   if (path === "/api/push/subscribe" && method === "POST") {
@@ -4876,6 +4889,34 @@ async function runDormantStaffReport(env) {
   await notifyAdmin(env, `📋 Dormant staff accounts (12+ months)`, `📋 *These staff accounts haven't logged in for 12+ months — worth a look:*\n${list}`);
 }
 
+// Runs every hour (separate, lightweight cron trigger — see wrangler.toml) to back the public
+// status page. Pings the database, records how it went, and only emails the team if something
+// is actually wrong — not on every successful check, which would just be noise.
+const HEALTH_ALERT_COOLDOWN_MIN = 30;   // don't re-email more than once per half hour for the same ongoing issue
+async function runHealthCheck(env) {
+  const t0 = Date.now();
+  let dbOk = true, dbMs = null;
+  try {
+    await env.DB.prepare("SELECT COUNT(*) c FROM users").first();
+    dbMs = Date.now() - t0;
+  } catch (e) {
+    dbOk = false;
+  }
+  const since1h = new Date(Date.now() - 3600000).toISOString();
+  let recentErrors = 0;
+  try { recentErrors = (await env.DB.prepare("SELECT COUNT(*) c FROM error_log WHERE created_at >= ?").bind(since1h).first()).c || 0; } catch (e) {}
+  const status = { ok: dbOk && recentErrors < 20, dbOk, dbMs, recentErrors, checkedAt: nowIso() };
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('health:last',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(status)).run();
+  if (!status.ok) {
+    const lastAlert = await getSetting(env, "health:lastAlertAt", 0);
+    if (Date.now() - lastAlert > HEALTH_ALERT_COOLDOWN_MIN * 60000) {
+      await notifyAdmin(env, "🚨 Automated health check failed",
+        `🚨 Hourly health check found a problem:\n${dbOk ? "" : "• Database did not respond normally.\n"}${recentErrors >= 20 ? `• ${recentErrors} errors logged in the last hour.\n` : ""}Check the Security Dashboard for details.`);
+      await setSetting(env, "health:lastAlertAt", Date.now());
+    }
+  }
+}
+
 async function runReengagement(env) {
   const now = Date.now();
   const since14 = new Date(now - 14 * 86400000).toISOString();
@@ -5143,6 +5184,30 @@ async function runWeeklyExecSummary(env) {
   ].join("\n"));
 }
 
+// Public status page data — no auth, and deliberately safe to expose: no user counts, no
+// individual data, nothing beyond "is it up." Combines a live quick DB ping (so it's never
+// more than a few seconds stale) with the hourly cron's last recorded check, so a visitor can
+// also see that genuine automated monitoring is running, not just "the page loaded so it must
+// be fine."
+async function apiPublicStatus(env) {
+  const t0 = Date.now();
+  let dbOk = true;
+  try { await env.DB.prepare("SELECT 1").first(); } catch (e) { dbOk = false; }
+  const liveMs = Date.now() - t0;
+  const last = await getSetting(env, "health:last", null);
+  const flags = await getSetting(env, "feature_flags", {});
+  return json({
+    operational: dbOk,
+    checkedAt: nowIso(),
+    liveResponseMs: liveMs,
+    lastAutomatedCheck: last ? last.checkedAt : null,
+    lastAutomatedCheckOk: last ? last.ok : null,
+    features: {
+      vibeStudio: flags.vibeStudio !== false,
+      liveSessions: flags.liveSessions !== false,
+    },
+  });
+}
 async function apiRunExecSummaryNow(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   await runWeeklyExecSummary(env);
@@ -5151,6 +5216,10 @@ async function apiRunExecSummaryNow(env, request) {
 
 export default {
   async scheduled(event, env, ctx) {
+    // Hourly health-check cron ("0 * * * *") is separate and deliberately lightweight — it
+    // runs and returns without touching any of the heavier daily jobs below, so it can never
+    // delay them and stays fast every single hour.
+    if (event.cron === "0 * * * *") { ctx.waitUntil(runHealthCheck(env)); return; }
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
     if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); }

@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=198" />
+  <link rel="stylesheet" href="styles.css?v=199" />
 </head>
 <body>
   <nav class="nav">
@@ -50,12 +50,40 @@
           <span style="color:var(--text-dim);font-size:0.85rem;">${r.ok ? 'Operational · ' + r.ms + 'ms' : 'Unavailable'}</span>`;
         box.appendChild(el);
       }
+      // Live database + feature-flag check, plus proof that automated hourly monitoring is
+      // actually running (not just "the page loaded so it must be fine").
+      try {
+        const sRes = await fetch('/api/status?x=' + Date.now());
+        const s = await sRes.json();
+        results.push(!!s.operational);
+        const feat = (label, on) => `<span style="font-size:1.2rem;">${on ? '🟢' : '🔴'}</span>
+          <span style="flex:1;font-weight:800;">${label}</span>
+          <span style="color:var(--text-dim);font-size:0.85rem;">${on ? 'Up' : 'Temporarily off'}</span>`;
+        const dbEl = document.createElement('div');
+        dbEl.className = 'card'; dbEl.style.cssText = 'padding:14px 18px;display:flex;align-items:center;gap:12px;';
+        dbEl.innerHTML = `<span style="font-size:1.2rem;">${s.operational ? '🟢' : '🔴'}</span>
+          <span style="flex:1;font-weight:800;">Database</span>
+          <span style="color:var(--text-dim);font-size:0.85rem;">${s.operational ? 'Reachable · ' + s.liveResponseMs + 'ms' : 'Not responding normally'}</span>`;
+        box.appendChild(dbEl);
+        const vibeEl = document.createElement('div'); vibeEl.className = 'card'; vibeEl.style.cssText = 'padding:14px 18px;display:flex;align-items:center;gap:12px;';
+        vibeEl.innerHTML = feat('Vibe Studio', s.features && s.features.vibeStudio);
+        box.appendChild(vibeEl);
+        const sessEl = document.createElement('div'); sessEl.className = 'card'; sessEl.style.cssText = 'padding:14px 18px;display:flex;align-items:center;gap:12px;';
+        sessEl.innerHTML = feat('Live Sessions', s.features && s.features.liveSessions);
+        box.appendChild(sessEl);
+        const autoEl = document.createElement('div'); autoEl.className = 'card'; autoEl.style.cssText = 'padding:14px 18px;display:flex;align-items:center;gap:12px;';
+        const autoTxt = s.lastAutomatedCheck ? new Date(s.lastAutomatedCheck).toLocaleString() + (s.lastAutomatedCheckOk === false ? ' ⚠️' : ' ✅') : 'No automated check recorded yet';
+        autoEl.innerHTML = `<span style="font-size:1.2rem;">🤖</span>
+          <span style="flex:1;font-weight:800;">Automated monitoring (hourly)</span>
+          <span style="color:var(--text-dim);font-size:0.85rem;">${autoTxt}</span>`;
+        box.appendChild(autoEl);
+      } catch (e) { results.push(false); }
       const allOk = results.every(Boolean);
       document.getElementById('overallIcon').textContent = allOk ? '✅' : '⚠️';
       document.getElementById('overallText').textContent = allOk ? 'All systems operational' : 'Some services are having trouble';
       document.getElementById('overall').style.background = allOk ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)';
     })();
   </script>
-  <script src="pwa.js?v=198" defer></script>
+  <script src="pwa.js?v=199" defer></script>
 </body>
 </html>
