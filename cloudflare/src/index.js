@@ -1638,7 +1638,17 @@ async function apiAi(env, request, data) {
   await env.DB.prepare("INSERT INTO chat_usage (user_id,day,count) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count = count + 1")
     .bind(u.id, todayStr()).run();
   const remaining = limit >= 0 ? limit - used - 1 : null;
-  return json({ reply: byteReply((data.message || "").trim()), remaining });
+  const message = (data.message || "").trim();
+  // Byte is a coding helper, not monitored the way the "Something's wrong?" button or a Vibe
+  // Studio project title are — a kid could type something concerning directly into chat and no
+  // adult would ever know. Same welfare check as those other entry points, just cooled down (max
+  // once per hour per kid) so a kid repeatedly re-triggering it during one chat doesn't spam
+  // the teacher with duplicate alerts for the same ongoing conversation.
+  const flagged = welfareFlag(message);
+  if (flagged && !(await rateLimited(env, `bytewelfare:${u.id}`, 1, 3600))) {
+    await alertSchool(env, u, "typed something concerning to Byte (AI chat)", message.slice(0, 160));
+  }
+  return json({ reply: byteReply(message), remaining, showCrisisLine: flagged });
 }
 
 async function apiRequestUpgrade(env, request) {
@@ -1765,7 +1775,8 @@ async function apiProjectSave(env, request, data) {
     if (cnt >= 20) return json({ error: "You've saved a lot of projects this session! Ask your teacher or librarian if you need more room." }, 429);
   }
   // Welfare check first (a cry for help must be caught even if the text is also "blocked").
-  if (welfareFlag(data.title)) await alertSchool(env, u, "typed something concerning in Vibe Studio", (data.title || "").toString().slice(0, 120));
+  const welfareHit = welfareFlag(data.title);
+  if (welfareHit) await alertSchool(env, u, "typed something concerning in Vibe Studio", (data.title || "").toString().slice(0, 120));
   { const _ci = contentIssue(data.title); if (_ci) {
       // Repeated attempts at bad content get flagged to the teacher (a pattern worth noticing).
       const fk = `badtries:${u.id}:${todayStr()}`;
@@ -1790,7 +1801,7 @@ async function apiProjectSave(env, request, data) {
       .bind(u.id, author, title, code, nowIso(), nowIso()).run();
     pid = res.meta.last_row_id;
   }
-  return json({ ok: true, id: pid });
+  return json({ ok: true, id: pid, showCrisisLine: welfareHit });
 }
 
 // List the logged-in user's own private projects (Vibe Studio "My projects").
