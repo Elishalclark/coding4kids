@@ -4027,18 +4027,20 @@ const EMAIL_FOOTER = `
   </table>
 </div>`;
 
-async function sendEmail(env, to, subject, html, from) {
+async function sendEmail(env, to, subject, html, from, cc) {
   if (!to || !env.RESEND_API_KEY) return false;
   try {
+    const payload = {
+      from: from || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
+      to: [to], subject,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px 20px;">${html}${EMAIL_FOOTER}</div>`,
+      reply_to: env.REPLY_TO || "support@kidvibers.com",
+    };
+    if (cc && (Array.isArray(cc) ? cc.length : cc)) payload.cc = Array.isArray(cc) ? cc : [cc];
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: from || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
-        to: [to], subject,
-        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px 20px;">${html}${EMAIL_FOOTER}</div>`,
-        reply_to: env.REPLY_TO || "support@kidvibers.com",
-      }),
+      body: JSON.stringify(payload),
     });
     return res.ok;
   } catch (e) { console.log("email failed:", e); return false; }
@@ -4748,7 +4750,9 @@ async function handleApi(env, request, path) {
     if (!cname || !cemail || !cmsg) return json({ error: "Name, email and message are required." }, 400);
     await notifyAdmin(env, `📬 Contact form: ${cname}`, `📬 *New contact form message!*\n• From: ${cname} (${cemail})\n• Message: ${cmsg}`);
     await sendEmail(env, "support@kidvibers.com", `Contact form: ${cname}`,
-      `<p><strong>From:</strong> ${escHtml(cname)} (${escHtml(cemail)})</p><p><strong>Message:</strong></p><p>${escHtml(cmsg).replace(/\n/g,"<br>")}</p>`);
+      `<p><strong>From:</strong> ${escHtml(cname)} (${escHtml(cemail)})</p><p><strong>Message:</strong></p><p>${escHtml(cmsg).replace(/\n/g,"<br>")}</p>`,
+      undefined,
+      ["elishalclark@icloud.com", "kjdennis2@icloud.com"]);
     return json({ ok: true });
   }
 
