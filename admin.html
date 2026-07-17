@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=203" />
+  <link rel="stylesheet" href="styles.css?v=204" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -122,6 +122,27 @@
       <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
     </div>
   </div>
+
+  <!-- Printable session recap — shown when a Live Session ends, replacing a plain alert() so a
+       host can actually print/save it for a program report instead of it vanishing on dismiss. -->
+  <div id="recapModal" style="display:none;position:fixed;inset:0;z-index:9997;background:rgba(6,4,14,0.85);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+    <div id="recapCard" style="max-width:420px;width:100%;background:#fff;color:#111;border-radius:18px;padding:30px 28px;text-align:center;">
+      <div style="font-size:2.2rem;">📊</div>
+      <h2 style="font-size:1.3rem;font-weight:900;margin:8px 0 2px;">Session Recap</h2>
+      <p id="recapWhen" style="color:#666;font-size:0.82rem;margin-bottom:18px;"></p>
+      <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🙋 Kids joined</span><strong id="recapJoins"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🎨 Creations built</span><strong id="recapCreations"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>⏱️ Length</span><strong id="recapMins"></strong></div>
+      </div>
+      <p style="margin-top:18px;font-weight:800;color:#6d28d9;">Great job running a session! 🎉</p>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('recapModal').style.display='none';document.body.classList.remove('recap-printing');">Close</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+  </div>
+  <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
   <div class="admin-shell" id="adminShell">
@@ -354,6 +375,14 @@
             <tbody id="errorRows"><tr><td colspan="3" style="color:var(--text-faint);">Loading…</td></tr></tbody>
           </table>
         </details>
+        <details style="margin-top:10px;" ontoggle="if(this.open)loadRateLimits()">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">🚦 Rate limits — who's being throttled right now</summary>
+          <p style="font-size:0.8rem;color:var(--text-dim);margin:8px 0;">Raw hit-counts on active rate-limit windows (logins, signups, session joins, etc.), highest first. Each limit's own threshold varies by endpoint — a high count here is a spike worth a look, not necessarily already blocked.</p>
+          <table class="admin-table">
+            <thead><tr><th>Key</th><th>Hits</th><th>Window age</th></tr></thead>
+            <tbody id="rateLimitRows"><tr><td colspan="3" style="color:var(--text-faint);">Expand to load…</td></tr></tbody>
+          </table>
+        </details>
       </div>
 
       <!-- Feature flags (SUPER ADMIN ONLY) — for a sitewide maintenance banner, use the Site Message tool below instead -->
@@ -520,6 +549,7 @@
             <option value="deleted">🗑️ Deleted</option>
             <option value="suspended">⏸️ Suspended</option>
             <option value="reinstated">▶️ Reinstated</option>
+            <option value="impersonated">🎭 Impersonated</option>
           </select>
           <button class="mini-btn" onclick="exportAuditLogCsv()">⬇️ Export CSV</button>
           <button class="mini-btn" onclick="resetAuditLog()">↻ Reset</button>
@@ -900,7 +930,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=203"></script>
+  <script src="auth.js?v=204"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1069,7 +1099,12 @@
     }
     function showSessionRecap(r) {
       const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
-      alert('📊 Session recap\n\n🙋 Kids joined: ' + (r.joins || 0) + '\n🎨 Creations built: ' + (r.creations || 0) + '\n⏱️ Length: ' + mins + '\n\nGreat job! 🎉');
+      document.getElementById('recapWhen').textContent = new Date().toLocaleString();
+      document.getElementById('recapJoins').textContent = r.joins || 0;
+      document.getElementById('recapCreations').textContent = r.creations || 0;
+      document.getElementById('recapMins').textContent = mins;
+      document.getElementById('recapModal').style.display = 'flex';
+      document.body.classList.add('recap-printing');
     }
 
     // ── Real super-admin auth via backend (auth.js / C4K) ──
@@ -1374,6 +1409,18 @@
         + stat(data.suspended, 'Suspended Accts')
         + stat(data.openRequests, 'Open Data Requests');
     }
+    async function loadRateLimits() {
+      const rows = document.getElementById('rateLimitRows');
+      if (!rows) return;
+      rows.innerHTML = '<tr><td colspan="3" style="color:var(--text-faint);">Loading…</td></tr>';
+      const { ok, data } = await C4K.api('/api/admin/rate-limits');
+      const list = (ok && data.entries) || [];
+      rows.innerHTML = list.length ? list.map(e => `<tr>
+          <td style="font-family:monospace;font-size:0.82rem;">${C4K.esc(e.key)}</td>
+          <td style="font-weight:800;">${e.count}</td>
+          <td style="color:var(--text-dim);">${e.ageSeconds < 60 ? e.ageSeconds + 's' : Math.round(e.ageSeconds/60) + 'm'} ago</td>
+        </tr>`).join('') : '<tr><td colspan="3" style="color:var(--text-faint);">Nothing active right now.</td></tr>';
+    }
     async function runBackupCheck() {
       const msg = document.getElementById('backupCheckMsg');
       msg.textContent = 'Checking…';
@@ -1507,7 +1554,7 @@
     // ── Staff login activity (who's logging into teacher/admin/super_admin accounts, from where) ──
     // ── Admin action audit log (account delete/suspend/reinstate history) ──
     let _auditLog = [], _auSortKey = 'at', _auSortDir = -1;
-    const auditActionTag = a => a === 'deleted' ? '🗑️ deleted' : (a === 'suspended' ? '⏸️ suspended' : (a === 'reinstated' ? '▶️ reinstated' : a));
+    const auditActionTag = a => a === 'deleted' ? '🗑️ deleted' : (a === 'suspended' ? '⏸️ suspended' : (a === 'reinstated' ? '▶️ reinstated' : (a === 'impersonated' ? '🎭 impersonated' : a)));
     async function loadAuditLog() {
       const { ok, data } = await C4K.api('/api/admin/audit-log');
       if (!ok) return;
@@ -2531,7 +2578,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=203" defer></script>
-  <script src="editor.js?v=203" defer></script>
+  <script src="pwa.js?v=204" defer></script>
+  <script src="editor.js?v=204" defer></script>
 </body>
 </html>

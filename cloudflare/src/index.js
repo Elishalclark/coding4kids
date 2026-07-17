@@ -1346,7 +1346,7 @@ async function apiAdminAuditLog(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare(
     "SELECT id,child_username,method,granted_by,detail,created_at FROM consent_log " +
-    "WHERE method IN ('deleted','suspended','reinstated') ORDER BY id DESC LIMIT 200"
+    "WHERE method IN ('deleted','suspended','reinstated','impersonated') ORDER BY id DESC LIMIT 200"
   ).all()).results || [];
   return json({ log: rows.map(r => ({ id: r.id, username: r.child_username, action: r.method, by: r.granted_by, detail: r.detail, at: (r.created_at || "").slice(0, 16).replace("T", " ") })) });
 }
@@ -1407,6 +1407,25 @@ async function apiSecurityDashboard(env, request) {
     openIncidents, incidents24h, escalated, suspended, openRequests,
     checkedAt: nowIso(),
   });
+}
+// Visibility into who's currently being throttled — the limits themselves are enforced silently
+// (rateLimited() in every endpoint that uses it), so without this an admin has no way to see
+// that, say, one IP is hammering login attempts right now short of digging through raw D1 rows.
+// The stored row doesn't know each call site's own max/window, so this surfaces raw activity
+// (highest hit-count first) rather than a strict "currently blocked: yes/no" — still useful for
+// spotting a spike in progress.
+async function apiRateLimitDashboard(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'ratelimit:%' ORDER BY key LIMIT 500").all()).results || [];
+  const now = Date.now();
+  const parsed = [];
+  for (const r of rows) {
+    let e; try { e = JSON.parse(r.value); } catch { continue; }
+    if (!e || !e.first) continue;
+    parsed.push({ key: r.key.slice("ratelimit:".length), count: e.count || 0, ageSeconds: Math.round((now - e.first) / 1000) });
+  }
+  parsed.sort((a, b) => b.count - a.count);
+  return json({ entries: parsed.slice(0, 100), total: parsed.length });
 }
 // Incident-response tool: revoke every active login session platform-wide, forcing everyone
 // (except the admin who clicked it) to log back in. For a suspected credential leak or anything
@@ -3959,11 +3978,15 @@ async function apiAdminPreview(env, request, data) {
 }
 
 async function adminImpersonate(env, request, data) {
-  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
   if (!target) return json({ error: "User not found" }, 404);
   if (target.role === "super_admin") return json({ error: "Cannot impersonate another super admin." }, 403);
   const token = await createSession(env, target.id);
+  // Logging in as someone else is sensitive enough to leave a real trail — same audit log used
+  // for delete/suspend/reinstate, so it shows up in the admin panel's Audit Log, not just
+  // silently possible.
+  await logConsent(env, target.id, target.username, "impersonated", `super admin (${u.username})`, `${u.username} logged in as ${target.name} (@${target.username}, role: ${target.role})`);
   return json({ token, user: await publicUser(env, target) });
 }
 async function adminSaveSettings(env, request, data) {
@@ -4738,6 +4761,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/dpa/status" && method === "GET") return apiDPAStatus(env, request);
   if (path === "/api/admin/data-requests" && (method === "GET" || method === "POST")) return apiDataRequests(env, request, data, method);
   if (path === "/api/admin/security-dashboard" && method === "GET") return apiSecurityDashboard(env, request);
+  if (path === "/api/admin/rate-limits" && method === "GET") return apiRateLimitDashboard(env, request);
   if (path === "/api/admin/force-logout-all" && method === "POST") return apiForceLogoutAll(env, request);
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);

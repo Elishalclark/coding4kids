@@ -6,7 +6,7 @@
   <title>Family Dashboard - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=203" />
+  <link rel="stylesheet" href="styles.css?v=204" />
   <style>
     .pd-main { max-width: 920px; margin: 0 auto; padding: 24px 24px 80px; }
     .pd-head { display: flex; align-items: center; gap: 16px; margin: 20px 0 28px; flex-wrap: wrap; }
@@ -66,6 +66,27 @@
       <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
     </div>
   </div>
+
+  <!-- Printable session recap — shown when a Live Session ends, replacing a plain alert() so a
+       host can actually print/save it for a program report instead of it vanishing on dismiss. -->
+  <div id="recapModal" style="display:none;position:fixed;inset:0;z-index:9997;background:rgba(6,4,14,0.85);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+    <div id="recapCard" style="max-width:420px;width:100%;background:#fff;color:#111;border-radius:18px;padding:30px 28px;text-align:center;">
+      <div style="font-size:2.2rem;">📊</div>
+      <h2 style="font-size:1.3rem;font-weight:900;margin:8px 0 2px;">Session Recap</h2>
+      <p id="recapWhen" style="color:#666;font-size:0.82rem;margin-bottom:18px;"></p>
+      <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🙋 Kids joined</span><strong id="recapJoins"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🎨 Creations built</span><strong id="recapCreations"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>⏱️ Length</span><strong id="recapMins"></strong></div>
+      </div>
+      <p style="margin-top:18px;font-weight:800;color:#6d28d9;">Great job running a session! 🎉</p>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('recapModal').style.display='none';document.body.classList.remove('recap-printing');">Close</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+  </div>
+  <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <main class="pd-main">
     <div class="pd-head">
@@ -348,7 +369,7 @@
     </div>
   </main>
 
-  <script src="auth.js?v=203"></script>
+  <script src="auth.js?v=204"></script>
   <script>
     function logout() { C4K.logout().then(() => location.href = 'index.html'); }
 
@@ -546,11 +567,16 @@
       document.getElementById('sessLive').style.display = 'none';
       const btn = document.getElementById('startSessBtn'); btn.disabled = false; btn.textContent = 'Start a session';
       if (_sessFeedTimer) { clearInterval(_sessFeedTimer); _sessFeedTimer = null; }
-      if (ok && data.recap) {
-        const r = data.recap;
-        const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
-        alert('📊 Session recap\n\n🙋 Kids joined: ' + (r.joins||0) + '\n🎨 Creations built: ' + (r.creations||0) + '\n⏱️ Length: ' + mins + '\n\nGreat job! 🎉');
-      }
+      if (ok && data.recap) showSessionRecap(data.recap);
+    }
+    function showSessionRecap(r) {
+      const mins = r.minutes ? (r.minutes >= 60 ? Math.floor(r.minutes/60)+'h '+(r.minutes%60)+'m' : r.minutes+' min') : '—';
+      document.getElementById('recapWhen').textContent = new Date().toLocaleString();
+      document.getElementById('recapJoins').textContent = r.joins || 0;
+      document.getElementById('recapCreations').textContent = r.creations || 0;
+      document.getElementById('recapMins').textContent = mins;
+      document.getElementById('recapModal').style.display = 'flex';
+      document.body.classList.add('recap-printing');
     }
     function startSessFeed() {
       if (_sessFeedTimer) clearInterval(_sessFeedTimer);
@@ -925,7 +951,7 @@
       }
     }
   </script>
-  <script src="pwa.js?v=203" defer></script>
-  <script src="editor.js?v=203" defer></script>
+  <script src="pwa.js?v=204" defer></script>
+  <script src="editor.js?v=204" defer></script>
 </body>
 </html>
