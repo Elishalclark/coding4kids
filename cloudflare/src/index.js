@@ -2394,7 +2394,7 @@ async function apiSessionFeed(env, request) {
 async function deleteGuestKid(env, kidId) {
   for (const sql of [
     "DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?",
-    "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?",
+    "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?",
     "DELETE FROM notices WHERE user_id=?", "DELETE FROM projects WHERE user_id=?",
     "DELETE FROM messages WHERE child_id=?",
     "DELETE FROM settings WHERE key=?", "DELETE FROM users WHERE id=?",
@@ -2715,6 +2715,33 @@ async function apiGetScreenLimit(env, request) {
   const row = fid != null ? await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(`screenlimit:${fid}`).first() : null;
   return json({ minutes: row ? parseInt(row.value, 10) : 0 });
 }
+// The screen-time LIMIT above only sets a cap — this actually tracks real usage so a parent can
+// see what happened, not just enforce a ceiling. The kid dashboard pings this once a minute
+// while the tab is open and visible (not in the background), so it's a real activity estimate,
+// not just "how long was the tab technically open."
+async function apiScreenTimePing(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ ok: true });   // silently no-op for non-kids
+  const day = todayStr();
+  await env.DB.prepare("INSERT INTO screen_time (user_id,day,minutes) VALUES (?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET minutes = minutes + 1")
+    .bind(u.id, day).run();
+  return json({ ok: true });
+}
+// A parent/teacher's view of actual time spent — today and this week, per kid in their family.
+async function apiScreenTimeReport(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const kids = (await env.DB.prepare("SELECT id,name FROM users WHERE role='kid' AND family_id=?").bind(u.family_id).all()).results || [];
+  const today = todayStr();
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const out = [];
+  for (const k of kids) {
+    const todayRow = await env.DB.prepare("SELECT minutes FROM screen_time WHERE user_id=? AND day=?").bind(k.id, today).first();
+    const weekRow = await env.DB.prepare("SELECT COALESCE(SUM(minutes),0) m FROM screen_time WHERE user_id=? AND day>=?").bind(k.id, since7).first();
+    out.push({ id: k.id, name: k.name, minutesToday: (todayRow && todayRow.minutes) || 0, minutesThisWeek: (weekRow && weekRow.m) || 0 });
+  }
+  return json({ kids: out });
+}
 
 // Public kid report card — safe stats only, looked up by a DEDICATED card_token
 // (never the link_token, which is used for parent-invite linking).
@@ -2945,7 +2972,7 @@ async function apiBulkStudents(env, request, data) {
     } else if (action === "signout") {
       await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(kid.id).run();
     } else if (action === "delete") {
-      for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM messages WHERE child_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
+      for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?","DELETE FROM messages WHERE child_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
         await env.DB.prepare(sql).bind(kid.id).run();
     }
     done++;
@@ -2965,7 +2992,7 @@ async function apiParentDeleteKid(env, request, data) {
   const kid = await managedKid(env, u, data.kidId);
   if (!kid) return json({ error: "That kid isn't in your family." }, 403);
   for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?",
-    "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"])
+    "DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?", "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"])
     await env.DB.prepare(sql).bind(kid.id).run();
   await logConsent(env, kid.id, kid.name, "deleted", u.username, "Guardian deleted the child's account & data");
   return json({ ok: true, name: kid.name });
@@ -3044,7 +3071,7 @@ async function apiDistrictRemoveSchool(env, request, data) {
   // Remove the school's students, then the school account itself.
   const kids = (await env.DB.prepare("SELECT id FROM users WHERE role='kid' AND family_id=?").bind(school.id).all()).results || [];
   for (const k of kids) {
-    for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM users WHERE id=?"])
+    for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?", "DELETE FROM users WHERE id=?"])
       await env.DB.prepare(sql).bind(k.id).run();
   }
   await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(school.id).run();
@@ -3724,7 +3751,7 @@ async function adminDeleteUser(env, request, data) {
     const body = `Notice: the KidVibers account '${target.name}' (@${target.username}) has been deleted by an administrator.` + (reason ? ` Reason: ${reason}` : "");
     await env.DB.prepare("INSERT INTO messages (to_email,kind,body,child_id,created_at) VALUES (?,?,?,?,?)").bind(target.parent_email, "account_deleted", body, target.id, nowIso()).run();
   }
-  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"])
+  for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?", "DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?", "DELETE FROM notices WHERE user_id=?", "DELETE FROM users WHERE id=?"])
     await env.DB.prepare(sql).bind(target.id).run();
   await logConsent(env, target.id, target.username, "deleted", `super admin (${u.username})`, reason || "Account deleted");
   return json({ ok: true, name: target.name });
@@ -3809,6 +3836,7 @@ async function apiAdminResetDemo(env, request) {
   const noticeCount = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE user_id=?").bind(target.id).first()).c || 0;
   if (noticeCount) { await env.DB.prepare("DELETE FROM notices WHERE user_id=?").bind(target.id).run(); cleared.push(`${noticeCount} notice(s)`); }
   await env.DB.prepare("DELETE FROM chat_usage WHERE user_id=?").bind(target.id).run();
+  await env.DB.prepare("DELETE FROM screen_time WHERE user_id=?").bind(target.id).run();
   await env.DB.prepare("UPDATE users SET suspended=0, suspend_reason=NULL, suspend_until=NULL WHERE id=?").bind(target.id).run();
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`sessionguest:${target.id}`).run();
   return json({ ok: true, cleared });
@@ -4648,6 +4676,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/recommend" && method === "POST") return apiRecommend(env, request, data);
   if (path === "/api/screen-limit" && method === "GET") return apiGetScreenLimit(env, request);
   if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
+  if (path === "/api/screen-time/ping" && method === "POST") return apiScreenTimePing(env, request);
+  if (path === "/api/screen-time/report" && method === "GET") return apiScreenTimeReport(env, request);
   if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
   if (path.startsWith("/api/kidcard/") && method === "GET") return apiKidCard(env, decodeURIComponent(path.slice("/api/kidcard/".length)));
   if (path === "/api/verify-cert" && method === "GET") { const q = new URL(request.url).searchParams; return apiVerifyCert(env, (q.get("k") || "").trim(), parseInt(q.get("u"), 10)); }
@@ -4987,6 +5017,9 @@ async function runWeeklyDigest(env) {
       const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
       const xp = xpRow ? xpRow.xp : 0;
       const creations = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(k.id).first()).c || 0;
+      const since7day = since.slice(0, 10);
+      const screenMinsRow = await env.DB.prepare("SELECT COALESCE(SUM(minutes),0) m FROM screen_time WHERE user_id=? AND day>=?").bind(k.id, since7day).first();
+      const screenMins = screenMinsRow ? screenMinsRow.m : 0;
       if (lessonsThisWeek > 0) anyActive = true;
       // Highlight: worlds conquered THIS week (a real milestone worth celebrating in the email).
       const wonThisWeek = (await env.DB.prepare("SELECT unit FROM unit_tests WHERE user_id=? AND passed=1 AND updated_at>=? ORDER BY unit").bind(k.id, since).all()).results || [];
@@ -5003,6 +5036,7 @@ async function runWeeklyDigest(env) {
           <tr><td style="color:#555;font-size:0.9rem;">🌍 Worlds cleared</td><td style="font-weight:800;text-align:right;">${worldsCleared}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">🎨 Creations built</td><td style="font-weight:800;text-align:right;">${creations}</td></tr>
           <tr><td style="color:#555;font-size:0.9rem;">⚡ Total XP</td><td style="font-weight:800;text-align:right;">${xp}</td></tr>
+          <tr><td style="color:#555;font-size:0.9rem;">⏱️ Screen time this week</td><td style="font-weight:800;text-align:right;">${screenMins} min</td></tr>
         </table>
       </div>`;
     }
@@ -5035,6 +5069,7 @@ async function apiSendDigestNow(env, request) {
     const worldsCleared = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(k.id).first()).c || 0;
     const xpRow = await env.DB.prepare("SELECT COALESCE(SUM(l.xp),0) xp FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=?").bind(k.id).first();
     const creations = (await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE user_id=?").bind(k.id).first()).c || 0;
+    const screenMinsRow = await env.DB.prepare("SELECT COALESCE(SUM(minutes),0) m FROM screen_time WHERE user_id=? AND day>=?").bind(k.id, since.slice(0, 10)).first();
     kidsHtml += `<div style="background:#f9f7ff;border:1px solid #ede9fe;border-radius:12px;padding:16px 20px;margin-bottom:12px;">
       <div style="font-weight:900;font-size:1.05rem;color:#6d28d9;">${escHtml(k.name)}</div>
       <table style="width:100%;margin-top:8px;">
@@ -5043,6 +5078,7 @@ async function apiSendDigestNow(env, request) {
         <tr><td style="color:#555;font-size:0.9rem;">🌍 Worlds cleared</td><td style="font-weight:800;text-align:right;">${worldsCleared}</td></tr>
         <tr><td style="color:#555;font-size:0.9rem;">🎨 Creations built</td><td style="font-weight:800;text-align:right;">${creations}</td></tr>
         <tr><td style="color:#555;font-size:0.9rem;">⚡ Total XP</td><td style="font-weight:800;text-align:right;">${xpRow.xp || 0}</td></tr>
+        <tr><td style="color:#555;font-size:0.9rem;">⏱️ Screen time this week</td><td style="font-weight:800;text-align:right;">${screenMinsRow ? screenMinsRow.m : 0} min</td></tr>
       </table>
     </div>`;
   }
@@ -5276,6 +5312,9 @@ export default {
         // error_log had no cleanup at all — keep 30 days, which is plenty to debug a bug from
         // an email alert without letting the table grow forever.
         await env.DB.prepare("DELETE FROM error_log WHERE created_at < ?").bind(d(30)).run();
+        // screen_time rows are only ever queried for "today" or "the last 7 days" (parent report,
+        // weekly digest) — 60 days is generous headroom without letting it grow forever.
+        await env.DB.prepare("DELETE FROM screen_time WHERE day < ?").bind(d(60).slice(0, 10)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).
@@ -5288,7 +5327,7 @@ export default {
             "SELECT id FROM users WHERE role='kid' AND family_id=? AND COALESCE((SELECT MAX(completed_at) FROM progress WHERE user_id=users.id), created_at) < ?"
           ).bind(famId, cutoff).all()).results || [];
           for (const k of kids) {
-            for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
+            for (const sql of ["DELETE FROM progress WHERE user_id=?","DELETE FROM unit_tests WHERE user_id=?","DELETE FROM sessions WHERE user_id=?","DELETE FROM chat_usage WHERE user_id=?","DELETE FROM screen_time WHERE user_id=?","DELETE FROM notices WHERE user_id=?","DELETE FROM users WHERE id=?"])
               await env.DB.prepare(sql).bind(k.id).run();
           }
         }
