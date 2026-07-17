@@ -13,6 +13,10 @@ const PRO_LAUNCH_SLOTS = 50;   // first 50 kids get 30 days of Pro free
 const PRO_LAUNCH_DAYS = 30;
 const COPPA_AGE = 13;
 const STARTER_TOKENS = 40;
+// Bump this whenever terms.html actually changes materially — every new account records which
+// version they agreed to (createUser below), so if terms change later we know exactly who
+// agreed to what and can re-prompt only the accounts that pre-date the change.
+const TERMS_VERSION = "1.0";
 const TOKENS_PER_LESSON = 10;
 const REFERRAL_BONUS = 50;      // tokens each kid gets when a referral signs up
 const REFERRAL_FREE_DAYS = 7;   // + days of free Pro (AI + unlimited lessons) for both kids
@@ -837,6 +841,9 @@ async function createUser(env, opts) {
       opts.consent_token ?? null, school, nowIso()
     ).run();
     const uid = res.meta.last_row_id;
+    // Recorded as a separate UPDATE (not folded into the big parameterized INSERT above) so
+    // this doesn't risk breaking that statement's careful column/bind ordering.
+    await env.DB.prepare("UPDATE users SET terms_version=?, terms_accepted_at=? WHERE id=?").bind(TERMS_VERSION, nowIso(), uid).run();
     const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(uid).first();
     return { uid, row };
   } catch (e) {

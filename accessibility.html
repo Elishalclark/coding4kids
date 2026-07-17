@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accessibility - KidVibers</title>
+  <meta name="description" content="KidVibers' commitment to accessibility, what we've done, known limitations, and how to report an accessibility issue." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=202" />
+  <style>
+    .ac { max-width: 720px; margin: 0 auto; padding: 0 18px 90px; }
+    .ac-hero { text-align:center; padding:54px 20px 24px; }
+    .ac-hero .e { font-size:3rem; }
+    .ac-hero h1 { font-size:2rem; font-weight:900; margin:10px 0; }
+    .ac-hero p { color:var(--text-dim); font-size:1.02rem; line-height:1.5; }
+    .ac-sec { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:16px; }
+    .ac-sec h2 { font-size:1.15rem; font-weight:900; margin-bottom:10px; color:var(--purple); }
+    .ac-sec p, .ac-sec li { line-height:1.7; color:var(--text-dim); }
+    .ac-sec ul { margin:6px 0 0 20px; display:flex; flex-direction:column; gap:6px; }
+    .updated { text-align:center; color:var(--text-faint); font-size:0.85rem; margin-bottom:24px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="index.html" class="btn btn-ghost" style="margin-left:auto;">Home</a>
+    </div>
+  </nav>
+
+  <main class="ac" id="main">
+    <section class="ac-hero">
+      <div class="e">♿</div>
+      <h1>Accessibility Statement</h1>
+      <p>KidVibers is built for every kid — that includes kids and families using assistive technology.</p>
+    </section>
+    <p class="updated">Last updated July 2026</p>
+
+    <div class="ac-sec">
+      <h2>Our commitment</h2>
+      <p>We aim for KidVibers to be usable by everyone, regardless of ability, and we're working toward conformance with the <strong>Web Content Accessibility Guidelines (WCAG) 2.1 Level AA</strong>. Accessibility is an ongoing effort, not a one-time checkbox — we keep improving it as the product grows.</p>
+    </div>
+
+    <div class="ac-sec">
+      <h2>What we've built in</h2>
+      <ul>
+        <li>Semantic HTML structure and labeled form fields throughout the site</li>
+        <li>Keyboard-navigable menus, buttons, and forms</li>
+        <li>Color choices designed with contrast in mind for readability</li>
+        <li>Text alternatives for icons and key visual indicators</li>
+        <li>A responsive layout that works on phones, tablets, and desktops without loss of function</li>
+        <li>Bilingual support (English/Spanish) on the homepage and kid dashboard</li>
+      </ul>
+    </div>
+
+    <div class="ac-sec">
+      <h2>Known limitations</h2>
+      <p>We're not perfect yet. Some areas of the product — particularly Vibe Studio's visual template editor — are more visual by nature and may not be fully screen-reader friendly today. We're actively working through these as we continue building.</p>
+    </div>
+
+    <div class="ac-sec">
+      <h2>Feedback &amp; reporting an issue</h2>
+      <p>If you or your child run into an accessibility barrier anywhere on KidVibers, please tell us — we treat these reports seriously and prioritize fixes. Email <a href="mailto:support@kidvibers.com">support@kidvibers.com</a> with:</p>
+      <ul>
+        <li>The page or feature where you ran into trouble</li>
+        <li>What assistive technology you were using (screen reader, switch device, etc.), if any</li>
+        <li>What you expected to happen vs. what actually happened</li>
+      </ul>
+      <p>We'll get back to you and let you know what we're doing about it.</p>
+    </div>
+
+    <div class="ac-sec">
+      <h2>For schools &amp; libraries</h2>
+      <p>If your program has specific accessibility requirements (e.g. for an IEP/504 accommodation, or a public-facility ADA requirement), reach out — we're happy to discuss what KidVibers supports today and prioritize what would help most.</p>
+    </div>
+  </main>
+
+  <script src="pwa.js?v=202" defer></script>
+</body>
+</html>
