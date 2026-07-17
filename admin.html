@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=200" />
+  <link rel="stylesheet" href="styles.css?v=201" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -157,6 +157,16 @@
         <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
       </div>
 
+      <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
+           jump straight to one specific account instead of scrolling the whole dashboard. -->
+      <div class="panel super-only" id="searchPanel" style="display:none;">
+        <h3>🔎 Find Any Account <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">kids, parents, teachers, schools, districts — search by username or name</span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type any name, username, or school…" oninput="searchKids()" />
+        </div>
+        <div id="searchResults"></div>
+      </div>
+
       <!-- Live drop-in session — admin AND super admin can start one (e.g. for a pitch demo),
            not just teacher/school/district accounts. -->
       <div class="panel" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
@@ -246,15 +256,6 @@
       </div>
 
       <h2 class="super-only admin-section" style="display:none;">📊 Overview &amp; Growth</h2>
-
-      <!-- Kid search (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" id="searchPanel" style="display:none;">
-        <h3>🔎 Find Any Account <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">kids, parents, teachers, schools, districts — search by username or name</span></h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type any name, username, or school…" oninput="searchKids()" />
-        </div>
-        <div id="searchResults"></div>
-      </div>
 
       <!-- Analytics (aggregate only — available to admin AND super admin; individual account
            detail is super-admin only, gated separately above) -->
@@ -899,7 +900,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=200"></script>
+  <script src="auth.js?v=201"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -2530,7 +2531,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=200" defer></script>
-  <script src="editor.js?v=200" defer></script>
+  <script src="pwa.js?v=201" defer></script>
+  <script src="editor.js?v=201" defer></script>
 </body>
 </html>
