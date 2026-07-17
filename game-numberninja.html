@@ -3,57 +3,55 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Syntax Sprint 🏁 - KidVibers</title>
-  <meta name="description" content="Pick the correctly-written code before time runs out. A Pro-only KidVibers arcade game." />
+  <title>Number Ninja 🥷 - KidVibers</title>
+  <meta name="description" content="Solve quick math &amp; logic expressions like a program would — fast fingers, fast brain!" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=206" />
   <style>
     body { background: #08060f; min-height: 100vh; }
-    .game-wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+    .game-wrap { max-width: 700px; margin: 0 auto; padding: 20px 16px 60px; }
     .game-title { font-size: 2.4rem; font-weight: 900; text-align: center; margin: 0; }
-    .game-title span { color: #fb923c; }
+    .game-title span { color: #4ade80; }
     .game-sub { color: var(--text-dim); text-align: center; margin: 4px 0 20px; }
-
     .hud { display: flex; justify-content: space-between; align-items: center;
            background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
            padding: 12px 18px; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
     .hud-stat { text-align:center; }
-    .hud-stat .val { font-size: 1.5rem; font-weight: 900; color: #fb923c; line-height: 1; }
+    .hud-stat .val { font-size: 1.5rem; font-weight: 900; color: #4ade80; line-height: 1; }
     .hud-stat .lbl { font-size: 0.68rem; font-weight: 800; color: var(--text-dim); }
     .timer-bar-wrap { flex: 1; min-width: 130px; }
     .timer-bar-bg { height: 9px; background: var(--surface-2); border-radius: 50px; overflow: hidden; }
-    .timer-bar { height: 100%; border-radius: 50px; background: linear-gradient(90deg,#ea580c,#fb923c); transition: width .1s linear, background .4s; }
-
-    #startScreen, #lockScreen { text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .timer-bar { height: 100%; border-radius: 50px; background: linear-gradient(90deg,#16a34a,#4ade80); transition: width .1s linear, background .4s; }
+    #startScreen { text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
     .big-emoji { font-size: 3.6rem; margin-bottom: 10px; }
     .instructions { background: var(--surface-2); border-radius: 14px; padding: 16px 20px; margin: 18px auto; max-width: 440px; text-align:left; }
     .instructions li { color: var(--text-dim); margin-bottom: 7px; font-weight: 700; }
-    .pro-pill { display:inline-block; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-weight:900; font-size:0.72rem; letter-spacing:0.04em; padding:4px 12px; border-radius:50px; margin-bottom:10px; }
-
     #gameArea { display: none; }
     .q-context { color: var(--text-dim); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.04em; text-align:center; margin-bottom: 12px; }
-    .question-card { background: var(--surface); border: 2px solid var(--border-bright); border-radius: 20px; padding: 22px; margin-bottom: 16px; }
-    .q-label { font-size: 1rem; font-weight: 900; color: #fb923c; margin: 0 0 12px; text-align:center; }
-    .opt-btn { display:block; width:100%; box-sizing:border-box; text-align:left; padding: 14px 18px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg);
-               color: var(--text); font-family: 'Courier New', monospace; font-size: 0.95rem; font-weight: 800;
-               cursor: pointer; transition: all .15s; white-space: pre-wrap; margin-bottom: 10px; }
-    .opt-btn:hover { border-color: #fb923c; background: rgba(251,146,60,0.1); }
+    .question-card { background: var(--surface); border: 2px solid var(--border-bright); border-radius: 20px; padding: 26px 22px; margin-bottom: 16px; text-align:center; }
+    .code-block { background: #0a0618; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px;
+                  font-family: 'Courier New', monospace; font-size: 1.1rem; font-weight: 700; color: #e0d4ff;
+                  white-space: pre-wrap; line-height: 1.6; margin-bottom: 16px; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .opt-btn { padding: 14px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg);
+               color: var(--text); font-family: 'Courier New', monospace; font-size: 1rem; font-weight: 800;
+               cursor: pointer; transition: all .15s; }
+    .opt-btn:hover { border-color: #4ade80; background: rgba(74,222,128,0.1); }
     .opt-btn.correct { border-color: #22c55e; background: rgba(34,197,94,0.15); color: #4ade80; }
     .opt-btn.wrong { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #f87171; }
-    .feedback-bar { border-radius: 12px; padding: 12px 16px; margin-top: 4px; display: none; align-items: center; gap: 12px;
-                    font-weight: 800; font-size: 0.88rem; }
+    .feedback-bar { border-radius: 12px; padding: 12px 16px; margin-top: 14px; display: none; align-items: center; gap: 12px;
+                    font-weight: 800; font-size: 0.88rem; text-align:left; }
     .feedback-bar.ok { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
     .feedback-bar.bad { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.3); color: #f87171; }
-
     #resultScreen { display: none; text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
-    .result-score { font-size: 3.5rem; font-weight: 900; color: #fb923c; }
+    .result-score { font-size: 3.5rem; font-weight: 900; color: #4ade80; }
     .breakdown { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 16px 0 20px; }
     .bd { background: var(--surface-2); border-radius: 12px; padding: 14px; }
     .bd .n { font-size: 1.4rem; font-weight: 900; }
     .bd .l { font-size: 0.72rem; color: var(--text-dim); font-weight: 800; }
-    .xp-pill { display:inline-block; background: linear-gradient(135deg,#ea580c,#fb923c); color: #fff; font-weight: 900; padding: 8px 20px; border-radius: 50px; margin-bottom: 18px; }
+    .xp-pill { display:inline-block; background: linear-gradient(135deg,#16a34a,#4ade80); color: #fff; font-weight: 900; padding: 8px 20px; border-radius: 50px; margin-bottom: 18px; }
   </style>
 </head>
 <body>
@@ -66,11 +64,9 @@
       </div>
     </div>
   </nav>
-
   <div class="game-wrap">
-    <h1 class="game-title">Syntax Sprint <span>🏁</span></h1>
-    <p class="game-sub">Pick the correctly-written code before time runs out!</p>
-
+    <h1 class="game-title">Number Ninja <span>🥷</span></h1>
+    <p class="game-sub">Solve the math like a computer would — fast!</p>
     <div class="hud" id="hud" style="display:none;">
       <div class="hud-stat"><div class="val" id="hudScore">0</div><div class="lbl">Score</div></div>
       <div class="timer-bar-wrap">
@@ -80,41 +76,29 @@
       <div class="hud-stat"><div class="val" id="hudStreak">0🔥</div><div class="lbl">Streak</div></div>
       <div class="hud-stat"><div class="val" id="hudQ">1/12</div><div class="lbl">Question</div></div>
     </div>
-
-    <div id="lockScreen" style="display:none;">
-      <div class="big-emoji">🔒</div>
-      <span class="pro-pill">✨ PRO PERK</span>
-      <h2 style="font-size:1.5rem;font-weight:900;margin:6px 0;">Syntax Sprint is a Pro game</h2>
-      <p style="color:var(--text-dim);max-width:420px;margin:0 auto 18px;">Upgrade to Pro or Family to unlock this game (plus Byte, your AI coding buddy, and every lesson).</p>
-      <a href="index.html#pricing" class="btn btn-primary btn-lg">✨ See Pro plans</a>
-    </div>
-
     <div id="startScreen">
-      <div class="big-emoji">🏁</div>
-      <span class="pro-pill">✨ PRO PERK</span>
-      <h2 style="font-size:1.7rem;font-weight:900;margin:6px 0;">Syntax Sprint</h2>
-      <p style="color:var(--text-dim);">One of these looks right — but only one actually IS. Pick fast!</p>
+      <div class="big-emoji">🥷</div>
+      <h2 style="font-size:1.7rem;font-weight:900;margin:6px 0;">Number Ninja</h2>
+      <p style="color:var(--text-dim);">Solve each expression exactly how a computer would evaluate it.</p>
       <ul class="instructions">
-        <li>🏁 Each round shows 4 similar-looking code snippets</li>
-        <li>✅ Only one is written correctly</li>
+        <li>🥷 Each round shows a math/logic expression</li>
+        <li>🔢 Pick the correct result</li>
         <li>⏱️ 10 seconds per round</li>
         <li>🔥 Streaks &amp; speed = bonus points</li>
         <li>🏆 12 rounds total</li>
       </ul>
-      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">🏁 Start Sprinting!</button>
+      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">🥷 Start Slicing!</button>
     </div>
-
     <div id="gameArea">
       <p class="q-context" id="qContext">ROUND 1 OF 12</p>
       <div class="question-card">
-        <p class="q-label" id="qLabel">Which is written correctly?</p>
-        <div id="optionsGrid"></div>
+        <div class="code-block" id="codeBlock"></div>
+        <div class="options-grid" id="optionsGrid"></div>
         <div class="feedback-bar" id="feedbackBar"><span id="fbEm"></span><div><div id="fbMain"></div><div id="fbSub" style="font-size:0.78rem;opacity:0.85;margin-top:2px;"></div></div></div>
       </div>
     </div>
-
     <div id="resultScreen">
-      <div style="font-size:3rem;margin-bottom:6px;">🏁</div>
+      <div style="font-size:3rem;margin-bottom:6px;">🥷</div>
       <div class="result-score" id="resScore">0</div>
       <div style="font-size:1.4rem;font-weight:900;margin:6px 0 4px;" id="resGrade">Grade</div>
       <div style="font-size:1.8rem;margin-bottom:16px;" id="resStars">⭐⭐⭐</div>
@@ -130,44 +114,28 @@
       </div>
     </div>
   </div>
-
   <script src="auth.js?v=206"></script>
   <script>
   const ALL = [
-    { desc:'Print the value of x', opts:['print(x)','print x','echo(x)','print[x]'], ans:0, exp:'Python function calls always use parentheses: print(x).' },
-    { desc:'Make a variable called score equal to 0', opts:['score = 0','var score = 0','score == 0','0 = score'], ans:0, exp:'Python assigns with a single =, no "var" keyword needed.' },
-    { desc:'A for-loop that repeats 5 times', opts:['for i in range(5):','for (i=0; i<5; i++)','for i to 5:','loop 5 times:'], ans:0, exp:'Python for-loops use range() and end the line with a colon.' },
-    { desc:'Check if x equals 10', opts:['if x == 10:','if x = 10:','if (x = 10)','if x equals 10:'], ans:0, exp:'== compares values; a single = would try to assign, which is invalid there.' },
-    { desc:'Define a function called greet', opts:['def greet():','function greet():','def greet[]:','greet function():'], ans:0, exp:'Python defines functions with def, parentheses, and a colon.' },
-    { desc:'A list with three numbers', opts:['[1, 2, 3]','(1, 2, 3)','{1, 2, 3}','1, 2, 3'], ans:0, exp:'Square brackets make a list in Python.' },
-    { desc:'Add a comment explaining code', opts:['# this explains it','// this explains it','<!-- this explains it -->','/* this explains it */'], ans:0, exp:'Python comments start with a # symbol.' },
-    { desc:'Join two strings together', opts:['"Hi " + name','"Hi " . name','"Hi " & name','"Hi " , name'], ans:0, exp:'Python joins (concatenates) strings with the + operator.' },
-    { desc:'Get the length of a list called nums', opts:['len(nums)','nums.length','nums.len()','length(nums)'], ans:0, exp:'len() is a built-in function you call on the list: len(nums).' },
-    { desc:'An if/else that prints big or small', opts:['if x > 5:\n    print("big")\nelse:\n    print("small")','if x > 5\n    print("big")\nelse\n    print("small")','if (x > 5) print("big") else print("small")','if x > 5 then print("big") else print("small")'], ans:0, exp:'Python if/else blocks need a colon after the condition and after else.' },
-    { desc:'Turn a string into all uppercase', opts:['text.upper()','upper(text)','text.toUpperCase()','UPPER(text)'], ans:0, exp:'Python string methods are called on the string itself: text.upper().' },
-    { desc:'Loop through each item in a list called items', opts:['for item in items:','for item in items','foreach item in items:','for (item : items)'], ans:0, exp:'Python for-in loops need a trailing colon.' },
+    { code:'7 + 3 * 2', opts:['13','20','17','12'], ans:0, exp:'Multiply first (3*2=6), then add: 7+6=13.' },
+    { code:'(7 + 3) * 2', opts:['20','13','10','15'], ans:0, exp:'Parentheses go first: (7+3)=10, then 10*2=20.' },
+    { code:'15 % 4', opts:['3','4','1','11'], ans:0, exp:'% gives the remainder: 15÷4=3 remainder 3.' },
+    { code:'2 ** 4', opts:['16','8','6','32'], ans:0, exp:'** is power: 2×2×2×2 = 16.' },
+    { code:'20 // 6', opts:['3','3.33','2','4'], ans:0, exp:'// is floor division — drops the remainder: 20÷6=3.33 → 3.' },
+    { code:'True and False', opts:['False','True','None','Error'], ans:0, exp:'"and" needs BOTH true — one is False, so the result is False.' },
+    { code:'True or False', opts:['True','False','None','Error'], ans:0, exp:'"or" only needs ONE true — result is True.' },
+    { code:'not True', opts:['False','True','0','1'], ans:0, exp:'"not" flips it: not True = False.' },
+    { code:'5 == 5.0', opts:['True','False','Error','5'], ans:0, exp:'Python treats 5 and 5.0 as equal in value.' },
+    { code:'10 > 5 and 3 > 1', opts:['True','False','10','3'], ans:0, exp:'Both conditions are true, so the "and" is True.' },
+    { code:'-3 * -2', opts:['6','-6','-5','5'], ans:0, exp:'A negative times a negative is positive: 6.' },
+    { code:'9 - 4 - 2', opts:['3','7','11','5'], ans:0, exp:'Left to right: 9-4=5, then 5-2=3.' },
+    { code:'2 + 2 == 4', opts:['True','False','4','2'], ans:0, exp:'2+2 is 4, and 4==4 is True.' },
+    { code:'8 / 2', opts:['4.0','4','16','2'], ans:0, exp:'/ always gives a decimal (float) result in Python: 4.0.' },
   ];
-
   let order=[], idx=0, score=0, streak=0, best=0, correct=0, totalTime=0, timer=null, qStart=0, answered=false;
   const TOTAL=12, TIME=10;
-  let _canPlay = false;
-
-  (async () => {
-    try {
-      if (typeof C4K === 'undefined') { showLock(); return; }
-      const me = await C4K.loadMe();
-      if (me && me.role === 'kid') document.getElementById('dashLink').style.display = '';
-      _canPlay = me && (me.effectivePlan === 'pro' || me.effectivePlan === 'family');
-      if (!_canPlay) showLock();
-    } catch (e) { showLock(); }
-  })();
-  function showLock() {
-    document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('lockScreen').style.display = 'block';
-  }
-
+  (async () => { try { if (typeof C4K==='undefined') return; const me=await C4K.loadMe(); if (me && me.role==='kid') document.getElementById('dashLink').style.display=''; } catch(e){} })();
   function startGame() {
-    if (!_canPlay) { showLock(); return; }
     order=[...ALL].sort(()=>Math.random()-0.5).slice(0,TOTAL);
     idx=0; score=0; streak=0; best=0; correct=0; totalTime=0;
     document.getElementById('startScreen').style.display='none';
@@ -176,23 +144,21 @@
     document.getElementById('hud').style.display='flex';
     showQ();
   }
-
   function showQ() {
     if (idx>=TOTAL) { endGame(); return; }
     answered=false;
     const q=order[idx];
     document.getElementById('qContext').textContent=`ROUND ${idx+1} OF ${TOTAL}`;
     document.getElementById('hudQ').textContent=`${idx+1}/${TOTAL}`;
-    document.getElementById('qLabel').textContent=q.desc;
+    document.getElementById('codeBlock').textContent=q.code;
     document.getElementById('feedbackBar').style.display='none';
     const shuffled=q.opts.map((o,i)=>({o,i})).sort(()=>Math.random()-0.5);
     document.getElementById('optionsGrid').innerHTML=shuffled.map(({o,i})=>
-      `<button class="opt-btn" data-i="${i}" onclick="guess(${i})">${escHtml(o.replace(/\\n/g,'\n'))}</button>`
+      `<button class="opt-btn" data-i="${i}" onclick="guess(${i})">${escHtml(o)}</button>`
     ).join('');
     startTimer();
     qStart=Date.now();
   }
-
   function startTimer() {
     clearInterval(timer);
     let t=TIME; updateBar(t);
@@ -202,10 +168,9 @@
     const pct=Math.max(0,t/TIME*100);
     const bar=document.getElementById('timerBar');
     bar.style.width=pct+'%';
-    bar.style.background = t>5?'linear-gradient(90deg,#ea580c,#fb923c)':t>2?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#ef4444,#f87171)';
+    bar.style.background = t>5?'linear-gradient(90deg,#16a34a,#4ade80)':t>2?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#ef4444,#f87171)';
     document.getElementById('timerSec').textContent=Math.ceil(t);
   }
-
   function guess(i) {
     if (answered) return; answered=true; clearInterval(timer);
     const q=order[idx]; const elapsed=(Date.now()-qStart)/1000; totalTime+=elapsed;
@@ -236,14 +201,13 @@
     document.getElementById('fbMain').textContent=main;
     document.getElementById('fbSub').textContent=sub;
   }
-
   function endGame() {
     clearInterval(timer);
     document.getElementById('gameArea').style.display='none';
     document.getElementById('hud').style.display='none';
     document.getElementById('resultScreen').style.display='block';
     const pct=correct/TOTAL;
-    const grade=pct>=0.9?'🏁 Sprint Champion!':pct>=0.7?'⚡ Fast & Sharp!':pct>=0.5?'💪 Good Pace!':'🌱 Keep Practicing!';
+    const grade=pct>=0.9?'🥷 Ninja Master!':pct>=0.7?'⚡ Sharp Blade!':pct>=0.5?'💪 Getting Quick!':'🌱 Keep Practicing!';
     const stars=pct>=0.9?'⭐⭐⭐':pct>=0.6?'⭐⭐':'⭐';
     const xp=Math.round(score/10);
     document.getElementById('resScore').textContent=score;
@@ -253,7 +217,7 @@
     document.getElementById('resCorrect').textContent=correct+'/'+TOTAL;
     document.getElementById('resBest').textContent=best+'🔥';
     document.getElementById('resAvg').textContent=(totalTime/TOTAL).toFixed(1)+'s';
-    try { if (typeof C4K!=='undefined' && C4K.token()) C4K.api('/api/game/score','POST',{xp:xp,game:'syntax'}); } catch(e){}
+    try { if (typeof C4K!=='undefined' && C4K.token()) C4K.api('/api/game/score','POST',{xp:xp,game:'numberninja'}); } catch(e){}
   }
   function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   </script>

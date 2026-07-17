@@ -1149,7 +1149,7 @@ async function apiCountAttempt(env, request, data) {
 // Award tokens for playing the mini-games. Capped per game per day so kids can't farm.
 // A couple of games are a Pro perk, same tier as Byte/AI — kept in one place so both the
 // scoring endpoint (real enforcement) and the arcade listing (the badge/upsell) agree.
-const PRO_ONLY_GAMES = ["syntax", "trivia"];
+const PRO_ONLY_GAMES = ["syntax", "trivia", "loops", "errordetective", "functions", "speedcoder"];
 async function apiGameScore(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
