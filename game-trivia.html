@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trivia Blitz 🧠 - KidVibers</title>
+  <meta name="description" content="Rapid-fire true or false coding facts. A Pro-only KidVibers arcade game." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=205" />
+  <style>
+    body { background: #08060f; min-height: 100vh; }
+    .game-wrap { max-width: 700px; margin: 0 auto; padding: 20px 16px 60px; }
+    .game-title { font-size: 2.4rem; font-weight: 900; text-align: center; margin: 0; }
+    .game-title span { color: #f472b6; }
+    .game-sub { color: var(--text-dim); text-align: center; margin: 4px 0 20px; }
+
+    .hud { display: flex; justify-content: space-between; align-items: center;
+           background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+           padding: 12px 18px; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
+    .hud-stat { text-align:center; }
+    .hud-stat .val { font-size: 1.5rem; font-weight: 900; color: #f472b6; line-height: 1; }
+    .hud-stat .lbl { font-size: 0.68rem; font-weight: 800; color: var(--text-dim); }
+    .timer-bar-wrap { flex: 1; min-width: 130px; }
+    .timer-bar-bg { height: 9px; background: var(--surface-2); border-radius: 50px; overflow: hidden; }
+    .timer-bar { height: 100%; border-radius: 50px; background: linear-gradient(90deg,#db2777,#f472b6); transition: width .1s linear, background .4s; }
+
+    #startScreen, #lockScreen { text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .big-emoji { font-size: 3.6rem; margin-bottom: 10px; }
+    .instructions { background: var(--surface-2); border-radius: 14px; padding: 16px 20px; margin: 18px auto; max-width: 440px; text-align:left; }
+    .instructions li { color: var(--text-dim); margin-bottom: 7px; font-weight: 700; }
+    .pro-pill { display:inline-block; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-weight:900; font-size:0.72rem; letter-spacing:0.04em; padding:4px 12px; border-radius:50px; margin-bottom:10px; }
+
+    #gameArea { display: none; }
+    .q-context { color: var(--text-dim); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.04em; text-align:center; margin-bottom: 12px; }
+    .question-card { background: var(--surface); border: 2px solid var(--border-bright); border-radius: 20px; padding: 30px 22px; margin-bottom: 16px; text-align:center; }
+    .statement { font-size: 1.25rem; font-weight: 800; color: var(--text); margin-bottom: 24px; line-height: 1.4; }
+    .tf-row { display:flex; gap:14px; justify-content:center; }
+    .tf-btn { flex:1; max-width:180px; padding: 20px; border-radius: 16px; border: 2px solid var(--border); background: var(--bg);
+               font-weight: 900; font-size: 1.1rem; cursor: pointer; transition: all .15s; }
+    .tf-btn.true-btn:hover { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+    .tf-btn.false-btn:hover { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+    .tf-btn.correct { border-color: #22c55e; background: rgba(34,197,94,0.15); color: #4ade80; }
+    .tf-btn.wrong { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #f87171; }
+    .feedback-bar { border-radius: 12px; padding: 12px 16px; margin-top: 16px; display: none; align-items: center; gap: 12px;
+                    font-weight: 800; font-size: 0.88rem; text-align:left; }
+    .feedback-bar.ok { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
+    .feedback-bar.bad { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.3); color: #f87171; }
+
+    #resultScreen { display: none; text-align:center; background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px; padding: 36px 24px; }
+    .result-score { font-size: 3.5rem; font-weight: 900; color: #f472b6; }
+    .breakdown { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 16px 0 20px; }
+    .bd { background: var(--surface-2); border-radius: 12px; padding: 14px; }
+    .bd .n { font-size: 1.4rem; font-weight: 900; }
+    .bd .l { font-size: 0.72rem; color: var(--text-dim); font-weight: 800; }
+    .xp-pill { display:inline-block; background: linear-gradient(135deg,#db2777,#f472b6); color: #fff; font-weight: 900; padding: 8px 20px; border-radius: 50px; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <a href="games.html" class="btn btn-ghost">🎮 All Games</a>
+        <a href="dashboard.html" class="btn btn-outline" id="dashLink" style="display:none;">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="game-wrap">
+    <h1 class="game-title">Trivia Blitz <span>🧠</span></h1>
+    <p class="game-sub">Rapid-fire true or false — how fast can you go?</p>
+
+    <div class="hud" id="hud" style="display:none;">
+      <div class="hud-stat"><div class="val" id="hudScore">0</div><div class="lbl">Score</div></div>
+      <div class="timer-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;font-weight:800;color:var(--text-dim);margin-bottom:3px;"><span>Time</span><span id="timerSec">8</span></div>
+        <div class="timer-bar-bg"><div class="timer-bar" id="timerBar" style="width:100%"></div></div>
+      </div>
+      <div class="hud-stat"><div class="val" id="hudStreak">0🔥</div><div class="lbl">Streak</div></div>
+      <div class="hud-stat"><div class="val" id="hudQ">1/15</div><div class="lbl">Question</div></div>
+    </div>
+
+    <div id="lockScreen" style="display:none;">
+      <div class="big-emoji">🔒</div>
+      <span class="pro-pill">✨ PRO PERK</span>
+      <h2 style="font-size:1.5rem;font-weight:900;margin:6px 0;">Trivia Blitz is a Pro game</h2>
+      <p style="color:var(--text-dim);max-width:420px;margin:0 auto 18px;">Upgrade to Pro or Family to unlock this game (plus Byte, your AI coding buddy, and every lesson).</p>
+      <a href="index.html#pricing" class="btn btn-primary btn-lg">✨ See Pro plans</a>
+    </div>
+
+    <div id="startScreen">
+      <div class="big-emoji">🧠</div>
+      <span class="pro-pill">✨ PRO PERK</span>
+      <h2 style="font-size:1.7rem;font-weight:900;margin:6px 0;">Trivia Blitz</h2>
+      <p style="color:var(--text-dim);">Quick coding facts — is the statement true, or false?</p>
+      <ul class="instructions">
+        <li>🧠 Each round shows one statement about code</li>
+        <li>✅❌ Tap TRUE or FALSE as fast as you can</li>
+        <li>⏱️ 8 seconds per round</li>
+        <li>🔥 Streaks &amp; speed = bonus points</li>
+        <li>🏆 15 rounds total</li>
+      </ul>
+      <button class="btn btn-primary btn-lg" onclick="startGame()" style="min-width:200px;">🧠 Start Blitzing!</button>
+    </div>
+
+    <div id="gameArea">
+      <p class="q-context" id="qContext">ROUND 1 OF 15</p>
+      <div class="question-card">
+        <div class="statement" id="statement"></div>
+        <div class="tf-row">
+          <button class="tf-btn true-btn" id="btnTrue" onclick="guess(true)">✅ TRUE</button>
+          <button class="tf-btn false-btn" id="btnFalse" onclick="guess(false)">❌ FALSE</button>
+        </div>
+        <div class="feedback-bar" id="feedbackBar"><span id="fbEm"></span><div><div id="fbMain"></div><div id="fbSub" style="font-size:0.78rem;opacity:0.85;margin-top:2px;"></div></div></div>
+      </div>
+    </div>
+
+    <div id="resultScreen">
+      <div style="font-size:3rem;margin-bottom:6px;">🧠</div>
+      <div class="result-score" id="resScore">0</div>
+      <div style="font-size:1.4rem;font-weight:900;margin:6px 0 4px;" id="resGrade">Grade</div>
+      <div style="font-size:1.8rem;margin-bottom:16px;" id="resStars">⭐⭐⭐</div>
+      <div class="xp-pill" id="resXp">+50 tokens!</div>
+      <div class="breakdown">
+        <div class="bd"><div class="n" id="resCorrect">0/15</div><div class="l">Correct</div></div>
+        <div class="bd"><div class="n" id="resBest">0🔥</div><div class="l">Best Streak</div></div>
+        <div class="bd"><div class="n" id="resAvg">0s</div><div class="l">Avg Speed</div></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-lg" onclick="startGame()">🔄 Play Again</button>
+        <a href="games.html" class="btn btn-outline btn-lg">🎮 More Games</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=205"></script>
+  <script>
+  const ALL = [
+    { s:'A variable can change its value while a program runs.', a:true, exp:'That\'s literally why it\'s called a "variable" — its value can vary.' },
+    { s:'In Python, "5" (with quotes) and 5 (no quotes) are the same thing.', a:false, exp:'"5" is text (a string); 5 is a number — different types.' },
+    { s:'A loop lets you repeat a block of code without retyping it.', a:true, exp:'That\'s the whole point of loops — repeat without duplicating code.' },
+    { s:'Every programming language uses the exact same syntax.', a:false, exp:'Different languages have different rules for writing code (syntax).' },
+    { s:'A bug is a mistake in code that makes it behave wrong.', a:true, exp:'Yep — "debugging" means finding and fixing those mistakes.' },
+    { s:'Comments in code are executed just like regular code.', a:false, exp:'Comments are ignored by the computer — they\'re just notes for humans.' },
+    { s:'A function lets you reuse a block of code by giving it a name.', a:true, exp:'You "call" the function by its name instead of retyping the code.' },
+    { s:'if/else lets your program make a decision.', a:true, exp:'if/else picks one path or another based on a condition.' },
+    { s:'A list can only ever hold numbers, never words.', a:false, exp:'Lists can hold numbers, words (strings), or a mix of anything.' },
+    { s:'Indentation (spacing) never matters in Python.', a:false, exp:'Python actually uses indentation to know what\'s inside a loop or function.' },
+    { s:'HTML is what gives a webpage its structure (headings, paragraphs, etc).', a:true, exp:'HTML is the skeleton of a webpage — CSS handles the look.' },
+    { s:'CSS is used to style how a webpage looks (colors, fonts, layout).', a:true, exp:'Exactly — CSS is the "paint and design" layer.' },
+    { s:'An algorithm is just a fancy word for a step-by-step set of instructions.', a:true, exp:'That\'s all an algorithm is — steps to solve a problem.' },
+    { s:'Once you write code, it can never be changed again.', a:false, exp:'Code can always be edited, fixed, and improved.' },
+    { s:'A computer can run code without ever being told exactly what to do.', a:false, exp:'Computers only do exactly what the code tells them — no guessing.' },
+    { s:'Testing code means checking that it actually works the way you expect.', a:true, exp:'That\'s the goal of testing — catch problems before they matter.' },
+    { s:'You need to be an adult to learn coding.', a:false, exp:'Nope — you\'re proof of that right now! 😄' },
+  ];
+
+  let order=[], idx=0, score=0, streak=0, best=0, correct=0, totalTime=0, timer=null, qStart=0, answered=false;
+  const TOTAL=15, TIME=8;
+  let _canPlay = false;
+
+  (async () => {
+    try {
+      if (typeof C4K === 'undefined') { showLock(); return; }
+      const me = await C4K.loadMe();
+      if (me && me.role === 'kid') document.getElementById('dashLink').style.display = '';
+      _canPlay = me && (me.effectivePlan === 'pro' || me.effectivePlan === 'family');
+      if (!_canPlay) showLock();
+    } catch (e) { showLock(); }
+  })();
+  function showLock() {
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('lockScreen').style.display = 'block';
+  }
+
+  function startGame() {
+    if (!_canPlay) { showLock(); return; }
+    order=[...ALL].sort(()=>Math.random()-0.5).slice(0,TOTAL);
+    idx=0; score=0; streak=0; best=0; correct=0; totalTime=0;
+    document.getElementById('startScreen').style.display='none';
+    document.getElementById('resultScreen').style.display='none';
+    document.getElementById('gameArea').style.display='block';
+    document.getElementById('hud').style.display='flex';
+    showQ();
+  }
+
+  function showQ() {
+    if (idx>=TOTAL) { endGame(); return; }
+    answered=false;
+    const q=order[idx];
+    document.getElementById('qContext').textContent=`ROUND ${idx+1} OF ${TOTAL}`;
+    document.getElementById('hudQ').textContent=`${idx+1}/${TOTAL}`;
+    document.getElementById('statement').textContent=q.s;
+    document.getElementById('feedbackBar').style.display='none';
+    document.getElementById('btnTrue').className='tf-btn true-btn'; document.getElementById('btnTrue').disabled=false;
+    document.getElementById('btnFalse').className='tf-btn false-btn'; document.getElementById('btnFalse').disabled=false;
+    startTimer();
+    qStart=Date.now();
+  }
+
+  function startTimer() {
+    clearInterval(timer);
+    let t=TIME; updateBar(t);
+    timer=setInterval(()=>{ t-=0.1; updateBar(t); if (t<=0){ clearInterval(timer); timeUp(); } },100);
+  }
+  function updateBar(t) {
+    const pct=Math.max(0,t/TIME*100);
+    const bar=document.getElementById('timerBar');
+    bar.style.width=pct+'%';
+    bar.style.background = t>4?'linear-gradient(90deg,#db2777,#f472b6)':t>2?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#ef4444,#f87171)';
+    document.getElementById('timerSec').textContent=Math.ceil(t);
+  }
+
+  function guess(pick) {
+    if (answered) return; answered=true; clearInterval(timer);
+    const q=order[idx]; const elapsed=(Date.now()-qStart)/1000; totalTime+=elapsed;
+    document.getElementById('btnTrue').disabled=true; document.getElementById('btnFalse').disabled=true;
+    const ok = pick===q.a;
+    const trueBtn=document.getElementById('btnTrue'), falseBtn=document.getElementById('btnFalse');
+    if (q.a===true) trueBtn.classList.add('correct'); else falseBtn.classList.add('correct');
+    if (!ok) { if (pick===true) trueBtn.classList.add('wrong'); else falseBtn.classList.add('wrong'); }
+    if (ok) {
+      const tb=Math.round(Math.max(0,TIME-elapsed)*6); streak++; best=Math.max(best,streak); correct++;
+      const sb=streak>=2?streak*10:0; const pts=100+tb+sb; score+=pts;
+      fb(true,`+${pts}`+(sb?` 🔥${streak}x`:''),q.exp);
+    } else { streak=0; fb(false,'Not quite!',q.exp); }
+    document.getElementById('hudScore').textContent=score;
+    document.getElementById('hudStreak').textContent=streak+(streak>0?'🔥':'');
+    setTimeout(()=>{ idx++; showQ(); },1800);
+  }
+  function timeUp() {
+    if (answered) return; answered=true; streak=0;
+    const q=order[idx];
+    document.getElementById('btnTrue').disabled=true; document.getElementById('btnFalse').disabled=true;
+    if (q.a===true) document.getElementById('btnTrue').classList.add('correct'); else document.getElementById('btnFalse').classList.add('correct');
+    fb(false,"Time's up!",q.exp);
+    document.getElementById('hudStreak').textContent='0';
+    setTimeout(()=>{ idx++; showQ(); },1800);
+  }
+  function fb(ok,main,sub) {
+    const el=document.getElementById('feedbackBar');
+    el.style.display='flex'; el.className='feedback-bar '+(ok?'ok':'bad');
+    document.getElementById('fbEm').textContent=ok?'✅':'❌';
+    document.getElementById('fbMain').textContent=main;
+    document.getElementById('fbSub').textContent=sub;
+  }
+
+  function endGame() {
+    clearInterval(timer);
+    document.getElementById('gameArea').style.display='none';
+    document.getElementById('hud').style.display='none';
+    document.getElementById('resultScreen').style.display='block';
+    const pct=correct/TOTAL;
+    const grade=pct>=0.9?'🧠 Trivia Genius!':pct>=0.7?'⚡ Quick Thinker!':pct>=0.5?'💪 Nice Instincts!':'🌱 Keep Practicing!';
+    const stars=pct>=0.9?'⭐⭐⭐':pct>=0.6?'⭐⭐':'⭐';
+    const xp=Math.round(score/12);
+    document.getElementById('resScore').textContent=score;
+    document.getElementById('resGrade').textContent=grade;
+    document.getElementById('resStars').textContent=stars;
+    document.getElementById('resXp').textContent=`+${xp} tokens earned!`;
+    document.getElementById('resCorrect').textContent=correct+'/'+TOTAL;
+    document.getElementById('resBest').textContent=best+'🔥';
+    document.getElementById('resAvg').textContent=(totalTime/TOTAL).toFixed(1)+'s';
+    try { if (typeof C4K!=='undefined' && C4K.token()) C4K.api('/api/game/score','POST',{xp:xp,game:'trivia'}); } catch(e){}
+  }
+  </script>
+</body>
+</html>

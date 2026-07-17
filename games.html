@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=204" />
+  <link rel="stylesheet" href="styles.css?v=205" />
   <style>
     body { background: #08060f; min-height: 100vh; }
     .arc { max-width: 880px; margin: 0 auto; padding: 24px 16px 70px; }
@@ -29,6 +29,7 @@
                       padding: 3px 10px; border-radius: 50px; display: inline-block; width: fit-content; margin-bottom: 8px; }
     .game-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; flex: 1; }
     .game-card .play { margin-top: 14px; font-weight: 900; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
+    .game-card .pro-badge { position:absolute; top:16px; right:16px; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-weight:900; font-size:0.66rem; letter-spacing:0.04em; padding:3px 10px; border-radius:50px; }
     .arc-note { text-align: center; margin-top: 28px; color: var(--text-dim); font-size: 0.9rem; }
   </style>
 </head>
@@ -85,12 +86,32 @@
         <p>Flip cards to match each coding idea with what it does. Find all 8 pairs in the fewest moves!</p>
         <span class="play" style="color:#34d399;">Play now →</span>
       </a>
+
+      <a href="game-syntax.html" class="game-card">
+        <span class="pro-badge">✨ PRO</span>
+        <div class="glow" style="background:#fb923c;"></div>
+        <div class="ico">🏁</div>
+        <span class="tag" style="background:rgba(251,146,60,0.15);color:#fb923c;">Syntax</span>
+        <h2>Syntax Sprint</h2>
+        <p>Pick the correctly-written code before time runs out. One looks right — only one IS right!</p>
+        <span class="play" style="color:#fb923c;">Play now →</span>
+      </a>
+
+      <a href="game-trivia.html" class="game-card">
+        <span class="pro-badge">✨ PRO</span>
+        <div class="glow" style="background:#f472b6;"></div>
+        <div class="ico">🧠</div>
+        <span class="tag" style="background:rgba(244,114,182,0.15);color:#f472b6;">Trivia</span>
+        <h2>Trivia Blitz</h2>
+        <p>Rapid-fire true-or-false coding facts. How many can you get right before time's up?</p>
+        <span class="play" style="color:#f472b6;">Play now →</span>
+      </a>
     </div>
 
-    <p class="arc-note">🪙 Log in to earn tokens for playing — then spend them in the avatar shop!</p>
+    <p class="arc-note">🪙 Log in to earn tokens for playing — then spend them in the avatar shop!<br/>✨ PRO games unlock with a Pro or Family plan.</p>
   </main>
 
-  <script src="auth.js?v=204"></script>
+  <script src="auth.js?v=205"></script>
   <script>
     (async () => {
       try {

@@ -1147,6 +1147,9 @@ async function apiCountAttempt(env, request, data) {
 }
 
 // Award tokens for playing the mini-games. Capped per game per day so kids can't farm.
+// A couple of games are a Pro perk, same tier as Byte/AI — kept in one place so both the
+// scoring endpoint (real enforcement) and the arcade listing (the badge/upsell) agree.
+const PRO_ONLY_GAMES = ["syntax", "trivia"];
 async function apiGameScore(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
@@ -1158,6 +1161,8 @@ async function apiGameScore(env, request, data) {
   if (!consentOk(u)) return json({ error: "A parent must approve this account first." }, 403);
   { const _sb = await scheduleBlocks(env, u); if (_sb) return json({ error: _sb, scheduleLocked: true }, 403); }
   const game = (data.game || "").trim().slice(0, 30) || "game";
+  if (PRO_ONLY_GAMES.includes(game) && !["pro", "family"].includes(effectivePlan(u)))
+    return json({ error: "This game is a Pro perk. Upgrade to play!", locked: true }, 403);
   const xp = Math.max(0, Math.min(50, parseInt(data.xp, 10) || 0)); // cap at 50 tokens
   // Only award once per game per day (anti-farming).
   const key = `game:${game}`;
