@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=206" />
+  <link rel="stylesheet" href="styles.css?v=207" />
   <style>
     body { background: #08060f; min-height: 100vh; }
     .arc { max-width: 880px; margin: 0 auto; padding: 24px 16px 70px; }
@@ -31,6 +31,10 @@
     .game-card .play { margin-top: 14px; font-weight: 900; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
     .game-card .pro-badge { position:absolute; top:16px; right:16px; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-weight:900; font-size:0.66rem; letter-spacing:0.04em; padding:3px 10px; border-radius:50px; }
     .arc-note { text-align: center; margin-top: 28px; color: var(--text-dim); font-size: 0.9rem; }
+    .section-heading { font-size: 1.3rem; font-weight: 900; margin: 30px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .section-heading:first-of-type { margin-top: 0; }
+    .section-heading.pro-heading { color: transparent; background: linear-gradient(135deg,#7c3aed,#db2777); -webkit-background-clip: text; background-clip: text; border-bottom-color: rgba(124,58,237,0.4); }
+    .pro-heading-note { font-size: 0.72rem; font-weight: 700; color: var(--text-faint); background: none; -webkit-text-fill-color: var(--text-faint); margin-left: 8px; text-transform: none; letter-spacing: normal; }
   </style>
 </head>
 <body>
@@ -50,6 +54,7 @@
       <p>Fast, fun coding games — play, earn tokens, and sharpen your skills!</p>
     </div>
 
+    <h2 class="section-heading">🆓 Free Games</h2>
     <div class="games-grid">
       <a href="game-bugzapper.html" class="game-card">
         <div class="glow" style="background:#f59e0b;"></div>
@@ -87,6 +92,27 @@
         <span class="play" style="color:#34d399;">Play now →</span>
       </a>
 
+      <a href="game-webwizard.html" class="game-card">
+        <div class="glow" style="background:#818cf8;"></div>
+        <div class="ico">🧙</div>
+        <span class="tag" style="background:rgba(129,140,248,0.15);color:#818cf8;">HTML &amp; CSS</span>
+        <h2>Web Wizard</h2>
+        <p>Quick questions about tags, styles, and how webpages are built. Cast the right spell!</p>
+        <span class="play" style="color:#818cf8;">Play now →</span>
+      </a>
+
+      <a href="game-numberninja.html" class="game-card">
+        <div class="glow" style="background:#4ade80;"></div>
+        <div class="ico">🥷</div>
+        <span class="tag" style="background:rgba(74,222,128,0.15);color:#4ade80;">Math &amp; Logic</span>
+        <h2>Number Ninja</h2>
+        <p>Solve quick math and logic expressions exactly how a computer would evaluate them.</p>
+        <span class="play" style="color:#4ade80;">Play now →</span>
+      </a>
+    </div>
+
+    <h2 class="section-heading pro-heading">✨ Pro Games <span class="pro-heading-note">unlocked with a Pro or Family plan</span></h2>
+    <div class="games-grid">
       <a href="game-syntax.html" class="game-card">
         <span class="pro-badge">✨ PRO</span>
         <div class="glow" style="background:#fb923c;"></div>
@@ -105,24 +131,6 @@
         <h2>Trivia Blitz</h2>
         <p>Rapid-fire true-or-false coding facts. How many can you get right before time's up?</p>
         <span class="play" style="color:#f472b6;">Play now →</span>
-      </a>
-
-      <a href="game-webwizard.html" class="game-card">
-        <div class="glow" style="background:#818cf8;"></div>
-        <div class="ico">🧙</div>
-        <span class="tag" style="background:rgba(129,140,248,0.15);color:#818cf8;">HTML &amp; CSS</span>
-        <h2>Web Wizard</h2>
-        <p>Quick questions about tags, styles, and how webpages are built. Cast the right spell!</p>
-        <span class="play" style="color:#818cf8;">Play now →</span>
-      </a>
-
-      <a href="game-numberninja.html" class="game-card">
-        <div class="glow" style="background:#4ade80;"></div>
-        <div class="ico">🥷</div>
-        <span class="tag" style="background:rgba(74,222,128,0.15);color:#4ade80;">Math &amp; Logic</span>
-        <h2>Number Ninja</h2>
-        <p>Solve quick math and logic expressions exactly how a computer would evaluate them.</p>
-        <span class="play" style="color:#4ade80;">Play now →</span>
       </a>
 
       <a href="game-loops.html" class="game-card">
@@ -166,10 +174,10 @@
       </a>
     </div>
 
-    <p class="arc-note">🪙 Log in to earn tokens for playing — then spend them in the avatar shop!<br/>✨ PRO games unlock with a Pro or Family plan.</p>
+    <p class="arc-note">🪙 Log in to earn tokens for playing — then spend them in the avatar shop!</p>
   </main>
 
-  <script src="auth.js?v=206"></script>
+  <script src="auth.js?v=207"></script>
   <script>
     (async () => {
       try {
