@@ -134,7 +134,7 @@ const C4K = {
   // dismissing the kid popup doesn't silently mark the admin one as seen too.
   WN_VERSION: '2.1',
   WN_ITEMS: [
-    { emoji: '🎮', title: '6 new arcade games', text: 'Web Wizard (HTML/CSS) and Number Ninja (math & logic) are free to play. Loop Master, Error Detective, Function Frenzy, and Speed Coder are new Pro-only games — 10 games total now!', audience: ['general', 'kid'] },
+    { emoji: '🎮', title: '6 new arcade games', text: 'Web Wizard (HTML/CSS) and Number Ninja (math & logic) are free to play. Loop Master, Error Detective, Function Frenzy, and Speed Coder are new Pro-only games — 12 games total now!', audience: ['general', 'kid'] },
     { emoji: '🎟️', title: 'Live drop-in sessions', text: 'At a library or class? Tap "Join a Session", enter the code, pick a name — and code instantly. No sign-up!', audience: ['general', 'kid', 'staff'] },
     { emoji: '🌐', title: 'Español', text: 'A one-tap English / Spanish toggle on the homepage. ¡Aprende a programar!', audience: ['general', 'kid'] },
     { emoji: '💳', title: 'Monthly or Annual plans', text: 'Pick month-to-month or yearly billing right on the pricing page.', audience: ['general', 'staff'] },
