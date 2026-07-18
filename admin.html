@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=213" />
+  <link rel="stylesheet" href="styles.css?v=214" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -221,6 +221,7 @@
     </aside>
 
     <div class="admin-content">
+      <button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top" style="display:none;position:fixed;bottom:24px;right:24px;z-index:50;width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;border:none;font-size:1.2rem;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,0.35);">⬆️</button>
       <div class="admin-topbar">
         <span style="font-weight:800;color:var(--text-dim);" id="panelLabel">/ Admin Panel</span>
         <div class="topbar-search">
@@ -1019,7 +1020,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=213"></script>
+  <script src="auth.js?v=214"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1231,6 +1232,11 @@
       const target = btn || document.querySelector(`.sb-link[data-sec="${sectionId}"]`);
       if (target) target.classList.add('active');
     }
+    // Show a floating "back to top" button once the admin scrolls past the top bar.
+    window.addEventListener('scroll', () => {
+      const btn = document.getElementById('backToTopBtn');
+      if (btn) btn.style.display = window.scrollY > 400 ? 'block' : 'none';
+    }, { passive: true });
     // The top-bar search doubles as a shortcut into the real "Find Any Account" search below —
     // typing here jumps you there and keeps both boxes in sync, instead of being decorative.
     function topSearchSync(val) {
@@ -2733,7 +2739,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=213" defer></script>
-  <script src="editor.js?v=213" defer></script>
+  <script src="pwa.js?v=214" defer></script>
+  <script src="editor.js?v=214" defer></script>
 </body>
 </html>
