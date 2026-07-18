@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=210" />
+  <link rel="stylesheet" href="styles.css?v=211" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -191,10 +191,15 @@
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
       <button class="sb-link active" data-sec="secDashboard" onclick="navTo('secDashboard',this)">🏠 Dashboard</button>
+      <button class="sb-link" data-sec="secLiveSessions" onclick="navTo('secLiveSessions',this)">🎟️ Live Sessions</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="searchPanel" onclick="navTo('searchPanel',this)">🔎 Find Any Account</button>
       <div class="sb-group super-only" style="display:none;">Application Views</div>
       <button class="sb-link super-only" style="display:none;" data-sec="secOverview" onclick="navTo('secOverview',this)">📊 Overview &amp; Growth</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secPeople" onclick="navTo('secPeople',this)">👥 People &amp; Accounts</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSafety" onclick="navTo('secSafety',this)">🛡️ Safety &amp; Consent</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secSecurity" onclick="navTo('secSecurity',this)">🔐 Security</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secAuditLog" onclick="navTo('secAuditLog',this)">🕵️ Audit Log</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secBilling" onclick="navTo('secBilling',this)">💳 Billing &amp; Promos</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
       <div class="sb-spacer"></div>
@@ -251,7 +256,7 @@
 
       <!-- Live drop-in session — admin AND super admin can start one (e.g. for a pitch demo),
            not just teacher/school/district accounts. -->
-      <div class="panel" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
+      <div class="panel" id="secLiveSessions" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
           <div style="font-size:1.8rem;">▶️</div>
           <div style="flex:1;min-width:200px;">
@@ -401,7 +406,7 @@
       </div>
 
       <!-- Security dashboard (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secSecurity" style="display:none;">
         <h3>🛡️ Security Dashboard <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">one-glance safety status</span></h3>
         <div id="secDashGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
           <div style="color:var(--text-faint);">Loading…</div>
@@ -542,7 +547,7 @@
       </div>
 
       <!-- KidVibers-internal promo codes (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secBilling" style="display:none;">
         <h3>🎟️ KidVibers Promo Codes <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">grants free Pro days directly — no Stripe/billing involved</span></h3>
         <p style="color:var(--text-dim);font-size:0.82rem;margin:-4px 0 12px;">Good for outreach where nobody needs to enter a card — e.g. a free-trial code for a specific library. This does NOT touch Stripe or real payments.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
@@ -601,7 +606,7 @@
       </div>
 
       <!-- Admin action audit log (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secAuditLog" style="display:none;">
         <h3>🕵️ Audit Log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="auditCount"></span></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <input id="auditSearch" class="le-in" placeholder="🔎 Filter by account, who, or detail…" style="flex:1;min-width:200px;" oninput="renderAuditLog()" />
@@ -992,7 +997,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=210"></script>
+  <script src="auth.js?v=211"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -2661,7 +2666,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=210" defer></script>
-  <script src="editor.js?v=210" defer></script>
+  <script src="pwa.js?v=211" defer></script>
+  <script src="editor.js?v=211" defer></script>
 </body>
 </html>
