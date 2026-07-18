@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=211" />
+  <link rel="stylesheet" href="styles.css?v=212" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -192,13 +192,19 @@
       <div class="sb-group">Dashboards</div>
       <button class="sb-link active" data-sec="secDashboard" onclick="navTo('secDashboard',this)">🏠 Dashboard</button>
       <button class="sb-link" data-sec="secLiveSessions" onclick="navTo('secLiveSessions',this)">🎟️ Live Sessions</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="searchPanel" onclick="navTo('searchPanel',this)">🔎 Find Any Account</button>
+      <button class="sb-link" data-sec="secCreateAcct" onclick="navTo('secCreateAcct',this)">➕ Create Account</button>
+      <button class="sb-link" data-sec="previewPanel" onclick="navTo('previewPanel',this)">👁️ Preview Dashboards</button>
       <div class="sb-group super-only" style="display:none;">Application Views</div>
+      <button class="sb-link super-only" style="display:none;" data-sec="searchPanel" onclick="navTo('searchPanel',this)">🔎 Find Any Account</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secOverview" onclick="navTo('secOverview',this)">📊 Overview &amp; Growth</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secPeople" onclick="navTo('secPeople',this)">👥 People &amp; Accounts</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secAdminAccts" onclick="navTo('secAdminAccts',this)">🛡️ Admin Accounts</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secStaffLogins" onclick="navTo('secStaffLogins',this)">🕵️ Staff Logins</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSafety" onclick="navTo('secSafety',this)">🛡️ Safety &amp; Consent</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secDataRequests" onclick="navTo('secDataRequests',this)">📄 Data Requests</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSecurity" onclick="navTo('secSecurity',this)">🔐 Security</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secAuditLog" onclick="navTo('secAuditLog',this)">🕵️ Audit Log</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secFlags" onclick="navTo('secFlags',this)">🚩 Feature Flags</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secBilling" onclick="navTo('secBilling',this)">💳 Billing &amp; Promos</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
@@ -333,17 +339,6 @@
         <div class="stat-box"><div class="ico-box">🟢</div><div class="stat-text"><div class="big" id="statSessionsActive">-</div><div class="lbl">Live Right Now</div><div class="trend">across every host</div></div></div>
       </div>
 
-      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
-      <div class="panel" id="activeSessionsPanel">
-        <h3 style="display:flex;align-items:center;gap:10px;">🎟️ Currently Active Sessions <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadActiveSessions()">↻ Refresh</button></h3>
-        <table class="admin-table">
-          <thead><tr><th>Host</th><th>Code</th><th>Kids joined</th><th>Locked</th><th>Expires</th><th></th></tr></thead>
-          <tbody id="activeSessionRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
-        </table>
-      </div>
-
-      <h2 class="super-only admin-section" id="secOverview" style="display:none;">📊 Overview &amp; Growth</h2>
-
       <!-- Analytics (aggregate only — available to admin AND super admin; individual account
            detail is super-admin only, gated separately above) -->
       <div class="panel" id="analyticsPanel">
@@ -382,6 +377,19 @@
         <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
         <div id="cohortChart" style="overflow-x:auto;"></div>
       </div>
+
+      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
+      <div class="panel" id="activeSessionsPanel">
+        <h3 style="display:flex;align-items:center;gap:10px;">🎟️ Currently Active Sessions <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadActiveSessions()">↻ Refresh</button></h3>
+        <table class="admin-table">
+          <thead><tr><th>Host</th><th>Code</th><th>Kids joined</th><th>Locked</th><th>Expires</th><th></th></tr></thead>
+          <tbody id="activeSessionRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <h2 class="super-only admin-section" id="secOverview" style="display:none;">📊 Overview &amp; Growth</h2>
+
+      
 
       <h2 class="super-only admin-section" id="secPeople" style="display:none;">👥 People &amp; Accounts</h2>
 
@@ -452,7 +460,7 @@
       </div>
 
       <!-- Feature flags (SUPER ADMIN ONLY) — for a sitewide maintenance banner, use the Site Message tool below instead -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secFlags" style="display:none;">
         <h3>🚩 Feature Flags</h3>
         <div>
           <div style="font-weight:800;font-size:0.85rem;margin-bottom:8px;">Turn a feature off instantly for everyone, no redeploy needed</div>
@@ -475,7 +483,7 @@
       </div>
 
       <!-- Admin accounts (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secAdminAccts" style="display:none;">
         <h3>🛡️ Admin Accounts</h3>
         <table class="admin-table">
           <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead>
@@ -494,7 +502,7 @@
       <!-- Staff login activity (SUPER ADMIN ONLY) — every teacher/admin/super_admin login across
            the whole platform, in one place, so a stolen credential shows up even if the account
            owner never checks their own login history. -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secStaffLogins" style="display:none;">
         <h3>🕵️ Staff Login Activity <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="staffLoginCount"></span></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <input id="staffLoginSearch" class="le-in" placeholder="🔎 Filter by name, username, or IP…" style="flex:1;min-width:200px;" oninput="renderStaffLogins()" />
@@ -589,7 +597,7 @@
       </div>
 
       <!-- Data export/deletion request tracker (SUPER ADMIN ONLY) -->
-      <div class="panel super-only" style="display:none;">
+      <div class="panel super-only" id="secDataRequests" style="display:none;">
         <h3>📄 Data Requests <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">COPPA/FERPA export & deletion requests</span></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           <input id="drWho" class="le-in" placeholder="Who / district requested this?" style="flex:1;min-width:180px;" />
@@ -632,7 +640,7 @@
       </div>
 
       <!-- Create a new account -->
-      <div class="panel">
+      <div class="panel" id="secCreateAcct">
         <h3>➕ Create Account <span id="createHint" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;">
           <label class="le-lbl">Account type
@@ -997,7 +1005,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=211"></script>
+  <script src="auth.js?v=212"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -2666,7 +2674,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=211" defer></script>
-  <script src="editor.js?v=211" defer></script>
+  <script src="pwa.js?v=212" defer></script>
+  <script src="editor.js?v=212" defer></script>
 </body>
 </html>
