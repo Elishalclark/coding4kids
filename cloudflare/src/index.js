@@ -2750,6 +2750,22 @@ async function apiRecommend(env, request, data) {
   return json({ ok: true });
 }
 
+// Public "Ask a question" form — anyone browsing the site (no account needed) can submit a
+// question and it lands straight in the KidVibers inbox (via notifyAdmin -> ADMIN_EMAIL).
+async function apiAskQuestion(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `askq:${ip}`, 5, 3600)) return json({ error: "Too many requests — please try again later." }, 429);
+  const name = cleanName(data.name || "").slice(0, 100);
+  const email = (data.email || "").toString().trim().slice(0, 200);
+  const topic = (data.topic || "General question").toString().trim().slice(0, 80);
+  const question = (data.question || "").toString().trim().slice(0, 1500);
+  if (!question) return json({ error: "Please write your question." }, 400);
+  if (!email || !email.includes("@")) return json({ error: "Please enter a valid email so we can reply." }, 400);
+  await notifyAdmin(env, `❓ New question from the site: ${topic}`,
+    `❓ *Someone submitted a question on kidvibers.com*\n• Name: ${name || "(not given)"}\n• Email: ${email}\n• Topic: ${topic}\n• Question: ${question}`);
+  return json({ ok: true });
+}
+
 // ── Parent screen-time limit (minutes per day) ──────────────────────────────
 async function apiSetScreenLimit(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -4729,6 +4745,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/daily-reward" && method === "POST") return apiDailyReward(env, request);
   if (path === "/api/my-leaderboard" && method === "GET") return apiMyLeaderboard(env, request);
   if (path === "/api/recommend" && method === "POST") return apiRecommend(env, request, data);
+  if (path === "/api/ask-question" && method === "POST") return apiAskQuestion(env, request, data);
   if (path === "/api/screen-limit" && method === "GET") return apiGetScreenLimit(env, request);
   if (path === "/api/screen-limit" && method === "POST") return apiSetScreenLimit(env, request, data);
   if (path === "/api/screen-time/ping" && method === "POST") return apiScreenTimePing(env, request);

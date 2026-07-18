@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=214" />
+  <link rel="stylesheet" href="styles.css?v=215" />
   <style>
     .hp { max-width: 780px; margin: 0 auto; padding: 28px 20px 90px; }
     .hp h1 { font-size: 1.9rem; font-weight: 900; text-align: center; margin-bottom: 6px; }
@@ -78,15 +78,63 @@
       <details><summary>Do you sell or share kid data?</summary><p>No, never. We don't run ads, sell data, or share it beyond the small set of infrastructure providers (hosting, email) needed to run the site — all under contract, none allowed to use it for their own purposes.</p></details>
     </div>
 
-    <p id="noResults" style="display:none;color:var(--text-dim);text-align:center;margin-top:20px;">No matches — try a different word, or email us below.</p>
+    <p id="noResults" style="display:none;color:var(--text-dim);text-align:center;margin-top:20px;">No matches — try a different word, or ask below.</p>
 
-    <div class="contact">
-      <h2>Still stuck?</h2>
-      <p>We're happy to help — usually within one business day.</p>
-      <a href="mailto:support@kidvibers.com" class="btn btn-primary">📧 Email support@kidvibers.com</a>
+    <div class="contact" id="askBox">
+      <h2>Still stuck? Ask us anything</h2>
+      <p>Fill this out and it goes straight to our team — usually within one business day.</p>
+      <form id="askForm" onsubmit="return submitAsk(event)" style="text-align:left;max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:10px;">
+        <input id="askName" placeholder="Your name (optional)" style="padding:11px 14px;border-radius:10px;border:1px solid var(--border-bright);background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;" />
+        <input id="askEmail" type="email" required placeholder="Your email (so we can reply)" style="padding:11px 14px;border-radius:10px;border:1px solid var(--border-bright);background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;" />
+        <select id="askTopic" style="padding:11px 14px;border-radius:10px;border:1px solid var(--border-bright);background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;font-weight:700;">
+          <option>General question</option>
+          <option>Billing / pricing</option>
+          <option>Accounts &amp; passwords</option>
+          <option>Safety &amp; privacy</option>
+          <option>Library / school / district</option>
+          <option>Technical issue</option>
+        </select>
+        <textarea id="askQuestion" required placeholder="Your question…" rows="4" maxlength="1500" style="padding:11px 14px;border-radius:10px;border:1px solid var(--border-bright);background:rgba(255,255,255,0.08);color:#fff;font-family:inherit;resize:vertical;"></textarea>
+        <button type="submit" class="btn btn-primary" id="askSubmitBtn">📨 Send my question</button>
+        <p id="askMsg" style="margin:0;font-size:0.85rem;text-align:center;"></p>
+      </form>
+      <p style="margin-top:14px;font-size:0.85rem;">Prefer email? <a href="mailto:support@kidvibers.com" style="color:#fff;font-weight:800;">support@kidvibers.com</a></p>
     </div>
   </main>
   <script>
+    async function submitAsk(e) {
+      e.preventDefault();
+      const btn = document.getElementById('askSubmitBtn');
+      const msg = document.getElementById('askMsg');
+      const question = document.getElementById('askQuestion').value.trim();
+      const email = document.getElementById('askEmail').value.trim();
+      if (!question || !email) return false;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      msg.style.color = 'var(--text-dim)'; msg.textContent = '';
+      try {
+        const res = await fetch('/api/ask-question', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('askName').value.trim(),
+            email, topic: document.getElementById('askTopic').value, question,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          document.getElementById('askForm').reset();
+          msg.style.color = '#4ade80';
+          msg.textContent = "✅ Sent! We'll reply by email soon.";
+        } else {
+          msg.style.color = '#f87171';
+          msg.textContent = data.error || 'Something went wrong — please try emailing us instead.';
+        }
+      } catch (err) {
+        msg.style.color = '#f87171';
+        msg.textContent = 'Network error — please try emailing us instead.';
+      }
+      btn.disabled = false; btn.textContent = '📨 Send my question';
+      return false;
+    }
     function filterFaq() {
       const q = document.getElementById('q').value.trim().toLowerCase();
       let any = false;
@@ -104,6 +152,6 @@
       document.getElementById('noResults').style.display = any ? 'none' : '';
     }
   </script>
-  <script src="pwa.js?v=214" defer></script>
+  <script src="pwa.js?v=215" defer></script>
 </body>
 </html>
