@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=209" />
+  <link rel="stylesheet" href="styles.css?v=210" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -28,33 +28,74 @@
     .login-hint { margin-top: 18px; text-align: center; font-size: 0.78rem; color: var(--text-faint); background: var(--bg); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
     .login-hint code { color: var(--purple); }
 
-    /* ── Dashboard ── */
+    /* ── Dashboard shell: fixed dark sidebar + top bar, everything else unchanged underneath ── */
     .admin-shell { display: none; }
-    .admin-shell.active { display: block; }
-    .admin-bar {
-      background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 14px 24px;
+    .admin-shell.active { display: flex; min-height: 100vh; align-items: flex-start; }
+
+    .admin-sidebar {
+      width: 250px; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: linear-gradient(165deg, #1a1030 0%, #120c22 55%, #0c0916 100%);
+      border-right: 1px solid var(--border); padding: 20px 14px 24px; display: flex; flex-direction: column;
+    }
+    .admin-sidebar .sb-logo { display: flex; align-items: center; gap: 8px; padding: 4px 8px 20px; font-weight: 900; font-size: 1.05rem; color: #fff; }
+    .admin-sidebar .sb-group { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #7c6fa8; padding: 14px 10px 6px; }
+    .sb-link {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+      color: #cbb8ef; font-weight: 700; font-size: 0.88rem; text-decoration: none; cursor: pointer;
+      background: none; border: none; width: 100%; text-align: left; font-family: inherit;
+    }
+    .sb-link:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .sb-link.active { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; }
+    .admin-sidebar .sb-spacer { flex: 1; }
+    .admin-sidebar .sb-footer { padding: 12px 10px 4px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 10px; }
+    .admin-sidebar .sb-who { font-size: 0.78rem; color: #9a8fc4; font-weight: 700; padding: 6px 10px 10px; }
+    .admin-sidebar .sb-who strong { color: #fff; display: block; font-size: 0.9rem; }
+
+    .admin-content { flex: 1; min-width: 0; }
+    .admin-topbar {
+      background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 14px 28px;
       display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50;
       flex-wrap: wrap; row-gap: 8px;
     }
-    .admin-bar .logo { font-size: 1.2rem; }
+    .admin-topbar .topbar-search { flex: 1; max-width: 380px; position: relative; }
+    .admin-topbar .topbar-search input {
+      width: 100%; box-sizing: border-box; padding: 9px 14px 9px 34px; border-radius: 50px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font-family: inherit; font-weight: 700; font-size: 0.85rem; outline: none;
+    }
+    .admin-topbar .topbar-search input:focus { border-color: var(--border-bright); }
+    .admin-topbar .topbar-search .ts-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
     .admin-bar .who { margin-left: auto; font-size: 0.85rem; color: var(--text-dim); font-weight: 700; }
     .admin-bar .who strong { color: var(--purple); }
+    @media (max-width: 900px) {
+      .admin-sidebar { display: none; }         /* small screens: fall back to a simple top-only layout */
+      .admin-shell.active { display: block; }
+    }
     @media (max-width: 640px) {
-      .admin-bar { padding: 12px 16px; gap: 10px; }
+      .admin-topbar { padding: 12px 16px; gap: 10px; }
       #panelLabel { display: none; }            /* hide the "/ Super Admin Panel" tag on small phones */
       .admin-bar .who { font-size: 0.78rem; }
       .admin-main { padding-left: 16px; padding-right: 16px; }
+      .admin-topbar .topbar-search { order: 3; max-width: none; flex-basis: 100%; }
     }
 
     .admin-main { max-width: 1160px; margin: 0 auto; padding: 32px 24px 80px; }
     .admin-main h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: 4px; }
     .admin-main .lead { color: var(--text-dim); margin-bottom: 28px; }
 
-    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 36px; }
-    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
-    .stat-box .big { font-size: 2rem; font-weight: 900; color: var(--purple); }
-    .stat-box .lbl { font-size: 0.82rem; color: var(--text-dim); font-weight: 700; }
-    .stat-box .trend { font-size: 0.78rem; color: var(--green); font-weight: 800; margin-top: 4px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 36px; }
+    .stat-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px 22px; display: flex; align-items: center; gap: 14px;
+    }
+    .stat-box .ico-box {
+      width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; flex-shrink: 0; background: var(--purple-light); color: var(--purple);
+    }
+    .stat-box .stat-text { min-width: 0; }
+    .stat-box .big { font-size: 1.6rem; font-weight: 900; color: var(--text); line-height: 1.15; }
+    .stat-box .lbl { font-size: 0.8rem; color: var(--text-dim); font-weight: 700; }
+    .stat-box .trend { font-size: 0.74rem; color: var(--text-faint); font-weight: 700; margin-top: 2px; }
 
     .admin-section { font-size: 1.15rem; font-weight: 900; color: var(--purple); margin: 34px 0 4px; padding-bottom: 8px; border-bottom: 2px solid var(--border); letter-spacing: -0.3px; }
     .admin-section:first-of-type { margin-top: 10px; }
@@ -146,23 +187,43 @@
 
   <!-- DASHBOARD -->
   <div class="admin-shell" id="adminShell">
-    <div class="admin-bar">
-      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
-      <span style="font-weight:800;color:var(--text-dim);" id="panelLabel">/ Admin Panel</span>
-      <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:800;color:var(--text-dim);cursor:pointer;margin-left:auto;margin-right:12px;" title="Browse the whole panel safely — every button still works, but nothing actually gets saved, suspended, deleted, or sent.">
-        <input type="checkbox" id="previewToggle" onchange="toggleAdminPreview(this)" />
-        🔍 Preview Mode
-      </label>
-      <span class="who">👤 Logged in as <strong id="whoName">owner</strong></span>
-      <button class="btn btn-outline" onclick="doLogout()">Log Out</button>
-    </div>
+    <aside class="admin-sidebar">
+      <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
+      <div class="sb-group">Dashboards</div>
+      <button class="sb-link active" data-sec="secDashboard" onclick="navTo('secDashboard',this)">🏠 Dashboard</button>
+      <div class="sb-group super-only" style="display:none;">Application Views</div>
+      <button class="sb-link super-only" style="display:none;" data-sec="secOverview" onclick="navTo('secOverview',this)">📊 Overview &amp; Growth</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secPeople" onclick="navTo('secPeople',this)">👥 People &amp; Accounts</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secSafety" onclick="navTo('secSafety',this)">🛡️ Safety &amp; Consent</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
+      <div class="sb-spacer"></div>
+      <div class="sb-footer">
+        <div class="sb-who">Logged in as<strong id="whoName">owner</strong></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;color:#cbb8ef;cursor:pointer;padding:6px 10px;" title="Browse the whole panel safely — every button still works, but nothing actually gets saved, suspended, deleted, or sent.">
+          <input type="checkbox" id="previewToggle" onchange="toggleAdminPreview(this)" />
+          🔍 Preview Mode
+        </label>
+        <button class="sb-link" onclick="doLogout()">🚪 Log Out</button>
+      </div>
+    </aside>
 
-    <div id="previewBanner" style="display:none;align-items:center;gap:10px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;font-weight:800;font-size:0.88rem;padding:10px 20px;">
-      🔍 <strong>Preview Mode is ON</strong> — click anything you want. Nothing will actually be suspended, deleted, changed, or sent.
-      <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
-    </div>
+    <div class="admin-content">
+      <div class="admin-topbar">
+        <span style="font-weight:800;color:var(--text-dim);" id="panelLabel">/ Admin Panel</span>
+        <div class="topbar-search">
+          <span class="ts-ico">🔎</span>
+          <input id="topSearchIn" placeholder="Search any account…" oninput="topSearchSync(this.value)" />
+        </div>
+        <span class="who">👤 <strong id="whoName2">owner</strong></span>
+      </div>
 
-    <div class="admin-main">
+      <div id="previewBanner" style="display:none;align-items:center;gap:10px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;font-weight:800;font-size:0.88rem;padding:10px 20px;">
+        🔍 <strong>Preview Mode is ON</strong> — click anything you want. Nothing will actually be suspended, deleted, changed, or sent.
+        <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
+      </div>
+
+      <div class="admin-main" id="secDashboard">
       <h2>Dashboard</h2>
       <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
 
@@ -259,12 +320,12 @@
       </div>
 
       <div class="stat-grid">
-        <div class="stat-box"><div class="big" id="statKids">-</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div>
-        <div class="stat-box"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div>
-        <div class="stat-box"><div class="big" id="statPro">-</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div>
-        <div class="stat-box"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div>
-        <div class="stat-box"><div class="big" id="statSessions">-</div><div class="lbl">Live Sessions Made</div><div class="trend" id="statSessionsTrend">library drop-ins</div></div>
-        <div class="stat-box"><div class="big" id="statSessionsActive">-</div><div class="lbl">Live Right Now</div><div class="trend">across every host</div></div>
+        <div class="stat-box"><div class="ico-box">👦</div><div class="stat-text"><div class="big" id="statKids">-</div><div class="lbl">Registered Kids</div><div class="trend">live from database</div></div></div>
+        <div class="stat-box"><div class="ico-box">📚</div><div class="stat-text"><div class="big" id="statLessons">-</div><div class="lbl">Lessons Completed</div><div class="trend">all accounts</div></div></div>
+        <div class="stat-box"><div class="ico-box">✨</div><div class="stat-text"><div class="big" id="statPro">-</div><div class="lbl">Pro / Family (AI on)</div><div class="trend">paying members</div></div></div>
+        <div class="stat-box"><div class="ico-box">⏳</div><div class="stat-text"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div></div>
+        <div class="stat-box"><div class="ico-box">🎟️</div><div class="stat-text"><div class="big" id="statSessions">-</div><div class="lbl">Live Sessions Made</div><div class="trend" id="statSessionsTrend">library drop-ins</div></div></div>
+        <div class="stat-box"><div class="ico-box">🟢</div><div class="stat-text"><div class="big" id="statSessionsActive">-</div><div class="lbl">Live Right Now</div><div class="trend">across every host</div></div></div>
       </div>
 
       <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
@@ -276,7 +337,7 @@
         </table>
       </div>
 
-      <h2 class="super-only admin-section" style="display:none;">📊 Overview &amp; Growth</h2>
+      <h2 class="super-only admin-section" id="secOverview" style="display:none;">📊 Overview &amp; Growth</h2>
 
       <!-- Analytics (aggregate only — available to admin AND super admin; individual account
            detail is super-admin only, gated separately above) -->
@@ -317,7 +378,7 @@
         <div id="cohortChart" style="overflow-x:auto;"></div>
       </div>
 
-      <h2 class="super-only admin-section" style="display:none;">👥 People &amp; Accounts</h2>
+      <h2 class="super-only admin-section" id="secPeople" style="display:none;">👥 People &amp; Accounts</h2>
 
       <div class="two-col">
         <!-- Users -->
@@ -626,7 +687,7 @@
         <div id="changeReqBody"></div>
       </div>
 
-      <h2 class="super-only admin-section" style="display:none;">📣 Communication</h2>
+      <h2 class="super-only admin-section" id="secComms" style="display:none;">📣 Communication</h2>
 
       <!-- Site-wide announcement (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="siteMsgPanel" style="display:none;">
@@ -720,7 +781,7 @@
         </table>
       </div>
 
-      <h2 class="super-only admin-section" style="display:none;">⚙️ Settings</h2>
+      <h2 class="super-only admin-section" id="secSettings" style="display:none;">⚙️ Settings</h2>
 
       <!-- Login & sign-up controls (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="togglePanel" style="display:none;">
@@ -788,7 +849,7 @@
         </div>
       </div>
 
-      <h2 class="super-only admin-section" style="display:none;">🛡️ Safety &amp; Consent</h2>
+      <h2 class="super-only admin-section" id="secSafety" style="display:none;">🛡️ Safety &amp; Consent</h2>
 
       <!-- Parental Consent (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="consentPanel" style="display:none;">
@@ -851,6 +912,7 @@
         </table>
       </div>
 
+      </div>
     </div>
   </div>
 
@@ -930,7 +992,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=209"></script>
+  <script src="auth.js?v=210"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1113,7 +1175,10 @@
     async function showDashboard() {
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('adminShell').classList.add('active');
-      if (C4K.user && C4K.user.username) document.getElementById('whoName').textContent = C4K.user.username;
+      if (C4K.user && C4K.user.username) {
+        document.getElementById('whoName').textContent = C4K.user.username;
+        document.getElementById('whoName2').textContent = C4K.user.username;
+      }
       const isSuper = C4K.user && C4K.user.role === 'super_admin';
       document.getElementById('panelLabel').textContent = isSuper ? '/ Super Admin Panel 👑' : '/ Admin Panel 🛠️';
       document.getElementById('previewToggle').checked = _adminPreviewMode;
@@ -1127,6 +1192,24 @@
     }
     function closeWhatsNew() {
       C4K.closeWhatsNew({ storageKey: 'c4k_wn_seen_admin', popupId: 'whatsNew' });
+    }
+
+    // ── Sidebar navigation: scroll to a section and mark it active. All existing panels stay
+    // exactly where they were on the page — this just makes it easy to jump straight to one. ──
+    function navTo(sectionId, btn) {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelectorAll('.sb-link[data-sec]').forEach(b => b.classList.remove('active'));
+      const target = btn || document.querySelector(`.sb-link[data-sec="${sectionId}"]`);
+      if (target) target.classList.add('active');
+    }
+    // The top-bar search doubles as a shortcut into the real "Find Any Account" search below —
+    // typing here jumps you there and keeps both boxes in sync, instead of being decorative.
+    function topSearchSync(val) {
+      const real = document.getElementById('kidSearch');
+      if (!real) return;
+      if (val && real.value !== val) { real.value = val; if (typeof searchKids === 'function') searchKids(); }
+      if (val) document.getElementById('searchPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function doLogin(e) {
@@ -2578,7 +2661,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=209" defer></script>
-  <script src="editor.js?v=209" defer></script>
+  <script src="pwa.js?v=210" defer></script>
+  <script src="editor.js?v=210" defer></script>
 </body>
 </html>
