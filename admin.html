@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=212" />
+  <link rel="stylesheet" href="styles.css?v=213" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -192,6 +192,7 @@
       <div class="sb-group">Dashboards</div>
       <button class="sb-link active" data-sec="secDashboard" onclick="navTo('secDashboard',this)">🏠 Dashboard</button>
       <button class="sb-link" data-sec="secLiveSessions" onclick="navTo('secLiveSessions',this)">🎟️ Live Sessions</button>
+      <button class="sb-link" data-sec="secChat" onclick="navTo('secChat',this)">💬 Staff Chat</button>
       <button class="sb-link" data-sec="secCreateAcct" onclick="navTo('secCreateAcct',this)">➕ Create Account</button>
       <button class="sb-link" data-sec="previewPanel" onclick="navTo('previewPanel',this)">👁️ Preview Dashboards</button>
       <div class="sb-group super-only" style="display:none;">Application Views</div>
@@ -303,6 +304,19 @@
             </div>
             <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Staff chat — shared room for every admin + super_admin to message each other. -->
+      <div class="panel" id="secChat">
+        <h3 style="margin-bottom:10px;">💬 Staff Chat</h3>
+        <p style="margin:0 0 10px;color:var(--text-dim);font-size:0.85rem;">A shared room for admins and super admins to message each other. Not visible to kids, parents, or teachers.</p>
+        <div id="chatFeed" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <input id="chatInput" placeholder="Message the team…" maxlength="1000" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;" onkeydown="if(event.key==='Enter'){sendStaffChat();}" />
+          <button class="btn btn-primary" onclick="sendStaffChat()">Send</button>
         </div>
       </div>
 
@@ -1005,7 +1019,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=212"></script>
+  <script src="auth.js?v=213"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1197,6 +1211,7 @@
       document.getElementById('previewToggle').checked = _adminPreviewMode;
       document.getElementById('previewBanner').style.display = _adminPreviewMode ? 'flex' : 'none';
       if (!(C4K.user && C4K.user.isPreview)) openWhatsNew();
+      startStaffChat();
       await loadData();
     }
     // ── What's New — admin-only items (auth.js has the shared, audience-tagged list) ──
@@ -1223,6 +1238,50 @@
       if (!real) return;
       if (val && real.value !== val) { real.value = val; if (typeof searchKids === 'function') searchKids(); }
       if (val) document.getElementById('searchPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    let _chatTimer = null;
+    function startStaffChat() {
+      if (_chatTimer) clearInterval(_chatTimer);
+      const load = async () => {
+        const el = document.getElementById('chatFeed'); if (!el) return;
+        const { ok, data } = await C4K.api('/api/admin/chat/list');
+        if (!ok) { return; }
+        const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        if (!data.messages || !data.messages.length) {
+          el.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">No messages yet — say hi! 👋</div>';
+          return;
+        }
+        el.innerHTML = data.messages.map(m => `
+          <div style="align-self:${m.mine ? 'flex-end' : 'flex-start'};max-width:80%;">
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:2px;${m.mine ? 'text-align:right;' : ''}">${C4K.esc(m.name || m.username)} · ${m.role === 'super_admin' ? '👑 ' : ''}${m.at}</div>
+            <div style="background:${m.mine ? 'linear-gradient(135deg,#7c3aed,#db2777)' : 'var(--surface)'};color:${m.mine ? '#fff' : 'var(--text)'};border:1px solid var(--border);padding:8px 12px;border-radius:12px;font-size:0.88rem;white-space:pre-wrap;word-break:break-word;">${C4K.esc(m.body)}</div>
+          </div>`).join('');
+        if (wasAtBottom) el.scrollTop = el.scrollHeight;
+      };
+      load();
+      _chatTimer = setInterval(load, 15000);
+    }
+    async function sendStaffChat() {
+      const inp = document.getElementById('chatInput');
+      const body = (inp.value || '').trim();
+      if (!body) return;
+      inp.value = '';
+      inp.disabled = true;
+      const { ok, data } = await C4K.api('/api/admin/chat/send', 'POST', { body });
+      inp.disabled = false;
+      inp.focus();
+      if (!ok) { alert((data && data.error) || 'Could not send message.'); inp.value = body; return; }
+      const el = document.getElementById('chatFeed');
+      const { ok: lOk, data: lData } = await C4K.api('/api/admin/chat/list');
+      if (lOk && el) {
+        el.innerHTML = (lData.messages || []).map(m => `
+          <div style="align-self:${m.mine ? 'flex-end' : 'flex-start'};max-width:80%;">
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:2px;${m.mine ? 'text-align:right;' : ''}">${C4K.esc(m.name || m.username)} · ${m.role === 'super_admin' ? '👑 ' : ''}${m.at}</div>
+            <div style="background:${m.mine ? 'linear-gradient(135deg,#7c3aed,#db2777)' : 'var(--surface)'};color:${m.mine ? '#fff' : 'var(--text)'};border:1px solid var(--border);padding:8px 12px;border-radius:12px;font-size:0.88rem;white-space:pre-wrap;word-break:break-word;">${C4K.esc(m.body)}</div>
+          </div>`).join('');
+        el.scrollTop = el.scrollHeight;
+      }
     }
 
     async function doLogin(e) {
@@ -2674,7 +2733,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=212" defer></script>
-  <script src="editor.js?v=212" defer></script>
+  <script src="pwa.js?v=213" defer></script>
+  <script src="editor.js?v=213" defer></script>
 </body>
 </html>

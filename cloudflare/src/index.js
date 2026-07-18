@@ -1432,6 +1432,33 @@ async function apiRateLimitDashboard(env, request) {
   parsed.sort((a, b) => b.count - a.count);
   return json({ entries: parsed.slice(0, 100), total: parsed.length });
 }
+
+// ── Internal staff chat: one shared room for admin <-> super_admin <-> admin messaging. Not a
+// kid-facing feature, so it deliberately skips the kid content filter — these are trusted staff
+// accounts, not kids — but still gets a sane length cap and rate limit so nobody can flood it. ──
+async function apiStaffChatSend(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !ADMIN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const body = (data.body || "").toString().trim().slice(0, 1000);
+  if (!body) return json({ error: "Message can't be empty." }, 400);
+  if (await rateLimited(env, `staffchat:${u.id}`, 30, 300)) return json({ error: "Slow down a bit — try again in a moment." }, 429);
+  await env.DB.prepare("INSERT INTO staff_chat (user_id,body,created_at) VALUES (?,?,?)").bind(u.id, body, nowIso()).run();
+  return json({ ok: true });
+}
+async function apiStaffChatList(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !ADMIN_ROLES.includes(u.role)) return json({ error: "forbidden" }, 403);
+  const rows = (await env.DB.prepare(
+    "SELECT c.id, c.body, c.created_at, u.name, u.username, u.role FROM staff_chat c JOIN users u ON u.id=c.user_id " +
+    "ORDER BY c.id DESC LIMIT 100"
+  ).all()).results || [];
+  rows.reverse();   // oldest first, like a normal chat thread
+  return json({ messages: rows.map(r => ({
+    id: r.id, name: r.name, username: r.username, role: r.role, mine: r.username === u.username,
+    body: r.body, at: (r.created_at || "").slice(0, 16).replace("T", " "),
+  })) });
+}
+
 // Incident-response tool: revoke every active login session platform-wide, forcing everyone
 // (except the admin who clicked it) to log back in. For a suspected credential leak or anything
 // where you need to be certain nobody's still using an old session token.
@@ -4767,6 +4794,8 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/data-requests" && (method === "GET" || method === "POST")) return apiDataRequests(env, request, data, method);
   if (path === "/api/admin/security-dashboard" && method === "GET") return apiSecurityDashboard(env, request);
   if (path === "/api/admin/rate-limits" && method === "GET") return apiRateLimitDashboard(env, request);
+  if (path === "/api/admin/chat/send" && method === "POST") return apiStaffChatSend(env, request, data);
+  if (path === "/api/admin/chat/list" && method === "GET") return apiStaffChatList(env, request);
   if (path === "/api/admin/force-logout-all" && method === "POST") return apiForceLogoutAll(env, request);
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
@@ -5344,6 +5373,9 @@ export default {
         // screen_time rows are only ever queried for "today" or "the last 7 days" (parent report,
         // weekly digest) — 60 days is generous headroom without letting it grow forever.
         await env.DB.prepare("DELETE FROM screen_time WHERE day < ?").bind(d(60).slice(0, 10)).run();
+        // Staff chat only ever shows the last 100 messages anyway — 90 days is plenty of
+        // scrollback without an internal chat log growing forever.
+        await env.DB.prepare("DELETE FROM staff_chat WHERE created_at < ?").bind(d(90)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).
