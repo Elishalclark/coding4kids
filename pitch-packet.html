@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KidVibers — Library Program One-Pager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=218" />
+  <style>
+    .pp { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
+    .pp-toolbar { display:flex; justify-content:flex-end; gap:10px; margin-bottom:16px; }
+    .pp-head { display:flex; align-items:center; gap:16px; background:linear-gradient(135deg,#2e1457,#4c1d95 60%,#6d28d9); border:1px solid var(--border-bright); border-radius:var(--radius); padding:26px 28px; margin-bottom:22px; }
+    .pp-head .em { font-size:2.6rem; }
+    .pp-head h1 { font-size:1.6rem; font-weight:900; color:#fff; margin-bottom:4px; }
+    .pp-head p { color:#ede9fe; font-size:0.95rem; }
+    .pp-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:22px; }
+    .pp-stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px; text-align:center; }
+    .pp-stat b { display:block; font-size:1.6rem; font-weight:900; color:var(--purple); }
+    .pp-stat span { font-size:0.78rem; color:var(--text-dim); }
+    .pp-sec { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:16px; }
+    .pp-sec h2 { font-size:1.05rem; font-weight:900; color:var(--purple); margin-bottom:10px; }
+    .pp-sec ul { margin:0; padding-left:20px; }
+    .pp-sec li { margin-bottom:7px; font-size:0.92rem; line-height:1.5; }
+    .pp-cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .pp-cta { text-align:center; background:linear-gradient(135deg,#7c3aed,#db2777); border-radius:16px; padding:24px; margin-top:8px; }
+    .pp-cta h2 { color:#fff; font-size:1.2rem; font-weight:900; margin-bottom:6px; }
+    .pp-cta p { color:#f5e8ff; font-size:0.9rem; margin-bottom:14px; }
+    @media print {
+      nav, .pp-toolbar { display:none !important; }
+      body { background:#fff !important; color:#111 !important; }
+      .pp-head { background:#fff !important; border:2px solid #6d28d9; }
+      .pp-head h1, .pp-head p { color:#111 !important; }
+      .pp-sec, .pp-stat { border:1px solid #ccc !important; break-inside:avoid; }
+      .pp-cta { background:#fff !important; border:2px solid #6d28d9; }
+      .pp-cta h2, .pp-cta p { color:#111 !important; }
+    }
+    @media (max-width: 640px) { .pp-cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <a href="for-libraries.html" class="btn btn-ghost" style="margin-left:auto;">← For Libraries</a>
+    </div>
+  </nav>
+
+  <main class="pp">
+    <div class="pp-toolbar">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    </div>
+
+    <div class="pp-head">
+      <div class="em">🚀</div>
+      <div>
+        <h1>KidVibers — Free Coding Programs for Libraries</h1>
+        <p>A one-page overview for board meetings, program proposals, and grant applications.</p>
+      </div>
+    </div>
+
+    <div class="pp-stats">
+      <div class="pp-stat"><b>293</b><span>lessons across 25 worlds</span></div>
+      <div class="pp-stat"><b>12</b><span>coding practice games</span></div>
+      <div class="pp-stat"><b>$0</b><span>cost to run a library session</span></div>
+      <div class="pp-stat"><b>6–16</b><span>target age range</span></div>
+    </div>
+
+    <div class="pp-cols">
+      <div class="pp-sec">
+        <h2>🎟️ How a session works</h2>
+        <ul>
+          <li>Librarian starts a session from the dashboard — gets a join code + printable QR flyer.</li>
+          <li>Kids scan the code, pick a nickname, and start coding — no account, email, or app install needed.</li>
+          <li>Kids build real projects (web pages, cards, games) using "vibe coding" — describing what they want rather than typing raw syntax.</li>
+          <li>Guest accounts and their data auto-delete within 24 hours unless a parent chooses to save the account.</li>
+          <li>Session ends with a printable recap: kids joined, creations built, session length — great for program reporting.</li>
+        </ul>
+      </div>
+      <div class="pp-sec">
+        <h2>🛡️ Safety &amp; privacy, built in</h2>
+        <ul>
+          <li>No ads, ever. No selling or sharing of student data.</li>
+          <li>Guest sessions collect nothing but a nickname.</li>
+          <li>Concerning language typed anywhere is flagged, with an instant crisis-line resource shown to the kid.</li>
+          <li>A signable Data Processing Agreement (DPA) is available for your library or district.</li>
+          <li>Real, hourly automated uptime monitoring — see <a href="status.html">kidvibers.com/status</a>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="pp-sec">
+      <h2>💻 What kids actually do</h2>
+      <ul>
+        <li><strong>Vibe Studio:</strong> build real, working web pages and cards by describing what they want — customizing text, colors, and images, no syntax required to get started.</li>
+        <li><strong>293 structured lessons</strong> across 25 progressively harder worlds, teaching real coding concepts (variables, loops, logic, functions) in short, game-like bites.</li>
+        <li><strong>12 arcade-style practice games</strong> (debugging, speed challenges, logic puzzles) that reinforce lesson concepts without feeling like homework.</li>
+        <li><strong>Byte</strong>, a purpose-built help buddy for hints and definitions — not a general AI chatbot, and never connected to the open internet, by design.</li>
+      </ul>
+    </div>
+
+    <div class="pp-sec">
+      <h2>📋 What we need from you</h2>
+      <ul>
+        <li>A room with tablets, Chromebooks, or laptops (anything with a modern browser) and wifi.</li>
+        <li>One staff member or volunteer to run the session — no coding knowledge required.</li>
+        <li>A date! Setup takes about 5 minutes on the day.</li>
+      </ul>
+    </div>
+
+    <div class="pp-cta">
+      <h2>Ready to bring this to your library?</h2>
+      <p>Let's find a date — see our full library guide or reach out directly.</p>
+      <a href="for-libraries.html" class="btn btn-lg" style="background:#fff;color:#6d28d9;font-weight:900;margin-right:8px;">📚 Full library guide</a>
+      <a href="mailto:elishalclark@icloud.com?subject=KidVibers%20at%20our%20library" class="btn btn-lg" style="background:rgba(255,255,255,0.18);color:#fff;font-weight:900;border:1px solid rgba(255,255,255,0.4);">📩 Get in touch</a>
+    </div>
+  </main>
+
+  <script src="pwa.js?v=218" defer></script>
+</body>
+</html>

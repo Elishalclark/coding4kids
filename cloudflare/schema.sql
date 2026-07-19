@@ -36,6 +36,9 @@ CREATE TABLE progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, comple
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE chat_usage (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
 CREATE TABLE IF NOT EXISTS screen_time (user_id INTEGER NOT NULL, day TEXT NOT NULL, minutes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
+-- One row per hourly automated health check, so the public status page can show REAL uptime
+-- history (not a fabricated number) once enough checks have accumulated.
+CREATE TABLE IF NOT EXISTS uptime_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ok INTEGER NOT NULL, db_ms INTEGER, checked_at TEXT NOT NULL);
 -- Internal staff chat: one shared room for every admin/super_admin to message each other.
 CREATE TABLE IF NOT EXISTS staff_chat (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE lessons_daily (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));

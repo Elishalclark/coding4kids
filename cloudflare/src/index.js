@@ -5030,6 +5030,9 @@ async function runHealthCheck(env) {
   try { recentErrors = (await env.DB.prepare("SELECT COUNT(*) c FROM error_log WHERE created_at >= ?").bind(since1h).first()).c || 0; } catch (e) {}
   const status = { ok: dbOk && recentErrors < 20, dbOk, dbMs, recentErrors, checkedAt: nowIso() };
   await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('health:last',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(status)).run();
+  // Keep one row per check so the public status page can show real historical uptime (not a
+  // made-up number) — a permanent, append-only record of every automated hourly check.
+  try { await env.DB.prepare("INSERT INTO uptime_log (ok,db_ms,checked_at) VALUES (?,?,?)").bind(status.ok ? 1 : 0, dbMs, status.checkedAt).run(); } catch (e) {}
   if (!status.ok) {
     const lastAlert = await getSetting(env, "health:lastAlertAt", 0);
     if (Date.now() - lastAlert > HEALTH_ALERT_COOLDOWN_MIN * 60000) {
@@ -5325,12 +5328,40 @@ async function apiPublicStatus(env) {
   const liveMs = Date.now() - t0;
   const last = await getSetting(env, "health:last", null);
   const flags = await getSetting(env, "feature_flags", {});
+  // Real uptime %, computed from every recorded hourly check — not a made-up number. Starts
+  // sparse right after this feature ships and fills in naturally as checks accumulate.
+  let uptime30d = null, uptime24h = null, days = [];
+  try {
+    const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const since24h = new Date(Date.now() - 86400000).toISOString();
+    const rows = (await env.DB.prepare("SELECT ok, checked_at FROM uptime_log WHERE checked_at >= ? ORDER BY checked_at ASC").bind(since30).all()).results || [];
+    if (rows.length) {
+      const total = rows.length, upCount = rows.filter(r => r.ok).length;
+      uptime30d = Math.round((upCount / total) * 1000) / 10;
+      const recent = rows.filter(r => r.checked_at >= since24h);
+      if (recent.length) uptime24h = Math.round((recent.filter(r => r.ok).length / recent.length) * 1000) / 10;
+      // One bucket per day for the last 30 days: 'up' (all checks ok), 'down' (any failed), or
+      // 'none' (no automated checks recorded that day yet).
+      const byDay = {};
+      for (const r of rows) {
+        const day = r.checked_at.slice(0, 10);
+        if (!byDay[day]) byDay[day] = { total: 0, ok: 0 };
+        byDay[day].total++; if (r.ok) byDay[day].ok++;
+      }
+      for (let i = 29; i >= 0; i--) {
+        const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        const d = byDay[day];
+        days.push({ day, status: !d ? "none" : (d.ok === d.total ? "up" : "down") });
+      }
+    }
+  } catch (e) {}
   return json({
     operational: dbOk,
     checkedAt: nowIso(),
     liveResponseMs: liveMs,
     lastAutomatedCheck: last ? last.checkedAt : null,
     lastAutomatedCheckOk: last ? last.ok : null,
+    uptime30d, uptime24h, days,
     features: {
       vibeStudio: flags.vibeStudio !== false,
       liveSessions: flags.liveSessions !== false,
@@ -5393,6 +5424,9 @@ export default {
         // Staff chat only ever shows the last 100 messages anyway — 90 days is plenty of
         // scrollback without an internal chat log growing forever.
         await env.DB.prepare("DELETE FROM staff_chat WHERE created_at < ?").bind(d(90)).run();
+        // Status page only ever shows a 30-day history bar — 90 days of raw hourly checks is
+        // plenty of headroom without the log growing forever.
+        await env.DB.prepare("DELETE FROM uptime_log WHERE checked_at < ?").bind(d(90)).run();
         await env.DB.prepare("DELETE FROM lessons_daily WHERE day LIKE '%-fail:%' AND substr(day,1,10) < ?").bind(d(7).slice(0, 10)).run();
         // School-set data retention: delete students inactive longer than the school's chosen
         // window (last completed lesson, or account age if they never started).
