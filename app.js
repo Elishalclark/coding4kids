@@ -26,14 +26,20 @@ async function loadLaunchBanner() {
 if (document.getElementById('launchBannerHome') || document.getElementById('launchBanner')) loadLaunchBanner();
 
 // One-click live demo: logs into the pre-loaded demo account so the platform looks alive
-// instantly — no credentials to fumble at a pitch.
+// instantly — no credentials to fumble at a pitch — then kicks off a guided spotlight tour
+// (tour.js) across the dashboard, lessons, Vibe Studio, and games so a visitor sees the
+// whole product without hunting for it themselves.
 async function seeDemo(btn) {
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.innerHTML = 'Loading demo…'; btn.style.pointerEvents = 'none'; }
   try {
     const r = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     const data = await r.json();
-    if (r.ok && data.token) { C4K.setToken(data.token); C4K.user = data.user; location.href = 'dashboard.html'; return; }
+    if (r.ok && data.token) {
+      C4K.setToken(data.token); C4K.user = data.user;
+      if (typeof startTour === 'function') startTour(); else location.href = 'dashboard.html';
+      return;
+    }
     alert(data.error || 'Could not load the demo right now.');
   } catch (e) { alert('Could not load the demo — check your connection.'); }
   if (btn) { btn.innerHTML = orig; btn.style.pointerEvents = ''; }
