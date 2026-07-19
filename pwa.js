@@ -121,4 +121,51 @@
       }
     } catch(e2) {}
   })();
+
+  // ── "Turn on notifications?" soft-ask banner ──
+  // Browsers permanently remember a "Block" answer, so we ask with our own friendly banner
+  // FIRST and only trigger the real browser permission prompt if they say yes here — avoids
+  // burning the one real prompt on someone who wasn't ready for it. Logged-in users only.
+  function showNotifBanner() {
+    if (document.getElementById('c4kNotifBar') || document.getElementById('c4kInstallBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'c4kNotifBar';
+    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9990;background:#1a1730;border-top:1px solid rgba(167,139,250,0.4);' +
+      "padding:12px 16px;display:flex;align-items:center;gap:12px;font-family:'Nunito',sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.4);flex-wrap:wrap;";
+    bar.innerHTML =
+      '<span style="font-size:1.6rem;">🔔</span>' +
+      '<div style="flex:1;min-width:180px;"><div style="font-weight:900;color:#fff;font-size:0.95rem;">Turn on notifications?</div>' +
+        '<div style="color:#a5a0c0;font-size:0.8rem;">A gentle nudge if a day goes by without coding — nothing spammy.</div></div>' +
+      '<button id="c4kNotifYes" style="background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;border:none;border-radius:50px;padding:9px 18px;font-weight:900;cursor:pointer;font-size:0.85rem;white-space:nowrap;font-family:inherit;">Turn on</button>' +
+      '<button id="c4kNotifNo" style="background:none;border:none;color:#6f6890;cursor:pointer;font-size:0.85rem;font-weight:800;padding:4px 8px;font-family:inherit;">Not now</button>';
+    document.body.appendChild(bar);
+    document.getElementById('c4kNotifYes').onclick = async function () {
+      var btn = document.getElementById('c4kNotifYes');
+      btn.textContent = 'Turning on…';
+      var ok = false;
+      try { ok = await window.C4KPush.enable(); } catch (e2) {}
+      bar.remove();
+      try { localStorage.setItem('c4k_notif_dismissed', Date.now()); } catch (e2) {}
+      if (!ok) {
+        // They said yes here but blocked the real browser prompt (or it's unsupported) —
+        // nothing more we can do without them changing their browser's site settings.
+      }
+    };
+    document.getElementById('c4kNotifNo').onclick = function () {
+      bar.remove();
+      try { localStorage.setItem('c4k_notif_dismissed', Date.now()); } catch (e2) {}
+    };
+  }
+  (async function maybeShowNotifBanner() {
+    try {
+      if (!window.C4KPush || !C4KPush.supported()) return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'default') return; // already answered
+      var dismissed = localStorage.getItem('c4k_notif_dismissed');
+      if (dismissed && Number(dismissed) > Date.now() - 7 * 86400000) return;
+      if (!window.C4K || !C4K.token || !C4K.token()) return; // logged-in users only
+      var me = await C4K.loadMe();
+      if (!me) return;
+      setTimeout(showNotifBanner, 4500);
+    } catch (e2) {}
+  })();
 })();
