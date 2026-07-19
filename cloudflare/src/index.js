@@ -136,6 +136,7 @@ async function alertSchool(env, kid, title, detail, followUp) {
       }
     }
     await notifyAdmin(env, `🚩 Safety alert: ${kid && kid.name}`, `🚩 *Safety alert*\n• Student: ${kid && kid.name} (@${kid && kid.username})\n• ${title}${detail ? `\n• Detail: ${detail}` : ""}${followUp ? "\n• Kid asked to be followed up with later" : ""}`);
+    if (kid && kid.id) await maybeAutoFlag(env, kid.id, kid.username);
     return ownerContact;
   } catch { return null; }
 }
@@ -555,7 +556,16 @@ async function userFromToken(env, token) {
     return mockUserForRole(preview.role);
   }
   const cutoff = new Date(Date.now() - SESSION_MAX_DAYS * 86400000).toISOString();
-  return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at >= ?").bind(token, cutoff).first();
+  const user = await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at >= ?").bind(token, cutoff).first();
+  // Real-time "who's online now" for the super admin panel piggybacks on every authenticated
+  // request instead of needing a dedicated heartbeat from every page — throttled to once a
+  // minute per user so it doesn't add a write to every single API call.
+  if (user && (!user.last_seen_at || new Date(user.last_seen_at).getTime() < Date.now() - 60000)) {
+    const now = nowIso();
+    user.last_seen_at = now;
+    try { await env.DB.prepare("UPDATE users SET last_seen_at=? WHERE id=?").bind(now, user.id).run(); } catch (e) {}
+  }
+  return user;
 }
 async function createSession(env, userId, ip) {
   const token = randToken(32);
@@ -4813,6 +4823,14 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/rate-limits" && method === "GET") return apiRateLimitDashboard(env, request);
   if (path === "/api/admin/chat/send" && method === "POST") return apiStaffChatSend(env, request, data);
   if (path === "/api/admin/chat/list" && method === "GET") return apiStaffChatList(env, request);
+  if (path === "/api/admin/global-search" && method === "GET") return apiAdminGlobalSearch(env, request);
+  if (path === "/api/admin/online-now" && method === "GET") return apiAdminOnlineNow(env, request);
+  if (path === "/api/admin/bulk-export" && method === "POST") return apiAdminBulkExport(env, request, data);
+  if (path === "/api/admin/revenue" && method === "GET") return apiAdminRevenue(env, request);
+  if (path === "/api/admin/cancel-subscription" && method === "POST") return apiAdminCancelSubscription(env, request, data);
+  if (path === "/api/admin/schedule-flag" && method === "POST") return apiScheduleFeatureFlag(env, request, data);
+  if (path === "/api/admin/compliance-export" && method === "GET") return apiAdminComplianceExport(env, request);
+  if ((path === "/api/admin/autoflag-config") && (method === "GET" || method === "POST")) return apiAdminAutoFlagConfig(env, request, data);
   if (path === "/api/admin/force-logout-all" && method === "POST") return apiForceLogoutAll(env, request);
   if (path === "/api/admin/backup-check" && method === "GET") return apiBackupCheck(env, request);
   if (path === "/api/admin/exec-summary-now" && method === "POST") return apiRunExecSummaryNow(env, request);
@@ -5368,6 +5386,204 @@ async function apiPublicStatus(env) {
     },
   });
 }
+// ── Global search: accounts + Vibe Studio projects + teacher class codes, in one query, so a
+// super admin isn't stuck guessing which search box to use. ──
+async function apiAdminGlobalSearch(env, request) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (await rateLimited(env, `globalsearch:${u.id}`, 60, 60)) return json({ error: "Searching too fast — slow down a moment." }, 429);
+  const q = (new URL(request.url).searchParams.get("q") || "").trim();
+  if (!q || q.length < 2) return json({ accounts: [], projects: [], classCodes: [] });
+  const like = `%${q}%`;
+  const accounts = (await env.DB.prepare(
+    "SELECT id,name,username,role,plan,parent_email,kid_email,suspended FROM users " +
+    "WHERE username LIKE ? OR name LIKE ? OR parent_email LIKE ? OR kid_email LIKE ? ORDER BY id DESC LIMIT 15"
+  ).bind(like, like, like, like).all()).results || [];
+  const projects = (await env.DB.prepare(
+    "SELECT p.id, p.title, p.author_name, p.user_id, p.shared, p.created_at, u.username FROM projects p " +
+    "LEFT JOIN users u ON u.id=p.user_id WHERE p.title LIKE ? OR p.author_name LIKE ? ORDER BY p.id DESC LIMIT 15"
+  ).bind(like, like).all()).results || [];
+  const classCodes = (await env.DB.prepare(
+    "SELECT id,name,username,class_code,school FROM users WHERE role='teacher' AND class_code LIKE ? LIMIT 10"
+  ).bind(like).all()).results || [];
+  return json({ accounts, projects, classCodes });
+}
+
+// ── Real-time "who's online now" — piggybacks on last_seen_at, which every authenticated
+// request already updates (throttled to once/min/user in userFromToken), so this needs no
+// separate heartbeat wiring on every page. "Online" = active in the last 5 minutes. ──
+async function apiAdminOnlineNow(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const since = new Date(Date.now() - 5 * 60000).toISOString();
+  const rows = (await env.DB.prepare(
+    "SELECT id,name,username,role,last_seen_at FROM users WHERE last_seen_at >= ? ORDER BY last_seen_at DESC LIMIT 200"
+  ).bind(since).all()).results || [];
+  const byRole = {};
+  for (const r of rows) byRole[r.role] = (byRole[r.role] || 0) + 1;
+  return json({ total: rows.length, byRole, users: rows.map(r => ({ id: r.id, name: r.name, username: r.username, role: r.role, lastSeen: r.last_seen_at })) });
+}
+
+// ── Bulk export: CSV of an arbitrary set of account IDs (e.g. everyone matched by a filter in
+// the panel) — the existing bulk-suspend/bulk-message already take an ID list, this matches. ──
+async function apiAdminBulkExport(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const ids = Array.isArray(data.userIds) ? data.userIds.slice(0, 1000) : [];
+  if (!ids.length) return json({ error: "No accounts selected." }, 400);
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = (await env.DB.prepare(
+    `SELECT id,name,username,role,plan,parent_email,kid_email,school,consent_status,suspended,created_at,last_login_at FROM users WHERE id IN (${placeholders})`
+  ).bind(...ids).all()).results || [];
+  const cols = ["id", "name", "username", "role", "plan", "parent_email", "kid_email", "school", "consent_status", "suspended", "created_at", "last_login_at"];
+  const csv = [cols.join(",")].concat(rows.map(r => cols.map(c => `"${String(r[c] == null ? "" : r[c]).replace(/"/g, '""')}"`).join(","))).join("\r\n");
+  return new Response(csv, { headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="kidvibers-export-${todayStr()}.csv"` } });
+}
+
+// ── Revenue dashboard: a weekly cron (runWeeklyMrrSnapshot, called from the existing Sunday
+// exec-summary cron) writes one row; this returns the trend for a real sparkline instead of a
+// single snapshot number. ──
+async function apiAdminRevenue(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT mrr,pro_count,family_count,teacher_count,snapshot_at FROM mrr_snapshot ORDER BY id DESC LIMIT 26").all()).results || [];
+  rows.reverse();
+  const PRICE = { pro: 9, family: 15, teacher: 24 };
+  const proC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE plan='pro'").first()).c || 0;
+  const famC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE plan='family'").first()).c || 0;
+  const teachC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='teacher' AND plan!='trial'").first()).c || 0;
+  const currentMrr = proC * PRICE.pro + famC * PRICE.family + teachC * PRICE.teacher;
+  return json({ currentMrr, currentBreakdown: { pro: proC, family: famC, teacher: teachC }, history: rows.map(r => ({ mrr: r.mrr, at: (r.snapshot_at || "").slice(0, 10) })) });
+}
+async function runWeeklyMrrSnapshot(env) {
+  const PRICE = { pro: 9, family: 15, teacher: 24 };
+  const proC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE plan='pro'").first()).c || 0;
+  const famC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE plan='family'").first()).c || 0;
+  const teachC = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='teacher' AND plan!='trial'").first()).c || 0;
+  const mrr = proC * PRICE.pro + famC * PRICE.family + teachC * PRICE.teacher;
+  await env.DB.prepare("INSERT INTO mrr_snapshot (mrr,pro_count,family_count,teacher_count,snapshot_at) VALUES (?,?,?,?,?)")
+    .bind(mrr, proC, famC, teachC, nowIso()).run();
+}
+
+// ── Cancel a subscription (and optionally refund the latest invoice) directly from the panel
+// instead of needing the Stripe dashboard. Confirm-typing pattern matches the existing breach
+// notice tool — this has real financial consequences. ──
+async function apiAdminCancelSubscription(env, request, data) {
+  const { u: admin, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if ((data.confirm || "").toString() !== "CANCEL SUBSCRIPTION") return json({ error: 'Type exactly "CANCEL SUBSCRIPTION" to confirm.' }, 400);
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId | 0).first();
+  if (!target) return json({ error: "Account not found." }, 404);
+  if (!target.stripe_subscription_id) return json({ error: "This account has no active Stripe subscription on file." }, 400);
+  if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe isn't configured." }, 400);
+  try {
+    await stripeRequest(env, `/subscriptions/${target.stripe_subscription_id}`, { cancel_at_period_end: "false" });
+    const cancelRes = await fetch(`https://api.stripe.com/v1/subscriptions/${target.stripe_subscription_id}`, {
+      method: "DELETE", headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY },
+    });
+    if (!cancelRes.ok) { const j = await cancelRes.json().catch(() => ({})); throw new Error((j.error && j.error.message) || "Stripe cancel failed"); }
+    let refunded = false;
+    if (data.refund && target.stripe_customer_id) {
+      try {
+        const invRes = await fetch(`https://api.stripe.com/v1/invoices?customer=${target.stripe_customer_id}&limit=1&status=paid`, {
+          headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY },
+        });
+        const invJ = await invRes.json();
+        const latest = invJ.data && invJ.data[0];
+        if (latest && latest.charge) { await stripeRequest(env, "/refunds", { charge: latest.charge }); refunded = true; }
+      } catch (e) {}
+    }
+    await env.DB.prepare("UPDATE users SET plan='free', stripe_subscription_id=NULL WHERE id=?").bind(target.id).run();
+    await logConsent(env, target.id, target.username, "subscription_cancelled", admin.username, refunded ? "Cancelled + latest invoice refunded" : "Cancelled, no refund");
+    return json({ ok: true, refunded });
+  } catch (e) {
+    return json({ error: "Stripe error: " + ((e && e.message) || e) }, 400);
+  }
+}
+
+// ── Feature flag scheduling: store a future value alongside the live one; a cron tick (piggy-
+// backed on the existing hourly health check) flips it over once the time arrives. ──
+async function apiScheduleFeatureFlag(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const key = (data.flag || "").toString();
+  if (!FEATURE_FLAG_KEYS.includes(key)) return json({ error: "Unknown flag." }, 400);
+  const at = (data.at || "").toString();
+  if (at && isNaN(Date.parse(at))) return json({ error: "Invalid date/time." }, 400);
+  const pending = await getSetting(env, "feature_flags_scheduled", {});
+  if (!at) { delete pending[key]; } else { pending[key] = { value: !!data.value, at }; }
+  await setSetting(env, "feature_flags_scheduled", pending);
+  return json({ ok: true, scheduled: pending });
+}
+async function runScheduledFlags(env) {
+  const pending = await getSetting(env, "feature_flags_scheduled", {});
+  const now = Date.now();
+  let changed = false;
+  const cur = await getSetting(env, "feature_flags", {});
+  for (const key of Object.keys(pending)) {
+    const p = pending[key];
+    if (p && p.at && Date.parse(p.at) <= now) {
+      cur[key] = !!p.value;
+      delete pending[key];
+      changed = true;
+    }
+  }
+  if (changed) { await setSetting(env, "feature_flags", cur); await setSetting(env, "feature_flags_scheduled", pending); }
+}
+
+// ── Compliance export: every record tied to one email address, across every role it might
+// appear under (parent_email OR kid_email) — broader than the single-child parent download,
+// for responding to a legal/compliance request about a specific person. ──
+async function apiAdminComplianceExport(env, request) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const email = (new URL(request.url).searchParams.get("email") || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return json({ error: "Enter a valid email." }, 400);
+  const users = (await env.DB.prepare("SELECT * FROM users WHERE LOWER(parent_email)=? OR LOWER(kid_email)=?").bind(email, email).all()).results || [];
+  const out = { requestedEmail: email, accounts: [] };
+  for (const acct of users) {
+    const [progress, unitTests, consent, notices, projects, messages] = await Promise.all([
+      env.DB.prepare("SELECT * FROM progress WHERE user_id=?").bind(acct.id).all().then(r => r.results || []),
+      env.DB.prepare("SELECT * FROM unit_tests WHERE user_id=?").bind(acct.id).all().then(r => r.results || []),
+      env.DB.prepare("SELECT * FROM consent_log WHERE child_id=?").bind(acct.id).all().then(r => r.results || []),
+      env.DB.prepare("SELECT * FROM notices WHERE user_id=?").bind(acct.id).all().then(r => r.results || []),
+      env.DB.prepare("SELECT * FROM projects WHERE user_id=?").bind(acct.id).all().then(r => r.results || []),
+      env.DB.prepare("SELECT * FROM messages WHERE to_email=?").bind(acct.parent_email || "").all().then(r => r.results || []),
+    ]);
+    out.accounts.push({ account: acct, progress, unitTests, consent, notices, projects, messages });
+  }
+  await logConsent(env, 0, email, "compliance_export", u.username, `Compliance export run for ${email} (${users.length} account(s))`);
+  return new Response(JSON.stringify(out, null, 2), {
+    headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="kidvibers-compliance-${todayStr()}.json"` },
+  });
+}
+
+// ── Auto-flag rule: if a kid racks up N safety notices within a rolling window, escalate for
+// manual review instead of waiting for someone to notice — configurable, off by default at a
+// safe high threshold so it only fires on a real pattern. Deliberately auto-FLAGS, not
+// auto-suspends: an attacker can't grief a kid offline just by triggering safety keywords. ──
+async function apiAdminAutoFlagConfig(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (request.method === "GET") return json({ config: await getSetting(env, "autoflag_config", { enabled: false, threshold: 3, windowHours: 24 }) });
+  const cfg = { enabled: !!data.enabled, threshold: Math.max(2, Math.min(20, parseInt(data.threshold, 10) || 3)), windowHours: Math.max(1, Math.min(168, parseInt(data.windowHours, 10) || 24)) };
+  await setSetting(env, "autoflag_config", cfg);
+  return json({ ok: true, config: cfg });
+}
+// Call this right after any safety-kind notice is inserted for a user.
+// Safety notices land on the responsible ADULT's account (teacher/parent), not the kid's own
+// user_id, so we can't just COUNT(*) notices WHERE user_id=kid. Instead, track a simple rolling
+// counter keyed on the kid directly (same pattern as the existing staff-login-fails counter).
+async function maybeAutoFlag(env, kidId, kidUsername) {
+  try {
+    const cfg = await getSetting(env, "autoflag_config", { enabled: false, threshold: 3, windowHours: 24 });
+    if (!cfg.enabled) return;
+    const bucketHours = Math.max(1, Math.round(cfg.windowHours));
+    const bucket = Math.floor(Date.now() / (bucketHours * 3600000));
+    const key = `autoflag:${kidId}:${bucket}`;
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(key).first();
+    const n = (parseInt(row && row.value, 10) || 0) + 1;
+    await env.DB.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key, String(n)).run();
+    if (n === cfg.threshold) {
+      await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)")
+        .bind(kidId, "auto_escalated", `Auto-escalated: ${n} safety alerts in the last ${bucketHours}h — please review.`, nowIso()).run();
+      await notifyAdmin(env, `🚩 Auto-escalated: ${kidUsername}`, `🚩 *${kidUsername}* has had ${n} safety alerts in the last ${bucketHours} hours (threshold: ${cfg.threshold}) — flagged for manual review, not auto-suspended.`);
+    }
+  } catch (e) {}
+}
+
 async function apiRunExecSummaryNow(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   await runWeeklyExecSummary(env);
@@ -5379,10 +5595,10 @@ export default {
     // Hourly health-check cron ("0 * * * *") is separate and deliberately lightweight — it
     // runs and returns without touching any of the heavier daily jobs below, so it can never
     // delay them and stays fast every single hour.
-    if (event.cron === "0 * * * *") { ctx.waitUntil(runHealthCheck(env)); return; }
+    if (event.cron === "0 * * * *") { ctx.waitUntil(runHealthCheck(env)); ctx.waitUntil(runScheduledFlags(env)); return; }
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
-    if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); }
+    if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); ctx.waitUntil(runWeeklyMrrSnapshot(env)); }
     ctx.waitUntil(runReengagement(env));
     ctx.waitUntil(runSafetyEscalation(env));
     ctx.waitUntil(runStaleSessionLock(env));

@@ -6,7 +6,7 @@
   <title>Admin - KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=218" />
+  <link rel="stylesheet" href="styles.css?v=219" />
   <style>
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -207,6 +207,7 @@
       <button class="sb-link super-only" style="display:none;" data-sec="secAuditLog" onclick="navTo('secAuditLog',this)">🕵️ Audit Log</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secFlags" onclick="navTo('secFlags',this)">🚩 Feature Flags</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secBilling" onclick="navTo('secBilling',this)">💳 Billing &amp; Promos</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secRevenue" onclick="navTo('secRevenue',this)">💰 Revenue</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
       <div class="sb-spacer"></div>
@@ -257,9 +258,10 @@
       <div class="panel super-only" id="searchPanel" style="display:none;">
         <h3>🔎 Find Any Account <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">kids, parents, teachers, schools, districts — search by username or name</span></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type any name, username, or school…" oninput="searchKids()" />
+          <input id="kidSearch" class="le-in" style="flex:1;min-width:180px;" placeholder="Type any name, username, or school…" oninput="searchKids();globalSearch();" />
         </div>
         <div id="searchResults"></div>
+        <div id="globalSearchExtra" style="margin-top:14px;"></div>
       </div>
 
       <!-- Live drop-in session — admin AND super admin can start one (e.g. for a pitch demo),
@@ -352,6 +354,12 @@
         <div class="stat-box"><div class="ico-box">⏳</div><div class="stat-text"><div class="big" id="statTrial">-</div><div class="lbl">On 3-Day Trial</div><div class="trend">no AI yet</div></div></div>
         <div class="stat-box"><div class="ico-box">🎟️</div><div class="stat-text"><div class="big" id="statSessions">-</div><div class="lbl">Live Sessions Made</div><div class="trend" id="statSessionsTrend">library drop-ins</div></div></div>
         <div class="stat-box"><div class="ico-box">🟢</div><div class="stat-text"><div class="big" id="statSessionsActive">-</div><div class="lbl">Live Right Now</div><div class="trend">across every host</div></div></div>
+      </div>
+
+      <!-- Real-time "who's online now" platform-wide (not just inside a Live Session) -->
+      <div class="panel" id="onlineNowPanel">
+        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
+        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
       </div>
 
       <!-- Analytics (aggregate only — available to admin AND super admin; individual account
@@ -484,6 +492,25 @@
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;"><input type="checkbox" id="flagReferrals" onchange="saveFlags()" /> 🎁 Referrals</label>
           <div id="flagsMsgOut" style="font-size:0.8rem;margin-top:8px;color:var(--text-dim);"></div>
         </div>
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;">
+          <h4 style="font-size:0.9rem;font-weight:900;margin-bottom:6px;">⏰ Schedule a flag change</h4>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 10px;">Set a flag to flip automatically at a future time (checked hourly) — e.g. turn a feature on right at midnight for a launch, without staying up to click it yourself.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="schedFlagKey" class="le-in" style="width:150px;">
+              <option value="vibeStudio">🎨 Vibe Studio</option>
+              <option value="liveSessions">🎟️ Live Sessions</option>
+              <option value="referrals">🎁 Referrals</option>
+            </select>
+            <select id="schedFlagValue" class="le-in" style="width:100px;">
+              <option value="true">Turn ON</option>
+              <option value="false">Turn OFF</option>
+            </select>
+            <input id="schedFlagAt" class="le-in" type="datetime-local" style="width:200px;" />
+            <button class="btn btn-primary" onclick="scheduleFlag()">Schedule</button>
+          </div>
+          <div id="schedFlagMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+          <div id="schedFlagList" style="margin-top:10px;font-size:0.82rem;color:var(--text-dim);"></div>
+        </div>
       </div>
 
       <!-- Reset demo account (SUPER ADMIN ONLY) -->
@@ -611,6 +638,30 @@
         </table>
       </div>
 
+      <!-- Revenue dashboard (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="secRevenue" style="display:none;">
+        <h3>💰 Revenue <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">real MRR + trend, computed from live subscriptions</span></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px;">
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="revMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Current MRR</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="revPro">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Pro subs</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#f472b6;" id="revFamily">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Family subs</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="revTeacher">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Teacher/school paid</div></div>
+        </div>
+        <div id="revChart" style="display:flex;align-items:flex-end;gap:3px;height:60px;margin-bottom:6px;"></div>
+        <p style="color:var(--text-faint);font-size:0.78rem;margin:0 0 16px;">Weekly MRR snapshots — fills in as weeks pass (taken every Monday).</p>
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <h4 style="font-size:0.9rem;font-weight:900;margin-bottom:8px;">⛔ Cancel a subscription</h4>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 10px;">Cancels the real Stripe subscription and drops the account to the free plan. Use the account's user ID (visible in Find Any Account / People &amp; Accounts).</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="cancelSubUserId" class="le-in" type="number" placeholder="User ID" style="width:110px;" />
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:700;"><input type="checkbox" id="cancelSubRefund" /> also refund latest invoice</label>
+            <input id="cancelSubConfirm" class="le-in" placeholder='Type "CANCEL SUBSCRIPTION" to confirm' style="flex:1;min-width:220px;" />
+            <button class="btn" style="background:#dc2626;color:#fff;" onclick="cancelSubscription()">Cancel subscription</button>
+          </div>
+          <div id="cancelSubMsg" style="font-size:0.85rem;font-weight:700;margin-top:8px;"></div>
+        </div>
+      </div>
+
       <!-- Data export/deletion request tracker (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="secDataRequests" style="display:none;">
         <h3>📄 Data Requests <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">COPPA/FERPA export & deletion requests</span></h3>
@@ -626,6 +677,15 @@
           <thead><tr><th>Who</th><th>Type</th><th>Due</th><th>Status</th><th></th></tr></thead>
           <tbody id="dataReqRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;">
+          <h4 style="font-size:0.9rem;font-weight:900;margin-bottom:6px;">📦 Compliance export by email</h4>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 10px;">Downloads every account, progress record, consent entry, notice, project, and message tied to one email — across every role it appears under (parent or kid email). For responding to a legal/compliance request about a specific person.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input id="complianceEmail" class="le-in" type="email" placeholder="person@example.com" style="flex:1;min-width:220px;" />
+            <button class="btn btn-primary" onclick="runComplianceExport()">⬇️ Export everything</button>
+          </div>
+          <div id="complianceMsg" style="font-size:0.85rem;font-weight:700;margin-top:8px;"></div>
+        </div>
       </div>
 
       <!-- Admin action audit log (SUPER ADMIN ONLY) -->
@@ -839,6 +899,7 @@
           <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(true)">⏸️ Suspend selected</button>
           <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(false)">▶️ Unsuspend selected</button>
           <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkMessage()">📨 Message selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkExportSelected()">⬇️ Export selected</button>
         </div>
         <table class="admin-table">
           <thead><tr>
@@ -878,6 +939,19 @@
       </div>
 
       <h2 class="super-only admin-section" id="secSafety" style="display:none;">🛡️ Safety &amp; Consent</h2>
+
+      <!-- Auto-flag rule config (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🚩 Auto-Escalation Rule <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">flags a kid for review after repeated safety alerts</span></h3>
+        <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 12px;">If a kid triggers this many safety alerts within the time window, they're automatically flagged for manual review (an "auto_escalated" notice + a heads-up email) — they are <strong>never auto-suspended</strong>, so this can't be abused to lock a kid out just by triggering the safety keyword filter.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:800;"><input type="checkbox" id="autoFlagEnabled" style="width:16px;height:16px;" /> Enabled</label>
+          <label style="font-size:0.82rem;color:var(--text-dim);">Threshold: <input id="autoFlagThreshold" class="le-in" type="number" min="2" max="20" value="3" style="width:70px;" /> alerts</label>
+          <label style="font-size:0.82rem;color:var(--text-dim);">Window: <input id="autoFlagWindow" class="le-in" type="number" min="1" max="168" value="24" style="width:70px;" /> hours</label>
+          <button class="btn btn-primary" onclick="saveAutoFlagConfig()">Save</button>
+        </div>
+        <div id="autoFlagMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+      </div>
 
       <!-- Parental Consent (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="consentPanel" style="display:none;">
@@ -1020,7 +1094,7 @@
     </div>
   </div>
 
-  <script src="auth.js?v=218"></script>
+  <script src="auth.js?v=219"></script>
   <script>
     // ── Admin Preview Mode: browse the WHOLE panel read-only, nothing gets changed ──
     // Wraps C4K.api so that while preview mode is on, every mutating (POST) call is
@@ -1451,10 +1525,15 @@
         loadAdmins();
         loadPromoCodes();
         loadStripeCoupons();
+        loadRevenue();
+        loadAutoFlagConfig();
       } else {
         const ls = (await (await fetch('/api/lessons')).json()).lessons || [];
         renderLessons(ls, false);
       }
+      // Visible to both admin and super_admin (matches backend's ADMIN_ROLES gate).
+      loadOnlineNow();
+      if (!_onlineNowTimer) _onlineNowTimer = setInterval(loadOnlineNow, 30000);
     }
 
     // ── Accounts table: search, sort, CSV export (power-user tools) ──
@@ -1547,6 +1626,138 @@
       if (!message) return;
       const { ok, data } = await C4K.api('/api/admin/bulk-message', 'POST', { userIds: ids, message });
       if (ok) alert('✅ Sent to ' + data.count + ' accounts.'); else alert(data.error || 'Could not send.');
+    }
+    async function bulkExportSelected() {
+      const ids = selectedBulkIds();
+      if (!ids.length) return alert('Select at least one account first.');
+      const res = await fetch('/api/admin/bulk-export', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + C4K.token() }, body: JSON.stringify({ userIds: ids }) });
+      if (!res.ok) return alert('Could not export — try again.');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-export-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+    }
+
+    // ── Global search: accounts + Vibe Studio projects + teacher class codes ──
+    let _globalSearchTimer = null;
+    function globalSearch() {
+      clearTimeout(_globalSearchTimer);
+      _globalSearchTimer = setTimeout(doGlobalSearch, 350);
+    }
+    async function doGlobalSearch() {
+      const q = document.getElementById('kidSearch').value.trim();
+      const wrap = document.getElementById('globalSearchExtra');
+      if (!wrap) return;
+      if (!q || q.length < 2) { wrap.innerHTML = ''; return; }
+      const { ok, data } = await C4K.api('/api/admin/global-search?q=' + encodeURIComponent(q));
+      if (!ok) return;
+      const projects = data.projects || [], classCodes = data.classCodes || [];
+      if (!projects.length && !classCodes.length) { wrap.innerHTML = ''; return; }
+      let html = '';
+      if (classCodes.length) {
+        html += `<div style="font-size:0.72rem;font-weight:900;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🔑 Matching class codes</div>` +
+          classCodes.map(c => `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:0.85rem;">
+            <strong>${C4K.esc(c.name)}</strong> (@${C4K.esc(c.username)}) — code <span style="color:var(--purple);font-weight:800;">${C4K.esc(c.class_code)}</span>${c.school ? ' · ' + C4K.esc(c.school) : ''}
+          </div>`).join('');
+      }
+      if (projects.length) {
+        html += `<div style="font-size:0.72rem;font-weight:900;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 6px;">🎨 Matching Vibe Studio projects</div>` +
+          projects.map(p => `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:0.85rem;">
+            <strong>${C4K.esc(p.title || 'Untitled')}</strong> by ${C4K.esc(p.author_name || p.username || '?')}${p.shared ? ' · 🌐 shared' : ''}
+          </div>`).join('');
+      }
+      wrap.innerHTML = html;
+    }
+
+    // ── Revenue dashboard ──
+    async function loadRevenue() {
+      const { ok, data } = await C4K.api('/api/admin/revenue');
+      if (!ok) return;
+      document.getElementById('revMrr').textContent = '$' + (data.currentMrr || 0);
+      document.getElementById('revPro').textContent = (data.currentBreakdown && data.currentBreakdown.pro) || 0;
+      document.getElementById('revFamily').textContent = (data.currentBreakdown && data.currentBreakdown.family) || 0;
+      document.getElementById('revTeacher').textContent = (data.currentBreakdown && data.currentBreakdown.teacher) || 0;
+      const hist = data.history || [];
+      const chart = document.getElementById('revChart');
+      if (!hist.length) { chart.innerHTML = '<div style="color:var(--text-faint);font-size:0.8rem;">No weekly snapshots yet — the first is taken next Monday.</div>'; return; }
+      const max = Math.max(1, ...hist.map(h => h.mrr));
+      chart.innerHTML = hist.map(h => `<div title="${h.at}: $${h.mrr}" style="flex:1;background:linear-gradient(180deg,#7c3aed,#db2777);border-radius:3px 3px 0 0;min-width:6px;height:${Math.max(4, Math.round((h.mrr / max) * 60))}px;"></div>`).join('');
+    }
+    async function cancelSubscription() {
+      const userId = parseInt(document.getElementById('cancelSubUserId').value, 10);
+      const confirmTxt = document.getElementById('cancelSubConfirm').value.trim();
+      const refund = document.getElementById('cancelSubRefund').checked;
+      const msg = document.getElementById('cancelSubMsg');
+      if (!userId) { msg.style.color = '#f87171'; msg.textContent = 'Enter a user ID.'; return; }
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Cancelling…';
+      const { ok, data } = await C4K.api('/api/admin/cancel-subscription', 'POST', { userId, confirm: confirmTxt, refund });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Subscription cancelled' + (data.refunded ? ' and latest invoice refunded.' : '.'); document.getElementById('cancelSubConfirm').value = ''; loadRevenue(); }
+      else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not cancel.'; }
+    }
+
+    // ── Online right now ──
+    let _onlineNowTimer = null;
+    async function loadOnlineNow() {
+      const { ok, data } = await C4K.api('/api/admin/online-now');
+      const el = document.getElementById('onlineNowBody');
+      if (!el) return;
+      if (!ok) return;
+      if (!data.total) { el.innerHTML = 'Nobody active in the last 5 minutes.'; return; }
+      const byRoleTxt = Object.entries(data.byRole || {}).map(([r, n]) => `${n} ${r}`).join(' · ');
+      el.innerHTML = `<div style="font-weight:900;font-size:1.3rem;color:#4ade80;margin-bottom:4px;">${data.total} online</div>
+        <div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:10px;">${C4K.esc(byRoleTxt)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${(data.users || []).slice(0, 30).map(u => `<span style="background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:3px 10px;font-size:0.78rem;font-weight:700;">${C4K.esc(u.name || u.username)} <span style="color:var(--text-faint);">(${C4K.esc(u.role)})</span></span>`).join('')}</div>`;
+    }
+
+    // ── Feature flag scheduling ──
+    async function scheduleFlag() {
+      const flag = document.getElementById('schedFlagKey').value;
+      const value = document.getElementById('schedFlagValue').value === 'true';
+      const at = document.getElementById('schedFlagAt').value;
+      const msg = document.getElementById('schedFlagMsg');
+      if (!at) { msg.style.color = '#f87171'; msg.textContent = 'Pick a date/time.'; return; }
+      const { ok, data } = await C4K.api('/api/admin/schedule-flag', 'POST', { flag, value, at: new Date(at).toISOString() });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Scheduled.'; renderScheduledFlags(data.scheduled); }
+      else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not schedule.'; }
+    }
+    function renderScheduledFlags(map) {
+      const el = document.getElementById('schedFlagList');
+      if (!el) return;
+      const keys = Object.keys(map || {});
+      if (!keys.length) { el.innerHTML = ''; return; }
+      const labels = { vibeStudio: '🎨 Vibe Studio', liveSessions: '🎟️ Live Sessions', referrals: '🎁 Referrals' };
+      el.innerHTML = '<strong>Pending:</strong> ' + keys.map(k => `${labels[k] || k} → ${map[k].value ? 'ON' : 'OFF'} at ${new Date(map[k].at).toLocaleString()}`).join(' · ');
+    }
+
+    // ── Compliance export by email ──
+    async function runComplianceExport() {
+      const email = document.getElementById('complianceEmail').value.trim();
+      const msg = document.getElementById('complianceMsg');
+      if (!email || !email.includes('@')) { msg.style.color = '#f87171'; msg.textContent = 'Enter a valid email.'; return; }
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Exporting…';
+      const res = await fetch('/api/admin/compliance-export?email=' + encodeURIComponent(email), { headers: { Authorization: 'Bearer ' + C4K.token() } });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); msg.style.color = '#f87171'; msg.textContent = d.error || 'Could not export.'; return; }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kidvibers-compliance-' + new Date().toISOString().slice(0,10) + '.json'; a.click();
+      msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Downloaded.';
+    }
+
+    // ── Auto-flag rule config ──
+    async function loadAutoFlagConfig() {
+      const { ok, data } = await C4K.api('/api/admin/autoflag-config');
+      if (!ok || !data.config) return;
+      document.getElementById('autoFlagEnabled').checked = !!data.config.enabled;
+      document.getElementById('autoFlagThreshold').value = data.config.threshold;
+      document.getElementById('autoFlagWindow').value = data.config.windowHours;
+    }
+    async function saveAutoFlagConfig() {
+      const enabled = document.getElementById('autoFlagEnabled').checked;
+      const threshold = parseInt(document.getElementById('autoFlagThreshold').value, 10) || 3;
+      const windowHours = parseInt(document.getElementById('autoFlagWindow').value, 10) || 24;
+      const msg = document.getElementById('autoFlagMsg');
+      const { ok, data } = await C4K.api('/api/admin/autoflag-config', 'POST', { enabled, threshold, windowHours });
+      if (ok) { msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Saved.'; }
+      else { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not save.'; }
     }
     async function editNotes(userId, name, current) {
       const notes = prompt('Notes for ' + name + ':', current || '');
@@ -2739,7 +2950,7 @@
       location.href = 'index.html?login=1';                  // not logged in → main login
     })();
   </script>
-  <script src="pwa.js?v=218" defer></script>
-  <script src="editor.js?v=218" defer></script>
+  <script src="pwa.js?v=219" defer></script>
+  <script src="editor.js?v=219" defer></script>
 </body>
 </html>

@@ -15,7 +15,7 @@ CREATE TABLE users (
             owned_items TEXT,
             link_token TEXT,
             created_at TEXT NOT NULL
-        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0, kid_email TEXT, referral_code TEXT, referred_by TEXT, referral_count INTEGER DEFAULT 0, last_nudge TEXT, card_token TEXT, plan_interval TEXT, plan_renews_at TEXT, promo_pro_until TEXT, last_login_at TEXT, counselor_email TEXT, admin_notes TEXT, terms_version TEXT, terms_accepted_at TEXT);
+        , age_years INTEGER, consent_status TEXT DEFAULT 'not_required', consent_method TEXT, consent_at TEXT, consent_by TEXT, consent_token TEXT, consent_confirm_token TEXT, school TEXT, suspended INTEGER DEFAULT 0, suspend_reason TEXT, suspend_until TEXT, reset_token TEXT, reset_expires TEXT, brand_name TEXT, brand_logo TEXT, quiz_done INTEGER DEFAULT 0, quiz_level TEXT, quiz_plan TEXT, start_unit INTEGER, class_code TEXT, stripe_customer_id TEXT, stripe_subscription_id TEXT, district_id INTEGER, launch_pro INTEGER DEFAULT 0, kid_email TEXT, referral_code TEXT, referred_by TEXT, referral_count INTEGER DEFAULT 0, last_nudge TEXT, card_token TEXT, plan_interval TEXT, plan_renews_at TEXT, promo_pro_until TEXT, last_login_at TEXT, counselor_email TEXT, admin_notes TEXT, terms_version TEXT, terms_accepted_at TEXT, last_seen_at TEXT);
 CREATE TABLE IF NOT EXISTS error_log (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, message TEXT, created_at TEXT);
 CREATE TABLE messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +36,9 @@ CREATE TABLE progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, comple
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE chat_usage (user_id INTEGER NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
 CREATE TABLE IF NOT EXISTS screen_time (user_id INTEGER NOT NULL, day TEXT NOT NULL, minutes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
+-- One row per weekly MRR snapshot, so the super admin revenue dashboard can show a real trend
+-- line instead of just a single point-in-time number.
+CREATE TABLE IF NOT EXISTS mrr_snapshot (id INTEGER PRIMARY KEY AUTOINCREMENT, mrr INTEGER NOT NULL, pro_count INTEGER, family_count INTEGER, teacher_count INTEGER, snapshot_at TEXT NOT NULL);
 -- One row per hourly automated health check, so the public status page can show REAL uptime
 -- history (not a fabricated number) once enough checks have accumulated.
 CREATE TABLE IF NOT EXISTS uptime_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ok INTEGER NOT NULL, db_ms INTEGER, checked_at TEXT NOT NULL);
