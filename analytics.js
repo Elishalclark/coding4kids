@@ -2,7 +2,7 @@
 // for-schools-privacy.html. To disable a provider site-wide, empty its ID below.
 (function () {
   var CLARITY_ID = "xt6zo4j6wt";       // Microsoft Clarity (heatmaps + session insights)
-  var GA_ID = "G-J2H29JLW94";          // Google Analytics 4 (aggregate usage)
+  var GA_ID = "G-W1VS7WELXG";          // Google Analytics 4 (aggregate usage)
 
   // ── Microsoft Clarity ──
   if (CLARITY_ID) {
