@@ -59,6 +59,12 @@ STRIPE_PRICES = {
 }
 
 TRIAL_DAYS = 3
+# Web Push (VAPID). Optional: set these to deliver real browser push notifications.
+# Without them, notifications still reach users in-app (dashboard) and by email — the
+# push subscription/opt-in is captured either way so you can turn push on later.
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:hello@kidvibers.com").strip()
 ADMIN_ROLES = ("admin", "super_admin")
 GUARDIAN_ROLES = ("parent", "teacher")   # adults who manage kids
 COPPA_AGE = 13                            # under this age, verifiable consent is required (US COPPA)
@@ -458,6 +464,11 @@ def init_db():
             email TEXT, plan TEXT, requested_by TEXT, status TEXT DEFAULT 'pending',
             created_at TEXT, resolved_at TEXT, resolved_by TEXT
         );
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL, endpoint TEXT UNIQUE,
+            p256dh TEXT, auth TEXT, created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -487,6 +498,7 @@ def init_db():
         "quiz_plan": "TEXT", "start_unit": "INTEGER",
         "class_code": "TEXT",   # teacher/district join code kids enter to join the group
         "stripe_customer_id": "TEXT", "stripe_subscription_id": "TEXT",   # real billing
+        "notif_opt_in": "INTEGER DEFAULT 0", "notif_opt_in_at": "TEXT",   # "accepted notifications"
     }
     for col, decl in add_cols.items():
         if col not in existing:
@@ -773,6 +785,51 @@ def send_email(to, subject, html):
 
 def send_email_async(to, subject, html):
     threading.Thread(target=send_email, args=(to, subject, html), daemon=True).start()
+
+
+def _webpush_ready():
+    """Real browser push needs VAPID keys AND the (optional) pywebpush backend for the
+    encryption. Everything degrades gracefully: with no keys/backend we still deliver
+    in-app + email, and we still record who subscribed so push can be switched on later."""
+    if not (VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY):
+        return None
+    try:
+        from pywebpush import webpush  # optional; not required for the app to run
+        return webpush
+    except Exception:
+        return None
+
+
+def push_broadcast(conn, user_ids, title, body, url="/dashboard.html"):
+    """Best-effort Web Push to every stored subscription for these users. Returns how many
+    push messages were sent. Never raises — a push failure must not break the request."""
+    webpush = _webpush_ready()
+    if not webpush or not user_ids:
+        return 0
+    qmarks = ",".join("?" for _ in user_ids)
+    subs = conn.execute(
+        f"SELECT id,endpoint,p256dh,auth FROM push_subscriptions WHERE user_id IN ({qmarks})",
+        list(user_ids)).fetchall()
+    payload = json.dumps({"title": title, "body": body, "url": url})
+    sent, dead = 0, []
+    for s in subs:
+        try:
+            webpush(
+                subscription_info={"endpoint": s["endpoint"],
+                                   "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}},
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_SUBJECT},
+            )
+            sent += 1
+        except Exception as e:
+            # 404/410 mean the subscription is gone — prune it so we stop trying.
+            if "410" in str(e) or "404" in str(e):
+                dead.append(s["id"])
+    if dead:
+        conn.execute(f"DELETE FROM push_subscriptions WHERE id IN ({','.join('?' for _ in dead)})", dead)
+        conn.commit()
+    return sent
 
 
 def get_super_admin_email():
@@ -1412,7 +1469,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/site-config":  # public: whether sign-ups / logins are currently enabled
             return self._send_json({"signupsEnabled": auth_enabled("signups"),
                                     "loginsEnabled": auth_enabled("logins"),
-                                    "stripeEnabled": stripe_enabled()})
+                                    "stripeEnabled": stripe_enabled(),
+                                    "vapidPublicKey": VAPID_PUBLIC_KEY})
 
         if path == "/api/progress":
             u = self._current_user()
@@ -1741,6 +1799,10 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/set-plan": lambda: self.api_set_plan(data),
             "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/notice": lambda: self.api_admin_notice(data),
+            "/api/admin/notify": lambda: self.api_admin_notify(data),
+            "/api/push/subscribe": lambda: self.api_push_subscribe(data),
+            "/api/push/unsubscribe": lambda: self.api_push_unsubscribe(data),
+            "/api/notify/opt-in": lambda: self.api_notify_opt_in(data),
             "/api/admin/delete-user": lambda: self.api_admin_delete_user(data),
             "/api/admin/suspend": lambda: self.api_admin_suspend(data),
             "/api/admin/set-credentials": lambda: self.api_admin_set_credentials(data),
@@ -2439,6 +2501,117 @@ class Handler(BaseHTTPRequestHandler):
         if target["parent_email"]:
             send_email_async(target["parent_email"], "A message from KidVibers", msg)
         return self._send_json({"ok": True})
+
+    # ── Notifications: capturing "the person accepts notifications" ──
+    def api_push_subscribe(self, data):
+        # A logged-in user's browser accepted push and handed us a subscription. Store it and
+        # mark them opted-in so mass/personal notifications can reach them.
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        sub = data.get("subscription") or {}
+        endpoint = (sub.get("endpoint") or "").strip()
+        keys = sub.get("keys") or {}
+        p256dh = (keys.get("p256dh") or "").strip()
+        auth = (keys.get("auth") or "").strip()
+        if not endpoint:
+            return self._send_json({"error": "A push subscription is required."}, 400)
+        conn = db()
+        # One row per endpoint; re-subscribing (e.g. new device or refreshed keys) just updates it.
+        conn.execute(
+            "INSERT INTO push_subscriptions (user_id,endpoint,p256dh,auth,created_at) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth",
+            (u["id"], endpoint, p256dh, auth, now_iso()))
+        conn.execute("UPDATE users SET notif_opt_in=1, notif_opt_in_at=? WHERE id=?", (now_iso(), u["id"]))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_push_unsubscribe(self, data):
+        # The browser turned push off — drop the stored subscription for that endpoint.
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        endpoint = (data.get("endpoint") or "").strip()
+        conn = db()
+        if endpoint:
+            conn.execute("DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?", (endpoint, u["id"]))
+        else:
+            conn.execute("DELETE FROM push_subscriptions WHERE user_id=?", (u["id"],))
+        # If they have no push endpoints left, they're no longer opted in.
+        left = conn.execute("SELECT COUNT(*) c FROM push_subscriptions WHERE user_id=?", (u["id"],)).fetchone()["c"]
+        if not left:
+            conn.execute("UPDATE users SET notif_opt_in=0 WHERE id=?", (u["id"],))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_notify_opt_in(self, data):
+        # Records notification consent even when there's no push endpoint yet (e.g. the browser
+        # granted permission but no VAPID key is configured). Lets people opt in/out on their own.
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        on = 1 if data.get("optIn", True) else 0
+        conn = db()
+        conn.execute("UPDATE users SET notif_opt_in=?, notif_opt_in_at=? WHERE id=?",
+                     (on, now_iso() if on else None, u["id"]))
+        if not on:
+            conn.execute("DELETE FROM push_subscriptions WHERE user_id=?", (u["id"],))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "optIn": bool(on)})
+
+    def api_admin_notify(self, data):
+        # Super admin sends a notification — to everyone (mass), a role, people who opted in, or one
+        # person (personal). Delivered on each user's dashboard (in-app notice) and optionally by email,
+        # plus real browser push to anyone who accepted it (when VAPID keys are configured).
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        title = (data.get("title") or "").strip()
+        msg = (data.get("message") or "").strip()
+        if not msg:
+            return self._send_json({"error": "A message is required."}, 400)
+        audience = (data.get("audience") or "all").strip()
+        also_email = bool(data.get("email"))
+        conn = db()
+        if audience == "user":
+            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE id=?", (data.get("userId"),)).fetchall()
+        elif audience == "role":
+            role = (data.get("role") or "").strip()
+            if role not in ("kid", "parent", "teacher", "admin", "super_admin"):
+                conn.close()
+                return self._send_json({"error": "Pick a valid role."}, 400)
+            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE role=?", (role,)).fetchall()
+        elif audience == "optedin":  # only people who accepted notifications
+            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE notif_opt_in=1").fetchall()
+        else:  # "all"
+            rows = conn.execute("SELECT id,name,parent_email FROM users").fetchall()
+        if not rows:
+            conn.close()
+            return self._send_json({"error": "No one matched that audience."}, 404)
+        # In-app notice on every targeted user's dashboard (this is the guaranteed delivery channel).
+        body = (title + "\n\n" + msg) if title else msg
+        ts = now_iso()
+        conn.executemany("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
+                         [(r["id"], "announcement", body, ts) for r in rows])
+        conn.commit()
+        # Optional email to the address on file (deduped so a family isn't emailed many times).
+        emailed = 0
+        if also_email:
+            seen = set()
+            subject = title or "A message from KidVibers"
+            for r in rows:
+                em = (r["parent_email"] or "").strip().lower()
+                if em and em not in seen:
+                    seen.add(em)
+                    send_email_async(r["parent_email"], subject, body)
+                    emailed += 1
+        # Best-effort real browser push to anyone who accepted it.
+        pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
+        conn.close()
+        return self._send_json({"ok": True, "recipients": len(rows), "emailed": emailed, "pushed": pushed})
 
     def api_admin_delete_user(self, data):
         # Super admin deletes an account (kid/parent/teacher) and all its data, with a reason on record.

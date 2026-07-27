@@ -790,6 +790,43 @@
         <button class="btn btn-outline" onclick="clearSiteMessage()">Clear</button>
       </div>
 
+      <!-- Notification Center: mass + personal notifications (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="notifyPanel" style="display:none;">
+        <h3>🔔 Send a Notification <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">reaches people on their dashboard</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Send a message to <strong>everyone</strong> (mass) or to <strong>one person</strong> (personal). It shows on their dashboard the moment they open it, and — for anyone who <em>accepted notifications</em> — as a real push notification too (once push keys are set up). Optionally email it as well.</p>
+        <label class="le-lbl">Send to
+          <select id="ntAudience" class="le-in" style="padding:10px 12px;" onchange="ntAudienceChanged()">
+            <option value="all">🌍 Everyone (mass)</option>
+            <option value="optedin">🔔 Only people who accepted notifications</option>
+            <option value="role">👥 A group (by role)</option>
+            <option value="user">🙋 One person (personal)</option>
+          </select>
+        </label>
+        <label class="le-lbl" id="ntRoleWrap" style="margin-top:10px;display:none;">Which group
+          <select id="ntRole" class="le-in" style="padding:10px 12px;">
+            <option value="kid">🧒 Kids</option>
+            <option value="parent">👨‍👩‍👧 Parents</option>
+            <option value="teacher">👩‍🏫 Teachers</option>
+          </select>
+        </label>
+        <label class="le-lbl" id="ntUserWrap" style="margin-top:10px;display:none;">Person (their user ID)
+          <input id="ntUserId" class="le-in" type="number" min="1" placeholder="e.g. 42 — find IDs in the Users list above" />
+        </label>
+        <label class="le-lbl" style="margin-top:10px;">Title <span style="color:var(--text-faint);font-weight:700;">(optional)</span>
+          <input id="ntTitle" class="le-in" maxlength="120" placeholder="e.g. 🎉 New games just dropped!" />
+        </label>
+        <label class="le-lbl" style="margin-top:10px;">Message
+          <textarea id="ntBody" class="le-in" rows="4" maxlength="2000" style="resize:vertical;" placeholder="Write your notification here. Line breaks are kept."></textarea>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:0.88rem;margin:12px 0;">
+          <input type="checkbox" id="ntEmail" /> Also email it to the address on file
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" onclick="sendNotification()" id="ntSendBtn">🔔 Send notification</button>
+          <span id="ntMsg" style="font-weight:700;font-size:0.85rem;"></span>
+        </div>
+      </div>
+
       <!-- Mass email / mailing list (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="emailBlastPanel" style="display:none;">
         <h3>📧 Email Everyone <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">all collected emails in one place</span></h3>
@@ -2702,6 +2739,50 @@
       btn.disabled = false;
       if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = `✅ Sent to ${data.sent} of ${data.total}${data.failed ? ` (${data.failed} failed)` : ''}.`; document.getElementById('emSubject').value=''; document.getElementById('emBody').value=''; }
       else { msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not send.'); }
+    }
+
+    // ── Notification Center (super admin): mass + personal notifications ──
+    function ntAudienceChanged() {
+      const a = document.getElementById('ntAudience').value;
+      document.getElementById('ntRoleWrap').style.display = (a === 'role') ? '' : 'none';
+      document.getElementById('ntUserWrap').style.display = (a === 'user') ? '' : 'none';
+    }
+    async function sendNotification() {
+      const msg = document.getElementById('ntMsg');
+      const audience = document.getElementById('ntAudience').value;
+      const title = document.getElementById('ntTitle').value.trim();
+      const body = document.getElementById('ntBody').value.trim();
+      const email = document.getElementById('ntEmail').checked;
+      if (!body) { msg.style.color = '#f87171'; msg.textContent = 'Write a message first.'; return; }
+      const payload = { audience, title, message: body, email };
+      let label;
+      if (audience === 'user') {
+        const uid = parseInt(document.getElementById('ntUserId').value, 10);
+        if (!uid) { msg.style.color = '#f87171'; msg.textContent = 'Enter the person’s user ID.'; return; }
+        payload.userId = uid; label = `user #${uid}`;
+      } else if (audience === 'role') {
+        payload.role = document.getElementById('ntRole').value;
+        label = 'all ' + payload.role + 's';
+      } else if (audience === 'optedin') {
+        label = 'everyone who accepted notifications';
+      } else {
+        label = 'EVERYONE';
+      }
+      if (!confirm(`Send this notification to ${label}?` + (email ? ' It will also send real emails.' : ''))) return;
+      const btn = document.getElementById('ntSendBtn'); btn.disabled = true;
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…';
+      const { ok, data } = await C4K.api('/api/admin/notify', 'POST', payload);
+      btn.disabled = false;
+      if (ok) {
+        msg.style.color = 'var(--green,#5ad17e)';
+        msg.textContent = `✅ Sent to ${data.recipients} ${data.recipients === 1 ? 'person' : 'people'}`
+          + (data.emailed ? `, ${data.emailed} emailed` : '')
+          + (data.pushed ? `, ${data.pushed} pushed` : '') + '.';
+        document.getElementById('ntTitle').value = '';
+        document.getElementById('ntBody').value = '';
+      } else {
+        msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not send.');
+      }
     }
 
     // ── Signup quiz editor (super admin) ──

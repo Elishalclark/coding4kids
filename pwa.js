@@ -52,20 +52,25 @@
       if (!this.supported()) { alert('Notifications are not supported on this device.'); return false; }
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') return false;
+      // Record that this person accepted notifications, so the site can send them
+      // announcements (shown on their dashboard + optional email) even before browser
+      // push keys are configured on the server.
+      try { if (window.C4K && C4K.api) await C4K.api('/api/notify/opt-in', 'POST', { optIn: true }); } catch (e) {}
       let cfg = {}; try { cfg = await (await fetch('/api/site-config')).json(); } catch {}
-      if (!cfg.vapidPublicKey) { alert('🔔 Reminders will be enabled once the server is set up. Permission granted!'); return true; }
+      if (!cfg.vapidPublicKey) { return true; }  // opt-in recorded; real browser push turns on when keys are set
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.vapidPublicKey) });
         await (window.C4K && C4K.api ? C4K.api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }) : Promise.resolve());
         return true;
-      } catch (e) { console.log('push subscribe failed', e); return false; }
+      } catch (e) { console.log('push subscribe failed', e); return true; } // opt-in still recorded
     },
     async disable() {
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) { await (window.C4K && C4K.api ? C4K.api('/api/push/unsubscribe', 'POST', { endpoint: sub.endpoint }) : Promise.resolve()); await sub.unsubscribe(); }
+        else if (window.C4K && C4K.api) { await C4K.api('/api/notify/opt-in', 'POST', { optIn: false }); }
         return true;
       } catch { return false; }
     }
