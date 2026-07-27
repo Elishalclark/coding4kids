@@ -3502,11 +3502,11 @@ class Handler(BaseHTTPRequestHandler):
         # for the site's inline handlers/styles and 'unsafe-eval' for Skulpt (in-browser Python).
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; "
-                         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clarity.ms; "
+                         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clarity.ms https://www.googletagmanager.com; "
                          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                          "font-src 'self' https://fonts.gstatic.com; "
-                         "img-src 'self' data: https://api.dicebear.com https://api.qrserver.com https://*.clarity.ms https://c.bing.com; "
-                         "connect-src 'self' https://*.clarity.ms https://c.bing.com; frame-ancestors 'none'; base-uri 'self'; "
+                         "img-src 'self' data: https://api.dicebear.com https://api.qrserver.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; "
+                         "connect-src 'self' https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; "
                          "object-src 'none'; form-action 'self'")
 
     def serve_static(self, path):
