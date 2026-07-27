@@ -3506,7 +3506,8 @@ class Handler(BaseHTTPRequestHandler):
                          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                          "font-src 'self' https://fonts.gstatic.com; "
                          "img-src 'self' data: https://api.dicebear.com https://api.qrserver.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; "
-                         "connect-src 'self' https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; "
+                         "connect-src 'self' https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; "
+                         "frame-src https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; "
                          "object-src 'none'; form-action 'self'")
 
     def serve_static(self, path):
