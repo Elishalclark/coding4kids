@@ -9,13 +9,11 @@
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
 
-  // ── Consent Mode v2 default — MUST run before any Google tag (GTM/GA) loads.
-  // Everything starts denied; call gtag('consent','update',{ analytics_storage:'granted',
-  // ... }) from a cookie banner once the visitor agrees. ──
+  // ── Consent Mode default — MUST run before any Google tag (GTM/GA) loads.
+  // Analytics only: no advertising consent is requested or used on this child-directed
+  // site. analytics_storage starts denied; call gtag('consent','update',{
+  // analytics_storage:'granted' }) from a cookie banner once the visitor agrees. ──
   gtag("consent", "default", {
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-    ad_storage: "denied",
     analytics_storage: "denied",
     wait_for_update: 500
   });
