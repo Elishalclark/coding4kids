@@ -15,13 +15,26 @@
 
   // ── Google Analytics 4 ──
   // Configured for analytics only: advertising personalization and Google Signals
-  // are disabled, so it never builds advertising profiles of children.
+  // are disabled, so it never builds advertising profiles of children. Google Consent
+  // Mode v2 starts every storage type "denied" until consent is granted.
   if (GA_ID) {
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+
+    // Consent Mode v2 default — MUST run before gtag.js loads. Everything starts denied;
+    // call gtag('consent','update',{ analytics_storage:'granted', ... }) from a cookie
+    // banner once the visitor agrees, to switch GA out of consent-denied (cookieless) mode.
+    gtag("consent", "default", {
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+      ad_storage: "denied",
+      analytics_storage: "denied",
+      wait_for_update: 500
+    });
+
     var s = document.createElement("script");
     s.async = 1; s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
     document.getElementsByTagName("script")[0].parentNode.insertBefore(s, null);
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function () { window.dataLayer.push(arguments); };
     gtag("js", new Date());
     gtag("config", GA_ID, {
       anonymize_ip: true,
