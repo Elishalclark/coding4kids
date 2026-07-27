@@ -250,11 +250,11 @@ const SECURITY_HEADERS = {
   // an XSS payload from loading a script or exfiltrating data to an attacker-controlled domain,
   // which is the most damaging part of an injection even when inline execution itself isn't blocked.
   "Content-Security-Policy": "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://accounts.google.com; " +
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://*.clarity.ms https://www.googletagmanager.com; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
-    "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com; " +
-    "connect-src 'self' https://accounts.google.com; " +
+    "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; " +
+    "connect-src 'self' https://accounts.google.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; " +
     "frame-src https://accounts.google.com; " +
     "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
   // Turn off device APIs the site never uses.
