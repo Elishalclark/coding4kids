@@ -8,8 +8,6 @@ Disallow: /district.html
 Disallow: /checkout.html
 Disallow: /reset.html
 Disallow: /certificate.html
-Disallow: /email-templates.html
-Disallow: /support-inbox.html
 Disallow: /marketing/
 Disallow: /api/
 

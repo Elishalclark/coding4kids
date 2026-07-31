@@ -214,8 +214,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <button class="sb-link super-only" style="display:none;" data-sec="secBilling" onclick="navTo('secBilling',this)">💳 Billing &amp; Promos</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secRevenue" onclick="navTo('secRevenue',this)">💰 Revenue</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
-      <a class="sb-link super-only" style="display:none;" href="email-templates.html" target="_blank" rel="noopener">✉️ Email Templates</a>
-      <a class="sb-link super-only" style="display:none;" href="support-inbox.html" target="_blank" rel="noopener">📥 Support Inbox</a>
+      <button class="sb-link super-only" style="display:none;" data-sec="secEmailTemplates" onclick="navTo('secEmailTemplates',this)">✉️ Email Templates</button>
+      <button class="sb-link super-only" style="display:none;" data-sec="secSupportInbox" onclick="navTo('secSupportInbox',this)">📥 Support Inbox</button>
       <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
       <div class="sb-spacer"></div>
       <div class="sb-footer">
@@ -889,6 +889,27 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div id="amList" style="margin-top:16px;display:flex;flex-direction:column;gap:10px;"></div>
       </div>
 
+      <h2 class="super-only admin-section" id="secEmailTemplates" style="display:none;">✉️ Email Templates</h2>
+
+      <!-- Email Templates: ready-to-copy-paste marketing/personal/business/password/support copy (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="emailTemplatesPanel" style="display:none;">
+        <h3>✉️ Email Templates <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">copy straight into your email client</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Ready-to-send copy for KidVibers. Some use placeholders like <code>{name}</code>, <code>{resetLink}</code>, or <code>{replyBody}</code> — swap those out before sending.</p>
+        <div id="etTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+        <div id="etList"></div>
+      </div>
+
+      <h2 class="super-only admin-section" id="secSupportInbox" style="display:none;">📥 Support Inbox</h2>
+
+      <!-- Support Inbox: messages captured from support@ once inbound email is wired up (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="supportInboxPanel" style="display:none;">
+        <h3>📥 Support Inbox <span id="siUnreadBadge" style="display:none;font-size:0.7rem;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;border-radius:50px;padding:2px 10px;"></span></h3>
+        <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:12px 16px;color:#fde68a;font-size:0.82rem;line-height:1.6;margin:8px 0 14px;">
+          ⚠️ <strong>This inbox only fills up once inbound email is wired up.</strong> The API is ready, but routing mail sent to <code>support@kidvibers.com</code> here needs a one-time setup step outside this codebase: set an <code>INBOUND_EMAIL_SECRET</code> env var, then point an inbound-email provider (Cloudflare Email Routing, Resend, Mailgun, etc.) at <code>POST /api/inbound/support-email</code> with JSON <code>{"secret":"...","from":"...","subject":"...","text":"..."}</code>. Until then, support@ mail still arrives in your normal mailbox as usual.
+        </div>
+        <div id="siList" data-clarity-mask="true"></div>
+      </div>
+
       <!-- Mass email / mailing list (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="emailBlastPanel" style="display:none;">
         <h3>📧 Email Everyone <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">all collected emails in one place</span></h3>
@@ -1516,7 +1537,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       if (createHintEl) createHintEl.textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
       caRoleChanged();
       loadAdminNotices();
-      if (sup) { loadNotifyHistory(); loadScheduled(); loadAutomations(); }
+      if (sup) { loadNotifyHistory(); loadScheduled(); loadAutomations(); loadEmailTemplates(); loadSupportInbox(); }
 
       // Stat boxes — load in isolation so one failing API call can never blank the whole dashboard.
       try {
@@ -2975,6 +2996,83 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       await C4K.api('/api/admin/automations/delete', 'POST', { id });
       loadAutomations();
     }
+
+    // ── Email Templates (super admin) ──
+    let _templates = [];
+    let _templateTab = 'all';
+    const TEMPLATE_CATS = { all: 'All', featured: '⭐ Featured', marketing: 'Marketing', personal: 'Personal',
+                            business: 'Business', passwords: 'Passwords', support: 'Support' };
+    async function loadEmailTemplates() {
+      const { ok, data } = await C4K.api('/api/admin/email-templates');
+      if (!ok) { document.getElementById('etList').innerHTML = `<p style="color:#f87171;">${C4K.esc(data.error || 'Could not load templates.')}</p>`; return; }
+      _templates = data.templates;
+      renderTemplateTabs();
+      renderTemplateList();
+    }
+    function renderTemplateTabs() {
+      document.getElementById('etTabs').innerHTML = Object.entries(TEMPLATE_CATS).map(([k, label]) =>
+        `<button class="btn ${k === _templateTab ? 'btn-primary' : 'btn-outline'}" style="font-size:0.8rem;padding:7px 14px;" onclick="setTemplateTab('${k}')">${label}</button>`).join('');
+    }
+    function setTemplateTab(k) { _templateTab = k; renderTemplateTabs(); renderTemplateList(); }
+    function renderTemplateList() {
+      const list = _templateTab === 'all' ? _templates
+        : _templateTab === 'featured' ? _templates.filter(t => t.featured)
+        : _templates.filter(t => t.category === _templateTab);
+      document.getElementById('etList').innerHTML = list.map((t, i) => `
+        <div class="panel" style="${t.featured ? 'border-color:rgba(251,191,36,.5);' : ''}margin-bottom:14px;">
+          <div style="font-weight:900;color:var(--text);">${t.featured ? '⭐ ' : ''}${C4K.esc(t.title)}
+            <span style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--purple);background:rgba(124,58,237,.15);border-radius:6px;padding:2px 8px;margin-left:8px;">${C4K.esc(TEMPLATE_CATS[t.category] || t.category)}</span></div>
+          <div style="color:var(--text-faint);font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-top:10px;">Subject</div>
+          <div style="color:var(--text);font-weight:700;margin-top:2px;" id="etSubj_${i}">${C4K.esc(t.subject)}</div>
+          <div style="color:var(--text-faint);font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-top:10px;">Body</div>
+          <div style="color:var(--text-dim);white-space:pre-wrap;font-size:0.88rem;line-height:1.6;margin-top:2px;max-height:260px;overflow-y:auto;background:var(--surface-2);border-radius:10px;padding:12px 14px;" id="etBody_${i}">${C4K.esc(t.body)}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="copyTemplateField(this,'etSubj_${i}')">📋 Copy subject</button>
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="copyTemplateField(this,'etBody_${i}')">📋 Copy body</button>
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="copyTemplateBoth(this, ${i})">📋 Copy both</button>
+          </div>
+        </div>`).join('') || '<p style="color:var(--text-faint);">Nothing in this category.</p>';
+    }
+    function flashCopied(btn) {
+      const old = btn.textContent;
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => { btn.textContent = old; }, 1500);
+    }
+    function copyTemplateField(btn, elId) {
+      const text = document.getElementById(elId).textContent;
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => prompt('Copy:', text));
+    }
+    function copyTemplateBoth(btn, i) {
+      const text = `Subject: ${document.getElementById('etSubj_' + i).textContent}\n\n${document.getElementById('etBody_' + i).textContent}`;
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => prompt('Copy:', text));
+    }
+
+    // ── Support Inbox (super admin) ──
+    async function loadSupportInbox() {
+      const { ok, data } = await C4K.api('/api/admin/support-inbox');
+      const wrap = document.getElementById('siList');
+      const badge = document.getElementById('siUnreadBadge');
+      if (!ok) { wrap.innerHTML = `<p style="color:#f87171;">${C4K.esc(data.error || 'Could not load inbox.')}</p>`; return; }
+      if (data.unread > 0) { badge.style.display = ''; badge.textContent = data.unread + ' unread'; }
+      else { badge.style.display = 'none'; }
+      if (!data.messages.length) { wrap.innerHTML = '<p style="color:var(--text-faint);">No messages yet.</p>'; return; }
+      wrap.innerHTML = data.messages.map(m => `
+        <div class="panel" style="${m.read ? '' : 'border-color:rgba(124,58,237,.6);'}margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">
+            <div><div style="font-weight:900;color:var(--text);">${C4K.esc(m.from || '(unknown sender)')}</div>
+              <div style="color:var(--text);font-weight:700;">${C4K.esc(m.subject)}</div></div>
+            <div style="color:var(--text-faint);font-size:0.78rem;font-weight:800;">${m.at}${m.read ? '' : ' · 🔵 unread'}</div>
+          </div>
+          <div style="color:var(--text-dim);white-space:pre-wrap;font-size:0.88rem;line-height:1.6;margin-top:10px;">${C4K.esc(m.body)}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+            <a class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" href="mailto:${encodeURIComponent(m.from || '')}?subject=${encodeURIComponent('Re: ' + (m.subject || ''))}">↩️ Reply</a>
+            ${m.read ? '' : `<button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="markSupportRead(${m.id})">✓ Mark read</button>`}
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteSupportMsg(${m.id})">🗑️ Delete</button>
+          </div>
+        </div>`).join('');
+    }
+    async function markSupportRead(id) { await C4K.api('/api/admin/support-inbox/read', 'POST', { id }); loadSupportInbox(); }
+    async function deleteSupportMsg(id) { if (!confirm('Delete this message?')) return; await C4K.api('/api/admin/support-inbox/delete', 'POST', { id }); loadSupportInbox(); }
 
     // ── Signup quiz editor (super admin) ──
     let _quiz = [];
