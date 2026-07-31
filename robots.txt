@@ -18,6 +18,8 @@ Disallow: /live.html
 Disallow: /consent-verify.html
 Disallow: /certs-print.html
 Disallow: /pitch-packet.html
+Disallow: /email-templates.html
+Disallow: /support-inbox.html
 Disallow: /marketing/
 Disallow: /api/
 
