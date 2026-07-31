@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Support Inbox - KidVibers Admin</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=219" />
+  <style>
+    /* Not included: analytics.js. Real support messages (parent emails, message text) render
+       here — deliberately kept out of any session-recording/analytics tool. */
+    body { background: #0c0a18; }
+    .si-wrap { max-width: 900px; margin: 0 auto; padding: 28px 20px 90px; }
+    .si-hero { text-align:center; margin-bottom:20px; }
+    .si-hero h1 { font-size:1.8rem; font-weight:900; color:#fff; }
+    .si-hero p { color:#a5a0c0; margin-top:6px; }
+    .si-login { max-width:360px; margin:80px auto; background:#161327; border:1px solid rgba(167,139,250,.25); border-radius:16px; padding:28px; }
+    .si-login h2 { color:#fff; font-weight:900; margin-bottom:14px; text-align:center; }
+    .si-login input { width:100%; box-sizing:border-box; padding:11px 14px; border-radius:10px; border:1px solid rgba(167,139,250,.3); background:#0c0a18; color:#fff; font-family:inherit; margin-bottom:10px; }
+    .si-login button { width:100%; padding:11px; border:none; border-radius:10px; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-weight:900; cursor:pointer; }
+    .si-login .err { color:#f87171; font-size:0.85rem; margin-top:8px; text-align:center; min-height:1.2em; }
+    .si-setup { background:rgba(251,191,36,.1); border:1px solid rgba(251,191,36,.35); border-radius:12px; padding:16px 18px; color:#fde68a; font-size:0.88rem; line-height:1.6; margin-bottom:22px; }
+    .si-setup code { background:rgba(0,0,0,.3); padding:1px 6px; border-radius:5px; }
+    .si-card { background:#161327; border:1px solid rgba(167,139,250,.25); border-radius:14px; padding:16px 20px; margin-bottom:14px; }
+    .si-card.unread { border-color:rgba(124,58,237,.6); }
+    .si-top { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+    .si-from { color:#fff; font-weight:900; }
+    .si-subj { color:#e6dcff; font-weight:700; margin-top:2px; }
+    .si-meta { color:#6f6890; font-size:0.78rem; font-weight:800; }
+    .si-body { color:#c9c3e0; white-space:pre-wrap; font-size:0.9rem; line-height:1.6; margin-top:10px; }
+    .si-btns { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    .si-btn { background:rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.3); color:#c4b5fd; border-radius:8px; padding:6px 12px; font-weight:800; font-size:0.78rem; cursor:pointer; font-family:inherit; }
+    .si-btn.danger { color:#f87171; border-color:rgba(239,68,68,.4); }
+    .si-empty { color:#6f6890; text-align:center; padding:40px 0; }
+    .si-badge { display:inline-block; background:linear-gradient(135deg,#7c3aed,#db2777); color:#fff; font-size:0.72rem; font-weight:900; border-radius:50px; padding:2px 10px; margin-left:8px; }
+  </style>
+</head>
+<body>
+  <div class="si-wrap">
+    <div id="siLoginBox" class="si-login" style="display:none;">
+      <h2>🔐 Super Admin Sign-In</h2>
+      <input id="siUser" placeholder="Username" autocomplete="username" />
+      <input id="siPass" type="password" placeholder="Password" autocomplete="current-password" />
+      <button onclick="siLogin()">Sign In</button>
+      <div class="err" id="siLoginErr"></div>
+    </div>
+
+    <div id="siContent" style="display:none;">
+      <div class="si-hero">
+        <h1>📥 Support Inbox<span class="si-badge" id="siUnreadBadge" style="display:none;"></span></h1>
+        <p>Messages captured from support@kidvibers.com.</p>
+      </div>
+      <div class="si-setup">
+        ⚠️ <strong>This inbox only fills up once inbound email is wired up.</strong> This page and its API are ready, but actually routing mail sent to <code>support@kidvibers.com</code> here requires a one-time setup step outside this codebase:
+        <br><br>
+        1. Set an <code>INBOUND_EMAIL_SECRET</code> environment variable on the server (any long random string).<br>
+        2. Configure an inbound-email provider to POST each message to <code>POST /api/inbound/support-email</code> as JSON: <code>{"secret":"...","from":"...","subject":"...","text":"..."}</code>. Options: <strong>Cloudflare Email Routing</strong> (forward support@ to a small Worker that POSTs here — a natural fit since KidVibers already uses Cloudflare), or an inbound-parse webhook from your email/DNS provider (e.g. Resend, Mailgun).<br><br>
+        Until that's connected, support@ email still arrives in your normal mailbox exactly as it does today — nothing about your current email is changed.
+      </div>
+      <div id="siList"></div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    async function siLogin() {
+      const err = document.getElementById('siLoginErr');
+      const u = document.getElementById('siUser').value.trim();
+      const p = document.getElementById('siPass').value;
+      if (!u || !p) { err.textContent = 'Enter a username and password.'; return; }
+      const { ok, data } = await C4K.adminLogin(u, p);
+      if (!ok) { err.textContent = data.error || 'Login failed.'; return; }
+      if (!C4K.user || C4K.user.role !== 'super_admin') { err.textContent = 'This page is super-admin only.'; C4K.setToken(null); return; }
+      init();
+    }
+
+    function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    async function loadInbox() {
+      const { ok, data } = await C4K.api('/api/admin/support-inbox');
+      const wrap = document.getElementById('siList');
+      if (!ok) { wrap.innerHTML = `<p style="color:#f87171;">${esc(data.error || 'Could not load inbox.')}</p>`; return; }
+      const badge = document.getElementById('siUnreadBadge');
+      if (data.unread > 0) { badge.style.display = ''; badge.textContent = data.unread + ' unread'; }
+      else { badge.style.display = 'none'; }
+      if (!data.messages.length) { wrap.innerHTML = '<div class="si-empty">No messages yet.</div>'; return; }
+      wrap.innerHTML = data.messages.map(m => `
+        <div class="si-card ${m.read ? '' : 'unread'}">
+          <div class="si-top">
+            <div><div class="si-from">${esc(m.from || '(unknown sender)')}</div><div class="si-subj">${esc(m.subject)}</div></div>
+            <div class="si-meta">${m.at}${m.read ? '' : ' · 🔵 unread'}</div>
+          </div>
+          <div class="si-body">${esc(m.body)}</div>
+          <div class="si-btns">
+            <a class="si-btn" href="mailto:${encodeURIComponent(m.from || '')}?subject=${encodeURIComponent('Re: ' + (m.subject || ''))}">↩️ Reply</a>
+            ${m.read ? '' : `<button class="si-btn" onclick="markRead(${m.id})">✓ Mark read</button>`}
+            <button class="si-btn danger" onclick="deleteMsg(${m.id})">🗑️ Delete</button>
+          </div>
+        </div>`).join('');
+    }
+    async function markRead(id) { await C4K.api('/api/admin/support-inbox/read', 'POST', { id }); loadInbox(); }
+    async function deleteMsg(id) { if (!confirm('Delete this message?')) return; await C4K.api('/api/admin/support-inbox/delete', 'POST', { id }); loadInbox(); }
+
+    async function init() {
+      document.getElementById('siLoginBox').style.display = 'none';
+      document.getElementById('siContent').style.display = '';
+      loadInbox();
+    }
+
+    (async function boot() {
+      const me = await C4K.loadMe();
+      if (me && me.role === 'super_admin') { init(); }
+      else { document.getElementById('siLoginBox').style.display = ''; }
+    })();
+  </script>
+</body>
+</html>
