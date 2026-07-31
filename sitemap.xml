@@ -2,18 +2,43 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://kidvibers.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://kidvibers.com/lessons.html</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://kidvibers.com/playground.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://kidvibers.com/gallery.html</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://kidvibers.com/pricing.html</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kidvibers.com/playground.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kidvibers.com/games.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://kidvibers.com/trust.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <url><loc>https://kidvibers.com/about.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://kidvibers.com/press.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=curriculum</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=schools</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=parent-guide</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=teachers</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=help</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://kidvibers.com/page.html?p=contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://kidvibers.com/for-schools-privacy.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://kidvibers.com/for-libraries.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://kidvibers.com/run-a-session.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/quote.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/gift.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://kidvibers.com/help.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/accessibility.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://kidvibers.com/whats-new.html</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/incident-log.html</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://kidvibers.com/status.html</loc><changefreq>daily</changefreq><priority>0.3</priority></url>
+  <url><loc>https://kidvibers.com/leaderboard.html</loc><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://kidvibers.com/verify.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://kidvibers.com/badge.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://kidvibers.com/card.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://kidvibers.com/handout.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+
+  <url><loc>https://kidvibers.com/game-bugzapper.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-codeblitz.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-errordetective.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-functions.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-loops.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-match.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-numberninja.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-output.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-speedcoder.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-syntax.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-trivia.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kidvibers.com/game-webwizard.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+
   <url><loc>https://kidvibers.com/terms.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
   <url><loc>https://kidvibers.com/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://kidvibers.com/session-privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>

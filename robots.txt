@@ -8,6 +8,16 @@ Disallow: /district.html
 Disallow: /checkout.html
 Disallow: /reset.html
 Disallow: /certificate.html
+Disallow: /mylearning.html
+Disallow: /settings.html
+Disallow: /report.html
+Disallow: /class-report.html
+Disallow: /cert-wall.html
+Disallow: /kidcard.html
+Disallow: /live.html
+Disallow: /consent-verify.html
+Disallow: /certs-print.html
+Disallow: /pitch-packet.html
 Disallow: /marketing/
 Disallow: /api/
 
