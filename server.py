@@ -476,6 +476,25 @@ def init_db():
             recipients INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, pushed INTEGER DEFAULT 0,
             created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS scheduled_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_by TEXT, audience TEXT, role TEXT, user_id INTEGER,
+            title TEXT, body TEXT, email INTEGER DEFAULT 0,
+            send_at TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT, sent_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS notification_automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, trigger_type TEXT, trigger_days INTEGER DEFAULT 3,
+            audience_role TEXT DEFAULT 'kid',
+            title TEXT, body TEXT, email INTEGER DEFAULT 0,
+            cooldown_days INTEGER DEFAULT 30, enabled INTEGER DEFAULT 1,
+            created_by TEXT, created_at TEXT, last_run_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS automation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            automation_id INTEGER NOT NULL, user_id INTEGER NOT NULL, sent_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -837,6 +856,63 @@ def push_broadcast(conn, user_ids, title, body, url="/dashboard.html"):
         conn.execute(f"DELETE FROM push_subscriptions WHERE id IN ({','.join('?' for _ in dead)})", dead)
         conn.commit()
     return sent
+
+
+NOTIFY_ROLES = ("kid", "parent", "teacher", "admin", "super_admin")
+
+def notify_rows_for_audience(conn, audience, role=None, user_id=None):
+    """Resolve an audience selector (used by admin sends, scheduled sends, and automations)
+    into the list of user rows to notify. Returns None if the audience/role is invalid."""
+    if audience == "user":
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE id=?", (user_id,)).fetchall()
+    elif audience == "role":
+        if role not in NOTIFY_ROLES:
+            return None
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE role=?", (role,)).fetchall()
+    elif audience == "optedin":  # only people who accepted notifications
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE notif_opt_in=1").fetchall()
+    else:  # "all"
+        return conn.execute("SELECT id,name,parent_email FROM users").fetchall()
+
+
+def deliver_notification(conn, sent_by, audience, rows, title, msg, also_email, audience_detail=""):
+    """Send an already-resolved list of user rows a notification: in-app dashboard notice
+    (guaranteed channel), optional email, and best-effort browser push. Logs the send.
+    Returns {"recipients","emailed","pushed"} or None if there was no one to notify."""
+    if not rows:
+        return None
+    body = (title + "\n\n" + msg) if title else msg
+    ts = now_iso()
+    conn.executemany("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
+                     [(r["id"], "announcement", body, ts) for r in rows])
+    conn.commit()
+    emailed = 0
+    if also_email:
+        seen = set()
+        subject = title or "A message from KidVibers"
+        for r in rows:
+            em = (r["parent_email"] or "").strip().lower()
+            if em and em not in seen:
+                seen.add(em)
+                send_email_async(r["parent_email"], subject, body)
+                emailed += 1
+    pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
+    conn.execute(
+        "INSERT INTO sent_notifications (sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (sent_by, audience, audience_detail, title, msg, len(rows), emailed, pushed, ts))
+    conn.commit()
+    return {"recipients": len(rows), "emailed": emailed, "pushed": pushed}
+
+
+def audience_detail_label(audience, role=None, user_id=None):
+    if audience == "user":
+        return f"user #{user_id}"
+    if audience == "role":
+        return role or ""
+    if audience == "optedin":
+        return "people who accepted notifications"
+    return "everyone"
 
 
 def get_super_admin_email():
@@ -1433,6 +1509,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/admin/notify-history":  # super admin: log of sent mass/personal notifications
             return self.api_admin_notify_history()
 
+        if path == "/api/admin/notify/scheduled":  # super admin: pending/past scheduled sends
+            return self.api_admin_notify_scheduled_list()
+
+        if path == "/api/admin/automations":  # super admin: configured notification automations
+            return self.api_admin_automations_list()
+
         if path == "/api/shop":
             u = self._current_user()
             if not u:
@@ -1810,6 +1892,11 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/notice": lambda: self.api_admin_notice(data),
             "/api/admin/notify": lambda: self.api_admin_notify(data),
+            "/api/admin/notify/schedule": lambda: self.api_admin_notify_schedule(data),
+            "/api/admin/notify/schedule/cancel": lambda: self.api_admin_notify_schedule_cancel(data),
+            "/api/admin/automations/save": lambda: self.api_admin_automations_save(data),
+            "/api/admin/automations/toggle": lambda: self.api_admin_automations_toggle(data),
+            "/api/admin/automations/delete": lambda: self.api_admin_automations_delete(data),
             "/api/push/subscribe": lambda: self.api_push_subscribe(data),
             "/api/push/unsubscribe": lambda: self.api_push_unsubscribe(data),
             "/api/notify/opt-in": lambda: self.api_notify_opt_in(data),
@@ -2584,52 +2671,21 @@ class Handler(BaseHTTPRequestHandler):
         if not msg:
             return self._send_json({"error": "A message is required."}, 400)
         audience = (data.get("audience") or "all").strip()
+        role = (data.get("role") or "").strip()
+        user_id = data.get("userId")
         also_email = bool(data.get("email"))
         conn = db()
-        if audience == "user":
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE id=?", (data.get("userId"),)).fetchall()
-        elif audience == "role":
-            role = (data.get("role") or "").strip()
-            if role not in ("kid", "parent", "teacher", "admin", "super_admin"):
-                conn.close()
-                return self._send_json({"error": "Pick a valid role."}, 400)
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE role=?", (role,)).fetchall()
-        elif audience == "optedin":  # only people who accepted notifications
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE notif_opt_in=1").fetchall()
-        else:  # "all"
-            rows = conn.execute("SELECT id,name,parent_email FROM users").fetchall()
+        rows = notify_rows_for_audience(conn, audience, role, user_id)
+        if rows is None:
+            conn.close()
+            return self._send_json({"error": "Pick a valid role."}, 400)
         if not rows:
             conn.close()
             return self._send_json({"error": "No one matched that audience."}, 404)
-        # In-app notice on every targeted user's dashboard (this is the guaranteed delivery channel).
-        body = (title + "\n\n" + msg) if title else msg
-        ts = now_iso()
-        conn.executemany("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
-                         [(r["id"], "announcement", body, ts) for r in rows])
-        conn.commit()
-        # Optional email to the address on file (deduped so a family isn't emailed many times).
-        emailed = 0
-        if also_email:
-            seen = set()
-            subject = title or "A message from KidVibers"
-            for r in rows:
-                em = (r["parent_email"] or "").strip().lower()
-                if em and em not in seen:
-                    seen.add(em)
-                    send_email_async(r["parent_email"], subject, body)
-                    emailed += 1
-        # Best-effort real browser push to anyone who accepted it.
-        pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
-        # Log the send so it shows up in the admin's notification history.
-        detail = {"user": f"user #{data.get('userId')}", "role": data.get("role"),
-                  "optedin": "people who accepted notifications", "all": "everyone"}.get(audience, "")
-        conn.execute(
-            "INSERT INTO sent_notifications (sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (admin["username"], audience, detail, title, msg, len(rows), emailed, pushed, ts))
-        conn.commit()
+        result = deliver_notification(conn, admin["username"], audience, rows, title, msg, also_email,
+                                      audience_detail_label(audience, role, user_id))
         conn.close()
-        return self._send_json({"ok": True, "recipients": len(rows), "emailed": emailed, "pushed": pushed})
+        return self._send_json({"ok": True, **result})
 
     def api_admin_notify_history(self):
         # Super admin: recent log of mass/personal notifications sent, for accountability.
@@ -2645,6 +2701,143 @@ class Handler(BaseHTTPRequestHandler):
             {"id": r["id"], "sentBy": r["sent_by"], "audience": r["audience"], "audienceDetail": r["audience_detail"],
              "title": r["title"], "body": r["body"], "recipients": r["recipients"], "emailed": r["emailed"],
              "pushed": r["pushed"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
+    # ── Scheduled notifications: send later instead of right now ──
+    def api_admin_notify_schedule(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        title = (data.get("title") or "").strip()
+        msg = (data.get("message") or "").strip()
+        if not msg:
+            return self._send_json({"error": "A message is required."}, 400)
+        audience = (data.get("audience") or "all").strip()
+        role = (data.get("role") or "").strip()
+        user_id = data.get("userId")
+        if audience == "role" and role not in NOTIFY_ROLES:
+            return self._send_json({"error": "Pick a valid role."}, 400)
+        if audience == "user" and not user_id:
+            return self._send_json({"error": "Pick a person to notify."}, 400)
+        send_at = (data.get("sendAt") or "").strip()
+        try:
+            when = datetime.datetime.fromisoformat(send_at.replace("Z", ""))
+        except ValueError:
+            return self._send_json({"error": "Pick a valid date/time."}, 400)
+        if when <= datetime.datetime.utcnow():
+            return self._send_json({"error": "Pick a time in the future."}, 400)
+        send_at_iso = when.replace(microsecond=0).isoformat() + "Z"
+        conn = db()
+        conn.execute(
+            "INSERT INTO scheduled_notifications (created_by,audience,role,user_id,title,body,email,send_at,status,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,'pending',?)",
+            (admin["username"], audience, role or None, user_id, title, msg, int(bool(data.get("email"))),
+             send_at_iso, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_notify_scheduled_list(self):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute(
+            "SELECT * FROM scheduled_notifications ORDER BY (status='pending') DESC, send_at DESC LIMIT 100").fetchall()
+        conn.close()
+        return self._send_json({"scheduled": [{
+            "id": r["id"], "createdBy": r["created_by"], "audience": r["audience"], "role": r["role"],
+            "userId": r["user_id"], "title": r["title"], "body": r["body"], "email": bool(r["email"]),
+            "sendAt": r["send_at"], "status": r["status"],
+            "audienceDetail": audience_detail_label(r["audience"], r["role"], r["user_id"]),
+        } for r in rows]})
+
+    def api_admin_notify_schedule_cancel(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("UPDATE scheduled_notifications SET status='canceled' WHERE id=? AND status='pending'",
+                     (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    # ── Notification automations: rule-based, run automatically by the background scheduler ──
+    def api_admin_automations_save(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        trigger_type = (data.get("triggerType") or "").strip()
+        if trigger_type not in ("inactive", "trial_ending"):
+            return self._send_json({"error": "Pick a valid trigger."}, 400)
+        name = (data.get("name") or "").strip()
+        msg = (data.get("message") or "").strip()
+        if not name or not msg:
+            return self._send_json({"error": "Name and message are required."}, 400)
+        try:
+            trigger_days = max(1, int(data.get("triggerDays") or 3))
+            cooldown_days = max(1, int(data.get("cooldownDays") or 30))
+        except (TypeError, ValueError):
+            return self._send_json({"error": "Days must be numbers."}, 400)
+        role = (data.get("audienceRole") or "kid").strip()
+        if role not in NOTIFY_ROLES:
+            return self._send_json({"error": "Pick a valid role."}, 400)
+        title = (data.get("title") or "").strip()
+        also_email = int(bool(data.get("email")))
+        aid = data.get("id")
+        conn = db()
+        if aid:
+            conn.execute(
+                "UPDATE notification_automations SET name=?,trigger_type=?,trigger_days=?,audience_role=?,"
+                "title=?,body=?,email=?,cooldown_days=?,enabled=? WHERE id=?",
+                (name, trigger_type, trigger_days, role, title, msg, also_email, cooldown_days,
+                 int(bool(data.get("enabled", True))), aid))
+        else:
+            conn.execute(
+                "INSERT INTO notification_automations (name,trigger_type,trigger_days,audience_role,title,body,"
+                "email,cooldown_days,enabled,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,1,?,?)",
+                (name, trigger_type, trigger_days, role, title, msg, also_email, cooldown_days,
+                 admin["username"], now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_automations_list(self):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute("SELECT * FROM notification_automations ORDER BY id DESC").fetchall()
+        conn.close()
+        return self._send_json({"automations": [{
+            "id": r["id"], "name": r["name"], "triggerType": r["trigger_type"], "triggerDays": r["trigger_days"],
+            "audienceRole": r["audience_role"], "title": r["title"], "body": r["body"], "email": bool(r["email"]),
+            "cooldownDays": r["cooldown_days"], "enabled": bool(r["enabled"]), "createdBy": r["created_by"],
+            "lastRunAt": r["last_run_at"],
+        } for r in rows]})
+
+    def api_admin_automations_delete(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("DELETE FROM notification_automations WHERE id=?", (data.get("id"),))
+        conn.execute("DELETE FROM automation_log WHERE automation_id=?", (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_automations_toggle(self, data):
+        # Pause/resume without touching the rest of the automation's configuration.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("UPDATE notification_automations SET enabled=? WHERE id=?",
+                     (int(bool(data.get("enabled"))), data.get("id")))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
 
     def api_admin_delete_user(self, data):
         # Super admin deletes an account (kid/parent/teacher) and all its data, with a reason on record.
@@ -3598,12 +3791,95 @@ def byte_reply(q):
     return "Ooh, good question! 🤖 I'm best at coding basics - try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!"
 
 
+# ─────────────────────── Notification scheduler (background thread) ───────────────────────
+def process_scheduled_notifications():
+    """Send any scheduled notification whose time has come."""
+    conn = db()
+    due = conn.execute("SELECT * FROM scheduled_notifications WHERE status='pending' AND send_at<=?",
+                       (now_iso(),)).fetchall()
+    for r in due:
+        try:
+            rows = notify_rows_for_audience(conn, r["audience"], r["role"], r["user_id"])
+            if rows:
+                deliver_notification(conn, r["created_by"] or "scheduler", r["audience"], rows,
+                                     r["title"] or "", r["body"] or "", bool(r["email"]),
+                                     audience_detail_label(r["audience"], r["role"], r["user_id"]))
+            conn.execute("UPDATE scheduled_notifications SET status='sent', sent_at=? WHERE id=?",
+                        (now_iso(), r["id"]))
+            conn.commit()
+        except Exception as e:
+            print("scheduled notification failed:", repr(e))
+    conn.close()
+
+
+def process_automations():
+    """Evaluate each enabled automation's trigger and notify newly-matching users (once per
+    cooldown window, tracked in automation_log so nobody gets the same nudge every minute)."""
+    conn = db()
+    autos = conn.execute("SELECT * FROM notification_automations WHERE enabled=1").fetchall()
+    for a in autos:
+        try:
+            candidates = []
+            if a["trigger_type"] == "inactive":
+                # Someone in this role, with an account older than the window, who hasn't
+                # completed a lesson within it — a re-engagement nudge.
+                cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=a["trigger_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                rows = conn.execute(
+                    "SELECT u.id FROM users u WHERE u.role=? AND u.created_at<=? "
+                    "AND NOT EXISTS (SELECT 1 FROM progress p WHERE p.user_id=u.id AND p.completed_at>?)",
+                    (a["audience_role"], cutoff, cutoff)).fetchall()
+                candidates = [r["id"] for r in rows]
+            elif a["trigger_type"] == "trial_ending":
+                # Trial accounts whose trial ends within the window.
+                cutoff = (datetime.datetime.utcnow() + datetime.timedelta(days=a["trigger_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                rows = conn.execute(
+                    "SELECT id FROM users WHERE plan='trial' AND trial_ends IS NOT NULL AND trial_ends<=?",
+                    (cutoff,)).fetchall()
+                candidates = [r["id"] for r in rows]
+            if candidates:
+                cooldown_cut = (datetime.datetime.utcnow() - datetime.timedelta(days=a["cooldown_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                qmarks = ",".join("?" for _ in candidates)
+                already = {r["user_id"] for r in conn.execute(
+                    f"SELECT user_id FROM automation_log WHERE automation_id=? AND sent_at>? AND user_id IN ({qmarks})",
+                    [a["id"], cooldown_cut] + candidates).fetchall()}
+                target_ids = [uid for uid in candidates if uid not in already]
+                if target_ids:
+                    qmarks2 = ",".join("?" for _ in target_ids)
+                    rows = conn.execute(f"SELECT id,name,parent_email FROM users WHERE id IN ({qmarks2})",
+                                        target_ids).fetchall()
+                    deliver_notification(conn, f"automation:{a['name']}", "role", rows, a["title"] or "",
+                                         a["body"] or "", bool(a["email"]), f"automation · {a['name']}")
+                    ts = now_iso()
+                    conn.executemany("INSERT INTO automation_log (automation_id,user_id,sent_at) VALUES (?,?,?)",
+                                     [(a["id"], uid, ts) for uid in target_ids])
+                    conn.commit()
+            conn.execute("UPDATE notification_automations SET last_run_at=? WHERE id=?", (now_iso(), a["id"]))
+            conn.commit()
+        except Exception as e:
+            print("automation run failed:", repr(e))
+    conn.close()
+
+
+def notification_scheduler_loop():
+    while True:
+        try:
+            process_scheduled_notifications()
+            process_automations()
+        except Exception as e:
+            print("notification scheduler tick failed:", repr(e))
+        time.sleep(60)
+
+
 def main():
     init_db()
     seed_settings()
     seed_lessons()
     seed_admins()
     seed_sample_projects()   # gallery sample projects (kept)
+    threading.Thread(target=notification_scheduler_loop, daemon=True).start()
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"KidVibers backend running at http://localhost:{PORT}")
     try:

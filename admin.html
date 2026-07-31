@@ -826,7 +826,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:0.88rem;margin:12px 0;">
           <input type="checkbox" id="ntEmail" /> Also email it to the address on file
         </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label class="le-lbl">Send <span style="color:var(--text-faint);font-weight:700;">(leave blank to send immediately)</span>
+          <input id="ntSendAt" class="le-in" type="datetime-local" />
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;">
           <button class="btn btn-primary" onclick="sendNotification()" id="ntSendBtn">🔔 Send notification</button>
           <span id="ntMsg" style="font-weight:700;font-size:0.85rem;"></span>
         </div>
@@ -834,6 +837,54 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;color:var(--text-dim);">🕘 Recently sent</summary>
           <div id="ntHistory" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;"></div>
         </details>
+        <details style="margin-top:10px;" open>
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;color:var(--text-dim);">⏳ Scheduled (not sent yet)</summary>
+          <div id="ntScheduled" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;"></div>
+        </details>
+      </div>
+
+      <!-- Notification Automations: rule-based, sent automatically (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="automationsPanel" style="display:none;">
+        <h3>🤖 Notification Automations <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">runs automatically, checked every minute</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Set up a rule once and KidVibers keeps sending it whenever someone matches — e.g. nudge kids who've gone quiet, or warn trial accounts before they expire. Each person gets it at most once per cooldown window.</p>
+        <label class="le-lbl">Trigger
+          <select id="amTrigger" class="le-in" style="padding:10px 12px;">
+            <option value="inactive">😴 Kid hasn't finished a lesson in N days</option>
+            <option value="trial_ending">⏰ Trial ends within N days</option>
+          </select>
+        </label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;">
+          <label class="le-lbl" style="flex:1;min-width:140px;">After how many days
+            <input id="amDays" class="le-in" type="number" min="1" value="7" />
+          </label>
+          <label class="le-lbl" style="flex:1;min-width:140px;">Role to target
+            <select id="amRole" class="le-in" style="padding:10px 12px;">
+              <option value="kid">🧒 Kids</option>
+              <option value="parent">👨‍👩‍👧 Parents</option>
+              <option value="teacher">👩‍🏫 Teachers</option>
+            </select>
+          </label>
+          <label class="le-lbl" style="flex:1;min-width:140px;">Don't repeat for (days)
+            <input id="amCooldown" class="le-in" type="number" min="1" value="30" />
+          </label>
+        </div>
+        <label class="le-lbl" style="margin-top:10px;">Automation name <span style="color:var(--text-faint);font-weight:700;">(for your reference)</span>
+          <input id="amName" class="le-in" maxlength="80" placeholder="e.g. Re-engage quiet kids" />
+        </label>
+        <label class="le-lbl" style="margin-top:10px;">Title <span style="color:var(--text-faint);font-weight:700;">(optional)</span>
+          <input id="amTitle" class="le-in" maxlength="120" placeholder="e.g. We miss you! 👋" />
+        </label>
+        <label class="le-lbl" style="margin-top:10px;">Message
+          <textarea id="amBody" class="le-in" rows="3" maxlength="2000" style="resize:vertical;" placeholder="Write the automated message here."></textarea>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:0.88rem;margin:12px 0;">
+          <input type="checkbox" id="amEmail" /> Also email it to the address on file
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" onclick="saveAutomation()" id="amSaveBtn">➕ Add automation</button>
+          <span id="amMsg" style="font-weight:700;font-size:0.85rem;"></span>
+        </div>
+        <div id="amList" style="margin-top:16px;display:flex;flex-direction:column;gap:10px;"></div>
       </div>
 
       <!-- Mass email / mailing list (SUPER ADMIN ONLY) -->
@@ -1463,7 +1514,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       if (createHintEl) createHintEl.textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
       caRoleChanged();
       loadAdminNotices();
-      if (sup) loadNotifyHistory();
+      if (sup) { loadNotifyHistory(); loadScheduled(); loadAutomations(); }
 
       // Stat boxes — load in isolation so one failing API call can never blank the whole dashboard.
       try {
@@ -2763,6 +2814,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const title = document.getElementById('ntTitle').value.trim();
       const body = document.getElementById('ntBody').value.trim();
       const email = document.getElementById('ntEmail').checked;
+      const sendAtLocal = document.getElementById('ntSendAt').value;   // datetime-local, empty = now
       if (!body) { msg.style.color = '#f87171'; msg.textContent = 'Write a message first.'; return; }
       const payload = { audience, title, message: body, email };
       let label;
@@ -2778,22 +2830,64 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       } else {
         label = 'EVERYONE';
       }
-      if (!confirm(`Send this notification to ${label}?` + (email ? ' It will also send real emails.' : ''))) return;
+      const scheduling = !!sendAtLocal;
+      if (scheduling) {
+        const when = new Date(sendAtLocal);
+        if (isNaN(when.getTime()) || when <= new Date()) {
+          msg.style.color = '#f87171'; msg.textContent = 'Pick a time in the future.'; return;
+        }
+        payload.sendAt = when.toISOString();
+      }
+      const confirmMsg = scheduling
+        ? `Schedule this for ${new Date(payload.sendAt).toLocaleString()}, to ${label}?`
+        : `Send this notification to ${label} right now?`;
+      if (!confirm(confirmMsg + (email ? ' It will also send real emails.' : ''))) return;
       const btn = document.getElementById('ntSendBtn'); btn.disabled = true;
-      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…';
-      const { ok, data } = await C4K.api('/api/admin/notify', 'POST', payload);
+      msg.style.color = 'var(--text-dim)'; msg.textContent = scheduling ? 'Scheduling…' : 'Sending…';
+      const { ok, data } = await C4K.api(scheduling ? '/api/admin/notify/schedule' : '/api/admin/notify', 'POST', payload);
       btn.disabled = false;
       if (ok) {
-        msg.style.color = 'var(--green,#5ad17e)';
-        msg.textContent = `✅ Sent to ${data.recipients} ${data.recipients === 1 ? 'person' : 'people'}`
-          + (data.emailed ? `, ${data.emailed} emailed` : '')
-          + (data.pushed ? `, ${data.pushed} pushed` : '') + '.';
+        if (scheduling) {
+          msg.style.color = 'var(--green,#5ad17e)';
+          msg.textContent = `✅ Scheduled for ${new Date(payload.sendAt).toLocaleString()}.`;
+          document.getElementById('ntSendAt').value = '';
+          loadScheduled();
+        } else {
+          msg.style.color = 'var(--green,#5ad17e)';
+          msg.textContent = `✅ Sent to ${data.recipients} ${data.recipients === 1 ? 'person' : 'people'}`
+            + (data.emailed ? `, ${data.emailed} emailed` : '')
+            + (data.pushed ? `, ${data.pushed} pushed` : '') + '.';
+          loadNotifyHistory();
+        }
         document.getElementById('ntTitle').value = '';
         document.getElementById('ntBody').value = '';
-        loadNotifyHistory();
       } else {
         msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not send.');
       }
+    }
+    async function loadScheduled() {
+      const wrap = document.getElementById('ntScheduled');
+      if (!wrap) return;
+      const { ok, data } = await C4K.api('/api/admin/notify/scheduled');
+      const pending = (ok && data.scheduled) ? data.scheduled.filter(s => s.status === 'pending') : [];
+      if (!pending.length) { wrap.innerHTML = '<div style="color:var(--text-faint);font-size:0.82rem;">Nothing scheduled.</div>'; return; }
+      const audienceLabel = s => s.audience === 'user' ? `🙋 ${s.audienceDetail}`
+        : s.audience === 'role' ? `👥 ${s.audienceDetail}`
+        : s.audience === 'optedin' ? '🔔 opted-in' : '🌍 everyone';
+      wrap.innerHTML = pending.map(s => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+          <div style="flex:1;min-width:180px;">
+            <div style="font-size:0.78rem;color:var(--text-faint);font-weight:800;">${audienceLabel(s)} · ${new Date(s.sendAt).toLocaleString()}</div>
+            ${s.title ? `<div style="font-weight:900;margin-top:4px;">${C4K.esc(s.title)}</div>` : ''}
+            <div style="color:var(--text-dim);font-size:0.85rem;margin-top:2px;white-space:pre-wrap;">${C4K.esc(s.body)}</div>
+          </div>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="cancelScheduled(${s.id})">✕ Cancel</button>
+        </div>`).join('');
+    }
+    async function cancelScheduled(id) {
+      if (!confirm('Cancel this scheduled notification?')) return;
+      await C4K.api('/api/admin/notify/schedule/cancel', 'POST', { id });
+      loadScheduled();
     }
     async function loadNotifyHistory() {
       const wrap = document.getElementById('ntHistory');
@@ -2813,6 +2907,71 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           ${h.title ? `<div style="font-weight:900;margin-top:4px;">${C4K.esc(h.title)}</div>` : ''}
           <div style="color:var(--text-dim);font-size:0.85rem;margin-top:2px;white-space:pre-wrap;">${C4K.esc(h.body)}</div>
         </div>`).join('');
+    }
+
+    // ── Notification Automations (super admin) ──
+    async function saveAutomation() {
+      const msg = document.getElementById('amMsg');
+      const name = document.getElementById('amName').value.trim();
+      const body = document.getElementById('amBody').value.trim();
+      if (!name || !body) { msg.style.color = '#f87171'; msg.textContent = 'Give it a name and a message.'; return; }
+      const payload = {
+        name, message: body,
+        triggerType: document.getElementById('amTrigger').value,
+        triggerDays: parseInt(document.getElementById('amDays').value, 10) || 7,
+        audienceRole: document.getElementById('amRole').value,
+        cooldownDays: parseInt(document.getElementById('amCooldown').value, 10) || 30,
+        title: document.getElementById('amTitle').value.trim(),
+        email: document.getElementById('amEmail').checked,
+      };
+      const btn = document.getElementById('amSaveBtn'); btn.disabled = true;
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/admin/automations/save', 'POST', payload);
+      btn.disabled = false;
+      if (ok) {
+        msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Automation added.';
+        document.getElementById('amName').value = '';
+        document.getElementById('amTitle').value = '';
+        document.getElementById('amBody').value = '';
+        loadAutomations();
+      } else {
+        msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not save.');
+      }
+    }
+    async function loadAutomations() {
+      const wrap = document.getElementById('amList');
+      if (!wrap) return;
+      const { ok, data } = await C4K.api('/api/admin/automations');
+      if (!ok || !data.automations || !data.automations.length) { wrap.innerHTML = '<div style="color:var(--text-faint);font-size:0.82rem;">No automations set up yet.</div>'; return; }
+      const triggerLabel = a => a.triggerType === 'trial_ending'
+        ? `⏰ Trial ends within ${a.triggerDays} day${a.triggerDays === 1 ? '' : 's'}`
+        : `😴 ${a.audienceRole} inactive ${a.triggerDays}+ day${a.triggerDays === 1 ? '' : 's'}`;
+      wrap.innerHTML = data.automations.map(a => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">
+            <div style="flex:1;min-width:180px;">
+              <div style="font-weight:900;">${C4K.esc(a.name)} ${a.enabled ? '' : '<span style="color:var(--text-faint);font-weight:700;font-size:0.78rem;">(paused)</span>'}</div>
+              <div style="font-size:0.78rem;color:var(--text-faint);font-weight:800;margin-top:2px;">${triggerLabel(a)} · repeats after ${a.cooldownDays}d cooldown${a.email ? ' · emails too' : ''}</div>
+              ${a.title ? `<div style="font-weight:800;margin-top:6px;">${C4K.esc(a.title)}</div>` : ''}
+              <div style="color:var(--text-dim);font-size:0.85rem;margin-top:2px;white-space:pre-wrap;">${C4K.esc(a.body)}</div>
+              <div style="font-size:0.75rem;color:var(--text-faint);margin-top:4px;">${a.lastRunAt ? 'Last checked ' + a.lastRunAt.slice(0,16).replace('T',' ') : 'Not run yet'}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="toggleAutomation(${a.id}, ${!a.enabled}, this)">${a.enabled ? '⏸ Pause' : '▶️ Resume'}</button>
+              <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="deleteAutomation(${a.id})">🗑️ Delete</button>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+    async function toggleAutomation(id, enabled, btn) {
+      if (btn) btn.disabled = true;
+      await C4K.api('/api/admin/automations/toggle', 'POST', { id, enabled });
+      loadAutomations();
+    }
+    async function deleteAutomation(id) {
+      if (!confirm('Delete this automation? This cannot be undone.')) return;
+      await C4K.api('/api/admin/automations/delete', 'POST', { id });
+      loadAutomations();
     }
 
     // ── Signup quiz editor (super admin) ──
