@@ -65,6 +65,9 @@ TRIAL_DAYS = 3
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
 VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:hello@kidvibers.com").strip()
+# Shared secret an inbound-email webhook (Resend/Mailgun/Cloudflare Email Routing, etc.) must
+# present to POST into /api/inbound/support-email. Unset by default = endpoint stays closed.
+INBOUND_EMAIL_SECRET = os.environ.get("INBOUND_EMAIL_SECRET", "").strip()
 ADMIN_ROLES = ("admin", "super_admin")
 GUARDIAN_ROLES = ("parent", "teacher")   # adults who manage kids
 COPPA_AGE = 13                            # under this age, verifiable consent is required (US COPPA)
@@ -170,6 +173,235 @@ SHOP_ITEMS = [
 FREE_ITEMS = [i["id"] for i in SHOP_ITEMS if i.get("price", 0) == 0]
 DEFAULT_AVATAR = {"face": "face_kid", "hat": None, "accessory": None, "clothing": None, "companion": None, "background": "bg_purple"}
 SHOP_BY_ID = {i["id"]: i for i in SHOP_ITEMS}
+
+# ── Ready-to-send email templates (super admin only — see /api/admin/email-templates).
+# Plain-text bodies so they paste cleanly into any email client. ──
+EMAIL_TEMPLATES = [
+    {"id": "features_announcement", "category": "marketing", "featured": False,
+     "title": "🚀 New Features Announcement",
+     "subject": "🚀 KidVibers just got a big upgrade — here's what's new",
+     "body": """Hey there,
+
+KidVibers has grown a lot lately, and I wanted to share what's new — whether you're a parent, a teacher, or just curious about a coding platform that's actually made by a kid, for kids.
+
+🎨 Vibe Studio — build without writing a single line of code. Kids create real projects visually and watch them come to life.
+
+🤖 Byte, your AI coding buddy — gives hints, not answers, so kids learn to solve problems instead of copy-pasting their way through.
+
+⚔️ 25 themed worlds, 293 lessons, and boss battles — a full journey from "hello world" to real projects, with a boss fight to test what you've learned at the end of every world.
+
+🎟️ Live drop-in coding sessions — real-time group sessions kids can just hop into, no account needed.
+
+🔥 Streaks, daily bonuses, and a classmate leaderboard — the stuff that makes kids actually want to come back.
+
+🎮 New coding games — learn loops, functions, and syntax through play, not worksheets.
+
+🏫 Classroom tools for teachers — rosters, progress dashboards, assignment tracking, and school/district plans.
+
+📜 Printable certificates — a real certificate to celebrate finishing a world.
+
+🎁 Invite a friend, get free Pro — refer someone and earn free days of Pro, no strings attached.
+
+And under the hood: it's ad-free, COPPA-minded, and safe by design — no data selling, ever.
+
+Come see what's new: https://kidvibers.com
+
+Questions? Just reply — a real person (me!) reads every email.
+
+— Elisha Clark
+Founder, KidVibers"""},
+
+    {"id": "reengagement", "category": "marketing", "featured": False,
+     "title": "👋 Come Back and Code (re-engagement)",
+     "subject": "We saved your spot, {name} 👋",
+     "body": """Hi {name},
+
+It's been a little while since we've seen you on KidVibers — your streak, your projects, and your world are all exactly where you left them!
+
+Jump back in for just 5 minutes today and keep the momentum going: https://kidvibers.com/dashboard.html
+
+See you in there,
+The KidVibers Team"""},
+
+    {"id": "referral_push", "category": "marketing", "featured": False,
+     "title": "🎁 Referral Program Push",
+     "subject": "Give 7 days of Pro, get 7 days of Pro 🎁",
+     "body": """Hi {name},
+
+Know a family or classroom that would love KidVibers? Share your invite link and you'll both get free days of Pro when they join — no catch.
+
+Grab your link from your dashboard under "Invite a Friend," or head straight here: https://kidvibers.com/dashboard.html
+
+Thanks for spreading the word!
+— The KidVibers Team"""},
+
+    {"id": "founder_story", "category": "personal", "featured": True,
+     "title": "❤️ Made by a Kid, for Kids — the KidVibers Story",
+     "subject": "Why I built KidVibers",
+     "body": """Hi {name},
+
+My name is Elisha Clark. I built KidVibers because I wanted to learn to code, but everything I tried felt like homework — dry tutorials, walls of text, nothing that felt like it was actually made for a kid.
+
+So I made something that felt like a game instead: 293 lessons across 25 themed worlds, boss battles, XP, tokens, certificates, and an AI buddy named Byte who gives hints without just handing over the answer.
+
+It's ad-free, safe, COPPA-minded, and free to start — because I wanted the kind of coding platform I wish I'd had.
+
+If you're a parent, a teacher, or a kid who wants to learn to code, I'd genuinely love for you to try it and tell me what you think: https://kidvibers.com
+
+You can always reach me directly at support@kidvibers.com — I read every email myself.
+
+— Elisha Clark
+Founder, KidVibers · Made by a kid, for kids ❤️"""},
+
+    {"id": "personal_checkin", "category": "personal", "featured": False,
+     "title": "🙋 Personal Check-in / Thank You",
+     "subject": "Just wanted to say thanks",
+     "body": """Hi {name},
+
+I just wanted to reach out personally and say thank you for trying KidVibers. It means a lot that you'd give something I built a chance.
+
+If anything felt confusing, or if there's a feature you wish existed, I'd genuinely love to hear about it — just reply to this email. I read and answer every message myself.
+
+Thanks again,
+Elisha Clark
+Founder, KidVibers"""},
+
+    {"id": "school_partnership", "category": "business", "featured": False,
+     "title": "🏫 School / District Partnership Outreach",
+     "subject": "Bring safe, ad-free coding to your classroom — KidVibers for Schools",
+     "body": """Hi {name},
+
+I wanted to introduce KidVibers, a game-style coding platform for kids ages 6-16 that's built specifically with schools in mind.
+
+A few things that make it a fit for a classroom or district:
+- Ad-free, COPPA/FERPA-minded, and built for student privacy from day one
+- KidVibers acts as a school official/service provider under FERPA — student data is used only to provide the service
+- Rosters, class codes, teacher progress dashboards, and school/district-wide plans
+- A signable Data Processing Agreement (DPA) available on request
+- 293 lessons across 25 themed worlds, with an AI buddy ("Byte") that never sends student chats to outside AI companies
+
+Full details for reviewers: https://kidvibers.com/for-schools-privacy.html
+
+I'd love to set up a short call or send bulk pricing for your school or district — just reply here or reach out to support@kidvibers.com.
+
+Best,
+Elisha Clark
+Founder, KidVibers"""},
+
+    {"id": "library_partnership", "category": "business", "featured": False,
+     "title": "📚 Library Partnership Outreach",
+     "subject": "Free, safe drop-in coding sessions for your library patrons",
+     "body": """Hi {name},
+
+I wanted to introduce KidVibers for Libraries — a drop-in coding session kids can join in seconds, designed for public library programs.
+
+How it works:
+1. The librarian starts a Live Session and gets a join code + a printable QR flyer.
+2. Kids scan the QR code and pick a nickname — no account, no email, nothing to install.
+3. Kids build real web pages, cards, and fan pages with our AI buddy, Byte. It feels like play.
+4. End the session and see how many kids joined and what they made.
+
+Why librarians like it:
+- No per-child cost to host a session — great for public programs
+- Zero sign-up friction — kids join as guests with just a nickname
+- No ads, ever, with content filtered and monitored for safety
+- Full English and Spanish support
+- Works on tablets, laptops, or Chromebooks — anything with a browser
+
+More info: https://kidvibers.com/for-libraries.html
+
+Happy to set up a free trial session for your branch — just reply or email support@kidvibers.com.
+
+Best,
+Elisha Clark
+Founder, KidVibers"""},
+
+    {"id": "press_media", "category": "business", "featured": False,
+     "title": "🎤 Press / Media Outreach",
+     "subject": "Story pitch: a kid built a coding platform used by families and schools",
+     "body": """Hi {name},
+
+I wanted to share a story that might interest your readers: KidVibers, a coding platform for kids ages 6-16, was built entirely by a kid — me, Elisha Clark.
+
+I built it because every coding tool I tried as a beginner felt like homework, so I made something that felt like a game instead: 293 lessons across 25 themed worlds, boss battles, and an AI buddy that gives hints instead of answers. It's ad-free, doesn't sell data, and is COPPA-minded from the ground up.
+
+I'd love to talk about the story behind it, or provide access, screenshots, or interviews for a piece. A press kit is available here: https://kidvibers.com/press.html
+
+Happy to work around your timeline — just reply here or reach me at support@kidvibers.com.
+
+Best,
+Elisha Clark
+Founder, KidVibers"""},
+
+    {"id": "password_reset", "category": "passwords", "featured": False,
+     "title": "🔑 Password Reset (transactional)",
+     "subject": "Reset your KidVibers password",
+     "body": """Hi {name},
+
+We got a request to reset your KidVibers password.
+
+Click here to choose a new password (link expires in 2 hours): {resetLink}
+
+If you didn't ask for this, you can safely ignore this email — your password won't change.
+
+— The KidVibers Team"""},
+
+    {"id": "password_changed", "category": "passwords", "featured": False,
+     "title": "🔒 Password Changed Confirmation",
+     "subject": "Your KidVibers password was changed",
+     "body": """Hi {name},
+
+This is a confirmation that your KidVibers account password was just changed.
+
+If this was you, no action is needed. If you didn't make this change, please contact us immediately at support@kidvibers.com so we can secure your account.
+
+— The KidVibers Team"""},
+
+    {"id": "support_ack", "category": "support", "featured": False,
+     "title": "📬 Support Acknowledgment (general)",
+     "subject": "Re: your KidVibers question — got it!",
+     "body": """Hi {name},
+
+Thanks so much for reaching out — I've got your message and wanted to confirm it landed safely.
+
+{replyBody}
+
+If anything's unclear or this doesn't fully answer your question, just reply here — a real person reads every message.
+
+Thanks for your patience,
+Elisha Clark
+KidVibers Support"""},
+
+    {"id": "support_billing", "category": "support", "featured": False,
+     "title": "💳 Support Reply — Billing / Refund",
+     "subject": "Re: your KidVibers billing question",
+     "body": """Hi {name},
+
+Thanks for reaching out about your billing question. Here's what I found on your account:
+
+{replyBody}
+
+If you'd like a refund or need anything adjusted, just let me know and I'll take care of it directly — no back and forth needed.
+
+Thanks for your patience,
+Elisha Clark
+KidVibers Support"""},
+
+    {"id": "support_safety", "category": "support", "featured": False,
+     "title": "🛡️ Support Reply — Safety Concern",
+     "subject": "Re: your safety report — thank you",
+     "body": """Hi {name},
+
+Thank you for taking the time to report this — safety concerns are always our top priority, and I wanted to personally confirm we've received and reviewed it.
+
+{replyBody}
+
+If you have any additional details or concerns, please don't hesitate to reply directly to this email. We take every report seriously.
+
+Thank you again,
+Elisha Clark
+KidVibers Support & Safety"""},
+]
 
 # ── 100-lesson curriculum: 10 worlds × 10 lessons. Keys: e,t,b,lv,xp,p,c,q,o,a,x ──
 CURRICULUM = [
@@ -468,6 +700,37 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL, endpoint TEXT UNIQUE,
             p256dh TEXT, auth TEXT, created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS sent_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_by TEXT, audience TEXT, audience_detail TEXT,
+            title TEXT, body TEXT,
+            recipients INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, pushed INTEGER DEFAULT 0,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS scheduled_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_by TEXT, audience TEXT, role TEXT, user_id INTEGER,
+            title TEXT, body TEXT, email INTEGER DEFAULT 0,
+            send_at TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT, sent_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS notification_automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, trigger_type TEXT, trigger_days INTEGER DEFAULT 3,
+            audience_role TEXT DEFAULT 'kid',
+            title TEXT, body TEXT, email INTEGER DEFAULT 0,
+            cooldown_days INTEGER DEFAULT 30, enabled INTEGER DEFAULT 1,
+            created_by TEXT, created_at TEXT, last_run_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS automation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            automation_id INTEGER NOT NULL, user_id INTEGER NOT NULL, sent_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS support_inbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_email TEXT, subject TEXT, body TEXT,
+            is_read INTEGER DEFAULT 0, received_at TEXT
         );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
@@ -830,6 +1093,63 @@ def push_broadcast(conn, user_ids, title, body, url="/dashboard.html"):
         conn.execute(f"DELETE FROM push_subscriptions WHERE id IN ({','.join('?' for _ in dead)})", dead)
         conn.commit()
     return sent
+
+
+NOTIFY_ROLES = ("kid", "parent", "teacher", "admin", "super_admin")
+
+def notify_rows_for_audience(conn, audience, role=None, user_id=None):
+    """Resolve an audience selector (used by admin sends, scheduled sends, and automations)
+    into the list of user rows to notify. Returns None if the audience/role is invalid."""
+    if audience == "user":
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE id=?", (user_id,)).fetchall()
+    elif audience == "role":
+        if role not in NOTIFY_ROLES:
+            return None
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE role=?", (role,)).fetchall()
+    elif audience == "optedin":  # only people who accepted notifications
+        return conn.execute("SELECT id,name,parent_email FROM users WHERE notif_opt_in=1").fetchall()
+    else:  # "all"
+        return conn.execute("SELECT id,name,parent_email FROM users").fetchall()
+
+
+def deliver_notification(conn, sent_by, audience, rows, title, msg, also_email, audience_detail=""):
+    """Send an already-resolved list of user rows a notification: in-app dashboard notice
+    (guaranteed channel), optional email, and best-effort browser push. Logs the send.
+    Returns {"recipients","emailed","pushed"} or None if there was no one to notify."""
+    if not rows:
+        return None
+    body = (title + "\n\n" + msg) if title else msg
+    ts = now_iso()
+    conn.executemany("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
+                     [(r["id"], "announcement", body, ts) for r in rows])
+    conn.commit()
+    emailed = 0
+    if also_email:
+        seen = set()
+        subject = title or "A message from KidVibers"
+        for r in rows:
+            em = (r["parent_email"] or "").strip().lower()
+            if em and em not in seen:
+                seen.add(em)
+                send_email_async(r["parent_email"], subject, body)
+                emailed += 1
+    pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
+    conn.execute(
+        "INSERT INTO sent_notifications (sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (sent_by, audience, audience_detail, title, msg, len(rows), emailed, pushed, ts))
+    conn.commit()
+    return {"recipients": len(rows), "emailed": emailed, "pushed": pushed}
+
+
+def audience_detail_label(audience, role=None, user_id=None):
+    if audience == "user":
+        return f"user #{user_id}"
+    if audience == "role":
+        return role or ""
+    if audience == "optedin":
+        return "people who accepted notifications"
+    return "everyone"
 
 
 def get_super_admin_email():
@@ -1423,6 +1743,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"notices": [{"id": r["id"], "kind": r["kind"], "body": r["body"],
                                                   "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
 
+        if path == "/api/admin/notify-history":  # super admin: log of sent mass/personal notifications
+            return self.api_admin_notify_history()
+
+        if path == "/api/admin/notify/scheduled":  # super admin: pending/past scheduled sends
+            return self.api_admin_notify_scheduled_list()
+
+        if path == "/api/admin/automations":  # super admin: configured notification automations
+            return self.api_admin_automations_list()
+
+        if path == "/api/admin/email-templates":  # super admin only: ready-to-send copy/paste templates
+            u = self._current_user()
+            if not u or u["role"] != "super_admin":
+                return self._send_json({"error": "forbidden"}, 403)
+            return self._send_json({"templates": EMAIL_TEMPLATES})
+
+        if path == "/api/admin/support-inbox":  # super admin only: captured support@ emails
+            return self.api_admin_support_inbox()
+
         if path == "/api/shop":
             u = self._current_user()
             if not u:
@@ -1800,6 +2138,14 @@ class Handler(BaseHTTPRequestHandler):
             "/api/admin/consent": lambda: self.api_admin_consent(data),
             "/api/admin/notice": lambda: self.api_admin_notice(data),
             "/api/admin/notify": lambda: self.api_admin_notify(data),
+            "/api/admin/notify/schedule": lambda: self.api_admin_notify_schedule(data),
+            "/api/admin/notify/schedule/cancel": lambda: self.api_admin_notify_schedule_cancel(data),
+            "/api/admin/automations/save": lambda: self.api_admin_automations_save(data),
+            "/api/admin/automations/toggle": lambda: self.api_admin_automations_toggle(data),
+            "/api/admin/automations/delete": lambda: self.api_admin_automations_delete(data),
+            "/api/admin/support-inbox/read": lambda: self.api_admin_support_inbox_read(data),
+            "/api/admin/support-inbox/delete": lambda: self.api_admin_support_inbox_delete(data),
+            "/api/inbound/support-email": lambda: self.api_inbound_support_email(data),
             "/api/push/subscribe": lambda: self.api_push_subscribe(data),
             "/api/push/unsubscribe": lambda: self.api_push_unsubscribe(data),
             "/api/notify/opt-in": lambda: self.api_notify_opt_in(data),
@@ -2574,44 +2920,230 @@ class Handler(BaseHTTPRequestHandler):
         if not msg:
             return self._send_json({"error": "A message is required."}, 400)
         audience = (data.get("audience") or "all").strip()
+        role = (data.get("role") or "").strip()
+        user_id = data.get("userId")
         also_email = bool(data.get("email"))
         conn = db()
-        if audience == "user":
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE id=?", (data.get("userId"),)).fetchall()
-        elif audience == "role":
-            role = (data.get("role") or "").strip()
-            if role not in ("kid", "parent", "teacher", "admin", "super_admin"):
-                conn.close()
-                return self._send_json({"error": "Pick a valid role."}, 400)
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE role=?", (role,)).fetchall()
-        elif audience == "optedin":  # only people who accepted notifications
-            rows = conn.execute("SELECT id,name,parent_email FROM users WHERE notif_opt_in=1").fetchall()
-        else:  # "all"
-            rows = conn.execute("SELECT id,name,parent_email FROM users").fetchall()
+        rows = notify_rows_for_audience(conn, audience, role, user_id)
+        if rows is None:
+            conn.close()
+            return self._send_json({"error": "Pick a valid role."}, 400)
         if not rows:
             conn.close()
             return self._send_json({"error": "No one matched that audience."}, 404)
-        # In-app notice on every targeted user's dashboard (this is the guaranteed delivery channel).
-        body = (title + "\n\n" + msg) if title else msg
-        ts = now_iso()
-        conn.executemany("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)",
-                         [(r["id"], "announcement", body, ts) for r in rows])
-        conn.commit()
-        # Optional email to the address on file (deduped so a family isn't emailed many times).
-        emailed = 0
-        if also_email:
-            seen = set()
-            subject = title or "A message from KidVibers"
-            for r in rows:
-                em = (r["parent_email"] or "").strip().lower()
-                if em and em not in seen:
-                    seen.add(em)
-                    send_email_async(r["parent_email"], subject, body)
-                    emailed += 1
-        # Best-effort real browser push to anyone who accepted it.
-        pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
+        result = deliver_notification(conn, admin["username"], audience, rows, title, msg, also_email,
+                                      audience_detail_label(audience, role, user_id))
         conn.close()
-        return self._send_json({"ok": True, "recipients": len(rows), "emailed": emailed, "pushed": pushed})
+        return self._send_json({"ok": True, **result})
+
+    def api_admin_notify_history(self):
+        # Super admin: recent log of mass/personal notifications sent, for accountability.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute(
+            "SELECT id,sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at "
+            "FROM sent_notifications ORDER BY id DESC LIMIT 100").fetchall()
+        conn.close()
+        return self._send_json({"history": [
+            {"id": r["id"], "sentBy": r["sent_by"], "audience": r["audience"], "audienceDetail": r["audience_detail"],
+             "title": r["title"], "body": r["body"], "recipients": r["recipients"], "emailed": r["emailed"],
+             "pushed": r["pushed"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
+    # ── Scheduled notifications: send later instead of right now ──
+    def api_admin_notify_schedule(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        title = (data.get("title") or "").strip()
+        msg = (data.get("message") or "").strip()
+        if not msg:
+            return self._send_json({"error": "A message is required."}, 400)
+        audience = (data.get("audience") or "all").strip()
+        role = (data.get("role") or "").strip()
+        user_id = data.get("userId")
+        if audience == "role" and role not in NOTIFY_ROLES:
+            return self._send_json({"error": "Pick a valid role."}, 400)
+        if audience == "user" and not user_id:
+            return self._send_json({"error": "Pick a person to notify."}, 400)
+        send_at = (data.get("sendAt") or "").strip()
+        try:
+            when = datetime.datetime.fromisoformat(send_at.replace("Z", ""))
+        except ValueError:
+            return self._send_json({"error": "Pick a valid date/time."}, 400)
+        if when <= datetime.datetime.utcnow():
+            return self._send_json({"error": "Pick a time in the future."}, 400)
+        send_at_iso = when.replace(microsecond=0).isoformat() + "Z"
+        conn = db()
+        conn.execute(
+            "INSERT INTO scheduled_notifications (created_by,audience,role,user_id,title,body,email,send_at,status,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,'pending',?)",
+            (admin["username"], audience, role or None, user_id, title, msg, int(bool(data.get("email"))),
+             send_at_iso, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_notify_scheduled_list(self):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute(
+            "SELECT * FROM scheduled_notifications ORDER BY (status='pending') DESC, send_at DESC LIMIT 100").fetchall()
+        conn.close()
+        return self._send_json({"scheduled": [{
+            "id": r["id"], "createdBy": r["created_by"], "audience": r["audience"], "role": r["role"],
+            "userId": r["user_id"], "title": r["title"], "body": r["body"], "email": bool(r["email"]),
+            "sendAt": r["send_at"], "status": r["status"],
+            "audienceDetail": audience_detail_label(r["audience"], r["role"], r["user_id"]),
+        } for r in rows]})
+
+    def api_admin_notify_schedule_cancel(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("UPDATE scheduled_notifications SET status='canceled' WHERE id=? AND status='pending'",
+                     (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    # ── Notification automations: rule-based, run automatically by the background scheduler ──
+    def api_admin_automations_save(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        trigger_type = (data.get("triggerType") or "").strip()
+        if trigger_type not in ("inactive", "trial_ending"):
+            return self._send_json({"error": "Pick a valid trigger."}, 400)
+        name = (data.get("name") or "").strip()
+        msg = (data.get("message") or "").strip()
+        if not name or not msg:
+            return self._send_json({"error": "Name and message are required."}, 400)
+        try:
+            trigger_days = max(1, int(data.get("triggerDays") or 3))
+            cooldown_days = max(1, int(data.get("cooldownDays") or 30))
+        except (TypeError, ValueError):
+            return self._send_json({"error": "Days must be numbers."}, 400)
+        role = (data.get("audienceRole") or "kid").strip()
+        if role not in NOTIFY_ROLES:
+            return self._send_json({"error": "Pick a valid role."}, 400)
+        title = (data.get("title") or "").strip()
+        also_email = int(bool(data.get("email")))
+        aid = data.get("id")
+        conn = db()
+        if aid:
+            conn.execute(
+                "UPDATE notification_automations SET name=?,trigger_type=?,trigger_days=?,audience_role=?,"
+                "title=?,body=?,email=?,cooldown_days=?,enabled=? WHERE id=?",
+                (name, trigger_type, trigger_days, role, title, msg, also_email, cooldown_days,
+                 int(bool(data.get("enabled", True))), aid))
+        else:
+            conn.execute(
+                "INSERT INTO notification_automations (name,trigger_type,trigger_days,audience_role,title,body,"
+                "email,cooldown_days,enabled,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,1,?,?)",
+                (name, trigger_type, trigger_days, role, title, msg, also_email, cooldown_days,
+                 admin["username"], now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_automations_list(self):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute("SELECT * FROM notification_automations ORDER BY id DESC").fetchall()
+        conn.close()
+        return self._send_json({"automations": [{
+            "id": r["id"], "name": r["name"], "triggerType": r["trigger_type"], "triggerDays": r["trigger_days"],
+            "audienceRole": r["audience_role"], "title": r["title"], "body": r["body"], "email": bool(r["email"]),
+            "cooldownDays": r["cooldown_days"], "enabled": bool(r["enabled"]), "createdBy": r["created_by"],
+            "lastRunAt": r["last_run_at"],
+        } for r in rows]})
+
+    def api_admin_automations_delete(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("DELETE FROM notification_automations WHERE id=?", (data.get("id"),))
+        conn.execute("DELETE FROM automation_log WHERE automation_id=?", (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_automations_toggle(self, data):
+        # Pause/resume without touching the rest of the automation's configuration.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("UPDATE notification_automations SET enabled=? WHERE id=?",
+                     (int(bool(data.get("enabled"))), data.get("id")))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    # ── Support inbox: view emails sent to support@ (requires an inbound-email webhook —
+    # see api_inbound_support_email below and the setup note it explains) ──
+    def api_admin_support_inbox(self):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute("SELECT * FROM support_inbox ORDER BY id DESC LIMIT 200").fetchall()
+        unread = conn.execute("SELECT COUNT(*) c FROM support_inbox WHERE is_read=0").fetchone()["c"]
+        conn.close()
+        return self._send_json({"unread": unread, "messages": [{
+            "id": r["id"], "from": r["from_email"], "subject": r["subject"], "body": r["body"],
+            "read": bool(r["is_read"]), "at": (r["received_at"] or "")[:16].replace("T", " "),
+        } for r in rows]})
+
+    def api_admin_support_inbox_read(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("UPDATE support_inbox SET is_read=1 WHERE id=?", (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_admin_support_inbox_delete(self, data):
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        conn.execute("DELETE FROM support_inbox WHERE id=?", (data.get("id"),))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
+
+    def api_inbound_support_email(self, data):
+        # Called by an EXTERNAL inbound-email webhook (Resend inbound, Mailgun routes,
+        # Cloudflare Email Routing + a small Worker, etc.) whenever mail arrives at
+        # support@kidvibers.com — this endpoint does not receive email itself, something
+        # has to forward it here. Gated by a shared secret since it's unauthenticated by
+        # nature (no admin is logged in when an external mail provider calls it). If the
+        # secret isn't configured, the endpoint stays closed so it can't be spammed/abused.
+        if not INBOUND_EMAIL_SECRET:
+            return self._send_json({"error": "Inbound email is not configured."}, 404)
+        got_secret = (data.get("secret") or self.headers.get("X-Inbound-Secret") or "").strip()
+        if not hmac.compare_digest(got_secret, INBOUND_EMAIL_SECRET):
+            return self._send_json({"error": "forbidden"}, 403)
+        from_email = (data.get("from") or data.get("sender") or "").strip()[:300]
+        subject = (data.get("subject") or "(no subject)").strip()[:500]
+        body = (data.get("text") or data.get("body") or data.get("html") or "").strip()[:20000]
+        conn = db()
+        conn.execute("INSERT INTO support_inbox (from_email,subject,body,is_read,received_at) VALUES (?,?,?,0,?)",
+                     (from_email, subject, body, now_iso()))
+        conn.commit()
+        conn.close()
+        return self._send_json({"ok": True})
 
     def api_admin_delete_user(self, data):
         # Super admin deletes an account (kid/parent/teacher) and all its data, with a reason on record.
@@ -3565,12 +4097,95 @@ def byte_reply(q):
     return "Ooh, good question! 🤖 I'm best at coding basics - try asking about <code>variables</code>, <code>loops</code>, <code>if statements</code>, or <code>functions</code>!"
 
 
+# ─────────────────────── Notification scheduler (background thread) ───────────────────────
+def process_scheduled_notifications():
+    """Send any scheduled notification whose time has come."""
+    conn = db()
+    due = conn.execute("SELECT * FROM scheduled_notifications WHERE status='pending' AND send_at<=?",
+                       (now_iso(),)).fetchall()
+    for r in due:
+        try:
+            rows = notify_rows_for_audience(conn, r["audience"], r["role"], r["user_id"])
+            if rows:
+                deliver_notification(conn, r["created_by"] or "scheduler", r["audience"], rows,
+                                     r["title"] or "", r["body"] or "", bool(r["email"]),
+                                     audience_detail_label(r["audience"], r["role"], r["user_id"]))
+            conn.execute("UPDATE scheduled_notifications SET status='sent', sent_at=? WHERE id=?",
+                        (now_iso(), r["id"]))
+            conn.commit()
+        except Exception as e:
+            print("scheduled notification failed:", repr(e))
+    conn.close()
+
+
+def process_automations():
+    """Evaluate each enabled automation's trigger and notify newly-matching users (once per
+    cooldown window, tracked in automation_log so nobody gets the same nudge every minute)."""
+    conn = db()
+    autos = conn.execute("SELECT * FROM notification_automations WHERE enabled=1").fetchall()
+    for a in autos:
+        try:
+            candidates = []
+            if a["trigger_type"] == "inactive":
+                # Someone in this role, with an account older than the window, who hasn't
+                # completed a lesson within it — a re-engagement nudge.
+                cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=a["trigger_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                rows = conn.execute(
+                    "SELECT u.id FROM users u WHERE u.role=? AND u.created_at<=? "
+                    "AND NOT EXISTS (SELECT 1 FROM progress p WHERE p.user_id=u.id AND p.completed_at>?)",
+                    (a["audience_role"], cutoff, cutoff)).fetchall()
+                candidates = [r["id"] for r in rows]
+            elif a["trigger_type"] == "trial_ending":
+                # Trial accounts whose trial ends within the window.
+                cutoff = (datetime.datetime.utcnow() + datetime.timedelta(days=a["trigger_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                rows = conn.execute(
+                    "SELECT id FROM users WHERE plan='trial' AND trial_ends IS NOT NULL AND trial_ends<=?",
+                    (cutoff,)).fetchall()
+                candidates = [r["id"] for r in rows]
+            if candidates:
+                cooldown_cut = (datetime.datetime.utcnow() - datetime.timedelta(days=a["cooldown_days"])) \
+                    .replace(microsecond=0).isoformat() + "Z"
+                qmarks = ",".join("?" for _ in candidates)
+                already = {r["user_id"] for r in conn.execute(
+                    f"SELECT user_id FROM automation_log WHERE automation_id=? AND sent_at>? AND user_id IN ({qmarks})",
+                    [a["id"], cooldown_cut] + candidates).fetchall()}
+                target_ids = [uid for uid in candidates if uid not in already]
+                if target_ids:
+                    qmarks2 = ",".join("?" for _ in target_ids)
+                    rows = conn.execute(f"SELECT id,name,parent_email FROM users WHERE id IN ({qmarks2})",
+                                        target_ids).fetchall()
+                    deliver_notification(conn, f"automation:{a['name']}", "role", rows, a["title"] or "",
+                                         a["body"] or "", bool(a["email"]), f"automation · {a['name']}")
+                    ts = now_iso()
+                    conn.executemany("INSERT INTO automation_log (automation_id,user_id,sent_at) VALUES (?,?,?)",
+                                     [(a["id"], uid, ts) for uid in target_ids])
+                    conn.commit()
+            conn.execute("UPDATE notification_automations SET last_run_at=? WHERE id=?", (now_iso(), a["id"]))
+            conn.commit()
+        except Exception as e:
+            print("automation run failed:", repr(e))
+    conn.close()
+
+
+def notification_scheduler_loop():
+    while True:
+        try:
+            process_scheduled_notifications()
+            process_automations()
+        except Exception as e:
+            print("notification scheduler tick failed:", repr(e))
+        time.sleep(60)
+
+
 def main():
     init_db()
     seed_settings()
     seed_lessons()
     seed_admins()
     seed_sample_projects()   # gallery sample projects (kept)
+    threading.Thread(target=notification_scheduler_loop, daemon=True).start()
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"KidVibers backend running at http://localhost:{PORT}")
     try:
