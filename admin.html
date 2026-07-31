@@ -830,6 +830,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <button class="btn btn-primary" onclick="sendNotification()" id="ntSendBtn">🔔 Send notification</button>
           <span id="ntMsg" style="font-weight:700;font-size:0.85rem;"></span>
         </div>
+        <details style="margin-top:18px;">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;color:var(--text-dim);">🕘 Recently sent</summary>
+          <div id="ntHistory" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;"></div>
+        </details>
       </div>
 
       <!-- Mass email / mailing list (SUPER ADMIN ONLY) -->
@@ -1459,6 +1463,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       if (createHintEl) createHintEl.textContent = sup ? 'creates the account instantly' : 'sent to the super admin to approve';
       caRoleChanged();
       loadAdminNotices();
+      if (sup) loadNotifyHistory();
 
       // Stat boxes — load in isolation so one failing API call can never blank the whole dashboard.
       try {
@@ -2785,9 +2790,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           + (data.pushed ? `, ${data.pushed} pushed` : '') + '.';
         document.getElementById('ntTitle').value = '';
         document.getElementById('ntBody').value = '';
+        loadNotifyHistory();
       } else {
         msg.style.color = '#f87171'; msg.textContent = '⚠️ ' + (data.error || 'Could not send.');
       }
+    }
+    async function loadNotifyHistory() {
+      const wrap = document.getElementById('ntHistory');
+      if (!wrap) return;
+      const { ok, data } = await C4K.api('/api/admin/notify-history');
+      if (!ok || !data.history || !data.history.length) { wrap.innerHTML = '<div style="color:var(--text-faint);font-size:0.82rem;">Nothing sent yet.</div>'; return; }
+      const audienceLabel = h => h.audience === 'user' ? `🙋 ${h.audienceDetail || 'one person'}`
+        : h.audience === 'role' ? `👥 ${h.audienceDetail || h.audience}`
+        : h.audience === 'optedin' ? '🔔 opted-in'
+        : '🌍 everyone';
+      wrap.innerHTML = data.history.map(h => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:0.78rem;color:var(--text-faint);font-weight:800;">
+            <span>${audienceLabel(h)} · ${h.recipients} recipient${h.recipients === 1 ? '' : 's'}${h.emailed ? ` · ${h.emailed} emailed` : ''}${h.pushed ? ` · ${h.pushed} pushed` : ''}</span>
+            <span>${C4K.esc(h.sentBy)} · ${h.at}</span>
+          </div>
+          ${h.title ? `<div style="font-weight:900;margin-top:4px;">${C4K.esc(h.title)}</div>` : ''}
+          <div style="color:var(--text-dim);font-size:0.85rem;margin-top:2px;white-space:pre-wrap;">${C4K.esc(h.body)}</div>
+        </div>`).join('');
     }
 
     // ── Signup quiz editor (super admin) ──

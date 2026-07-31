@@ -469,6 +469,13 @@ def init_db():
             user_id INTEGER NOT NULL, endpoint TEXT UNIQUE,
             p256dh TEXT, auth TEXT, created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS sent_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_by TEXT, audience TEXT, audience_detail TEXT,
+            title TEXT, body TEXT,
+            recipients INTEGER DEFAULT 0, emailed INTEGER DEFAULT 0, pushed INTEGER DEFAULT 0,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -1422,6 +1429,9 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
             return self._send_json({"notices": [{"id": r["id"], "kind": r["kind"], "body": r["body"],
                                                   "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
+
+        if path == "/api/admin/notify-history":  # super admin: log of sent mass/personal notifications
+            return self.api_admin_notify_history()
 
         if path == "/api/shop":
             u = self._current_user()
@@ -2610,8 +2620,31 @@ class Handler(BaseHTTPRequestHandler):
                     emailed += 1
         # Best-effort real browser push to anyone who accepted it.
         pushed = push_broadcast(conn, [r["id"] for r in rows], title or "🚀 KidVibers", msg)
+        # Log the send so it shows up in the admin's notification history.
+        detail = {"user": f"user #{data.get('userId')}", "role": data.get("role"),
+                  "optedin": "people who accepted notifications", "all": "everyone"}.get(audience, "")
+        conn.execute(
+            "INSERT INTO sent_notifications (sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (admin["username"], audience, detail, title, msg, len(rows), emailed, pushed, ts))
+        conn.commit()
         conn.close()
         return self._send_json({"ok": True, "recipients": len(rows), "emailed": emailed, "pushed": pushed})
+
+    def api_admin_notify_history(self):
+        # Super admin: recent log of mass/personal notifications sent, for accountability.
+        admin = self._current_user()
+        if not admin or admin["role"] != "super_admin":
+            return self._send_json({"error": "forbidden"}, 403)
+        conn = db()
+        rows = conn.execute(
+            "SELECT id,sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at "
+            "FROM sent_notifications ORDER BY id DESC LIMIT 100").fetchall()
+        conn.close()
+        return self._send_json({"history": [
+            {"id": r["id"], "sentBy": r["sent_by"], "audience": r["audience"], "audienceDetail": r["audience_detail"],
+             "title": r["title"], "body": r["body"], "recipients": r["recipients"], "emailed": r["emailed"],
+             "pushed": r["pushed"], "at": (r["created_at"] or "")[:16].replace("T", " ")} for r in rows]})
 
     def api_admin_delete_user(self, data):
         # Super admin deletes an account (kid/parent/teacher) and all its data, with a reason on record.
