@@ -2,7 +2,7 @@
 // privacy.html / for-schools-privacy.html. To disable a provider, empty its ID below.
 (function () {
   var CLARITY_ID = "xv92ouu30k";       // Microsoft Clarity (heatmaps + session insights)
-  var GA_ID = "G-W1VS7WELXG";          // Google Analytics 4 (aggregate usage)
+  var GA_ID = "G-HZ95TLLKPL";          // Google Analytics 4 (aggregate usage)
   var GTM_ID = "GTM-5CJQ52WX";         // Google Tag Manager container
 
   // Shared Google dataLayer + gtag shim (used by Consent Mode, GA, and GTM).
