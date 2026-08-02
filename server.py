@@ -3610,6 +3610,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u or u["role"] != "kid":
             return self._send_json({"error": "Only a kid account can join a classroom."}, 403)
+        if rate_limited(f"classjoin:{u['id']}", 10, 600):
+            return self._send_json({"error": "Too many attempts. Please wait a few minutes and try again."}, 429)
         code = (data.get("code") or "").strip().upper().replace(" ", "")
         if not code:
             return self._send_json({"error": "Enter your class code."}, 400)
@@ -3625,6 +3627,15 @@ class Handler(BaseHTTPRequestHandler):
         if limit != -1 and used >= limit:
             conn.close()
             return self._send_json({"error": "That classroom is full. Ask your teacher for help."}, 403)
+        # A kid who already has real, non-class_code parental consent (email_plus, parent_account,
+        # admin_recorded, ...) must not be silently pulled out of their real family/consent record by
+        # a class code. A kid with pending/not_required consent, or one who previously joined via a
+        # class_code themselves, can still join (or switch classes) freely.
+        if u["consent_status"] == "granted" and _row_get(u, "consent_method") != "class_code":
+            conn.close()
+            return self._send_json({"error": "This account is already linked to a parent/guardian and "
+                                     "can't join a classroom this way. Ask a parent to add this account "
+                                     "to the class, or contact support@kidvibers.com for help."}, 409)
         granted_by = (teacher["school"] or teacher["username"]) + f" (code {code})"
         # Joining a class moves the kid into that group, with school/classroom consent.
         conn.execute("UPDATE users SET family_id=?, plan='family', consent_status='granted', "
