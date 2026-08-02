@@ -2203,7 +2203,7 @@ class Handler(BaseHTTPRequestHandler):
             expires = (datetime.datetime.utcnow() + datetime.timedelta(hours=2)).replace(microsecond=0).isoformat() + "Z"
             conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (token, expires, row["id"]))
             conn.commit()
-            url = f"http://localhost:{PORT}/reset.html?token={token}"
+            url = f"{SITE_URL}/reset.html?token={token}"
             send_email_async(row["parent_email"], "Reset your KidVibers password",
                              f"<p>Hi {clean_name(row['name'] or '')}, we got a request to reset your KidVibers password.</p>"
                              f"<p><a href=\"{url}\">Click here to choose a new password</a> (link expires in 2 hours).</p>"
@@ -2268,7 +2268,7 @@ class Handler(BaseHTTPRequestHandler):
             return resp  # error already sent (e.g. username taken)
         uid, row = resp
         link_token = row["link_token"]
-        invite_url = f"http://localhost:{PORT}/index.html?plink={link_token}"
+        invite_url = f"{SITE_URL}/index.html?plink={link_token}"
         # Simulate emails (no SMTP here) by storing messages the parent sees in-app.
         if email:
             invite_body = (f"{name} just joined KidVibers! Tap “Sign My Kid and Myself Up” to create your "
@@ -2279,7 +2279,7 @@ class Handler(BaseHTTPRequestHandler):
             send_email_async(email, f"Connect to {name} on KidVibers",
                              f'{invite_body} <a href="{invite_url}">Sign My Kid and Myself Up →</a>')
             if needs_consent:
-                consent_url = f"http://localhost:{PORT}/index.html?consent={consent_token}"
+                consent_url = f"{SITE_URL}/index.html?consent={consent_token}"
                 consent_body = (f"Parental consent needed: {name} (under 13) wants to use KidVibers. As required by "
                                 f"COPPA, please review and approve: {consent_url}")
                 conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
@@ -2353,7 +2353,7 @@ class Handler(BaseHTTPRequestHandler):
                               (email, "welcome", full_body, now_iso()))
                 conn2.commit()
                 conn2.close()
-                dash_url = f"http://localhost:{PORT}/parent.html"
+                dash_url = f"{SITE_URL}/parent.html"
                 consent_html = (f'<hr><p style="font-size:0.9em;color:#555"><strong>Parental Consent (COPPA):</strong> '
                                 + consent_note[len("Parental Consent (COPPA): "):] + "</p>")
                 if consent_record:
@@ -3642,7 +3642,7 @@ class Handler(BaseHTTPRequestHandler):
         if not parent_email:
             conn.close()
             return self._send_json({"error": "Please enter a parent's email address."}, 400)
-        consent_url = f"http://localhost:{PORT}/index.html?consent={tok}"
+        consent_url = f"{SITE_URL}/index.html?consent={tok}"
         body = (f"Parental consent needed: {kid['name']} (under 13) wants to use KidVibers. As required by "
                 f"COPPA, please review and approve: {consent_url}")
         conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
@@ -3664,7 +3664,7 @@ class Handler(BaseHTTPRequestHandler):
         confirm = secrets.token_urlsafe(10)
         conn.execute("UPDATE users SET consent_confirm_token=? WHERE id=?", (confirm, kid["id"]))
         if kid["parent_email"]:
-            confirm_url = f"http://localhost:{PORT}/index.html?consentconfirm={confirm}"
+            confirm_url = f"{SITE_URL}/index.html?consentconfirm={confirm}"
             conn.execute("INSERT INTO messages (to_email,kind,body,child_id,link_token,created_at) VALUES (?,?,?,?,?,?)",
                          (kid["parent_email"], "consent_confirm",
                           f"Please confirm consent for {kid['name']} by clicking: {confirm_url}", kid["id"], confirm, now_iso()))
