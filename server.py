@@ -2138,6 +2138,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
+            "/api/consent/self": lambda: self.api_consent_self(data),
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/checkout/session": lambda: self.api_checkout_session(data),
             "/api/billing/portal": lambda: self.api_billing_portal(data),
@@ -3703,6 +3704,24 @@ class Handler(BaseHTTPRequestHandler):
         send_email_async(parent_email, f"Approve {kid['name']}'s KidVibers account",
                          f'{body} <a href="{consent_url}">Review &amp; approve →</a>')
         return self._send_json({"ok": True, "parentEmail": parent_email})
+
+    def api_consent_self(self, data):
+        """On-device approval: parent is physically present, so skip the email round-trip and hand
+        the kid a consent token that opens the same email-plus verification flow on the home page."""
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "forbidden"}, 403)
+        if consent_ok(u):
+            return self._send_json({"error": "This account is already approved."}, 400)
+        conn = db()
+        # make sure there's a consent token to hand back
+        tok = _row_get(u, "consent_token")
+        if not tok:
+            tok = secrets.token_urlsafe(10)
+            conn.execute("UPDATE users SET consent_token=? WHERE id=?", (tok, u["id"]))
+            conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "token": tok})
 
     def api_consent_start(self, data):
         # Email-plus step 1: parent confirms intent; we issue a second confirmation token.
