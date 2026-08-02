@@ -55,13 +55,13 @@
       // Record that this person accepted notifications, so the site can send them
       // announcements (shown on their dashboard + optional email) even before browser
       // push keys are configured on the server.
-      try { if (window.C4K && C4K.api) await C4K.api('/api/notify/opt-in', 'POST', { optIn: true }); } catch (e) {}
+      try { if (C4K && C4K.api) await C4K.api('/api/notify/opt-in', 'POST', { optIn: true }); } catch (e) {}
       let cfg = {}; try { cfg = await (await fetch('/api/site-config')).json(); } catch {}
       if (!cfg.vapidPublicKey) { return true; }  // opt-in recorded; real browser push turns on when keys are set
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.vapidPublicKey) });
-        await (window.C4K && C4K.api ? C4K.api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }) : Promise.resolve());
+        await (C4K && C4K.api ? C4K.api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }) : Promise.resolve());
         return true;
       } catch (e) { console.log('push subscribe failed', e); return true; } // opt-in still recorded
     },
@@ -69,8 +69,8 @@
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (sub) { await (window.C4K && C4K.api ? C4K.api('/api/push/unsubscribe', 'POST', { endpoint: sub.endpoint }) : Promise.resolve()); await sub.unsubscribe(); }
-        else if (window.C4K && C4K.api) { await C4K.api('/api/notify/opt-in', 'POST', { optIn: false }); }
+        if (sub) { await (C4K && C4K.api ? C4K.api('/api/push/unsubscribe', 'POST', { endpoint: sub.endpoint }) : Promise.resolve()); await sub.unsubscribe(); }
+        else if (C4K && C4K.api) { await C4K.api('/api/notify/opt-in', 'POST', { optIn: false }); }
         return true;
       } catch { return false; }
     }
@@ -167,7 +167,7 @@
       if (typeof Notification === 'undefined' || Notification.permission !== 'default') return; // already answered
       var dismissed = localStorage.getItem('c4k_notif_dismissed');
       if (dismissed && Number(dismissed) > Date.now() - 7 * 86400000) return;
-      if (!window.C4K || !C4K.token || !C4K.token()) return; // logged-in users only
+      if (!C4K || !C4K.token || !C4K.token()) return; // logged-in users only
       var me = await C4K.loadMe();
       if (!me) return;
       setTimeout(showNotifBanner, 4500);
