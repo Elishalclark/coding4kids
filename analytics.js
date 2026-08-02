@@ -1,7 +1,7 @@
 // Product analytics + tag management, loaded on every page and disclosed in
 // privacy.html / for-schools-privacy.html. To disable a provider, empty its ID below.
 (function () {
-  var CLARITY_ID = "xt6zo4j6wt";       // Microsoft Clarity (heatmaps + session insights)
+  var CLARITY_ID = "xv92ouu30k";       // Microsoft Clarity (heatmaps + session insights)
   var GA_ID = "G-W1VS7WELXG";          // Google Analytics 4 (aggregate usage)
   var GTM_ID = "GTM-5CJQ52WX";         // Google Tag Manager container
 
