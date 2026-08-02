@@ -732,6 +732,12 @@ def init_db():
             from_email TEXT, subject TEXT, body TEXT,
             is_read INTEGER DEFAULT 0, received_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS kid_help_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kid_id INTEGER NOT NULL, kid_username TEXT, reason TEXT, message TEXT,
+            check_on_me_later INTEGER DEFAULT 0, parent_notified INTEGER DEFAULT 0,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -2094,11 +2100,14 @@ class Handler(BaseHTTPRequestHandler):
         quiz = json.loads(r["quiz"] or "{}")
         if quiz and not quiz.get("explain") and r["id"] in QUIZ_EXPLAIN:
             quiz["explain"] = QUIZ_EXPLAIN[r["id"]]
+        # Anti-cheat: never ship the answer index in the bulk lesson listing. The client grades
+        # lesson questions via /api/quiz/answer instead, which only reveals it after a choice is made.
+        quiz_public = {k: v for k, v in quiz.items() if k != "answer"}
         return {
             "id": r["id"], "position": r["position"], "emoji": r["emoji"], "title": r["title"],
             "blurb": r["blurb"], "level": r["level"], "xp": r["xp"], "published": bool(r["published"]),
             "unit": r["unit"] if r["unit"] is not None else 1,
-            "steps": json.loads(r["steps"] or "[]"), "quiz": quiz,
+            "steps": json.loads(r["steps"] or "[]"), "quiz": quiz_public,
         }
 
     # ---- POST API ----
@@ -2114,10 +2123,12 @@ class Handler(BaseHTTPRequestHandler):
             "/api/reset-password": lambda: self.api_reset_password(data),
             "/api/progress": lambda: self.api_progress(data),
             "/api/test/submit": lambda: self.api_test_submit(data),
+            "/api/quiz/answer": lambda: self.api_quiz_answer(data),
             "/api/ai": lambda: self.api_ai(data),
             "/api/shop/buy": lambda: self.api_shop_buy(data),
             "/api/avatar": lambda: self.api_save_avatar(data),
             "/api/request-upgrade": lambda: self.api_request_upgrade(data),
+            "/api/kid/help": lambda: self.api_kid_help(data),
             "/api/parent/add-kid": lambda: self.api_parent_add_kid(data),
             "/api/parent/signout-kid": lambda: self.api_parent_signout_kid(data),
             "/api/parent/delete-kid": lambda: self.api_parent_delete_kid(data),
@@ -2131,6 +2142,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/consent/start": lambda: self.api_consent_start(data),
             "/api/consent/confirm": lambda: self.api_consent_confirm(data),
             "/api/consent/resend": lambda: self.api_consent_resend(data),
+            "/api/consent/self": lambda: self.api_consent_self(data),
             "/api/checkout": lambda: self.api_checkout(data),
             "/api/checkout/session": lambda: self.api_checkout_session(data),
             "/api/billing/portal": lambda: self.api_billing_portal(data),
@@ -2473,6 +2485,31 @@ class Handler(BaseHTTPRequestHandler):
         return self._send_json({"completed": [r["lesson_id"] for r in rows], "unitsPassed": units_passed(u["id"]),
                                 "tokensAwarded": awarded, "tokens": tok})
 
+    def api_quiz_answer(self, data):
+        """Grades a single in-lesson quiz question server-side, so the answer never ships in the
+        bulk /api/lessons listing -- only revealed here, after the kid has already committed."""
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent must approve this account first.", "consentRequired": True}, 403)
+        lesson_id = data.get("lessonId")
+        conn = db()
+        r = conn.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+        conn.close()
+        if not r:
+            return self._send_json({"error": "Quiz not found."}, 404)
+        quiz = json.loads(r["quiz"] or "{}")
+        if not quiz or "answer" not in quiz:
+            return self._send_json({"error": "Quiz not found."}, 404)
+        try:
+            choice = int(data.get("choice"))
+        except (TypeError, ValueError):
+            return self._send_json({"error": "bad choice"}, 400)
+        correct = (choice == quiz.get("answer"))
+        explain = quiz.get("explain") or QUIZ_EXPLAIN.get(lesson_id, "")
+        return self._send_json({"ok": True, "correct": correct, "answer": quiz.get("answer"), "explain": explain})
+
     def api_test_submit(self, data):
         u = self._current_user()
         if not u:
@@ -2593,6 +2630,50 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         return self._send_json({"ok": True, "avatar": clean})
+
+    # ── Kid safety button: "Something's wrong?" ──
+    def api_kid_help(self, data):
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "Only a kid account can send a help report."}, 403)
+        reason = (data.get("reason") or "").strip()
+        if reason not in ("bug", "mean", "scary", "other"):
+            return self._send_json({"error": "Please pick a reason."}, 400)
+        message = (data.get("message") or "").strip()[:1000]
+        check_on_me_later = bool(data.get("checkOnMeLater"))
+        reason_labels = {
+            "bug": "something technical wasn't working",
+            "mean": "someone was unkind to them",
+            "scary": "something that scared or confused them",
+            "other": "something they wanted to flag",
+        }
+        label = reason_labels[reason]
+        kid_name = u["name"] or u["username"]
+        parent_email = (u["parent_email"] or "").strip()
+        parent_notified = bool(parent_email)
+        detail_lines = [f"{kid_name} tapped the \"Something's wrong?\" button on KidVibers to flag {label}."]
+        if message:
+            detail_lines.append(f"Their message: \"{message}\"")
+        detail_lines.append("They asked to be checked on later." if check_on_me_later
+                             else "They did not ask to be checked on later.")
+        detail_html = "<br><br>".join(detail_lines)
+        conn = db()
+        conn.execute(
+            "INSERT INTO kid_help_reports (kid_id,kid_username,reason,message,check_on_me_later,parent_notified,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (u["id"], u["username"], reason, message, int(check_on_me_later), int(parent_notified), now_iso()))
+        conn.commit()
+        conn.close()
+        if parent_email:
+            send_email_async(parent_email, f"{kid_name} used the KidVibers \"Something's wrong?\" button", detail_html)
+        send_email_async(get_super_admin_email(), f"\U0001f198 Kid safety report: {reason} ({u['username']})", detail_html)
+        resp = {
+            "ok": True,
+            "parentNotified": parent_notified,
+            "trustedAdultContact": None if parent_email else "The KidVibers team was notified and will follow up.",
+            "showCrisisLine": reason in ("scary", "other"),
+        }
+        return self._send_json(resp)
 
     # ── Child asks parent to upgrade (no pricing shown to the kid) ──
     def api_request_upgrade(self, data):
@@ -3558,6 +3639,8 @@ class Handler(BaseHTTPRequestHandler):
         u = self._current_user()
         if not u or u["role"] != "kid":
             return self._send_json({"error": "Only a kid account can join a classroom."}, 403)
+        if rate_limited(f"classjoin:{u['id']}", 10, 600):
+            return self._send_json({"error": "Too many attempts. Please wait a few minutes and try again."}, 429)
         code = (data.get("code") or "").strip().upper().replace(" ", "")
         if not code:
             return self._send_json({"error": "Enter your class code."}, 400)
@@ -3573,6 +3656,15 @@ class Handler(BaseHTTPRequestHandler):
         if limit != -1 and used >= limit:
             conn.close()
             return self._send_json({"error": "That classroom is full. Ask your teacher for help."}, 403)
+        # A kid who already has real, non-class_code parental consent (email_plus, parent_account,
+        # admin_recorded, ...) must not be silently pulled out of their real family/consent record by
+        # a class code. A kid with pending/not_required consent, or one who previously joined via a
+        # class_code themselves, can still join (or switch classes) freely.
+        if u["consent_status"] == "granted" and _row_get(u, "consent_method") != "class_code":
+            conn.close()
+            return self._send_json({"error": "This account is already linked to a parent/guardian and "
+                                     "can't join a classroom this way. Ask a parent to add this account "
+                                     "to the class, or contact support@kidvibers.com for help."}, 409)
         granted_by = (teacher["school"] or teacher["username"]) + f" (code {code})"
         # Joining a class moves the kid into that group, with school/classroom consent.
         conn.execute("UPDATE users SET family_id=?, plan='family', consent_status='granted', "
@@ -3652,6 +3744,24 @@ class Handler(BaseHTTPRequestHandler):
         send_email_async(parent_email, f"Approve {kid['name']}'s KidVibers account",
                          f'{body} <a href="{consent_url}">Review &amp; approve →</a>')
         return self._send_json({"ok": True, "parentEmail": parent_email})
+
+    def api_consent_self(self, data):
+        """On-device approval: parent is physically present, so skip the email round-trip and hand
+        the kid a consent token that opens the same email-plus verification flow on the home page."""
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "forbidden"}, 403)
+        if consent_ok(u):
+            return self._send_json({"error": "This account is already approved."}, 400)
+        conn = db()
+        # make sure there's a consent token to hand back
+        tok = _row_get(u, "consent_token")
+        if not tok:
+            tok = secrets.token_urlsafe(10)
+            conn.execute("UPDATE users SET consent_token=? WHERE id=?", (tok, u["id"]))
+            conn.commit()
+        conn.close()
+        return self._send_json({"ok": True, "token": tok})
 
     def api_consent_start(self, data):
         # Email-plus step 1: parent confirms intent; we issue a second confirmation token.
