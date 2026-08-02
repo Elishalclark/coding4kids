@@ -2100,11 +2100,14 @@ class Handler(BaseHTTPRequestHandler):
         quiz = json.loads(r["quiz"] or "{}")
         if quiz and not quiz.get("explain") and r["id"] in QUIZ_EXPLAIN:
             quiz["explain"] = QUIZ_EXPLAIN[r["id"]]
+        # Anti-cheat: never ship the answer index in the bulk lesson listing. The client grades
+        # lesson questions via /api/quiz/answer instead, which only reveals it after a choice is made.
+        quiz_public = {k: v for k, v in quiz.items() if k != "answer"}
         return {
             "id": r["id"], "position": r["position"], "emoji": r["emoji"], "title": r["title"],
             "blurb": r["blurb"], "level": r["level"], "xp": r["xp"], "published": bool(r["published"]),
             "unit": r["unit"] if r["unit"] is not None else 1,
-            "steps": json.loads(r["steps"] or "[]"), "quiz": quiz,
+            "steps": json.loads(r["steps"] or "[]"), "quiz": quiz_public,
         }
 
     # ---- POST API ----
@@ -2120,6 +2123,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/reset-password": lambda: self.api_reset_password(data),
             "/api/progress": lambda: self.api_progress(data),
             "/api/test/submit": lambda: self.api_test_submit(data),
+            "/api/quiz/answer": lambda: self.api_quiz_answer(data),
             "/api/ai": lambda: self.api_ai(data),
             "/api/shop/buy": lambda: self.api_shop_buy(data),
             "/api/avatar": lambda: self.api_save_avatar(data),
@@ -2480,6 +2484,31 @@ class Handler(BaseHTTPRequestHandler):
         conn.close()
         return self._send_json({"completed": [r["lesson_id"] for r in rows], "unitsPassed": units_passed(u["id"]),
                                 "tokensAwarded": awarded, "tokens": tok})
+
+    def api_quiz_answer(self, data):
+        """Grades a single in-lesson quiz question server-side, so the answer never ships in the
+        bulk /api/lessons listing -- only revealed here, after the kid has already committed."""
+        u = self._current_user()
+        if not u:
+            return self._send_json({"error": "not logged in"}, 401)
+        if not consent_ok(u):
+            return self._send_json({"error": "A parent must approve this account first.", "consentRequired": True}, 403)
+        lesson_id = data.get("lessonId")
+        conn = db()
+        r = conn.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+        conn.close()
+        if not r:
+            return self._send_json({"error": "Quiz not found."}, 404)
+        quiz = json.loads(r["quiz"] or "{}")
+        if not quiz or "answer" not in quiz:
+            return self._send_json({"error": "Quiz not found."}, 404)
+        try:
+            choice = int(data.get("choice"))
+        except (TypeError, ValueError):
+            return self._send_json({"error": "bad choice"}, 400)
+        correct = (choice == quiz.get("answer"))
+        explain = quiz.get("explain") or QUIZ_EXPLAIN.get(lesson_id, "")
+        return self._send_json({"ok": True, "correct": correct, "answer": quiz.get("answer"), "explain": explain})
 
     def api_test_submit(self, data):
         u = self._current_user()
