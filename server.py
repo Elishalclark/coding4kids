@@ -732,6 +732,12 @@ def init_db():
             from_email TEXT, subject TEXT, body TEXT,
             is_read INTEGER DEFAULT 0, received_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS kid_help_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kid_id INTEGER NOT NULL, kid_username TEXT, reason TEXT, message TEXT,
+            check_on_me_later INTEGER DEFAULT 0, parent_notified INTEGER DEFAULT 0,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress (user_id INTEGER NOT NULL, lesson_id TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY (user_id, lesson_id));
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -2118,6 +2124,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/shop/buy": lambda: self.api_shop_buy(data),
             "/api/avatar": lambda: self.api_save_avatar(data),
             "/api/request-upgrade": lambda: self.api_request_upgrade(data),
+            "/api/kid/help": lambda: self.api_kid_help(data),
             "/api/parent/add-kid": lambda: self.api_parent_add_kid(data),
             "/api/parent/signout-kid": lambda: self.api_parent_signout_kid(data),
             "/api/parent/delete-kid": lambda: self.api_parent_delete_kid(data),
@@ -2593,6 +2600,50 @@ class Handler(BaseHTTPRequestHandler):
         conn.commit()
         conn.close()
         return self._send_json({"ok": True, "avatar": clean})
+
+    # ── Kid safety button: "Something's wrong?" ──
+    def api_kid_help(self, data):
+        u = self._current_user()
+        if not u or u["role"] != "kid":
+            return self._send_json({"error": "Only a kid account can send a help report."}, 403)
+        reason = (data.get("reason") or "").strip()
+        if reason not in ("bug", "mean", "scary", "other"):
+            return self._send_json({"error": "Please pick a reason."}, 400)
+        message = (data.get("message") or "").strip()[:1000]
+        check_on_me_later = bool(data.get("checkOnMeLater"))
+        reason_labels = {
+            "bug": "something technical wasn't working",
+            "mean": "someone was unkind to them",
+            "scary": "something that scared or confused them",
+            "other": "something they wanted to flag",
+        }
+        label = reason_labels[reason]
+        kid_name = u["name"] or u["username"]
+        parent_email = (u["parent_email"] or "").strip()
+        parent_notified = bool(parent_email)
+        detail_lines = [f"{kid_name} tapped the \"Something's wrong?\" button on KidVibers to flag {label}."]
+        if message:
+            detail_lines.append(f"Their message: \"{message}\"")
+        detail_lines.append("They asked to be checked on later." if check_on_me_later
+                             else "They did not ask to be checked on later.")
+        detail_html = "<br><br>".join(detail_lines)
+        conn = db()
+        conn.execute(
+            "INSERT INTO kid_help_reports (kid_id,kid_username,reason,message,check_on_me_later,parent_notified,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (u["id"], u["username"], reason, message, int(check_on_me_later), int(parent_notified), now_iso()))
+        conn.commit()
+        conn.close()
+        if parent_email:
+            send_email_async(parent_email, f"{kid_name} used the KidVibers \"Something's wrong?\" button", detail_html)
+        send_email_async(get_super_admin_email(), f"\U0001f198 Kid safety report: {reason} ({u['username']})", detail_html)
+        resp = {
+            "ok": True,
+            "parentNotified": parent_notified,
+            "trustedAdultContact": None if parent_email else "The KidVibers team was notified and will follow up.",
+            "showCrisisLine": reason in ("scary", "other"),
+        }
+        return self._send_json(resp)
 
     # ── Child asks parent to upgrade (no pricing shown to the kid) ──
     def api_request_upgrade(self, data):
