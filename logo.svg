@@ -1,11 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 150" width="580" height="150">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 150" width="470" height="150" role="img" aria-label="Kidvibers">
+  <title>Kidvibers</title>
   <defs>
-    <linearGradient id="kvGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#a78bfa"/>
-      <stop offset="1" stop-color="#f472b6"/>
-    </linearGradient>
+    <style>
+      .kv-t{font-family:Nunito,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-weight:900}
+      .kv-red{fill:#f9423a}
+      .kv-navy{fill:#1b2a63}
+    </style>
   </defs>
-  <text x="14" y="104" font-size="88" font-family="'Apple Color Emoji','Segoe UI Emoji',sans-serif">🚀</text>
-  <text x="120" y="102" font-size="76" font-weight="900"
-        font-family="Nunito,'Segoe UI',Arial,sans-serif" fill="#1a1730">Kid<tspan fill="url(#kvGrad)">Vibers</tspan></text>
+
+  <!-- Wordmark. textLength locks the layout so the caret + sparkle stay aligned
+       even before the Nunito webfont finishes loading. -->
+  <text class="kv-t kv-red"  x="16"  y="100" font-size="78" textLength="128" lengthAdjust="spacingAndGlyphs">Kid</text>
+
+  <!-- the "v", drawn as a caret -->
+  <path d="M152 60 171 99 190 60" fill="none" stroke="#1b2a63" stroke-width="13"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text class="kv-t kv-navy" x="196" y="100" font-size="78" textLength="180" lengthAdjust="spacingAndGlyphs">ibers</text>
+
+  <!-- sparkle burst -->
+  <g stroke-linecap="round">
+    <path d="M386 76 A26 26 0 0 1 424 60" fill="none" stroke="#fdb913" stroke-width="12"/>
+    <rect x="382" y="26" width="15" height="15" rx="3" transform="rotate(-20 389.5 33.5)"
+          fill="none" stroke="#f9423a" stroke-width="5"/>
+    <path d="M416 24v11" stroke="#f9423a" stroke-width="5"/>
+    <rect x="370" y="48" width="9" height="9" rx="2" transform="rotate(-15 374.5 52.5)" fill="#f9423a"/>
+    <path d="M429 40l7-4" stroke="#fdb913" stroke-width="5"/>
+    <path d="M437 50l8-2" stroke="#fdb913" stroke-width="5"/>
+    <path d="M440 62l8 1" stroke="#fdb913" stroke-width="5"/>
+  </g>
 </svg>
