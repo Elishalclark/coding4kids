@@ -285,7 +285,19 @@ async function consentStep1(token) {
   const { ok, data } = await C4K.api('/api/consent/start', 'POST', { token });
   const body = document.getElementById('consentBody');
   if (!ok) { body.innerHTML = `<p style="color:#f87171;">${data.error || 'Could not start.'}</p>`; return; }
-  renderConsentIdForm(data.confirmToken, data.childName || 'your child');
+  // The confirm token now goes to the parent's inbox only — it is no longer returned here,
+  // because anything returned here is readable by whoever is at the child's device. So this
+  // step confirms the email was sent rather than rendering the ID form inline.
+  const child = C4K.esc(data.childName || 'your child');
+  body.innerHTML = `
+    <div style="text-align:center;"><div style="font-size:2.6rem;">📨</div>
+      <h3 style="font-weight:900;margin:8px 0;">Check your email</h3>
+      <p style="color:var(--text-dim);font-size:0.92rem;line-height:1.6;">
+        We've sent a confirmation link to the parent email on file. Open it to finish approving
+        <strong>${child}</strong>'s account.</p>
+      <p style="color:var(--text-faint);font-size:0.82rem;margin-top:12px;">
+        Can't find it? Check the spam folder - it comes from KidVibers.</p>
+    </div>`;
 }
 
 // Step 2 - verifiable parental consent: confirm the parent's identity (name + card last-4 +
@@ -441,10 +453,12 @@ function showInvite(data, parentEmail) {
   document.getElementById('inviteEmail').textContent = parentEmail || 'your parent';
   document.getElementById('inviteKid').textContent = data.user.name;
   document.getElementById('inviteEmailBtn').href = url;
-  // Under-13: offer immediate on-device parent approval (works even if no email is sent).
-  pendingConsentToken = data.consentToken || null;
+  // No on-device approval any more: the consent token is a parent-only secret and is never
+  // sent to this page, so there is nothing here a child could approve themselves with. The
+  // account is locked until the parent acts on their email (auth.js shows the lock screen).
+  pendingConsentToken = null;
   const block = document.getElementById('inviteApproveBlock');
-  if (block) block.style.display = (data.needsConsent && pendingConsentToken) ? '' : 'none';
+  if (block) block.style.display = 'none';
   document.getElementById('inviteModal').classList.remove('hidden');
 }
 function approveOnDevice() {

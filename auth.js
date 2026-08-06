@@ -274,14 +274,14 @@ const C4K = {
         'do lessons, use the playground, or anything else. Nothing works until then - to keep you safe! 🛡️</p>' +
         '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
           '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">👨‍👩‍👧 Is a parent or guardian with you right now?</label>' +
-          '<p style="font-size:0.8rem;color:#8b84a8;margin:4px 0 10px;">They can approve your account in about 30 seconds, right here.</p>' +
+          '<p style="font-size:0.8rem;color:#8b84a8;margin:4px 0 10px;">We\'ll email them the approval link - they can tap it on their own phone.</p>' +
           '<button id="c4kLockApprove" style="width:100%;padding:12px;border:none;border-radius:10px;' +
             'background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-weight:900;font-size:0.95rem;cursor:pointer;">' +
-            '✅ Yes - approve on this device</button>' +
-          '<p id="c4kLockApproveMsg" style="font-size:0.82rem;margin:8px 0 0;color:#ff8a8a;min-height:1em;"></p>' +
+            '✅ Yes - email them now</button>' +
+          '<p id="c4kLockApproveMsg" style="font-size:0.82rem;margin:8px 0 0;min-height:1em;"></p>' +
         '</div>' +
         '<div style="background:#0f0c1e;border:1px solid #2c2450;border-radius:14px;padding:16px;margin:18px 0;text-align:left;">' +
-          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Or email a parent the approval link</label>' +
+          '<label style="font-size:0.82rem;font-weight:800;color:#9b93c4;">Or send it to a different address</label>' +
           '<input id="c4kLockEmail" type="email" value="' + this.esc(email) + '" placeholder="grownup@email.com" ' +
             'style="width:100%;margin-top:6px;padding:11px 13px;border-radius:10px;border:1px solid #3a2f63;' +
             'background:#08060f;color:#fff;font-family:inherit;font-weight:700;box-sizing:border-box;" />' +
@@ -314,9 +314,15 @@ const C4K = {
     const apprMsg = ov.querySelector('#c4kLockApproveMsg');
     ov.querySelector('#c4kLockApprove').onclick = async (e) => {
       const btn = e.currentTarget; btn.disabled = true; apprMsg.textContent = '';
+      // This used to jump straight into the approval form using a token the server handed
+      // back to this page — i.e. the kid approving themselves. It now emails the parent, who
+      // taps the link on their own phone. Slower by a few seconds, actually verifiable.
       const { ok, data } = await this.api('/api/consent/self', 'POST', {});
-      if (ok && data.token) { location.href = '/index.html?consent=' + encodeURIComponent(data.token); }
-      else { apprMsg.textContent = (data && data.error) || 'Could not start approval.'; btn.disabled = false; }
+      apprMsg.style.color = ok ? '#7ee0a0' : '#ff8a8a';
+      apprMsg.textContent = ok
+        ? ('Sent! Check ' + (data.parentEmail || "the parent's inbox") + ' on their phone and tap "Approve".')
+        : ((data && data.error) || 'Could not send the approval email.');
+      if (!ok) btn.disabled = false;
     };
     const msg = ov.querySelector('#c4kLockMsg');
     ov.querySelector('#c4kLockSend').onclick = async (e) => {

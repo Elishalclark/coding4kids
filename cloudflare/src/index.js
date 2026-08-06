@@ -905,12 +905,16 @@ async function apiSignup(env, request, data) {
   // A parent email is still required so we can notify the parent and let them manage/withdraw.
   if (!email)
     return json({ error: "A parent's email is required so we can keep a parent in the loop." }, 400);
-  // Consent happens in the BACKGROUND: the kid can play right away (no blocking wall), but we
-  // record consent against the parent's email and email the parent so they can review or withdraw.
-  // This keeps a COPPA audit trail without the friction of a hard gate.
-  const needsConsent = false;
-  const consentToken = randToken(10);  // still issued so a parent can manage from the email link
-  const consentStatus = "granted";
+  // The account starts LOCKED and stays locked until a parent acts on the link emailed to
+  // them. It used to be created already-granted so the kid could play immediately, but that
+  // is consent recorded on the child's say-so: they supply the parent address themselves, so
+  // nobody outside the browser had to do anything. It also contradicted privacy.html, terms
+  // and trust.html, all of which promise the account is held pending until a parent approves.
+  // consentOk() already gates progress, projects, AI, tests, games, shop and avatar, and
+  // auth.js already ships the lock screen — both were dormant only because of these two lines.
+  const needsConsent = true;
+  const consentToken = randToken(10);
+  const consentStatus = "pending";
   // Check if a launch Pro slot is available - first 50 kids get 30 days of Pro free.
   const slotsUsed = await launchSlotsUsed(env);
   const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
@@ -919,15 +923,16 @@ async function apiSignup(env, request, data) {
   const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
   const r = await createUser(env, {
     role: "kid", name, username, password, email, kid_email: kidEmail || null, age: ageBand, age_years: ageYears, plan: planName,
-    trial_ends: trialEnds, consent_status: consentStatus, consent_method: "signup_parent_email",
+    trial_ends: trialEnds, consent_status: consentStatus, consent_method: null,
     consent_by: email, consent_token: consentToken,
   });
   if (r.error) return json({ error: r.error }, r.status || 400);
   if (getLaunchPro) await env.DB.prepare("UPDATE users SET launch_pro=1 WHERE id=?").bind(r.uid).run();
   // Apply a referral code if one was used (rewards both kids).
   await applyReferral(env, r.uid, (data.referralCode || data.ref || "").trim());
-  // Record the consent for the audit trail.
-  await logConsent(env, r.uid, username, "signup_parent_email", email, "Parent email provided at signup; parent notified and can review/withdraw");
+  // Log the REQUEST, not a consent. Writing "signup_parent_email" here used to make an
+  // unapproved account look approved in the audit trail — the worst kind of wrong record.
+  await logConsent(env, r.uid, username, "requested", email, "Signup created; approval link emailed to the parent. Account locked until they act.");
   const origin = new URL(request.url).origin;
   const inviteUrl = `${origin}/index.html?plink=${r.row.link_token}`;
   if (email) {
@@ -952,7 +957,10 @@ async function apiSignup(env, request, data) {
   return json({
     token, user: await publicUser(env, r.row),
     inviteToken: r.row.link_token, inviteUrl, parentEmail: email,
-    needsConsent, consentToken,
+    // consentToken is deliberately NOT returned. It is the only thing standing between a
+    // child and approving their own account (/api/consent/verify grants on possession of it
+    // alone), so it goes to the parent's inbox and nowhere else.
+    needsConsent,
     launchPro: getLaunchPro, slotsRemaining: Math.max(0, PRO_LAUNCH_SLOTS - slotsUsed - 1),
   });
 }
@@ -1792,8 +1800,17 @@ async function apiParentNudge(env, request, data) {
 async function apiClassJoin(env, request, data) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid") return json({ error: "Only a kid account can join a classroom." }, 403);
+  // Class codes are short and guessable, and joining rewrites family + consent, so cap it.
+  if (await rateLimited(env, `classjoin:${u.id}`, 10, 600))
+    return json({ error: "That's a lot of tries. Wait a few minutes and check the code with your teacher." }, 429);
   const code = (data.code || "").trim().toUpperCase().replace(/ /g, "");
   if (!code) return json({ error: "Enter your class code." }, 400);
+  // A kid already approved by a real parent must not be silently moved into a stranger's
+  // classroom: this overwrites family_id and downgrades consent_method to 'class_code',
+  // detaching them from their parent. Only unapproved kids, or ones already in a classroom,
+  // may join. (Same guard the Python build got; it was never carried over here.)
+  if (u.consent_status === "granted" && u.consent_method && u.consent_method !== "class_code")
+    return json({ error: "This account is already linked to a parent. Ask them to move you to a classroom." }, 409);
   const teacher = await env.DB.prepare("SELECT * FROM users WHERE role='teacher' AND class_code=?").bind(code).first();
   if (!teacher) return json({ error: "That class code wasn't found. Double-check it with your teacher." }, 404);
   const cfg = teacherPlanCfg(teacher.plan);
@@ -2824,7 +2841,11 @@ async function apiScreenTimeReport(env, request) {
 // (never the link_token, which is used for parent-invite linking).
 // Public certificate verification: given a kid's card token + a world unit, confirm they really
 // earned that world's certificate (no login). Powers verify.html.
-async function apiVerifyCert(env, token, unit) {
+async function apiVerifyCert(env, request, token, unit) {
+  // Public endpoint that confirms a real child's name against a token — worth a cap so it
+  // can't be walked to enumerate certificates.
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `verifycert:${ip}`, 60, 3600)) return json({ valid: false }, 429);
   const k = token && token.length >= 6 ? await env.DB.prepare("SELECT id,name FROM users WHERE card_token=? AND role='kid'").bind(token).first() : null;
   if (!k || isNaN(unit)) return json({ valid: false });
   const t = await env.DB.prepare("SELECT best_score,updated_at FROM unit_tests WHERE user_id=? AND unit=? AND passed=1").bind(k.id, unit).first();
@@ -3814,6 +3835,152 @@ async function adminNotice(env, request, data) {
   return json({ ok: true });
 }
 
+// Ready-to-send copy for email-templates.html. Ported verbatim from the Python build's
+// EMAIL_TEMPLATES so the page works against the Worker, which is what actually serves the site.
+const EMAIL_TEMPLATES =
+  [
+    {
+      "id": "features_announcement",
+      "category": "marketing",
+      "featured": false,
+      "title": "🚀 New Features Announcement",
+      "subject": "🚀 KidVibers just got a big upgrade — here's what's new",
+      "body": "Hey there,\n\nKidVibers has grown a lot lately, and I wanted to share what's new — whether you're a parent, a teacher, or just curious about a coding platform that's actually made by a kid, for kids.\n\n🎨 Vibe Studio — build without writing a single line of code. Kids create real projects visually and watch them come to life.\n\n🤖 Byte, your AI coding buddy — gives hints, not answers, so kids learn to solve problems instead of copy-pasting their way through.\n\n⚔️ 25 themed worlds, 293 lessons, and boss battles — a full journey from \"hello world\" to real projects, with a boss fight to test what you've learned at the end of every world.\n\n🎟️ Live drop-in coding sessions — real-time group sessions kids can just hop into, no account needed.\n\n🔥 Streaks, daily bonuses, and a classmate leaderboard — the stuff that makes kids actually want to come back.\n\n🎮 New coding games — learn loops, functions, and syntax through play, not worksheets.\n\n🏫 Classroom tools for teachers — rosters, progress dashboards, assignment tracking, and school/district plans.\n\n📜 Printable certificates — a real certificate to celebrate finishing a world.\n\n🎁 Invite a friend, get free Pro — refer someone and earn free days of Pro, no strings attached.\n\nAnd under the hood: it's ad-free, COPPA-minded, and safe by design — no data selling, ever.\n\nCome see what's new: https://kidvibers.com\n\nQuestions? Just reply — a real person (me!) reads every email.\n\n— Elisha Clark\nFounder, KidVibers"
+    },
+    {
+      "id": "reengagement",
+      "category": "marketing",
+      "featured": false,
+      "title": "👋 Come Back and Code (re-engagement)",
+      "subject": "We saved your spot, {name} 👋",
+      "body": "Hi {name},\n\nIt's been a little while since we've seen you on KidVibers — your streak, your projects, and your world are all exactly where you left them!\n\nJump back in for just 5 minutes today and keep the momentum going: https://kidvibers.com/dashboard.html\n\nSee you in there,\nThe KidVibers Team"
+    },
+    {
+      "id": "referral_push",
+      "category": "marketing",
+      "featured": false,
+      "title": "🎁 Referral Program Push",
+      "subject": "Give 7 days of Pro, get 7 days of Pro 🎁",
+      "body": "Hi {name},\n\nKnow a family or classroom that would love KidVibers? Share your invite link and you'll both get free days of Pro when they join — no catch.\n\nGrab your link from your dashboard under \"Invite a Friend,\" or head straight here: https://kidvibers.com/dashboard.html\n\nThanks for spreading the word!\n— The KidVibers Team"
+    },
+    {
+      "id": "founder_story",
+      "category": "personal",
+      "featured": true,
+      "title": "❤️ Made by a Kid, for Kids — the KidVibers Story",
+      "subject": "Why I built KidVibers",
+      "body": "Hi {name},\n\nMy name is Elisha Clark. I built KidVibers because I wanted to learn to code, but everything I tried felt like homework — dry tutorials, walls of text, nothing that felt like it was actually made for a kid.\n\nSo I made something that felt like a game instead: 293 lessons across 25 themed worlds, boss battles, XP, tokens, certificates, and an AI buddy named Byte who gives hints without just handing over the answer.\n\nIt's ad-free, safe, COPPA-minded, and free to start — because I wanted the kind of coding platform I wish I'd had.\n\nIf you're a parent, a teacher, or a kid who wants to learn to code, I'd genuinely love for you to try it and tell me what you think: https://kidvibers.com\n\nYou can always reach me directly at support@kidvibers.com — I read every email myself.\n\n— Elisha Clark\nFounder, KidVibers · Made by a kid, for kids ❤️"
+    },
+    {
+      "id": "personal_checkin",
+      "category": "personal",
+      "featured": false,
+      "title": "🙋 Personal Check-in / Thank You",
+      "subject": "Just wanted to say thanks",
+      "body": "Hi {name},\n\nI just wanted to reach out personally and say thank you for trying KidVibers. It means a lot that you'd give something I built a chance.\n\nIf anything felt confusing, or if there's a feature you wish existed, I'd genuinely love to hear about it — just reply to this email. I read and answer every message myself.\n\nThanks again,\nElisha Clark\nFounder, KidVibers"
+    },
+    {
+      "id": "school_partnership",
+      "category": "business",
+      "featured": false,
+      "title": "🏫 School / District Partnership Outreach",
+      "subject": "Bring safe, ad-free coding to your classroom — KidVibers for Schools",
+      "body": "Hi {name},\n\nI wanted to introduce KidVibers, a game-style coding platform for kids ages 6-16 that's built specifically with schools in mind.\n\nA few things that make it a fit for a classroom or district:\n- Ad-free, COPPA/FERPA-minded, and built for student privacy from day one\n- KidVibers acts as a school official/service provider under FERPA — student data is used only to provide the service\n- Rosters, class codes, teacher progress dashboards, and school/district-wide plans\n- A signable Data Processing Agreement (DPA) available on request\n- 293 lessons across 25 themed worlds, with an AI buddy (\"Byte\") that never sends student chats to outside AI companies\n\nFull details for reviewers: https://kidvibers.com/for-schools-privacy.html\n\nI'd love to set up a short call or send bulk pricing for your school or district — just reply here or reach out to support@kidvibers.com.\n\nBest,\nElisha Clark\nFounder, KidVibers"
+    },
+    {
+      "id": "library_partnership",
+      "category": "business",
+      "featured": false,
+      "title": "📚 Library Partnership Outreach",
+      "subject": "Free, safe drop-in coding sessions for your library patrons",
+      "body": "Hi {name},\n\nI wanted to introduce KidVibers for Libraries — a drop-in coding session kids can join in seconds, designed for public library programs.\n\nHow it works:\n1. The librarian starts a Live Session and gets a join code + a printable QR flyer.\n2. Kids scan the QR code and pick a nickname — no account, no email, nothing to install.\n3. Kids build real web pages, cards, and fan pages with our AI buddy, Byte. It feels like play.\n4. End the session and see how many kids joined and what they made.\n\nWhy librarians like it:\n- No per-child cost to host a session — great for public programs\n- Zero sign-up friction — kids join as guests with just a nickname\n- No ads, ever, with content filtered and monitored for safety\n- Full English and Spanish support\n- Works on tablets, laptops, or Chromebooks — anything with a browser\n\nMore info: https://kidvibers.com/for-libraries.html\n\nHappy to set up a free trial session for your branch — just reply or email support@kidvibers.com.\n\nBest,\nElisha Clark\nFounder, KidVibers"
+    },
+    {
+      "id": "press_media",
+      "category": "business",
+      "featured": false,
+      "title": "🎤 Press / Media Outreach",
+      "subject": "Story pitch: a kid built a coding platform used by families and schools",
+      "body": "Hi {name},\n\nI wanted to share a story that might interest your readers: KidVibers, a coding platform for kids ages 6-16, was built entirely by a kid — me, Elisha Clark.\n\nI built it because every coding tool I tried as a beginner felt like homework, so I made something that felt like a game instead: 293 lessons across 25 themed worlds, boss battles, and an AI buddy that gives hints instead of answers. It's ad-free, doesn't sell data, and is COPPA-minded from the ground up.\n\nI'd love to talk about the story behind it, or provide access, screenshots, or interviews for a piece. A press kit is available here: https://kidvibers.com/press.html\n\nHappy to work around your timeline — just reply here or reach me at support@kidvibers.com.\n\nBest,\nElisha Clark\nFounder, KidVibers"
+    },
+    {
+      "id": "password_reset",
+      "category": "passwords",
+      "featured": false,
+      "title": "🔑 Password Reset (transactional)",
+      "subject": "Reset your KidVibers password",
+      "body": "Hi {name},\n\nWe got a request to reset your KidVibers password.\n\nClick here to choose a new password (link expires in 2 hours): {resetLink}\n\nIf you didn't ask for this, you can safely ignore this email — your password won't change.\n\n— The KidVibers Team"
+    },
+    {
+      "id": "password_changed",
+      "category": "passwords",
+      "featured": false,
+      "title": "🔒 Password Changed Confirmation",
+      "subject": "Your KidVibers password was changed",
+      "body": "Hi {name},\n\nThis is a confirmation that your KidVibers account password was just changed.\n\nIf this was you, no action is needed. If you didn't make this change, please contact us immediately at support@kidvibers.com so we can secure your account.\n\n— The KidVibers Team"
+    },
+    {
+      "id": "support_ack",
+      "category": "support",
+      "featured": false,
+      "title": "📬 Support Acknowledgment (general)",
+      "subject": "Re: your KidVibers question — got it!",
+      "body": "Hi {name},\n\nThanks so much for reaching out — I've got your message and wanted to confirm it landed safely.\n\n{replyBody}\n\nIf anything's unclear or this doesn't fully answer your question, just reply here — a real person reads every message.\n\nThanks for your patience,\nElisha Clark\nKidVibers Support"
+    },
+    {
+      "id": "support_billing",
+      "category": "support",
+      "featured": false,
+      "title": "💳 Support Reply — Billing / Refund",
+      "subject": "Re: your KidVibers billing question",
+      "body": "Hi {name},\n\nThanks for reaching out about your billing question. Here's what I found on your account:\n\n{replyBody}\n\nIf you'd like a refund or need anything adjusted, just let me know and I'll take care of it directly — no back and forth needed.\n\nThanks for your patience,\nElisha Clark\nKidVibers Support"
+    },
+    {
+      "id": "support_safety",
+      "category": "support",
+      "featured": false,
+      "title": "🛡️ Support Reply — Safety Concern",
+      "subject": "Re: your safety report — thank you",
+      "body": "Hi {name},\n\nThank you for taking the time to report this — safety concerns are always our top priority, and I wanted to personally confirm we've received and reviewed it.\n\n{replyBody}\n\nIf you have any additional details or concerns, please don't hesitate to reply directly to this email. We take every report seriously.\n\nThank you again,\nElisha Clark\nKidVibers Support & Safety"
+    }
+  ];
+
+// ───────────────────────── Support inbox + email templates ─────────────────────────
+// Both standalone super-admin pages called these and got the Worker's catch-all 404, because
+// the handlers only ever existed in server.py. Schema: migrations/003_support_inbox.sql.
+
+async function adminEmailTemplates(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  return json({ templates: EMAIL_TEMPLATES });
+}
+
+async function adminSupportInbox(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT id,from_email,subject,body,is_read,received_at FROM support_inbox ORDER BY id DESC LIMIT 200"
+  ).all()).results || [];
+  const u = await env.DB.prepare("SELECT COUNT(*) AS c FROM support_inbox WHERE is_read=0").first();
+  return json({
+    unread: (u && u.c) || 0,
+    messages: rows.map(r => ({
+      id: r.id, from: r.from_email, subject: r.subject, body: r.body,
+      read: !!r.is_read, at: (r.received_at || "").slice(0, 16).replace("T", " "),
+    })),
+  });
+}
+
+async function adminSupportInboxRead(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("UPDATE support_inbox SET is_read=1 WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
+async function adminSupportInboxDelete(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("DELETE FROM support_inbox WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
 // ───────────────────────── Notification Center ─────────────────────────
 // The admin.html panels for these were built against server.py, which isn't what serves
 // kidvibers.com — so every send hit the catch-all 404 below and reported "Not found."
@@ -4758,6 +4925,9 @@ async function apiResetPassword(env, request, data) {
 }
 
 async function apiConsentStart(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `consentstart:${ip}`, 20, 3600))
+    return json({ error: "Too many attempts. Please try again later." }, 429);
   const tok = (data.token || "").trim();
   const kid = await env.DB.prepare("SELECT id,name,parent_email FROM users WHERE consent_token=? AND role='kid'").bind(tok).first();
   if (!kid) return json({ error: "Invalid or used consent link." }, 404);
@@ -4767,9 +4937,15 @@ async function apiConsentStart(env, request, data) {
     const confirmUrl = `${siteUrl(env, request)}/index.html?consentconfirm=${confirm}`;
     await sendEmail(env, kid.parent_email, `Confirm consent for ${kid.name}`, `One more step to approve ${kid.name}. <a href="${confirmUrl}">Confirm consent →</a>`);
   }
-  return json({ ok: true, confirmToken: confirm, childName: kid.name });
+  // confirmToken is NOT returned. It used to come straight back in this response, so whoever
+  // called this — including the child — could immediately post it to /api/consent/confirm and
+  // self-approve. It now only reaches the parent's inbox.
+  return json({ ok: true, sent: !!kid.parent_email, childName: kid.name });
 }
 async function apiConsentConfirm(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `consentconfirm:${ip}`, 20, 3600))
+    return json({ error: "Too many attempts. Please try again later." }, 429);
   const tok = (data.token || "").trim();
   const kid = await env.DB.prepare("SELECT id,name,username,parent_email FROM users WHERE consent_confirm_token=? AND role='kid'").bind(tok).first();
   if (!kid) return json({ error: "Invalid or used confirmation link." }, 404);
@@ -4788,15 +4964,28 @@ async function apiConsentConfirm(env, request, data) {
     `Parent verified ID: name + card ending ${cardLast4}; attested parent/guardian, 18+ (card never charged)`);
   return json({ ok: true, childName: kid.name });
 }
-// On-device approval: a logged-in pending kid gets (or creates) their consent token so a
-// parent standing next to them can approve immediately - no email required.
+// "A parent is with me right now." This used to hand the kid their own consent token so they
+// could approve on the spot — which meant the child held the one secret the whole scheme
+// depends on. There is no way to tell a parent from a child on the child's own device, so
+// this now does the only verifiable thing available: it emails the parent. If they really are
+// standing there, they open it on their own phone and tap approve, which is still quick and
+// actually proves control of the parent's mailbox.
 async function apiConsentSelf(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);
   if (consentOk(u)) return json({ error: "This account is already approved." }, 400);
+  if (await rateLimited(env, `consentself:${u.id}`, 5, 3600))
+    return json({ error: "We've sent a few already — check the inbox (and spam) before trying again." }, 429);
   let tok = u.consent_token;
   if (!tok) { tok = randToken(10); await env.DB.prepare("UPDATE users SET consent_token=? WHERE id=?").bind(tok, u.id).run(); }
-  return json({ ok: true, token: tok, childName: u.name });
+  const kid = await env.DB.prepare("SELECT name, parent_email FROM users WHERE id=?").bind(u.id).first();
+  if (!kid.parent_email) return json({ error: "Please enter a parent's email address." }, 400);
+  const verifyUrl = `${siteUrl(env, request)}/consent-verify.html?token=${tok}`;
+  await sendEmail(env, kid.parent_email, `Approve ${kid.name}'s KidVibers account`,
+    `<p><strong>${kid.name}</strong> is waiting to start on KidVibers and needs your approval.</p>
+     <p><a href="${verifyUrl}" style="display:inline-block;background:#22c55e;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:800;">✓ Approve ${kid.name}'s account</a></p>
+     <p style="color:#666;font-size:0.9rem;">If you weren't expecting this, you can ignore it — the account stays locked.</p>`);
+  return json({ ok: true, sent: true, parentEmail: kid.parent_email, childName: kid.name });
 }
 async function apiConsentResend(env, request, data) {
   const u = await userFromToken(env, bearer(request));
@@ -4936,6 +5125,12 @@ async function handleApi(env, request, path) {
   }
   if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
   if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
+  // ── Support inbox + email templates (standalone super-admin pages) ──
+  if (path === "/api/admin/email-templates" && method === "GET") return adminEmailTemplates(env, request);
+  if (path === "/api/admin/support-inbox" && method === "GET") return adminSupportInbox(env, request);
+  if (path === "/api/admin/support-inbox/read" && method === "POST") return adminSupportInboxRead(env, request, data);
+  if (path === "/api/admin/support-inbox/delete" && method === "POST") return adminSupportInboxDelete(env, request, data);
+
   // ── Notification Center (admin.html) ──
   if (path === "/api/notify/opt-in" && method === "POST") return apiNotifyOptIn(env, request, data);
   if (path === "/api/admin/notify" && method === "POST") return adminNotify(env, request, data);
@@ -5053,7 +5248,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/screen-time/report" && method === "GET") return apiScreenTimeReport(env, request);
   if (path === "/api/certificate/email" && method === "POST") return apiEmailCertificate(env, request, data);
   if (path.startsWith("/api/kidcard/") && method === "GET") return apiKidCard(env, decodeURIComponent(path.slice("/api/kidcard/".length)));
-  if (path === "/api/verify-cert" && method === "GET") { const q = new URL(request.url).searchParams; return apiVerifyCert(env, (q.get("k") || "").trim(), parseInt(q.get("u"), 10)); }
+  if (path === "/api/verify-cert" && method === "GET") { const q = new URL(request.url).searchParams; return apiVerifyCert(env, request, (q.get("k") || "").trim(), parseInt(q.get("u"), 10)); }
   if (path === "/api/my-card-token" && method === "GET") {
     const u = await userFromToken(env, bearer(request));
     if (!u || u.role !== "kid") return json({ error: "forbidden" }, 403);
@@ -5241,11 +5436,15 @@ async function handleApi(env, request, path) {
 
   // ── Verifiable parental consent (COPPA) — parent clicks the email link ──
   if (path === "/api/consent/verify" && method === "POST") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    // This grants consent on possession of the token alone, so it is the highest-value
+    // endpoint on the site to guess against. Cap it.
+    if (await rateLimited(env, `consentverify:${ip}`, 20, 3600))
+      return json({ error: "Too many attempts. Please try again later." }, 429);
     const token = (data.token || "").trim();
     if (!token) return json({ error: "Missing token." }, 400);
     const kid = await env.DB.prepare("SELECT id,name,consent_by FROM users WHERE consent_token=? AND role='kid'").bind(token).first();
     if (!kid) return json({ error: "This approval link is invalid or has expired." }, 404);
-    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
     await env.DB.prepare("UPDATE users SET consent_status='granted', consent_method='verifiable_parent_confirm', consent_at=? WHERE id=?")
       .bind(nowIso(), kid.id).run();
     await logConsent(env, kid.id, kid.name, "verifiable_parent_confirm", kid.consent_by || "parent", `Parent confirmed via email link (IP ${ip})`);
