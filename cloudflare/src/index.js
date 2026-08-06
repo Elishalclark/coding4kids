@@ -3813,6 +3813,285 @@ async function adminNotice(env, request, data) {
   await env.DB.prepare("INSERT INTO notices (user_id,kind,body,created_at) VALUES (?,?,?,?)").bind(target.id, data.kind || "notice", msg, nowIso()).run();
   return json({ ok: true });
 }
+
+// ───────────────────────── Notification Center ─────────────────────────
+// The admin.html panels for these were built against server.py, which isn't what serves
+// kidvibers.com — so every send hit the catch-all 404 below and reported "Not found."
+// Ported here, against this Worker's own tables (note: push rows live in push_subs, not
+// push_subscriptions as they do in the Python build). Schema: migrations/002_notifications.sql.
+
+const NOTIFY_ROLES = ["kid", "parent", "teacher", "admin", "super_admin"];
+
+// A mass send can match every account, so the audience is kept as a SQL predicate rather than
+// a fetched list — the notices go out in one INSERT..SELECT instead of one statement per user,
+// which is what keeps a send inside D1's per-request statement budget.
+function audienceWhere(audience, role, userId) {
+  if (audience === "user") return { sql: "id=?", binds: [userId] };
+  if (audience === "role") {
+    if (!NOTIFY_ROLES.includes(role)) return null;
+    return { sql: "role=?", binds: [role] };
+  }
+  if (audience === "optedin") return { sql: "notif_opt_in=1", binds: [] };
+  return { sql: "1=1", binds: [] };
+}
+
+function audienceDetailLabel(audience, role, userId) {
+  if (audience === "user") return `user #${userId}`;
+  if (audience === "role") return role || "";
+  if (audience === "optedin") return "people who accepted notifications";
+  return "everyone";
+}
+
+// Fan-out ceilings. A Worker request has a wall-clock and subrequest budget, and a send to
+// "everyone" would blow through both. The in-app notice is the guaranteed channel and has no
+// cap; email and push are best-effort on top, and the response reports what actually went out
+// so the admin isn't told 4000 people were emailed when 500 were.
+const NOTIFY_EMAIL_CAP = 500;
+const NOTIFY_PUSH_CAP = 500;
+
+async function deliverNotification(env, sentBy, audience, where, title, msg, alsoEmail, detail) {
+  const body = title ? `${title}\n\n${msg}` : msg;
+  const ts = nowIso();
+
+  const countRow = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE ${where.sql}`)
+    .bind(...where.binds).first();
+  const recipients = (countRow && countRow.n) || 0;
+  if (!recipients) return null;
+
+  await env.DB.prepare(
+    `INSERT INTO notices (user_id,kind,body,created_at) SELECT id,'announcement',?,? FROM users WHERE ${where.sql}`
+  ).bind(body, ts, ...where.binds).run();
+
+  let emailed = 0;
+  if (alsoEmail) {
+    const subject = title || "A message from KidVibers";
+    const html = `<p>${escHtml(msg).replace(/\n/g, "<br>")}</p>`;
+    const rows = (await env.DB.prepare(
+      `SELECT DISTINCT lower(parent_email) AS em FROM users WHERE ${where.sql} AND parent_email IS NOT NULL AND parent_email<>'' LIMIT ${NOTIFY_EMAIL_CAP}`
+    ).bind(...where.binds).all()).results || [];
+    for (const r of rows) {
+      try { await sendEmail(env, r.em, subject, html); emailed++; } catch {}
+    }
+  }
+
+  // Best-effort browser push. This Worker's sendWebPush is payloadless — the service worker
+  // shows its own default copy — so push is a nudge to come look, not the message itself.
+  let pushed = 0;
+  try {
+    if (env.VAPID_PRIVATE_KEY && env.VAPID_PUBLIC_KEY) {
+      const subs = (await env.DB.prepare(
+        `SELECT ps.endpoint, ps.p256dh, ps.auth, ps.user_id FROM push_subs ps
+         WHERE ps.user_id IN (SELECT id FROM users WHERE ${where.sql}) LIMIT ${NOTIFY_PUSH_CAP}`
+      ).bind(...where.binds).all()).results || [];
+      for (const s of subs) {
+        try {
+          const res = await sendWebPush(env, s);
+          if (res === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?").bind(s.endpoint).run();
+          else if (res === true) pushed++;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  await env.DB.prepare(
+    "INSERT INTO sent_notifications (sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at) VALUES (?,?,?,?,?,?,?,?,?)"
+  ).bind(sentBy, audience, detail || "", title || "", msg, recipients, emailed, pushed, ts).run();
+
+  return { recipients, emailed, pushed };
+}
+
+// Lets someone record (or withdraw) notification consent even when there's no push endpoint
+// yet — e.g. the browser granted permission but no VAPID key is configured.
+async function apiNotifyOptIn(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u) return json({ error: "not logged in" }, 401);
+  const on = data.optIn === false ? 0 : 1;
+  await env.DB.prepare("UPDATE users SET notif_opt_in=?, notif_opt_in_at=? WHERE id=?")
+    .bind(on, on ? nowIso() : null, u.id).run();
+  if (!on) await env.DB.prepare("DELETE FROM push_subs WHERE user_id=?").bind(u.id).run();
+  return json({ ok: true, optIn: !!on });
+}
+
+async function adminNotify(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const title = (data.title || "").trim();
+  const msg = (data.message || "").trim();
+  if (!msg) return json({ error: "A message is required." }, 400);
+  const audience = (data.audience || "all").trim();
+  const role = (data.role || "").trim();
+  if (audience === "user" && !data.userId) return json({ error: "Pick a person to notify." }, 400);
+  const where = audienceWhere(audience, role, data.userId);
+  if (!where) return json({ error: "Pick a valid role." }, 400);
+  const result = await deliverNotification(env, u.username, audience, where, title, msg,
+    !!data.email, audienceDetailLabel(audience, role, data.userId));
+  if (!result) return json({ error: "No one matched that audience." }, 404);
+  return json({ ok: true, ...result });
+}
+
+async function adminNotifyHistory(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT id,sent_by,audience,audience_detail,title,body,recipients,emailed,pushed,created_at FROM sent_notifications ORDER BY id DESC LIMIT 100"
+  ).all()).results || [];
+  return json({ history: rows.map(r => ({
+    id: r.id, sentBy: r.sent_by, audience: r.audience, audienceDetail: r.audience_detail,
+    title: r.title, body: r.body, recipients: r.recipients, emailed: r.emailed, pushed: r.pushed,
+    at: (r.created_at || "").slice(0, 16).replace("T", " "),
+  })) });
+}
+
+async function adminNotifySchedule(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const title = (data.title || "").trim();
+  const msg = (data.message || "").trim();
+  if (!msg) return json({ error: "A message is required." }, 400);
+  const audience = (data.audience || "all").trim();
+  const role = (data.role || "").trim();
+  if (audience === "role" && !NOTIFY_ROLES.includes(role)) return json({ error: "Pick a valid role." }, 400);
+  if (audience === "user" && !data.userId) return json({ error: "Pick a person to notify." }, 400);
+  const when = new Date((data.sendAt || "").replace(/Z$/, "") + "Z");
+  if (isNaN(when.getTime())) return json({ error: "Pick a valid date/time." }, 400);
+  if (when.getTime() <= Date.now()) return json({ error: "Pick a time in the future." }, 400);
+  await env.DB.prepare(
+    "INSERT INTO scheduled_notifications (created_by,audience,role,user_id,title,body,email,send_at,status,created_at) VALUES (?,?,?,?,?,?,?,?,'pending',?)"
+  ).bind(u.username, audience, role || null, data.userId || null, title, msg,
+    data.email ? 1 : 0, when.toISOString().replace(/\.\d+Z$/, "Z"), nowIso()).run();
+  return json({ ok: true });
+}
+
+async function adminNotifyScheduledList(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT * FROM scheduled_notifications ORDER BY (status='pending') DESC, send_at DESC LIMIT 100"
+  ).all()).results || [];
+  return json({ scheduled: rows.map(r => ({
+    id: r.id, createdBy: r.created_by, audience: r.audience, role: r.role, userId: r.user_id,
+    title: r.title, body: r.body, email: !!r.email, sendAt: r.send_at, status: r.status,
+    audienceDetail: audienceDetailLabel(r.audience, r.role, r.user_id),
+  })) });
+}
+
+async function adminNotifyScheduleCancel(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("UPDATE scheduled_notifications SET status='canceled' WHERE id=? AND status='pending'")
+    .bind(data.id).run();
+  return json({ ok: true });
+}
+
+async function adminAutomationsSave(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const triggerType = (data.triggerType || "").trim();
+  if (!["inactive", "trial_ending"].includes(triggerType)) return json({ error: "Pick a valid trigger." }, 400);
+  const name = (data.name || "").trim();
+  const msg = (data.message || "").trim();
+  if (!name || !msg) return json({ error: "Name and message are required." }, 400);
+  const triggerDays = Math.max(1, parseInt(data.triggerDays, 10) || 3);
+  const cooldownDays = Math.max(1, parseInt(data.cooldownDays, 10) || 30);
+  const role = (data.audienceRole || "kid").trim();
+  if (!NOTIFY_ROLES.includes(role)) return json({ error: "Pick a valid role." }, 400);
+  const title = (data.title || "").trim();
+  const alsoEmail = data.email ? 1 : 0;
+  if (data.id) {
+    await env.DB.prepare(
+      "UPDATE notification_automations SET name=?,trigger_type=?,trigger_days=?,audience_role=?,title=?,body=?,email=?,cooldown_days=?,enabled=? WHERE id=?"
+    ).bind(name, triggerType, triggerDays, role, title, msg, alsoEmail, cooldownDays,
+      data.enabled === false ? 0 : 1, data.id).run();
+  } else {
+    await env.DB.prepare(
+      "INSERT INTO notification_automations (name,trigger_type,trigger_days,audience_role,title,body,email,cooldown_days,enabled,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,1,?,?)"
+    ).bind(name, triggerType, triggerDays, role, title, msg, alsoEmail, cooldownDays,
+      u.username, nowIso()).run();
+  }
+  return json({ ok: true });
+}
+
+async function adminAutomationsList(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare("SELECT * FROM notification_automations ORDER BY id DESC").all()).results || [];
+  return json({ automations: rows.map(r => ({
+    id: r.id, name: r.name, triggerType: r.trigger_type, triggerDays: r.trigger_days,
+    audienceRole: r.audience_role, title: r.title, body: r.body, email: !!r.email,
+    cooldownDays: r.cooldown_days, enabled: !!r.enabled, createdBy: r.created_by, lastRunAt: r.last_run_at,
+  })) });
+}
+
+async function adminAutomationsDelete(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM notification_automations WHERE id=?").bind(data.id),
+    env.DB.prepare("DELETE FROM automation_log WHERE automation_id=?").bind(data.id),
+  ]);
+  return json({ ok: true });
+}
+
+async function adminAutomationsToggle(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("UPDATE notification_automations SET enabled=? WHERE id=?")
+    .bind(data.enabled ? 1 : 0, data.id).run();
+  return json({ ok: true });
+}
+
+// Cron: drain the "send later" queue. Marks each row sent even if delivery threw, so a single
+// bad row can't wedge the queue and re-send to everyone else on the next tick.
+async function runDueScheduledNotifications(env) {
+  try {
+    const due = (await env.DB.prepare(
+      "SELECT * FROM scheduled_notifications WHERE status='pending' AND send_at<=? LIMIT 25"
+    ).bind(nowIso()).all()).results || [];
+    for (const r of due) {
+      try {
+        const where = audienceWhere(r.audience, r.role, r.user_id);
+        if (where) {
+          await deliverNotification(env, r.created_by || "scheduler", r.audience, where,
+            r.title || "", r.body || "", !!r.email, audienceDetailLabel(r.audience, r.role, r.user_id));
+        }
+      } catch {}
+      await env.DB.prepare("UPDATE scheduled_notifications SET status='sent' WHERE id=?").bind(r.id).run().catch(() => {});
+    }
+  } catch {}
+}
+
+// Cron: evaluate each enabled automation and notify newly-matching users, once per cooldown
+// window. automation_log is what stops the hourly tick from re-nagging the same person.
+async function runNotificationAutomations(env) {
+  try {
+    const autos = (await env.DB.prepare("SELECT * FROM notification_automations WHERE enabled=1").all()).results || [];
+    for (const a of autos) {
+      try {
+        const iso = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+        let candidates = [];
+        if (a.trigger_type === "inactive") {
+          const cutoff = iso(Date.now() - a.trigger_days * 86400000);
+          candidates = ((await env.DB.prepare(
+            "SELECT u.id FROM users u WHERE u.role=? AND u.created_at<=? AND NOT EXISTS (SELECT 1 FROM progress p WHERE p.user_id=u.id AND p.completed_at>?)"
+          ).bind(a.audience_role, cutoff, cutoff).all()).results || []).map(r => r.id);
+        } else if (a.trigger_type === "trial_ending") {
+          const cutoff = iso(Date.now() + a.trigger_days * 86400000);
+          candidates = ((await env.DB.prepare(
+            "SELECT id FROM users WHERE plan='trial' AND trial_ends IS NOT NULL AND trial_ends<=?"
+          ).bind(cutoff).all()).results || []).map(r => r.id);
+        }
+        if (!candidates.length) continue;
+        const cooldownCut = iso(Date.now() - a.cooldown_days * 86400000);
+        const marks = candidates.map(() => "?").join(",");
+        const already = new Set(((await env.DB.prepare(
+          `SELECT user_id FROM automation_log WHERE automation_id=? AND sent_at>? AND user_id IN (${marks})`
+        ).bind(a.id, cooldownCut, ...candidates).all()).results || []).map(r => r.user_id));
+        const targets = candidates.filter(id => !already.has(id));
+        if (!targets.length) continue;
+        const tMarks = targets.map(() => "?").join(",");
+        await deliverNotification(env, `automation:${a.name}`, "role",
+          { sql: `id IN (${tMarks})`, binds: targets }, a.title || "", a.body || "", !!a.email,
+          `automation · ${a.name}`);
+        const ts = nowIso();
+        await env.DB.batch(targets.map(id =>
+          env.DB.prepare("INSERT INTO automation_log (automation_id,user_id,sent_at) VALUES (?,?,?)").bind(a.id, id, ts)));
+        await env.DB.prepare("UPDATE notification_automations SET last_run_at=? WHERE id=?").bind(ts, a.id).run();
+      } catch {}
+    }
+  } catch {}
+}
+
 // Protects the seeded pitch-demo account from ever being suspended/deleted/bulk-acted on by
 // mistake — it's kept intentionally populated (lessons, boss wins, tokens) for live demos.
 const DEMO_USERNAME = "Demo_kid1";
@@ -4657,6 +4936,18 @@ async function handleApi(env, request, path) {
   }
   if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
   if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
+  // ── Notification Center (admin.html) ──
+  if (path === "/api/notify/opt-in" && method === "POST") return apiNotifyOptIn(env, request, data);
+  if (path === "/api/admin/notify" && method === "POST") return adminNotify(env, request, data);
+  if (path === "/api/admin/notify-history" && method === "GET") return adminNotifyHistory(env, request);
+  if (path === "/api/admin/notify/schedule" && method === "POST") return adminNotifySchedule(env, request, data);
+  if (path === "/api/admin/notify/scheduled" && method === "GET") return adminNotifyScheduledList(env, request);
+  if (path === "/api/admin/notify/schedule/cancel" && method === "POST") return adminNotifyScheduleCancel(env, request, data);
+  if (path === "/api/admin/automations" && method === "GET") return adminAutomationsList(env, request);
+  if (path === "/api/admin/automations/save" && method === "POST") return adminAutomationsSave(env, request, data);
+  if (path === "/api/admin/automations/delete" && method === "POST") return adminAutomationsDelete(env, request, data);
+  if (path === "/api/admin/automations/toggle" && method === "POST") return adminAutomationsToggle(env, request, data);
+
   if (path === "/api/admin/site-edits" && method === "POST") return apiSiteEditsSave(env, request, data);
   if (path === "/api/admin/site-edits/submit" && method === "POST") return apiSiteEditsSubmit(env, request);
   if (path === "/api/admin/site-edits/pending" && method === "GET") return apiPendingGet(env, request);
@@ -5595,7 +5886,15 @@ export default {
     // Hourly health-check cron ("0 * * * *") is separate and deliberately lightweight — it
     // runs and returns without touching any of the heavier daily jobs below, so it can never
     // delay them and stays fast every single hour.
-    if (event.cron === "0 * * * *") { ctx.waitUntil(runHealthCheck(env)); ctx.waitUntil(runScheduledFlags(env)); return; }
+    // Scheduled sends and automations ride the hourly tick — "send later" is only ever
+    // accurate to the hour, which is the granularity the admin UI offers anyway.
+    if (event.cron === "0 * * * *") {
+      ctx.waitUntil(runHealthCheck(env));
+      ctx.waitUntil(runScheduledFlags(env));
+      ctx.waitUntil(runDueScheduledNotifications(env));
+      ctx.waitUntil(runNotificationAutomations(env));
+      return;
+    }
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
     if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); ctx.waitUntil(runWeeklyMrrSnapshot(env)); }
