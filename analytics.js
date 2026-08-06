@@ -2,8 +2,9 @@
 // privacy.html / for-schools-privacy.html. To disable a provider, empty its ID below.
 (function () {
   var CLARITY_ID = "xv92ouu30k";       // Microsoft Clarity (heatmaps + session insights)
-  var GA_ID = "G-HZ95TLLKPL";          // Google Analytics 4 (aggregate usage)
   var GTM_ID = "GTM-5CJQ52WX";         // Google Tag Manager container
+  // Google Analytics (G-W1VS7WELXG / G-HZ95TLLKPL) is not loaded here — its standard
+  // snippet is inline in every page's <head>, right after this file loads. See below.
 
   var CONSENT_KEY = "c4k_analytics_consent";   // "granted" | "denied" | null (not asked yet)
   var stored = null;
@@ -55,20 +56,16 @@
   }
 
   // ── Google Analytics 4 ──
-  // Analytics only: advertising personalization and Google Signals are disabled, so it
-  // never builds advertising profiles of children. Note: if you configure this same GA4
-  // property inside the GTM container above, remove this block to avoid double-counting.
-  if (GA_ID) {
-    var s = document.createElement("script");
-    s.async = 1; s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
-    document.getElementsByTagName("script")[0].parentNode.insertBefore(s, null);
-    gtag("js", new Date());
-    gtag("config", GA_ID, {
-      anonymize_ip: true,
-      allow_google_signals: false,
-      allow_ad_personalization_signals: false
-    });
-  }
+  // GA is deliberately NOT loaded from here. Its standard snippet is pasted directly into
+  // the <head> of every page, immediately after this file. That matters: Google's tag
+  // detector reads the raw page HTML and does not execute JavaScript, so a tag injected
+  // from here is invisible to it and gets reported as "not detected".
+  //
+  // Loading it here as well would call gtag('config', ...) twice and double-count every
+  // pageview, so this block stays empty on purpose.
+  //
+  // This file still owns the Consent Mode default above and runs first, so
+  // analytics_storage is already "denied" before that inline snippet configures GA.
 
   // ── Cookie consent banner ──
   // Analytics storage stays denied until the visitor picks. The choice is remembered in
