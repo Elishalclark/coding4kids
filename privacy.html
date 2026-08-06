@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
-  <script src="/analytics.js"></script>
+  <script src="/analytics.js?v=219"></script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
   <script>
@@ -16,7 +16,13 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HZ95TLLKPL');
+    // The options are not optional: privacy.html promises Google Signals and ad
+    // personalization are off. Keep them in step with that page.
+    gtag('config', 'G-HZ95TLLKPL', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
   </script>
 </head>
 <body>
@@ -118,7 +124,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <tr><td style="padding:8px 10px;">Security cookies (Cloudflare)</td><td style="padding:8px 10px;">Cookie</td><td style="padding:8px 10px;">Our network provider may set strictly-necessary cookies to block bots and protect the site</td></tr>
         </tbody>
       </table>
-      <p>These are <strong>first-party and essential</strong> - we don't use them to follow you around the web, and we don't share them with advertisers. You can clear them anytime by logging out or clearing your browser's storage/cookies in its settings (doing so just signs you out).</p>
+      <p>Everything above the analytics rows is <strong>essential</strong> - the site can't sign you in or remember your progress without it. The two analytics rows (Microsoft Clarity and Google Analytics) are <strong>optional</strong> and set by those providers, not by us: they stay switched off until you choose "Sure" on the cookie banner, and choosing "No thanks" keeps them off. Either way we don't use them to follow you around the web, and we don't share them with advertisers. You can change your mind or clear everything anytime by clearing your browser's storage/cookies in its settings (doing so also signs you out).</p>
 
       <h2 id="thirdparty">8. Third-Party Services</h2>
       <p>KidVibers uses a few third-party services, chosen to keep data collection minimal:</p>

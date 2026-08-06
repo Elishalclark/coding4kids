@@ -25,7 +25,7 @@
     .val h3 { font-weight:900; margin:6px 0 4px; font-size:0.95rem; }
     .val p { font-size:0.84rem; color:var(--text-dim); line-height:1.4; margin:0; }
   </style>
-  <script src="/analytics.js"></script>
+  <script src="/analytics.js?v=219"></script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
   <script>
@@ -33,7 +33,13 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HZ95TLLKPL');
+    // The options are not optional: privacy.html promises Google Signals and ad
+    // personalization are off. Keep them in step with that page.
+    gtag('config', 'G-HZ95TLLKPL', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
   </script>
 </head>
 <body>

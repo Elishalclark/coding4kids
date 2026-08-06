@@ -17,8 +17,14 @@
   // ── Consent Mode default — MUST run before any Google tag (GTM/GA) loads.
   // Analytics only: no advertising consent is requested or used on this child-directed
   // site. Storage starts denied; the banner below flips it once the visitor chooses. ──
+  // The ad_* signals are denied explicitly, not left out. Consent Mode treats any type you
+  // don't declare as *granted*, so omitting them would quietly do the opposite of what
+  // privacy.html promises ("no advertising cookies and no ad personalization, ever").
   gtag("consent", "default", {
     analytics_storage: "denied",
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied",
     wait_for_update: 500
   });
   // Returning visitor who already accepted: grant straight away, before the tags load,
