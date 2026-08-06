@@ -88,7 +88,7 @@
   });
 
   function showInstallBanner() {
-    if (document.getElementById('c4kInstallBar')) return;
+    if (document.getElementById('c4kInstallBar') || document.getElementById('c4kCookieBar')) return;
     var bar = document.createElement('div');
     bar.id = 'c4kInstallBar';
     bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9990;background:#1a1730;border-top:1px solid rgba(167,139,250,0.4);' +
@@ -132,7 +132,8 @@
   // FIRST and only trigger the real browser permission prompt if they say yes here — avoids
   // burning the one real prompt on someone who wasn't ready for it. Logged-in users only.
   function showNotifBanner() {
-    if (document.getElementById('c4kNotifBar') || document.getElementById('c4kInstallBar')) return;
+    if (document.getElementById('c4kNotifBar') || document.getElementById('c4kInstallBar')
+        || document.getElementById('c4kCookieBar')) return;
     var bar = document.createElement('div');
     bar.id = 'c4kNotifBar';
     bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9990;background:#1a1730;border-top:1px solid rgba(167,139,250,0.4);' +
