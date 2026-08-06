@@ -4093,12 +4093,15 @@ class Handler(BaseHTTPRequestHandler):
         # for the site's inline handlers/styles and 'unsafe-eval' for Skulpt (in-browser Python).
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; "
-                         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.clarity.ms https://www.googletagmanager.com; "
+                         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://accounts.google.com https://*.clarity.ms https://www.googletagmanager.com; "
                          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                          "font-src 'self' https://fonts.gstatic.com; "
                          "img-src 'self' data: https://api.dicebear.com https://api.qrserver.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; "
-                         "connect-src 'self' https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; "
-                         "frame-src https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; "
+                         "connect-src 'self' https://accounts.google.com https://*.clarity.ms https://c.bing.com "
+                         "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com "
+                         "https://www.googletagmanager.com; "
+                         "frame-src https://accounts.google.com https://www.googletagmanager.com; "
+                         "frame-ancestors 'none'; base-uri 'self'; "
                          "object-src 'none'; form-action 'self'")
 
     def serve_static(self, path):
@@ -4123,13 +4126,28 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(fs)[1]
         with open(fs, "rb") as f:
             body = f.read()
+        # Weak validator over the bytes we're about to send, so a browser holding an old copy
+        # revalidates instead of guessing. Without this, code/CSS shipped with no freshness
+        # info at all and browsers fell back to heuristic caching — which is how a stale
+        # analytics.js could run beside a newer page and double-count analytics.
+        etag = '"%s"' % hashlib.sha256(body).hexdigest()[:32]
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self._security_headers()
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("Content-Type", STATIC_TYPES.get(ext, "application/octet-stream"))
         self.send_header("Content-Length", str(len(body)))
         self._security_headers()
-        # Long cache for icons/manifest; short for everything else.
+        self.send_header("ETag", etag)
+        # Long cache for icons/manifest; everything else revalidates (cheap 304 via the ETag).
         if ext in (".png", ".svg", ".ico"):
             self.send_header("Cache-Control", "public, max-age=86400")
+        else:
+            self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(body)
 

@@ -29,7 +29,7 @@
     .trust-row { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:24px; color:var(--text-dim); font-size:0.84rem; font-weight:700; }
     .success { text-align:center; background:linear-gradient(135deg,#0f3d2e,#15803d); border:1px solid #22c55e; border-radius:var(--radius); padding:44px 24px; display:none; }
   </style>
-  <script src="/analytics.js"></script>
+  <script src="/analytics.js?v=219"></script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
   <script>
@@ -37,7 +37,13 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HZ95TLLKPL');
+    // The options are not optional: privacy.html promises Google Signals and ad
+    // personalization are off. Keep them in step with that page.
+    gtag('config', 'G-HZ95TLLKPL', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
   </script>
 </head>
 <body>

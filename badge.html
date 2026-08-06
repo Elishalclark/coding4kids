@@ -22,7 +22,7 @@
     pre.code-box { background:#0a0618; border:1px solid var(--border); border-radius:12px; padding:14px 16px; overflow-x:auto; font-size:0.8rem; color:#93c5fd; margin-bottom:8px; }
     .copy-btn { font-size:0.78rem; padding:6px 12px; }
   </style>
-  <script src="/analytics.js"></script>
+  <script src="/analytics.js?v=219"></script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
   <script>
@@ -30,7 +30,13 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HZ95TLLKPL');
+    // The options are not optional: privacy.html promises Google Signals and ad
+    // personalization are off. Keep them in step with that page.
+    gtag('config', 'G-HZ95TLLKPL', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
   </script>
 </head>
 <body>

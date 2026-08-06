@@ -123,22 +123,11 @@
     .plan-ai-toggle { width: 38px; height: 22px; }
     .chat-limit-in { width: 90px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family:'Nunito',sans-serif; font-weight:800; }
   </style>
-  <script src="/analytics.js"></script>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-HZ95TLLKPL');
-  </script>
+  <!-- No analytics.js / GA / Clarity here on purpose: this console renders account
+       emails, family links and compliance exports. Same reasoning that keeps them out
+       of support-inbox.html and email-templates.html — never session-record real PII. -->
 </head>
 <body>
-<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5CJQ52WX"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
 
   <!-- LOGIN -->
   <div class="login-wrap" id="loginWrap" style="display:none;">

@@ -36,7 +36,7 @@
     .section-heading.pro-heading { color: transparent; background: linear-gradient(135deg,#7c3aed,#db2777); -webkit-background-clip: text; background-clip: text; border-bottom-color: rgba(124,58,237,0.4); }
     .pro-heading-note { font-size: 0.72rem; font-weight: 700; color: var(--text-faint); background: none; -webkit-text-fill-color: var(--text-faint); margin-left: 8px; text-transform: none; letter-spacing: normal; }
   </style>
-  <script src="/analytics.js"></script>
+  <script src="/analytics.js?v=219"></script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HZ95TLLKPL"></script>
   <script>
@@ -44,7 +44,13 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
-    gtag('config', 'G-HZ95TLLKPL');
+    // The options are not optional: privacy.html promises Google Signals and ad
+    // personalization are off. Keep them in step with that page.
+    gtag('config', 'G-HZ95TLLKPL', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
   </script>
 </head>
 <body>

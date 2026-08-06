@@ -254,7 +254,7 @@ const SECURITY_HEADERS = {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; " +
-    "connect-src 'self' https://accounts.google.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; " +
+    "connect-src 'self' https://accounts.google.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com; " +
     "frame-src https://accounts.google.com https://www.googletagmanager.com; " +
     "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
   // Turn off device APIs the site never uses.
