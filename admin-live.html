@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - KidVibers Admin</title>
+  <title>Live Sessions - KidVibers Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
@@ -190,7 +190,7 @@
   <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
-  <div class="admin-shell" id="adminShell" data-admin-page="dashboard">
+  <div class="admin-shell" id="adminShell" data-admin-page="live">
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
@@ -242,69 +242,94 @@
         <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
       </div>
 
-      <div class="admin-main" id="secDashboard">
-      <h2 id="admPageTitle">🏠 Dashboard</h2>
-      <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
-
-      <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
-
-      <!-- At-a-glance confirmation that the panel is reading the real production database. -->
-      <div id="dbStatus" style="display:none;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;border-radius:50px;padding:6px 14px;margin-bottom:16px;width:fit-content;"></div>
-
-      <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
-      <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
-        <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
-        <span id="dashErrorMsg"></span>
-        <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
-      </div>
-
-      <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
-           jump straight to one specific account instead of scrolling the whole dashboard. -->
-      <div class="panel" id="onlineNowPanel">
-        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
-        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
-      </div>
-
-      <!-- Analytics (aggregate only — available to admin AND super admin; individual account
-           detail is super-admin only, gated separately above) -->
-      <div class="panel" id="analyticsPanel">
-        <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anActive">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Active (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anConv">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Free→Pro</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anParents">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Parents/Teachers</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
-        </div>
-        <!-- advanced tiles -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
-            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+      <div class="admin-main" id="secDashboard">      <div class="panel" id="secLiveSessions" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div style="font-size:1.8rem;">▶️</div>
+          <div style="flex:1;min-width:200px;">
+            <h3 style="margin-bottom:2px;color:#fff;">🎟️ Live drop-in session</h3>
+            <p style="margin:0;color:#dcfce7;font-size:0.85rem;">Start a session straight from the admin panel — great for a live pitch/demo. Kids join with just a nickname, no sign-up needed.</p>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
+              <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;">
+              ⏱️ Session length:
+              <select id="sessHours" style="padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-family:inherit;">
+                <option value="1">1 hour</option><option value="2">2 hours</option><option value="4">4 hours</option>
+                <option value="8" selected>8 hours</option><option value="12">12 hours</option><option value="24">24 hours</option>
+              </select>
+            </label>
           </div>
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
-            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+          <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
+        </div>
+        <div id="sessLive" style="display:none;margin-top:14px;background:rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;text-align:center;">
+          <div style="font-size:0.78rem;font-weight:800;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Kids: go to kidvibers.com/live → enter code</div>
+          <div id="sessCode" style="font-size:2.4rem;font-weight:900;letter-spacing:8px;margin:6px 0;color:#fff;">------</div>
+          <div style="font-size:0.8rem;color:#dcfce7;" id="sessExpiry"></div>
+          <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button id="sessLockBtn" class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="toggleLockSession()">🔒 Lock joins</button>
+            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="extendSession()">⏳ Add time</button>
+            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="newSessionCode()">🔄 New code</button>
+            <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
+            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+          </div>
+          <div style="margin-top:14px;text-align:left;">
+            <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
+            <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
+          </div>
+          <div style="margin-top:14px;text-align:left;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">🙋 Who's in the room</div>
+              <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);font-size:0.7rem;padding:3px 8px;" onclick="exportRosterCSV()">⬇️ Export CSV</button>
+            </div>
+            <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
           </div>
         </div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
-        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
-        <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
-        <div id="cohortChart" style="overflow-x:auto;"></div>
       </div>
 
-      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
+      <!-- Staff chat — shared room for every admin + super_admin to message each other. -->
+      <div class="panel" id="lockAllPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="font-size:1.8rem;">🔒</div>
+        <div style="flex:1;min-width:200px;">
+          <h3 style="margin-bottom:2px;">Session logout code</h3>
+          <p class="hint" style="margin:0;">For shared library/lab computers: kids can end their own session with this code so the next kid can log in. Leave blank to keep them locked in.</p>
+          <div class="msg" id="pinMsg"></div>
+        </div>
+        <input id="pinInput" maxlength="12" placeholder="e.g. 4821" style="width:120px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;font-family:inherit;text-align:center;letter-spacing:2px;" />
+        <button class="mini-btn" onclick="saveLogoutPin()">Save code</button>
+      </div>
+
+      <!-- Emergency stop — ends every currently-active Live Session platform-wide, no matter
+           who's hosting it. For "something's gone wrong, shut every room down right now." -->
+      <div class="panel" id="endAllSessionsPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(239,68,68,0.4);">
+        <div style="font-size:1.8rem;">🛑</div>
+        <div style="flex:1;min-width:200px;">
+          <h3 style="margin-bottom:2px;">Emergency: end ALL live sessions</h3>
+          <p class="hint" style="margin:0;">Ends every active Live Session platform-wide right now, no matter who's hosting it. Use before/after a pitch, or if something's wrong mid-event.</p>
+          <div class="msg" id="endAllMsg"></div>
+        </div>
+        <button class="mini-btn" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.5);color:#f87171;" onclick="endAllSessions()">🛑 End all sessions</button>
+      </div>
+
+      <div class="panel" id="activeSessionsPanel">
+        <h3 style="display:flex;align-items:center;gap:10px;">🎟️ Currently Active Sessions <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadActiveSessions()">↻ Refresh</button></h3>
+        <table class="admin-table">
+          <thead><tr><th>Host</th><th>Code</th><th>Kids joined</th><th>Locked</th><th>Expires</th><th></th></tr></thead>
+          <tbody id="activeSessionRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="panel" id="sessionHistoryPanel">
+        <h3 style="display:flex;align-items:center;gap:10px;">📜 Session History
+          <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadSessionHistory()">↻ Refresh</button></h3>
+        <p style="color:var(--text-dim);font-size:0.84rem;margin:-4px 0 12px;">Every session that has finished — who ran it, which kids were in it, and how long it lasted.</p>
+        <input id="shSearch" class="le-in" placeholder="Search by host, code, session name or a kid's name…"
+               oninput="renderSessionHistory()" style="width:100%;max-width:420px;margin-bottom:12px;" />
+        <table class="admin-table">
+          <thead><tr><th>Ended</th><th>Host</th><th>Code</th><th>Kids</th><th>Lasted</th></tr></thead>
+          <tbody id="sessionHistoryRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
 </div>
     </div>
   </div>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - KidVibers Admin</title>
+  <title>Settings - KidVibers Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
@@ -190,7 +190,7 @@
   <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
-  <div class="admin-shell" id="adminShell" data-admin-page="dashboard">
+  <div class="admin-shell" id="adminShell" data-admin-page="settings">
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
@@ -242,69 +242,75 @@
         <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
       </div>
 
-      <div class="admin-main" id="secDashboard">
-      <h2 id="admPageTitle">🏠 Dashboard</h2>
-      <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
+      <div class="admin-main" id="secDashboard">      <h2 class="super-only admin-section" id="secSettings" style="display:none;">⚙️ Settings</h2>
 
-      <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
-
-      <!-- At-a-glance confirmation that the panel is reading the real production database. -->
-      <div id="dbStatus" style="display:none;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;border-radius:50px;padding:6px 14px;margin-bottom:16px;width:fit-content;"></div>
-
-      <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
-      <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
-        <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
-        <span id="dashErrorMsg"></span>
-        <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
+      <!-- Login & sign-up controls (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="togglePanel" style="display:none;">
+        <h3>🔧 Login &amp; Sign-up Controls <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">site-wide</span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">Turn public sign-ups or logins on/off for the whole site. Admin &amp; super-admin logins always work, so you can never lock yourself out.</p>
+        <label style="display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:12px;">
+          <input type="checkbox" id="tgSignups" onchange="saveToggles()" /> Allow new sign-ups
+          <span id="tgSignupsState" style="font-size:0.8rem;font-weight:700;"></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;font-weight:800;">
+          <input type="checkbox" id="tgLogins" onchange="saveToggles()" /> Allow logins (kids/parents/teachers)
+          <span id="tgLoginsState" style="font-size:0.8rem;font-weight:700;"></span>
+        </label>
+        <div id="tgMsg" style="font-weight:700;font-size:0.85rem;margin-top:10px;min-height:1em;color:var(--green,#5ad17e);"></div>
       </div>
 
-      <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
-           jump straight to one specific account instead of scrolling the whole dashboard. -->
-      <div class="panel" id="onlineNowPanel">
-        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
-        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
+      <!-- All registered accounts (kept forever) -->
+      <div class="panel">
+        <h3>📋 All Registered Accounts <span id="acctCount" style="font-size:0.72rem;color:var(--text-faint);font-weight:700;"></span></h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:14px;">Every name that registers is kept permanently - kids and parents.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+          <input id="acctSearch" class="le-in" placeholder="🔎 Filter by name, username, role, or plan…" style="flex:1;min-width:200px;" oninput="renderAccountRows()" />
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:7px 12px;" onclick="exportAccountsCsv()">⬇️ Export CSV</button>
+        </div>
+        <div id="bulkBar" class="super-only" style="display:none;margin-bottom:10px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <span id="bulkCount" style="font-size:0.8rem;color:var(--text-faint);font-weight:700;">0 selected</span>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(true)">⏸️ Suspend selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkSuspend(false)">▶️ Unsuspend selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkMessage()">📨 Message selected</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="bulkExportSelected()">⬇️ Export selected</button>
+        </div>
+        <table class="admin-table">
+          <thead><tr>
+            <th class="super-only" style="display:none;"><input type="checkbox" onchange="toggleAllBulk(this)" /></th>
+            <th>#</th>
+            <th style="cursor:pointer;" onclick="sortAccounts('name')">Name <span id="sortIcon-name"></span></th>
+            <th style="cursor:pointer;" onclick="sortAccounts('username')">Username <span id="sortIcon-username"></span></th>
+            <th style="cursor:pointer;" onclick="sortAccounts('role')">Role <span id="sortIcon-role"></span></th>
+            <th style="cursor:pointer;" onclick="sortAccounts('plan')">Plan <span id="sortIcon-plan"></span></th>
+            <th style="cursor:pointer;" onclick="sortAccounts('joined')">Joined <span id="sortIcon-joined"></span></th>
+            <th id="acctActionHead"></th>
+          </tr></thead>
+          <tbody id="acctRows"></tbody>
+        </table>
       </div>
 
-      <!-- Analytics (aggregate only — available to admin AND super admin; individual account
-           detail is super-admin only, gated separately above) -->
-      <div class="panel" id="analyticsPanel">
-        <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anActive">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Active (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anConv">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Free→Pro</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anParents">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Parents/Teachers</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
+      <!-- Plans & Chat Limits (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="plansPanel" style="display:none;">
+        <h3>💳 Plan Permissions &amp; Limits <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Per plan, control AI access, AI chats per day, and how many lessons each plan can do. <code>-1</code> = unlimited.</p>
+        <table class="admin-table">
+          <thead><tr><th>Plan</th><th>AI Enabled</th><th>AI Chats / Day</th><th>Lessons Allowed</th></tr></thead>
+          <tbody id="planRows"></tbody>
+        </table>
+        <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <label style="font-weight:800;font-size:0.9rem;color:var(--text-dim);">🎯 Unit-test passing score
+            <input type="number" id="passPercentIn" class="chat-limit-in" min="1" max="100" value="70" style="width:80px;margin-left:8px;"> %
+          </label>
+          <button class="btn btn-primary" onclick="savePlans()">Save Settings</button>
+          <span id="planSaved" style="color:var(--green);font-weight:800;font-size:0.85rem;"></span>
         </div>
-        <!-- advanced tiles -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-weight:800;font-size:0.88rem;color:var(--text-dim);">🛒 Open the checkout screen:</span>
+          <a href="checkout.html?plan=pro" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout - Pro</a>
+          <a href="checkout.html?plan=family" class="btn btn-outline" style="font-size:0.82rem;padding:8px 16px;">Checkout - Family</a>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
-            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
-          </div>
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
-            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
-          </div>
-        </div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
-        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
-        <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
-        <div id="cohortChart" style="overflow-x:auto;"></div>
       </div>
 
-      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
 </div>
     </div>
   </div>

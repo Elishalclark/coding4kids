@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - KidVibers Admin</title>
+  <title>Security - KidVibers Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
@@ -190,7 +190,7 @@
   <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
-  <div class="admin-shell" id="adminShell" data-admin-page="dashboard">
+  <div class="admin-shell" id="adminShell" data-admin-page="security">
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
@@ -242,69 +242,52 @@
         <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
       </div>
 
-      <div class="admin-main" id="secDashboard">
-      <h2 id="admPageTitle">🏠 Dashboard</h2>
-      <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
-
-      <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
-
-      <!-- At-a-glance confirmation that the panel is reading the real production database. -->
-      <div id="dbStatus" style="display:none;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;border-radius:50px;padding:6px 14px;margin-bottom:16px;width:fit-content;"></div>
-
-      <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
-      <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
-        <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
-        <span id="dashErrorMsg"></span>
-        <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
-      </div>
-
-      <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
-           jump straight to one specific account instead of scrolling the whole dashboard. -->
-      <div class="panel" id="onlineNowPanel">
-        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
-        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
-      </div>
-
-      <!-- Analytics (aggregate only — available to admin AND super admin; individual account
-           detail is super-admin only, gated separately above) -->
-      <div class="panel" id="analyticsPanel">
-        <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anActive">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Active (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anConv">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Free→Pro</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anParents">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Parents/Teachers</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
+      <div class="admin-main" id="secDashboard">      <div class="panel super-only" id="secSecurity" style="display:none;">
+        <h3>🛡️ Security Dashboard <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">one-glance safety status</span></h3>
+        <div id="secDashGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+          <div style="color:var(--text-faint);">Loading…</div>
         </div>
-        <!-- advanced tiles -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
-            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+        <button class="btn btn-outline" style="font-size:0.8rem;" onclick="runBackupCheck()">🩺 Run database sanity check</button>
+        <span id="backupCheckMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
+        <br/>
+        <button class="btn btn-outline" style="font-size:0.8rem;margin-top:8px;" onclick="sendExecSummaryNow()">📊 Email me the weekly exec summary now</button>
+        <span id="execSummaryMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
+        <br/>
+        <button class="btn btn-outline" style="font-size:0.8rem;margin-top:8px;color:#f87171;border-color:rgba(239,68,68,.4);" onclick="forceLogoutAll()">🔐 Force logout — everyone, everywhere</button>
+        <span id="forceLogoutMsg" style="font-size:0.82rem;color:var(--text-dim);margin-left:8px;"></span>
+        <details style="margin-top:16px;">
+          <summary style="cursor:pointer;color:#f87171;font-weight:800;font-size:0.85rem;">🚨 Emergency: send a data-breach notice (use only if actually needed)</summary>
+          <div style="margin-top:10px;padding:14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;">
+            <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px;">Emails EVERY account holder with an email on file. Only use this for a real incident.</p>
+            <textarea id="breachMsg" rows="4" placeholder="Describe what happened and what people should do..." style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:8px;"></textarea>
+            <input id="breachConfirm" placeholder='Type exactly: SEND BREACH NOTICE' style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:8px;" />
+            <button class="btn" style="background:#dc2626;color:#fff;" onclick="sendBreachNotice()">Send to all account holders</button>
+            <div id="breachMsgOut" style="font-size:0.82rem;margin-top:8px;font-weight:700;"></div>
           </div>
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
-            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
-          </div>
-        </div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
-        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
-        <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
-        <div id="cohortChart" style="overflow-x:auto;"></div>
+        </details>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">📦 Export full data (JSON)</summary>
+          <p style="font-size:0.8rem;color:var(--text-dim);margin:8px 0;">Downloads users, progress, tests, consent log, notices &amp; projects as one JSON file — for your own offsite backup peace of mind. Not a substitute for real backups.</p>
+          <button class="btn btn-outline" onclick="downloadFullExport()">⬇️ Download export</button>
+        </details>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">🐛 Error log <span id="errCount" style="color:var(--text-faint);font-weight:600;"></span></summary>
+          <table class="admin-table" style="margin-top:8px;">
+            <thead><tr><th>When</th><th>Route</th><th>Error</th></tr></thead>
+            <tbody id="errorRows"><tr><td colspan="3" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+          </table>
+        </details>
+        <details style="margin-top:10px;" ontoggle="if(this.open)loadRateLimits()">
+          <summary style="cursor:pointer;font-weight:800;font-size:0.85rem;">🚦 Rate limits — who's being throttled right now</summary>
+          <p style="font-size:0.8rem;color:var(--text-dim);margin:8px 0;">Raw hit-counts on active rate-limit windows (logins, signups, session joins, etc.), highest first. Each limit's own threshold varies by endpoint — a high count here is a spike worth a look, not necessarily already blocked.</p>
+          <table class="admin-table">
+            <thead><tr><th>Key</th><th>Hits</th><th>Window age</th></tr></thead>
+            <tbody id="rateLimitRows"><tr><td colspan="3" style="color:var(--text-faint);">Expand to load…</td></tr></tbody>
+          </table>
+        </details>
       </div>
 
-      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
+      <!-- Feature flags (SUPER ADMIN ONLY) — for a sitewide maintenance banner, use the Site Message tool below instead -->
 </div>
     </div>
   </div>

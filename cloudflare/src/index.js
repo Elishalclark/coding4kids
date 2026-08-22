@@ -2573,6 +2573,7 @@ async function apiEndSession(env, request) {
         } catch (e) {}
       }
       recap = { joins: info.joins || 0, minutes, creations };
+      await archiveSession(env, prev.code, info, "host");
     }
     await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${prev.code}`).run();
     // Kids don't lose their work the instant the session ends: their device sees this on its
@@ -3507,11 +3508,81 @@ async function apiAdminActiveSessions(env, request) {
   out.sort((a, b) => (a.expiresAt < b.expiresAt ? -1 : 1));
   return json({ sessions: out });
 }
+// ── Session history ────────────────────────────────────────────────────────────
+// A live session lives in settings and is deleted when it ends, so once it was over there
+// was no record of who hosted it or which kids were in it. archiveSession() writes that
+// record before the session row goes away. Called from every path that ends one: the host
+// ending it, an admin ending it, and the cron sweeping expired ones.
+async function sessionKidsFor(env, code, familyId) {
+  // Guests of one host all share a family_id, so the per-guest marker is the only thing that
+  // says which of that host's sessions a kid belonged to.
+  const guests = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'sessionguest:%'").all()).results || [];
+  const uids = [];
+  for (const g of guests) {
+    try {
+      const v = typeof g.value === "string" ? JSON.parse(g.value) : g.value;
+      if (v && v.code === code) uids.push(g.key.slice("sessionguest:".length));
+    } catch {}
+  }
+  if (!uids.length) return [];
+  const marks = uids.map(() => "?").join(",");
+  const rows = (await env.DB.prepare(
+    `SELECT id,name,username,created_at FROM users WHERE id IN (${marks}) AND role='kid' ORDER BY id`
+  ).bind(...uids).all()).results || [];
+  return rows.map(r => ({ id: r.id, name: r.name, username: r.username, joinedAt: r.created_at || null }));
+}
+
+async function archiveSession(env, code, info, endedBy) {
+  if (!code || !info) return;
+  try {
+    // Don't write the same session twice if two paths race to end it.
+    const seen = await env.DB.prepare("SELECT 1 FROM session_log WHERE code=? AND started_at IS ?")
+      .bind(code, info.started ? new Date(info.started).toISOString() : null).first();
+    if (seen) return;
+    const host = info.teacherId
+      ? await env.DB.prepare("SELECT name,username,role FROM users WHERE id=?").bind(info.teacherId).first()
+      : null;
+    const kids = await sessionKidsFor(env, code, info.familyId);
+    await env.DB.prepare(
+      "INSERT INTO session_log (code,session_name,host_id,host_name,host_username,host_role,kid_count,kids,started_at,ended_at,ended_by) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(
+      code, info.name || null, info.teacherId || null,
+      host ? host.name : null, host ? host.username : null, host ? host.role : null,
+      kids.length, JSON.stringify(kids),
+      info.started ? new Date(info.started).toISOString() : null,
+      nowIso(), endedBy || "ended"
+    ).run();
+  } catch (e) { console.log("archiveSession failed:", e); }
+}
+
+async function apiAdminSessionHistory(env, request) {
+  const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
+  const q = new URL(request.url).searchParams;
+  const limit = Math.min(200, Math.max(1, parseInt(q.get("limit"), 10) || 100));
+  const rows = (await env.DB.prepare(
+    "SELECT * FROM session_log ORDER BY id DESC LIMIT ?"
+  ).bind(limit).all()).results || [];
+  return json({ sessions: rows.map(r => {
+    let kids = [];
+    try { kids = JSON.parse(r.kids || "[]"); } catch {}
+    return {
+      id: r.id, code: r.code, sessionName: r.session_name,
+      hostId: r.host_id, hostName: r.host_name, hostUsername: r.host_username, hostRole: r.host_role,
+      kidCount: r.kid_count, kids,
+      startedAt: r.started_at, endedAt: r.ended_at, endedBy: r.ended_by,
+      minutes: (r.started_at && r.ended_at)
+        ? Math.max(1, Math.round((new Date(r.ended_at) - new Date(r.started_at)) / 60000)) : null,
+    };
+  }) });
+}
+
 async function apiAdminEndOneSession(env, request, data) {
   const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const code = (data.code || "").toString().trim().toUpperCase();
   const info = await getSetting(env, `session:${code}`, null);
   if (!info) return json({ error: "That session isn't active." }, 404);
+  await archiveSession(env, code, info, "admin");
   await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`session:${code}`).run();
   if (info.teacherId) await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${info.teacherId}`).run();
   return json({ ok: true });
@@ -5453,6 +5524,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/breach-notice" && method === "POST") return apiSendBreachNotice(env, request, data);
   if (path === "/api/admin/end-all-sessions" && method === "POST") return apiAdminEndAllSessions(env, request);
   if (path === "/api/admin/active-sessions" && method === "GET") return apiAdminActiveSessions(env, request);
+  if (path === "/api/admin/session-history" && method === "GET") return apiAdminSessionHistory(env, request);
   if (path === "/api/admin/end-session" && method === "POST") return apiAdminEndOneSession(env, request, data);
   if (path === "/api/admin/reset-demo" && method === "POST") return apiAdminResetDemo(env, request);
   if (path === "/api/admin/admins" && method === "GET") return apiAdminListAdmins(env, request);
@@ -5893,6 +5965,27 @@ async function runSafetyEscalation(env) {
 
 // Auto-lock a live session that's been open 3+ hours with zero kids ever joining — almost
 // certainly a code someone forgot to close, and a stale open join code is just needless exposure.
+// Sessions that simply time out are never explicitly ended, so without this they'd vanish
+// from settings with no history written. Runs hourly alongside the other session upkeep.
+async function runExpiredSessionSweep(env) {
+  try {
+    const rows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'session:%'").all()).results || [];
+    let archived = 0;
+    for (const r of rows) {
+      let info; try { info = JSON.parse(r.value); } catch { continue; }
+      if (!info || !info.expires || info.expires > Date.now()) continue;
+      const code = r.key.slice("session:".length);
+      await archiveSession(env, code, info, "expired");
+      await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(r.key).run();
+      if (info.teacherId) {
+        await env.DB.prepare("DELETE FROM settings WHERE key=?").bind(`activesession:${info.teacherId}`).run();
+      }
+      archived++;
+    }
+    return archived;
+  } catch (e) { console.log("expired session sweep failed:", e); return 0; }
+}
+
 async function runStaleSessionLock(env) {
   const rows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'session:%'").all()).results || [];
   let locked = 0;
@@ -6222,6 +6315,7 @@ export default {
       ctx.waitUntil(runScheduledFlags(env));
       ctx.waitUntil(runDueScheduledNotifications(env));
       ctx.waitUntil(runNotificationAutomations(env));
+      ctx.waitUntil(runExpiredSessionSweep(env));
       return;
     }
     const now = new Date();

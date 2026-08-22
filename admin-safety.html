@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard - KidVibers Admin</title>
+  <title>Safety & Consent - KidVibers Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
@@ -190,7 +190,7 @@
   <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
-  <div class="admin-shell" id="adminShell" data-admin-page="dashboard">
+  <div class="admin-shell" id="adminShell" data-admin-page="safety">
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
@@ -242,69 +242,83 @@
         <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
       </div>
 
-      <div class="admin-main" id="secDashboard">
-      <h2 id="admPageTitle">🏠 Dashboard</h2>
-      <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
+      <div class="admin-main" id="secDashboard">      <h2 class="super-only admin-section" id="secSafety" style="display:none;">🛡️ Safety &amp; Consent</h2>
 
-      <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
-
-      <!-- At-a-glance confirmation that the panel is reading the real production database. -->
-      <div id="dbStatus" style="display:none;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;border-radius:50px;padding:6px 14px;margin-bottom:16px;width:fit-content;"></div>
-
-      <!-- Surfaces when a dashboard data call fails, so a blank stat box is never a silent mystery. -->
-      <div id="dashError" style="display:none;background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:12px;padding:12px 16px;margin-bottom:20px;color:#fca5a5;font-size:0.88rem;line-height:1.5;">
-        <strong style="color:#f87171;">⚠️ Some data couldn't load.</strong>
-        <span id="dashErrorMsg"></span>
-        <button onclick="loadData()" style="margin-left:8px;background:none;border:1px solid rgba(239,68,68,.5);color:#fca5a5;border-radius:8px;padding:3px 10px;font-weight:700;cursor:pointer;">Retry</button>
+      <!-- Auto-flag rule config (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" style="display:none;">
+        <h3>🚩 Auto-Escalation Rule <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">flags a kid for review after repeated safety alerts</span></h3>
+        <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 12px;">If a kid triggers this many safety alerts within the time window, they're automatically flagged for manual review (an "auto_escalated" notice + a heads-up email) — they are <strong>never auto-suspended</strong>, so this can't be abused to lock a kid out just by triggering the safety keyword filter.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:800;"><input type="checkbox" id="autoFlagEnabled" style="width:16px;height:16px;" /> Enabled</label>
+          <label style="font-size:0.82rem;color:var(--text-dim);">Threshold: <input id="autoFlagThreshold" class="le-in" type="number" min="2" max="20" value="3" style="width:70px;" /> alerts</label>
+          <label style="font-size:0.82rem;color:var(--text-dim);">Window: <input id="autoFlagWindow" class="le-in" type="number" min="1" max="168" value="24" style="width:70px;" /> hours</label>
+          <button class="btn btn-primary" onclick="saveAutoFlagConfig()">Save</button>
+        </div>
+        <div id="autoFlagMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
       </div>
 
-      <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
-           jump straight to one specific account instead of scrolling the whole dashboard. -->
-      <div class="panel" id="onlineNowPanel">
-        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
-        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
-      </div>
+      <!-- Parental Consent (SUPER ADMIN ONLY) -->
+      <div class="panel super-only" id="consentPanel" style="display:none;">
+        <h3>🛡️ Parental Consent (COPPA) <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">super admin</span></h3>
+        <p style="color:var(--text-dim);font-size:0.88rem;margin-bottom:16px;">Record verifiable parental consent for under-13 kids - including offline methods (phone call, signed form, in person). You can also revoke consent.</p>
 
-      <!-- Analytics (aggregate only — available to admin AND super admin; individual account
-           detail is super-admin only, gated separately above) -->
-      <div class="panel" id="analyticsPanel">
-        <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anActive">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Active (7d)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anConv">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Free→Pro</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anParents">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Parents/Teachers</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
+        <!-- Class/school groups (click a class code to see its students) -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
+          <div style="font-weight:900;margin-bottom:10px;">🏫 Classes &amp; Schools <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;">tap a class code to see its students</span></div>
+          <div id="consentGroupBtns" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+          <div id="consentGroupStudents" style="margin-top:14px;"></div>
         </div>
-        <!-- advanced tiles -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
-            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;">
+          <div style="font-weight:900;margin-bottom:12px;">📝 Record consent</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
+            <label class="le-lbl">Child
+              <select id="consentKid" class="le-in"></select></label>
+            <label class="le-lbl">Consent method
+              <select id="consentMethod" class="le-in">
+                <option value="verified_parent">Verified parent (name + card last-4)</option>
+                <option value="signed_form">Signed consent form</option>
+                <option value="phone">Phone call</option>
+                <option value="in_person">In person</option>
+                <option value="government_id">Government ID check</option>
+                <option value="credit_card">Credit/debit card check</option>
+                <option value="email_plus">Email-plus</option>
+                <option value="admin_recorded">Other (recorded)</option>
+              </select></label>
+            <label class="le-lbl">Note / parent name
+              <input id="consentNote" class="le-in" placeholder="e.g. Mum verified by phone" /></label>
+            <button class="btn btn-primary" onclick="recordConsent()">Record consent ✓</button>
           </div>
-          <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
-            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
-          </div>
+          <div id="consentMsg" style="color:var(--green);font-weight:800;font-size:0.85rem;margin-top:10px;"></div>
         </div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
-        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
-        <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
-        <div id="cohortChart" style="overflow-x:auto;"></div>
+        <table class="admin-table">
+          <thead><tr><th>Child</th><th>Age</th><th>Status</th><th>Method</th><th>Action</th></tr></thead>
+          <tbody id="consentRows"></tbody>
+        </table>
+        <h4 style="font-size:0.95rem;font-weight:900;margin:20px 0 10px;">📜 Consent audit log <span style="font-size:0.72rem;color:var(--text-faint);font-weight:700;" id="consentLogCount"></span></h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <input id="consentLogSearch" class="le-in" placeholder="🔎 Filter by child, who, or detail…" style="flex:1;min-width:200px;" oninput="renderConsentLog()" />
+          <select id="consentLogType" class="le-in" style="width:auto;" onchange="renderConsentLog()">
+            <option value="">All event types</option>
+            <option value="granted">✅ Consent granted</option>
+            <option value="revoked">🚫 Revoked / suspended / deleted</option>
+            <option value="account">👤 Account changes</option>
+            <option value="other">Other</option>
+          </select>
+          <button class="mini-btn" onclick="exportConsentLogCsv()">⬇️ Export CSV</button>
+        </div>
+        <table class="admin-table">
+          <thead><tr>
+            <th style="cursor:pointer;" onclick="sortConsentLog('at')">When <span id="cSortIcon-at">▼</span></th>
+            <th style="cursor:pointer;" onclick="sortConsentLog('child')">Child <span id="cSortIcon-child"></span></th>
+            <th style="cursor:pointer;" onclick="sortConsentLog('method')">Method <span id="cSortIcon-method"></span></th>
+            <th>By</th><th>Detail</th>
+          </tr></thead>
+          <tbody id="consentLog"></tbody>
+        </table>
       </div>
 
-      <!-- Browse every currently-active session (not just the all-or-nothing stop above) -->
+      
 </div>
     </div>
   </div>
