@@ -891,7 +891,11 @@
       <!-- Mass email / mailing list (SUPER ADMIN ONLY) -->
       <div class="panel super-only" id="emailBlastPanel" style="display:none;">
         <h3>📧 Email Everyone <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">all collected emails in one place</span></h3>
-        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Send an announcement from <strong>support@kidvibers.com</strong> to all parents, all kids, or everyone. Emails are pulled from every account.</p>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Send an announcement to parents, teachers/schools, or every grown-up. Addresses are pulled from every account.</p>
+        <p style="color:var(--text-faint);font-size:0.78rem;line-height:1.55;margin:-6px 0 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+          ⚖️ This is <strong>commercial mail</strong>, so every send carries a working unsubscribe link and your postal address, and anyone who has opted out is skipped automatically.
+          Children are never included — marketing to a kid's own address isn't something we do. Account emails (password resets, consent links) are unaffected and always send.
+        </p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:140px;">
             <div style="font-size:1.4rem;font-weight:900;color:var(--purple);" id="emCountParents">0</div>
@@ -905,8 +909,8 @@
         <label class="le-lbl">Send to
           <select id="emAudience" class="le-in" style="padding:10px 12px;">
             <option value="parents">👨‍👩‍👧 All parents</option>
-            <option value="kids">🧒 All kids</option>
-            <option value="everyone">🌍 Everyone</option>
+            <option value="educators">🍎 Teachers &amp; schools</option>
+            <option value="everyone">🌍 All grown-ups</option>
           </select>
         </label>
         <label class="le-lbl" style="margin-top:10px;">Subject

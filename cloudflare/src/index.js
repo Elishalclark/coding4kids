@@ -1972,19 +1972,32 @@ async function adminMassEmail(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const subject = (data.subject || "").trim().slice(0, 200);
   const body = (data.body || "").trim().slice(0, 5000);
-  const audience = (data.audience || "").trim(); // 'parents' | 'kids' | 'everyone'
+  const audience = (data.audience || "").trim(); // 'parents' | 'educators' | 'everyone'
   if (!subject || !body) return json({ error: "Subject and message are required." }, 400);
-  if (!["parents", "kids", "everyone"].includes(audience)) return json({ error: "Pick who to send to." }, 400);
+  // 'kids' was removed on purpose. This blast is commercial mail, and sending marketing to
+  // a child's own address on a COPPA-covered service is the one thing here worth avoiding
+  // outright. Account mail still reaches kids through the transactional paths.
+  if (!["parents", "educators", "everyone"].includes(audience)) return json({ error: "Pick who to send to." }, 400);
 
-  // Gather unique recipient emails for the chosen audience.
-  const rows = (await env.DB.prepare("SELECT role,parent_email,kid_email FROM users").all()).results || [];
+  // Grown-ups only: parent_email on any account, plus teacher/admin addresses.
+  const rows = (await env.DB.prepare(
+    "SELECT role,parent_email FROM users WHERE parent_email IS NOT NULL AND parent_email<>''"
+  ).all()).results || [];
+  const EDU = ["teacher", "admin", "super_admin"];
   const set = new Set();
   for (const r of rows) {
-    if ((audience === "parents" || audience === "everyone") && r.parent_email) set.add(r.parent_email.trim().toLowerCase());
-    if ((audience === "kids" || audience === "everyone") && r.role === "kid" && r.kid_email) set.add(r.kid_email.trim().toLowerCase());
+    const isEdu = EDU.includes(r.role);
+    if (audience === "everyone" || (audience === "educators" && isEdu) || (audience === "parents" && !isEdu)) {
+      set.add(r.parent_email.trim().toLowerCase());
+    }
   }
-  const recipients = [...set].filter(e => /^\S+@\S+\.\S+$/.test(e));
-  if (!recipients.length) return json({ error: "No email addresses found for that group yet." }, 400);
+  let recipients = [...set].filter(e => /^\S+@\S+\.\S+$/.test(e));
+  // Drop anyone who has unsubscribed. sendEmail also checks, but filtering here means the
+  // reported count is the truth rather than counting suppressed sends as delivered.
+  const optedOut = new Set(((await env.DB.prepare("SELECT email FROM email_opt_out").all()).results || []).map(r => r.email));
+  const suppressed = recipients.filter(e => optedOut.has(e)).length;
+  recipients = recipients.filter(e => !optedOut.has(e));
+  if (!recipients.length) return json({ error: "No one to send to — everyone in that group has unsubscribed, or there are no addresses yet." }, 400);
 
   // Wrap the message in a simple branded template.
   const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
@@ -1996,11 +2009,11 @@ async function adminMassEmail(env, request, data) {
 
   let sent = 0, failed = 0;
   for (const to of recipients) {
-    const ok = await sendEmail(env, to, subject, html, "KidVibers <support@kidvibers.com>");
+    const ok = await sendEmail(env, to, subject, html, null, { marketing: true });
     if (ok) sent++; else failed++;
   }
-  await sendSlack(env, `📣 *Mass email sent*\n• To: ${audience} (${recipients.length})\n• Subject: ${subject}\n• Sent: ${sent}, Failed: ${failed}`);
-  return json({ ok: true, sent, failed, total: recipients.length });
+  await sendSlack(env, `📣 *Mass email sent*\n• To: ${audience} (${recipients.length})\n• Subject: ${subject}\n• Sent: ${sent}, Failed: ${failed}, Unsubscribed skipped: ${suppressed}`);
+  return json({ ok: true, sent, failed, total: recipients.length, suppressed });
 }
 
 async function apiQuizConfig(env) {
@@ -4616,25 +4629,89 @@ const EMAIL_FOOTER = `
     <tr>
       <td style="padding-top:12px;font-size:11px;color:#9ca3af;">
         © 2026 KidVibers.com · Owner: Elisha Clark<br/>
+        {{POSTAL}}<br/>
         You're receiving this because you or your child has a KidVibers account.
-        <a href="https://kidvibers.com" style="color:#9ca3af;">Unsubscribe</a>
       </td>
     </tr>
   </table>
 </div>`;
 
-async function sendEmail(env, to, subject, html, from) {
+// CAN-SPAM wants a real postal address on commercial mail. Set MAIL_ADDRESS as a secret
+// (a PO box is fine); the placeholder makes it obvious in a test send if it's still unset.
+function postalLine(env) {
+  return (env && env.MAIL_ADDRESS) || "KidVibers · mailing address not configured";
+}
+function footerFor(env, opts) {
+  let f = EMAIL_FOOTER.replace("{{POSTAL}}", escHtml(postalLine(env)));
+  // Only marketing mail carries an unsubscribe. A password reset or a parental-consent
+  // link must always be deliverable — you cannot opt out of those and still use the site.
+  if (opts && opts.marketing && opts.unsubUrl) {
+    f = f.replace("You're receiving this because you or your child has a KidVibers account.",
+      `You're receiving this because you asked for KidVibers updates.<br/>` +
+      `<a href="${opts.unsubUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe from marketing emails</a>` +
+      ` — you'll still get account emails like password resets.`);
+  }
+  return f;
+}
+
+// ── Marketing opt-out ──────────────────────────────────────────────────────────
+// The unsubscribe link used to point at the homepage, which is not an opt-out at all.
+// Tokens are derived from the address with a server-side secret, so a link can't be
+// forged to unsubscribe somebody else, and no row has to exist before the mail is sent.
+async function unsubSecret(env) {
+  let sec = await getSetting(env, "unsub_secret", null);
+  if (!sec) { sec = randToken(32); await setSetting(env, "unsub_secret", sec); }
+  return sec;
+}
+async function unsubToken(env, email) {
+  const key = await unsubSecret(env);
+  const data = new TextEncoder().encode(key + "|" + String(email).trim().toLowerCase());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(buf)].slice(0, 12).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function unsubUrlFor(env, email) {
+  const t = await unsubToken(env, email);
+  // No request object here (this is called from cron jobs too), so fall back to the live
+  // domain rather than deriving the origin from an inbound request.
+  const base = (env.SITE_URL || "https://kidvibers.com").replace(/\/$/, "");
+  return `${base}/unsubscribe.html?e=${encodeURIComponent(email)}&t=${t}`;
+}
+async function isOptedOut(env, email) {
+  const row = await env.DB.prepare("SELECT 1 FROM email_opt_out WHERE email=?")
+    .bind(String(email).trim().toLowerCase()).first();
+  return !!row;
+}
+
+// opts.marketing marks a send as commercial: it is suppressed for anyone who has opted out
+// and it carries a working unsubscribe link. Transactional mail (password resets, parental
+// consent, account notices) passes nothing and is always delivered — opting out of those
+// would lock people out of their own accounts.
+async function sendEmail(env, to, subject, html, from, opts) {
   if (!to || !env.RESEND_API_KEY) return false;
+  const marketing = !!(opts && opts.marketing);
   try {
+    if (marketing && await isOptedOut(env, to)) return false;
+    const footer = await (async () => {
+      if (!marketing) return footerFor(env, null);
+      return footerFor(env, { marketing: true, unsubUrl: await unsubUrlFor(env, to) });
+    })();
+    const headers = { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" };
+    const payload = {
+      from: from || (marketing && env.MARKETING_FROM) || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
+      to: [to], subject,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px 20px;">${html}${footer}</div>`,
+      reply_to: env.REPLY_TO || "support@kidvibers.com",
+    };
+    // One-click unsubscribe: Gmail and Yahoo require this on bulk mail, and honouring it
+    // is what keeps a campaign out of the spam folder.
+    if (marketing) {
+      payload.headers = {
+        "List-Unsubscribe": `<${await unsubUrlFor(env, to)}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      };
+    }
     const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: from || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>",
-        to: [to], subject,
-        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px 20px;">${html}${EMAIL_FOOTER}</div>`,
-        reply_to: env.REPLY_TO || "support@kidvibers.com",
-      }),
+      method: "POST", headers, body: JSON.stringify(payload),
     });
     return res.ok;
   } catch (e) { console.log("email failed:", e); return false; }
@@ -5164,6 +5241,25 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/support-inbox" && method === "GET") return adminSupportInbox(env, request);
   if (path === "/api/admin/support-inbox/read" && method === "POST") return adminSupportInboxRead(env, request, data);
   if (path === "/api/admin/support-inbox/delete" && method === "POST") return adminSupportInboxDelete(env, request, data);
+
+  // ── Marketing unsubscribe (public; token-verified so nobody can opt out a stranger) ──
+  if (path === "/api/unsubscribe" && (method === "POST" || method === "GET")) {
+    const q = new URL(request.url).searchParams;
+    const email = ((data && data.email) || q.get("e") || "").trim().toLowerCase();
+    const tok = ((data && data.token) || q.get("t") || "").trim();
+    if (!email || !tok) return json({ error: "Missing details." }, 400);
+    if (tok !== await unsubToken(env, email)) return json({ error: "This unsubscribe link isn't valid." }, 403);
+    await env.DB.prepare("INSERT OR IGNORE INTO email_opt_out (email,created_at) VALUES (?,?)")
+      .bind(email, nowIso()).run();
+    return json({ ok: true, email });
+  }
+  if (path === "/api/resubscribe" && method === "POST") {
+    const email = ((data && data.email) || "").trim().toLowerCase();
+    const tok = ((data && data.token) || "").trim();
+    if (!email || tok !== await unsubToken(env, email)) return json({ error: "This link isn't valid." }, 403);
+    await env.DB.prepare("DELETE FROM email_opt_out WHERE email=?").bind(email).run();
+    return json({ ok: true, email });
+  }
 
   // ── Notification Center (admin.html) ──
   if (path === "/api/notify/opt-in" && method === "POST") return apiNotifyOptIn(env, request, data);
