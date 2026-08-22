@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
   <style>
+    .adm-off { display: none !important; }
     /* ── Login ── */
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
     .login-card {
@@ -193,28 +194,28 @@
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
-      <button class="sb-link active" data-sec="secDashboard" onclick="navTo('secDashboard',this)">🏠 Dashboard</button>
-      <button class="sb-link" data-sec="secLiveSessions" onclick="navTo('secLiveSessions',this)">🎟️ Live Sessions</button>
-      <button class="sb-link" data-sec="secChat" onclick="navTo('secChat',this)">💬 Staff Chat</button>
-      <button class="sb-link" data-sec="secCreateAcct" onclick="navTo('secCreateAcct',this)">➕ Create Account</button>
-      <button class="sb-link" data-sec="previewPanel" onclick="navTo('previewPanel',this)">👁️ Preview Dashboards</button>
+      <a class="sb-link active" href="admin.html?p=dashboard" data-page="dashboard" onclick="navTo('dashboard',event)">🏠 Dashboard</a>
+      <a class="sb-link" href="admin.html?p=live" data-page="live" onclick="navTo('live',event)">🎟️ Live Sessions</a>
+      <a class="sb-link" href="admin.html?p=chat" data-page="chat" onclick="navTo('chat',event)">💬 Staff Chat</a>
+      <a class="sb-link" href="admin.html?p=create" data-page="create" onclick="navTo('create',event)">➕ Create Account</a>
+      <a class="sb-link" href="admin.html?p=preview" data-page="preview" onclick="navTo('preview',event)">👁️ Preview Dashboards</a>
       <div class="sb-group super-only" style="display:none;">Application Views</div>
-      <button class="sb-link super-only" style="display:none;" data-sec="searchPanel" onclick="navTo('searchPanel',this)">🔎 Find Any Account</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secOverview" onclick="navTo('secOverview',this)">📊 Overview &amp; Growth</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secPeople" onclick="navTo('secPeople',this)">👥 People &amp; Accounts</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secAdminAccts" onclick="navTo('secAdminAccts',this)">🛡️ Admin Accounts</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secStaffLogins" onclick="navTo('secStaffLogins',this)">🕵️ Staff Logins</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secSafety" onclick="navTo('secSafety',this)">🛡️ Safety &amp; Consent</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secDataRequests" onclick="navTo('secDataRequests',this)">📄 Data Requests</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secSecurity" onclick="navTo('secSecurity',this)">🔐 Security</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secAuditLog" onclick="navTo('secAuditLog',this)">🕵️ Audit Log</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secFlags" onclick="navTo('secFlags',this)">🚩 Feature Flags</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secBilling" onclick="navTo('secBilling',this)">💳 Billing &amp; Promos</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secRevenue" onclick="navTo('secRevenue',this)">💰 Revenue</button>
-      <button class="sb-link super-only" style="display:none;" data-sec="secComms" onclick="navTo('secComms',this)">📣 Communication</button>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=search" data-page="search" onclick="navTo('search',event)">🔎 Find Any Account</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=overview" data-page="overview" onclick="navTo('overview',event)">📊 Overview &amp; Growth</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=people" data-page="people" onclick="navTo('people',event)">👥 People &amp; Accounts</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=admins" data-page="admins" onclick="navTo('admins',event)">🛡️ Admin Accounts</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=staff" data-page="staff" onclick="navTo('staff',event)">🕵️ Staff Logins</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=safety" data-page="safety" onclick="navTo('safety',event)">🛡️ Safety &amp; Consent</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=data" data-page="data" onclick="navTo('data',event)">📄 Data Requests</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=security" data-page="security" onclick="navTo('security',event)">🔐 Security</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=audit" data-page="audit" onclick="navTo('audit',event)">🕵️ Audit Log</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=flags" data-page="flags" onclick="navTo('flags',event)">🚩 Feature Flags</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=billing" data-page="billing" onclick="navTo('billing',event)">💳 Billing &amp; Promos</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=revenue" data-page="revenue" onclick="navTo('revenue',event)">💰 Revenue</a>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=comms" data-page="comms" onclick="navTo('comms',event)">📣 Communication</a>
       <a class="sb-link super-only" style="display:none;" href="email-templates.html" target="_blank" rel="noopener">✉️ Email Templates</a>
       <a class="sb-link super-only" style="display:none;" href="support-inbox.html" target="_blank" rel="noopener">📥 Support Inbox</a>
-      <button class="sb-link super-only" style="display:none;" data-sec="secSettings" onclick="navTo('secSettings',this)">⚙️ Settings</button>
+      <a class="sb-link super-only" style="display:none;" href="admin.html?p=settings" data-page="settings" onclick="navTo('settings',event)">⚙️ Settings</a>
       <div class="sb-spacer"></div>
       <div class="sb-footer">
         <div class="sb-who">Logged in as<strong id="whoName">owner</strong></div>
@@ -243,7 +244,7 @@
       </div>
 
       <div class="admin-main" id="secDashboard">
-      <h2>Dashboard</h2>
+      <h2 id="admPageTitle">🏠 Dashboard</h2>
       <p class="lead">Welcome back! Here's what's happening on KidVibers today.</p>
 
       <div id="adminNotices" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
@@ -329,7 +330,7 @@
       </div>
 
       <!-- Session logout PIN — lets kids end their own turn on a shared library/lab computer. -->
-      <div class="panel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div class="panel" id="lockAllPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
         <div style="font-size:1.8rem;">🔒</div>
         <div style="flex:1;min-width:200px;">
           <h3 style="margin-bottom:2px;">Session logout code</h3>
@@ -342,7 +343,7 @@
 
       <!-- Emergency stop — ends every currently-active Live Session platform-wide, no matter
            who's hosting it. For "something's gone wrong, shut every room down right now." -->
-      <div class="panel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(239,68,68,0.4);">
+      <div class="panel" id="endAllSessionsPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(239,68,68,0.4);">
         <div style="font-size:1.8rem;">🛑</div>
         <div style="flex:1;min-width:200px;">
           <h3 style="margin-bottom:2px;">Emergency: end ALL live sessions</h3>
@@ -1290,14 +1291,23 @@
       rows.innerHTML = list.length ? list.map(s => {
         const mins = Math.max(0, Math.round((new Date(s.expiresAt) - Date.now()) / 60000));
         const hostTag = s.hostRole === 'admin' || s.hostRole === 'super_admin' ? '🛠️ ' : (s.hostRole === 'teacher' ? '🍎 ' : '');
+        const kids = s.kids || [];
+        // Who is actually in the room. The count alone told you a session was busy but not
+        // who was in it, which is the thing you need when a parent or teacher asks.
+        const kidList = kids.length
+          ? kids.map(k => `<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--border);border-radius:50px;padding:2px 10px;margin:2px 3px 2px 0;font-size:0.78rem;font-weight:800;">${C4K.esc(k.name || k.username)}${k.joinedAt ? ` <span style="color:var(--text-faint);font-weight:600;">${C4K.esc(k.joinedAt)}</span>` : ''}</span>`).join('')
+          : '<span style="color:var(--text-faint);font-size:0.8rem;">nobody yet</span>';
         return `<tr>
-          <td>${hostTag}${C4K.esc(s.hostName || 'Unknown')}${s.hostUsername ? ` <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(s.hostUsername)}</span>` : ''}</td>
+          <td>${hostTag}${C4K.esc(s.hostName || 'Unknown')}${s.hostUsername ? ` <span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(s.hostUsername)}</span>` : ''}${s.sessionName ? `<div style="color:var(--text-faint);font-size:0.76rem;">${C4K.esc(s.sessionName)}</div>` : ''}</td>
           <td style="font-weight:900;letter-spacing:2px;">${C4K.esc(s.code)}</td>
-          <td>${s.joins}</td>
+          <td>${s.kidsPresent != null ? s.kidsPresent : s.joins}${s.joins > (s.kidsPresent || 0) ? ` <span style="color:var(--text-faint);font-size:0.76rem;">(${s.joins} joined)</span>` : ''}</td>
           <td>${s.locked ? '🔒 locked' : '—'}</td>
           <td style="color:var(--text-dim);">${mins < 60 ? `${mins} min left` : `${Math.round(mins/60)} hr left`}</td>
           <td><button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="endOneSession('${C4K.esc(s.code)}')">End</button></td>
-        </tr>`;
+        </tr>
+        <tr><td colspan="6" style="padding-top:0;border-top:none;">
+          <div style="color:var(--text-faint);font-size:0.74rem;font-weight:800;margin-bottom:3px;">Kids in this session</div>${kidList}
+        </td></tr>`;
       }).join('') : '<tr><td colspan="6" style="color:var(--text-faint);">No sessions are live right now.</td></tr>';
     }
     async function endOneSession(code) {
@@ -1396,13 +1406,92 @@
 
     // ── Sidebar navigation: scroll to a section and mark it active. All existing panels stay
     // exactly where they were on the page — this just makes it easy to jump straight to one. ──
-    function navTo(sectionId, btn) {
-      const el = document.getElementById(sectionId);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      document.querySelectorAll('.sb-link[data-sec]').forEach(b => b.classList.remove('active'));
-      const target = btn || document.querySelector(`.sb-link[data-sec="${sectionId}"]`);
-      if (target) target.classList.add('active');
+    // ── Router ────────────────────────────────────────────────────────────────
+    // The panel used to be one enormous scrolling page and the sidebar just scrolled you
+    // around it. Every feature now gets its own page at admin.html?p=<slug>: only that
+    // feature renders, the URL is bookmarkable, and the back button works. Logging in
+    // lands on the dashboard.
+    //
+    // The panels are not restructured — they are still flat siblings inside .admin-main,
+    // and each one is assigned to a page at runtime by whichever section header precedes
+    // it. That ordering doesn't always match the sidebar (the live-session controls sat
+    // under Staff Chat, for instance), so ADM_OVERRIDES fixes those by id.
+    const ADM_PAGES = [
+      { slug: 'dashboard', anchor: 'secDashboard',    label: '🏠 Dashboard' },
+      { slug: 'live',      anchor: 'secLiveSessions', label: '🎟️ Live Sessions' },
+      { slug: 'chat',      anchor: 'secChat',         label: '💬 Staff Chat' },
+      { slug: 'create',    anchor: 'secCreateAcct',   label: '➕ Create Account' },
+      { slug: 'preview',   anchor: 'previewPanel',    label: '👁️ Preview Dashboards' },
+      { slug: 'search',    anchor: 'searchPanel',     label: '🔎 Find Any Account', super: true },
+      { slug: 'overview',  anchor: 'secOverview',     label: '📊 Overview & Growth', super: true },
+      { slug: 'people',    anchor: 'secPeople',       label: '👥 People & Accounts', super: true },
+      { slug: 'admins',    anchor: 'secAdminAccts',   label: '🛡️ Admin Accounts', super: true },
+      { slug: 'staff',     anchor: 'secStaffLogins',  label: '🕵️ Staff Logins', super: true },
+      { slug: 'safety',    anchor: 'secSafety',       label: '🛡️ Safety & Consent', super: true },
+      { slug: 'data',      anchor: 'secDataRequests', label: '📄 Data Requests', super: true },
+      { slug: 'security',  anchor: 'secSecurity',     label: '🔐 Security', super: true },
+      { slug: 'audit',     anchor: 'secAuditLog',     label: '🕵️ Audit Log', super: true },
+      { slug: 'flags',     anchor: 'secFlags',        label: '🚩 Feature Flags', super: true },
+      { slug: 'billing',   anchor: 'secBilling',      label: '💳 Billing & Promos', super: true },
+      { slug: 'revenue',   anchor: 'secRevenue',      label: '💰 Revenue', super: true },
+      { slug: 'comms',     anchor: 'secComms',        label: '📣 Communication', super: true },
+      { slug: 'settings',  anchor: 'secSettings',     label: '⚙️ Settings', super: true },
+    ];
+    // Panels that sit next to the wrong header in the document.
+    const ADM_OVERRIDES = {
+      activeSessionsPanel: 'live', lockAllPanel: 'live', endAllSessionsPanel: 'live',
+      onlineNowPanel: 'dashboard', analyticsPanel: 'dashboard',
+    };
+    const ADM_ANCHOR_TO_SLUG = {};
+    ADM_PAGES.forEach(p => { ADM_ANCHOR_TO_SLUG[p.anchor] = p.slug; });
+    let admIndexed = false;
+
+    function admIndexPanels() {
+      if (admIndexed) return;
+      const main = document.getElementById('secDashboard');
+      if (!main) return;
+      let current = 'dashboard';
+      Array.from(main.children).forEach(el => {
+        if (el.id && ADM_ANCHOR_TO_SLUG[el.id]) current = ADM_ANCHOR_TO_SLUG[el.id];
+        el.dataset.admPage = (el.id && ADM_OVERRIDES[el.id]) || current;
+      });
+      admIndexed = true;
     }
+
+    function admCurrentPage() {
+      const p = new URLSearchParams(location.search).get('p');
+      return ADM_PAGES.some(x => x.slug === p) ? p : 'dashboard';
+    }
+
+    function admRender() {
+      admIndexPanels();
+      const slug = admCurrentPage();
+      const main = document.getElementById('secDashboard');
+      if (main) {
+        Array.from(main.children).forEach(el => {
+          // Hide with a class, never by writing inline display — the super-only logic owns
+          // the inline style, so clobbering it would reveal panels to non-super admins.
+          el.classList.toggle('adm-off', el.dataset.admPage !== slug);
+        });
+      }
+      document.querySelectorAll('.sb-link[data-page]').forEach(a => {
+        a.classList.toggle('active', a.dataset.page === slug);
+      });
+      const page = ADM_PAGES.find(x => x.slug === slug);
+      const heading = document.getElementById('admPageTitle');
+      if (heading && page) heading.textContent = page.label;
+      document.title = (page ? page.label.replace(/^[^A-Za-z]+/, '') : 'Admin') + ' - KidVibers Admin';
+      window.scrollTo(0, 0);
+      if (typeof admOnPageShown === 'function') admOnPageShown(slug);
+    }
+
+    function navTo(slug, ev) {
+      if (ev && ev.preventDefault) ev.preventDefault();
+      const target = ADM_PAGES.some(x => x.slug === slug) ? slug : 'dashboard';
+      history.pushState({ p: target }, '', 'admin.html?p=' + target);
+      admRender();
+    }
+    window.addEventListener('popstate', admRender);
     // Show a floating "back to top" button once the admin scrolls past the top bar.
     window.addEventListener('scroll', () => {
       const btn = document.getElementById('backToTopBtn');
@@ -1515,6 +1604,21 @@
       caRoleChanged();
       loadAdminNotices();
       if (sup) { loadNotifyHistory(); loadScheduled(); loadAutomations(); }
+
+      // Hide the sidebar links this role can't reach, then render the page from the URL.
+      // This runs after the super-only reveal above, so it sees the final visibility.
+      ADM_PAGES.forEach(pg => {
+        if (!pg.super) return;
+        const link = document.querySelector(`.sb-link[data-page="${pg.slug}"]`);
+        if (link && !sup) link.style.display = 'none';
+      });
+      // A non-super admin deep-linking to a super-only page gets the dashboard, not a
+      // blank screen. The API still enforces the real permission check on every call.
+      if (!sup) {
+        const cur = ADM_PAGES.find(x => x.slug === admCurrentPage());
+        if (cur && cur.super) history.replaceState({}, '', 'admin.html?p=dashboard');
+      }
+      admRender();
 
       // Stat boxes — load in isolation so one failing API call can never blank the whole dashboard.
       try {

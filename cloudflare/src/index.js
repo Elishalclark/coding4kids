@@ -250,11 +250,11 @@ const SECURITY_HEADERS = {
   // an XSS payload from loading a script or exfiltrating data to an attacker-controlled domain,
   // which is the most damaging part of an injection even when inline execution itself isn't blocked.
   "Content-Security-Policy": "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://*.clarity.ms https://www.googletagmanager.com; " +
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://www.googletagmanager.com; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
-    "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://www.googletagmanager.com; " +
-    "connect-src 'self' https://accounts.google.com https://*.clarity.ms https://c.bing.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com; " +
+    "img-src 'self' data: https://api.qrserver.com https://api.dicebear.com https://*.google-analytics.com https://www.googletagmanager.com; " +
+    "connect-src 'self' https://accounts.google.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.googletagmanager.com; " +
     "frame-src https://accounts.google.com https://www.googletagmanager.com; " +
     "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
   // Turn off device APIs the site never uses.
@@ -3445,16 +3445,50 @@ async function apiAdminEndAllSessions(env, request) {
 async function apiAdminActiveSessions(env, request) {
   const { err } = await requireRole(env, request, ADMIN_ROLES); if (err) return err;
   const rows = (await env.DB.prepare("SELECT key FROM settings WHERE key LIKE 'session:%'").all()).results || [];
+
+  // Which guest account belongs to which session. Joining creates a real kid row and a
+  // sessionguest:<uid> marker holding the code; a host's guests all share one family_id,
+  // so the marker is the only thing that separates one of their sessions from another.
+  const guestRows = (await env.DB.prepare("SELECT key,value FROM settings WHERE key LIKE 'sessionguest:%'").all()).results || [];
+  const codeByUid = {};
+  for (const g of guestRows) {
+    try {
+      const uid = g.key.slice("sessionguest:".length);
+      const v = typeof g.value === "string" ? JSON.parse(g.value) : g.value;
+      if (v && v.code) codeByUid[uid] = v.code;
+    } catch {}
+  }
+  const uids = Object.keys(codeByUid);
+  const kidsByCode = {};
+  if (uids.length) {
+    const marks = uids.map(() => "?").join(",");
+    const kids = (await env.DB.prepare(
+      `SELECT id,name,username,created_at FROM users WHERE id IN (${marks}) AND role='kid' ORDER BY id`
+    ).bind(...uids).all()).results || [];
+    for (const k of kids) {
+      const code = codeByUid[String(k.id)];
+      if (!code) continue;
+      (kidsByCode[code] = kidsByCode[code] || []).push({
+        id: k.id, name: k.name, username: k.username,
+        joinedAt: (k.created_at || "").slice(11, 16),
+      });
+    }
+  }
+
   const out = [];
   for (const row of rows) {
     const code = row.key.slice("session:".length);
     const info = await getSetting(env, `session:${code}`, null);
     if (!info) continue;
     const host = info.teacherId ? await env.DB.prepare("SELECT name,username,role FROM users WHERE id=?").bind(info.teacherId).first() : null;
+    const kids = kidsByCode[code] || [];
     out.push({
       code, hostName: host ? host.name : "Unknown", hostUsername: host ? host.username : null, hostRole: host ? host.role : null,
+      hostId: info.teacherId || null, sessionName: info.name || null,
       joins: info.joins || 0, locked: !!info.locked, startedAt: info.started ? new Date(info.started).toISOString() : null,
       expiresAt: new Date(info.expires).toISOString(),
+      // Who is actually in the room, not just how many.
+      kids, kidsPresent: kids.length,
     });
   }
   out.sort((a, b) => (a.expiresAt < b.expiresAt ? -1 : 1));
