@@ -23,6 +23,11 @@ echo "📦 Copying the latest site files..."
 cp ../*.html public/ 2>/dev/null || true
 cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../tour.js ../styles.css public/ 2>/dev/null || true
 cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+# Generated landing pages (seo/build.py). These live in subdirectories, so the flat
+# copies above miss them entirely — without this the whole /p/ tree is in the sitemap
+# but 404s in production.
+rm -rf public/p
+cp -R ../p public/ 2>/dev/null || true
 # safety: never ship secrets
 rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
 if [ "$1" = "staging" ]; then

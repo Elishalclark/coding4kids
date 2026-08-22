@@ -4111,7 +4111,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json({"error": "forbidden"}, 403)
         fs = os.path.join(ROOT, path.lstrip("/"))
         if not os.path.isfile(fs):
-            if os.path.isfile(fs + ".html"):
+            # Directory URLs (/p/answers/) serve their index.html, matching how the
+            # Cloudflare assets binding behaves — otherwise the generated hub pages
+            # 404 locally and the difference only shows up after a deploy.
+            if os.path.isdir(fs) and os.path.isfile(os.path.join(fs, "index.html")):
+                fs = os.path.join(fs, "index.html")
+            elif os.path.isfile(fs + ".html"):
                 fs = fs + ".html"
             else:  # styled 404 page if available
                 page = os.path.join(ROOT, "404.html")

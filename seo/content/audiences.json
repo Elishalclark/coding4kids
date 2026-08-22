@@ -1,0 +1,88 @@
+{
+  "ageBands": [
+    {"slug": "ages-6-8", "label": "ages 6-8", "note": "Picture-led lessons, 10-15 minute sessions, no typing required at the start. An adult usually sits alongside.", "worlds": "Greenwood Basics and Builder's Bay"},
+    {"slug": "ages-9-11", "label": "ages 9-11", "note": "The switch to typed code. Sessions stretch to 20-30 minutes and most children can work independently, coming to you only when stuck.", "worlds": "Cosmic Code Station, Algorithm Castle and Game Arcade"},
+    {"slug": "ages-12-14", "label": "ages 12-14", "note": "Real projects. At this age a child can hold a whole program in their head and will start building things nobody assigned them.", "worlds": "Web Wizard Woods, JavaScript Junction and Function Forge"},
+    {"slug": "ages-15-16", "label": "ages 15-16", "note": "Depth and portfolio work. Older beginners move fast and should skip the scaffolding entirely - starting at typed code from day one.", "worlds": "AI Island, Data Structures Dojo and Master's Summit"}
+  ],
+  "audiences": [
+    {
+      "slug": "homeschool",
+      "name": "Homeschool families",
+      "h1": "Coding for homeschoolers",
+      "desc": "A self-paced coding curriculum for homeschool families - no coding knowledge needed to teach it, with records you can keep for your portfolio.",
+      "lead": "You don't need to know how to code to teach it. KidVibers is fully self-paced, checks every answer itself, and keeps the records you need for reporting.",
+      "points": [
+        ["You are not the teacher here", "Each lesson explains its own concept, the child writes real code, and the platform checks the work. A built-in helper gives hints when they're stuck, so progress doesn't stall waiting for you."],
+        ["Records for your portfolio", "Lessons completed, quiz results and printable certificates - dated and per child. If your state asks for evidence of learning, it's already assembled."],
+        ["One plan, several children", "A Family plan covers multiple kids, each on their own track at their own level, so siblings years apart can work at the same table."],
+        ["Works when the internet doesn't", "Lessons cache to the device, so it keeps working on a trip, at a cabin, or on rural internet that comes and goes."]
+      ]
+    },
+    {
+      "slug": "libraries",
+      "name": "Public libraries",
+      "h1": "Coding for libraries",
+      "desc": "Drop-in coding sessions for public libraries - no accounts required to start, no ads, and a printable one-pager for your board.",
+      "lead": "Run a coding session without pre-registration, staff training, or software installs. It runs in the browser on the machines you already have.",
+      "points": [
+        ["Drop-in with a session code", "Start a session, give out the code, and children can join and start coding immediately - no account creation at the desk, no email addresses collected on the spot."],
+        ["Runs on the computers you have", "Browser-based, works on older machines and Chromebooks, nothing to install and nothing for IT to approve."],
+        ["Safe to run unsupervised", "No ads, no public gallery, no messaging between users. There is nothing for a child to stumble into while a staff member is helping someone else."],
+        ["A one-pager for your board", "The Trust and Safety page prints as a clean handout covering privacy, safety and data practices - useful for approvals and for parents asking at the desk."]
+      ]
+    },
+    {
+      "slug": "co-ops",
+      "name": "Homeschool co-ops",
+      "h1": "Coding for homeschool co-ops",
+      "desc": "Run a coding group across mixed ages without teaching it yourself - one join code, individual tracks, and progress for the whole group in one place.",
+      "lead": "Mixed ages are the hard part of a co-op. Decoupling the difficulty from the room solves it.",
+      "points": [
+        ["Everyone at their own level", "Put each child on their own track. A seven-year-old and a thirteen-year-old can sit together doing completely different work, so the room stays social while the difficulty stays individual."],
+        ["One code to join", "The group leader creates a class code. Children enter it once and they're in - no roster spreadsheet, no per-family setup."],
+        ["See the whole group at once", "Progress for every child in one view, so you know who's flying and who's quietly stuck before it becomes a problem."],
+        ["The leader doesn't need to code", "Your job is timekeeping and unblocking. The lessons teach; the platform checks."]
+      ]
+    },
+    {
+      "slug": "after-school",
+      "name": "After-school programs",
+      "h1": "Coding for after-school programs",
+      "desc": "A coding activity for after-school clubs that works with rotating staff, mixed attendance and kids who arrive at different times.",
+      "lead": "After-school is chaotic by nature: kids arrive late, attendance rotates, and staff change week to week. Self-paced tracks absorb all of that.",
+      "points": [
+        ["Nobody falls behind by missing a week", "Each child resumes exactly where they left off. There is no lesson plan to keep the group synchronised with, so inconsistent attendance stops being a problem."],
+        ["New staff can run it on day one", "There is nothing to prepare and no material to learn ahead of the session. A new staff member can supervise competently the first time."],
+        ["Short, finishable lessons", "Every lesson has a visible end point, so a child who only has twenty minutes still finishes something rather than stopping mid-task."],
+        ["Safe with light supervision", "No ads, no public gallery, no messaging between children."]
+      ]
+    },
+    {
+      "slug": "classrooms",
+      "name": "Teachers and classrooms",
+      "h1": "Coding for classrooms",
+      "desc": "Classroom coding with per-student progress, assignable lessons, school hours enforcement and roster upload.",
+      "lead": "Built for a teacher who has twenty-five students at fifteen different levels and one period to work with.",
+      "points": [
+        ["Roster upload and class codes", "Add students in bulk from a CSV, or hand out a class code and let them join themselves."],
+        ["Assign lessons with due dates", "Set what the class should cover and track who has finished, without forcing everyone through the same lesson on the same day."],
+        ["School hours", "Restrict when students can log in, so the platform is available during your period and not at midnight."],
+        ["Progress reports you can download", "Per-student completion and quiz results, exportable for your own records or for parents evening."]
+      ]
+    },
+    {
+      "slug": "districts",
+      "name": "Districts and schools",
+      "h1": "Coding for districts and schools",
+      "desc": "District-level coding rollout with per-school management, custom branding, seat management and centralised oversight.",
+      "lead": "One account structure covering many classrooms or sites, with the oversight a district actually needs.",
+      "points": [
+        ["Many schools under one roof", "Manage multiple classrooms or sites centrally, with each school seeing only its own students."],
+        ["Seat management", "Manage the number of student seats you signed up for, and reassign them as cohorts change."],
+        ["Custom branding", "Set your own organisation name and logo so the platform reads as yours to families."],
+        ["Data and DPA", "A dedicated schools privacy page covering what is collected, how it is used, and the data processing terms your procurement team will ask for."]
+      ]
+    }
+  ]
+}

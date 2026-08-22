@@ -15,3 +15,6 @@ __pycache__/
 .claude/
 node_modules
 package-lock.json
+
+# SEO build input: exported from the production D1 lessons table, not source
+seo/content/lessons.json
