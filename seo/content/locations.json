@@ -1,0 +1,1037 @@
+[
+ {
+  "city": "New York",
+  "state": "NY",
+  "slug": "new-york-ny"
+ },
+ {
+  "city": "Los Angeles",
+  "state": "CA",
+  "slug": "los-angeles-ca"
+ },
+ {
+  "city": "Chicago",
+  "state": "IL",
+  "slug": "chicago-il"
+ },
+ {
+  "city": "Houston",
+  "state": "TX",
+  "slug": "houston-tx"
+ },
+ {
+  "city": "Phoenix",
+  "state": "AZ",
+  "slug": "phoenix-az"
+ },
+ {
+  "city": "Philadelphia",
+  "state": "PA",
+  "slug": "philadelphia-pa"
+ },
+ {
+  "city": "San Antonio",
+  "state": "TX",
+  "slug": "san-antonio-tx"
+ },
+ {
+  "city": "San Diego",
+  "state": "CA",
+  "slug": "san-diego-ca"
+ },
+ {
+  "city": "Dallas",
+  "state": "TX",
+  "slug": "dallas-tx"
+ },
+ {
+  "city": "Jacksonville",
+  "state": "FL",
+  "slug": "jacksonville-fl"
+ },
+ {
+  "city": "Austin",
+  "state": "TX",
+  "slug": "austin-tx"
+ },
+ {
+  "city": "Fort Worth",
+  "state": "TX",
+  "slug": "fort-worth-tx"
+ },
+ {
+  "city": "San Jose",
+  "state": "CA",
+  "slug": "san-jose-ca"
+ },
+ {
+  "city": "Columbus",
+  "state": "OH",
+  "slug": "columbus-oh"
+ },
+ {
+  "city": "Charlotte",
+  "state": "NC",
+  "slug": "charlotte-nc"
+ },
+ {
+  "city": "Indianapolis",
+  "state": "IN",
+  "slug": "indianapolis-in"
+ },
+ {
+  "city": "San Francisco",
+  "state": "CA",
+  "slug": "san-francisco-ca"
+ },
+ {
+  "city": "Seattle",
+  "state": "WA",
+  "slug": "seattle-wa"
+ },
+ {
+  "city": "Denver",
+  "state": "CO",
+  "slug": "denver-co"
+ },
+ {
+  "city": "Oklahoma City",
+  "state": "OK",
+  "slug": "oklahoma-city-ok"
+ },
+ {
+  "city": "Nashville",
+  "state": "TN",
+  "slug": "nashville-tn"
+ },
+ {
+  "city": "Washington",
+  "state": "DC",
+  "slug": "washington-dc"
+ },
+ {
+  "city": "El Paso",
+  "state": "TX",
+  "slug": "el-paso-tx"
+ },
+ {
+  "city": "Las Vegas",
+  "state": "NV",
+  "slug": "las-vegas-nv"
+ },
+ {
+  "city": "Boston",
+  "state": "MA",
+  "slug": "boston-ma"
+ },
+ {
+  "city": "Detroit",
+  "state": "MI",
+  "slug": "detroit-mi"
+ },
+ {
+  "city": "Portland",
+  "state": "OR",
+  "slug": "portland-or"
+ },
+ {
+  "city": "Louisville",
+  "state": "KY",
+  "slug": "louisville-ky"
+ },
+ {
+  "city": "Memphis",
+  "state": "TN",
+  "slug": "memphis-tn"
+ },
+ {
+  "city": "Baltimore",
+  "state": "MD",
+  "slug": "baltimore-md"
+ },
+ {
+  "city": "Milwaukee",
+  "state": "WI",
+  "slug": "milwaukee-wi"
+ },
+ {
+  "city": "Albuquerque",
+  "state": "NM",
+  "slug": "albuquerque-nm"
+ },
+ {
+  "city": "Tucson",
+  "state": "AZ",
+  "slug": "tucson-az"
+ },
+ {
+  "city": "Fresno",
+  "state": "CA",
+  "slug": "fresno-ca"
+ },
+ {
+  "city": "Sacramento",
+  "state": "CA",
+  "slug": "sacramento-ca"
+ },
+ {
+  "city": "Mesa",
+  "state": "AZ",
+  "slug": "mesa-az"
+ },
+ {
+  "city": "Atlanta",
+  "state": "GA",
+  "slug": "atlanta-ga"
+ },
+ {
+  "city": "Kansas City",
+  "state": "MO",
+  "slug": "kansas-city-mo"
+ },
+ {
+  "city": "Colorado Springs",
+  "state": "CO",
+  "slug": "colorado-springs-co"
+ },
+ {
+  "city": "Raleigh",
+  "state": "NC",
+  "slug": "raleigh-nc"
+ },
+ {
+  "city": "Omaha",
+  "state": "NE",
+  "slug": "omaha-ne"
+ },
+ {
+  "city": "Miami",
+  "state": "FL",
+  "slug": "miami-fl"
+ },
+ {
+  "city": "Virginia Beach",
+  "state": "VA",
+  "slug": "virginia-beach-va"
+ },
+ {
+  "city": "Long Beach",
+  "state": "CA",
+  "slug": "long-beach-ca"
+ },
+ {
+  "city": "Oakland",
+  "state": "CA",
+  "slug": "oakland-ca"
+ },
+ {
+  "city": "Minneapolis",
+  "state": "MN",
+  "slug": "minneapolis-mn"
+ },
+ {
+  "city": "Bakersfield",
+  "state": "CA",
+  "slug": "bakersfield-ca"
+ },
+ {
+  "city": "Tulsa",
+  "state": "OK",
+  "slug": "tulsa-ok"
+ },
+ {
+  "city": "Tampa",
+  "state": "FL",
+  "slug": "tampa-fl"
+ },
+ {
+  "city": "Arlington",
+  "state": "TX",
+  "slug": "arlington-tx"
+ },
+ {
+  "city": "Wichita",
+  "state": "KS",
+  "slug": "wichita-ks"
+ },
+ {
+  "city": "Aurora",
+  "state": "CO",
+  "slug": "aurora-co"
+ },
+ {
+  "city": "New Orleans",
+  "state": "LA",
+  "slug": "new-orleans-la"
+ },
+ {
+  "city": "Cleveland",
+  "state": "OH",
+  "slug": "cleveland-oh"
+ },
+ {
+  "city": "Anaheim",
+  "state": "CA",
+  "slug": "anaheim-ca"
+ },
+ {
+  "city": "Henderson",
+  "state": "NV",
+  "slug": "henderson-nv"
+ },
+ {
+  "city": "Honolulu",
+  "state": "HI",
+  "slug": "honolulu-hi"
+ },
+ {
+  "city": "Riverside",
+  "state": "CA",
+  "slug": "riverside-ca"
+ },
+ {
+  "city": "Santa Ana",
+  "state": "CA",
+  "slug": "santa-ana-ca"
+ },
+ {
+  "city": "Corpus Christi",
+  "state": "TX",
+  "slug": "corpus-christi-tx"
+ },
+ {
+  "city": "Lexington",
+  "state": "KY",
+  "slug": "lexington-ky"
+ },
+ {
+  "city": "San Juan",
+  "state": "PR",
+  "slug": "san-juan-pr"
+ },
+ {
+  "city": "Stockton",
+  "state": "CA",
+  "slug": "stockton-ca"
+ },
+ {
+  "city": "St. Paul",
+  "state": "MN",
+  "slug": "st-paul-mn"
+ },
+ {
+  "city": "Cincinnati",
+  "state": "OH",
+  "slug": "cincinnati-oh"
+ },
+ {
+  "city": "Greensboro",
+  "state": "NC",
+  "slug": "greensboro-nc"
+ },
+ {
+  "city": "Pittsburgh",
+  "state": "PA",
+  "slug": "pittsburgh-pa"
+ },
+ {
+  "city": "Irvine",
+  "state": "CA",
+  "slug": "irvine-ca"
+ },
+ {
+  "city": "St. Louis",
+  "state": "MO",
+  "slug": "st-louis-mo"
+ },
+ {
+  "city": "Lincoln",
+  "state": "NE",
+  "slug": "lincoln-ne"
+ },
+ {
+  "city": "Orlando",
+  "state": "FL",
+  "slug": "orlando-fl"
+ },
+ {
+  "city": "Durham",
+  "state": "NC",
+  "slug": "durham-nc"
+ },
+ {
+  "city": "Plano",
+  "state": "TX",
+  "slug": "plano-tx"
+ },
+ {
+  "city": "Anchorage",
+  "state": "AK",
+  "slug": "anchorage-ak"
+ },
+ {
+  "city": "Newark",
+  "state": "NJ",
+  "slug": "newark-nj"
+ },
+ {
+  "city": "Chula Vista",
+  "state": "CA",
+  "slug": "chula-vista-ca"
+ },
+ {
+  "city": "Fort Wayne",
+  "state": "IN",
+  "slug": "fort-wayne-in"
+ },
+ {
+  "city": "Chandler",
+  "state": "AZ",
+  "slug": "chandler-az"
+ },
+ {
+  "city": "Toledo",
+  "state": "OH",
+  "slug": "toledo-oh"
+ },
+ {
+  "city": "St. Petersburg",
+  "state": "FL",
+  "slug": "st-petersburg-fl"
+ },
+ {
+  "city": "Reno",
+  "state": "NV",
+  "slug": "reno-nv"
+ },
+ {
+  "city": "Laredo",
+  "state": "TX",
+  "slug": "laredo-tx"
+ },
+ {
+  "city": "Scottsdale",
+  "state": "AZ",
+  "slug": "scottsdale-az"
+ },
+ {
+  "city": "North Las Vegas",
+  "state": "NV",
+  "slug": "north-las-vegas-nv"
+ },
+ {
+  "city": "Lubbock",
+  "state": "TX",
+  "slug": "lubbock-tx"
+ },
+ {
+  "city": "Madison",
+  "state": "WI",
+  "slug": "madison-wi"
+ },
+ {
+  "city": "Gilbert",
+  "state": "AZ",
+  "slug": "gilbert-az"
+ },
+ {
+  "city": "Jersey City",
+  "state": "NJ",
+  "slug": "jersey-city-nj"
+ },
+ {
+  "city": "Glendale",
+  "state": "AZ",
+  "slug": "glendale-az"
+ },
+ {
+  "city": "Buffalo",
+  "state": "NY",
+  "slug": "buffalo-ny"
+ },
+ {
+  "city": "Winston-Salem",
+  "state": "NC",
+  "slug": "winston-salem-nc"
+ },
+ {
+  "city": "Chesapeake",
+  "state": "VA",
+  "slug": "chesapeake-va"
+ },
+ {
+  "city": "Fremont",
+  "state": "CA",
+  "slug": "fremont-ca"
+ },
+ {
+  "city": "Norfolk",
+  "state": "VA",
+  "slug": "norfolk-va"
+ },
+ {
+  "city": "Irving",
+  "state": "TX",
+  "slug": "irving-tx"
+ },
+ {
+  "city": "Garland",
+  "state": "TX",
+  "slug": "garland-tx"
+ },
+ {
+  "city": "Paradise",
+  "state": "NV",
+  "slug": "paradise-nv"
+ },
+ {
+  "city": "Arlington",
+  "state": "VA",
+  "slug": "arlington-va"
+ },
+ {
+  "city": "Richmond",
+  "state": "VA",
+  "slug": "richmond-va"
+ },
+ {
+  "city": "Hialeah",
+  "state": "FL",
+  "slug": "hialeah-fl"
+ },
+ {
+  "city": "Boise",
+  "state": "ID",
+  "slug": "boise-id"
+ },
+ {
+  "city": "Spokane",
+  "state": "WA",
+  "slug": "spokane-wa"
+ },
+ {
+  "city": "Frisco",
+  "state": "TX",
+  "slug": "frisco-tx"
+ },
+ {
+  "city": "Moreno Valley",
+  "state": "CA",
+  "slug": "moreno-valley-ca"
+ },
+ {
+  "city": "Tacoma",
+  "state": "WA",
+  "slug": "tacoma-wa"
+ },
+ {
+  "city": "Fontana",
+  "state": "CA",
+  "slug": "fontana-ca"
+ },
+ {
+  "city": "Modesto",
+  "state": "CA",
+  "slug": "modesto-ca"
+ },
+ {
+  "city": "Baton Rouge",
+  "state": "LA",
+  "slug": "baton-rouge-la"
+ },
+ {
+  "city": "Port St. Lucie",
+  "state": "FL",
+  "slug": "port-st-lucie-fl"
+ },
+ {
+  "city": "San Bernardino",
+  "state": "CA",
+  "slug": "san-bernardino-ca"
+ },
+ {
+  "city": "McKinney",
+  "state": "TX",
+  "slug": "mckinney-tx"
+ },
+ {
+  "city": "Fayetteville",
+  "state": "NC",
+  "slug": "fayetteville-nc"
+ },
+ {
+  "city": "Santa Clarita",
+  "state": "CA",
+  "slug": "santa-clarita-ca"
+ },
+ {
+  "city": "Des Moines",
+  "state": "IA",
+  "slug": "des-moines-ia"
+ },
+ {
+  "city": "Oxnard",
+  "state": "CA",
+  "slug": "oxnard-ca"
+ },
+ {
+  "city": "Birmingham",
+  "state": "AL",
+  "slug": "birmingham-al"
+ },
+ {
+  "city": "Huntsville",
+  "state": "AL",
+  "slug": "huntsville-al"
+ },
+ {
+  "city": "Rochester",
+  "state": "NY",
+  "slug": "rochester-ny"
+ },
+ {
+  "city": "Cape Coral",
+  "state": "FL",
+  "slug": "cape-coral-fl"
+ },
+ {
+  "city": "Grand Rapids",
+  "state": "MI",
+  "slug": "grand-rapids-mi"
+ },
+ {
+  "city": "Salt Lake City",
+  "state": "UT",
+  "slug": "salt-lake-city-ut"
+ },
+ {
+  "city": "Tallahassee",
+  "state": "FL",
+  "slug": "tallahassee-fl"
+ },
+ {
+  "city": "Worcester",
+  "state": "MA",
+  "slug": "worcester-ma"
+ },
+ {
+  "city": "Yonkers",
+  "state": "NY",
+  "slug": "yonkers-ny"
+ },
+ {
+  "city": "Amarillo",
+  "state": "TX",
+  "slug": "amarillo-tx"
+ },
+ {
+  "city": "Columbus",
+  "state": "GA",
+  "slug": "columbus-ga"
+ },
+ {
+  "city": "Overland Park",
+  "state": "KS",
+  "slug": "overland-park-ks"
+ },
+ {
+  "city": "Grand Prairie",
+  "state": "TX",
+  "slug": "grand-prairie-tx"
+ },
+ {
+  "city": "Little Rock",
+  "state": "AR",
+  "slug": "little-rock-ar"
+ },
+ {
+  "city": "Augusta",
+  "state": "GA",
+  "slug": "augusta-ga"
+ },
+ {
+  "city": "Peoria",
+  "state": "AZ",
+  "slug": "peoria-az"
+ },
+ {
+  "city": "Montgomery",
+  "state": "AL",
+  "slug": "montgomery-al"
+ },
+ {
+  "city": "Akron",
+  "state": "OH",
+  "slug": "akron-oh"
+ },
+ {
+  "city": "Shreveport",
+  "state": "LA",
+  "slug": "shreveport-la"
+ },
+ {
+  "city": "Mobile",
+  "state": "AL",
+  "slug": "mobile-al"
+ },
+ {
+  "city": "Knoxville",
+  "state": "TN",
+  "slug": "knoxville-tn"
+ },
+ {
+  "city": "Aurora",
+  "state": "IL",
+  "slug": "aurora-il"
+ },
+ {
+  "city": "Providence",
+  "state": "RI",
+  "slug": "providence-ri"
+ },
+ {
+  "city": "Chattanooga",
+  "state": "TN",
+  "slug": "chattanooga-tn"
+ },
+ {
+  "city": "Fort Lauderdale",
+  "state": "FL",
+  "slug": "fort-lauderdale-fl"
+ },
+ {
+  "city": "Elk Grove",
+  "state": "CA",
+  "slug": "elk-grove-ca"
+ },
+ {
+  "city": "Salem",
+  "state": "OR",
+  "slug": "salem-or"
+ },
+ {
+  "city": "Cary",
+  "state": "NC",
+  "slug": "cary-nc"
+ },
+ {
+  "city": "Santa Rosa",
+  "state": "CA",
+  "slug": "santa-rosa-ca"
+ },
+ {
+  "city": "Eugene",
+  "state": "OR",
+  "slug": "eugene-or"
+ },
+ {
+  "city": "Oceanside",
+  "state": "CA",
+  "slug": "oceanside-ca"
+ },
+ {
+  "city": "Rancho Cucamonga",
+  "state": "CA",
+  "slug": "rancho-cucamonga-ca"
+ },
+ {
+  "city": "Clarksville",
+  "state": "TN",
+  "slug": "clarksville-tn"
+ },
+ {
+  "city": "Ontario",
+  "state": "CA",
+  "slug": "ontario-ca"
+ },
+ {
+  "city": "Garden Grove",
+  "state": "CA",
+  "slug": "garden-grove-ca"
+ },
+ {
+  "city": "Lancaster",
+  "state": "CA",
+  "slug": "lancaster-ca"
+ },
+ {
+  "city": "Springfield",
+  "state": "MO",
+  "slug": "springfield-mo"
+ },
+ {
+  "city": "Pembroke Pines",
+  "state": "FL",
+  "slug": "pembroke-pines-fl"
+ },
+ {
+  "city": "Fort Collins",
+  "state": "CO",
+  "slug": "fort-collins-co"
+ },
+ {
+  "city": "Palmdale",
+  "state": "CA",
+  "slug": "palmdale-ca"
+ },
+ {
+  "city": "Salinas",
+  "state": "CA",
+  "slug": "salinas-ca"
+ },
+ {
+  "city": "Hayward",
+  "state": "CA",
+  "slug": "hayward-ca"
+ },
+ {
+  "city": "Corona",
+  "state": "CA",
+  "slug": "corona-ca"
+ },
+ {
+  "city": "Paterson",
+  "state": "NJ",
+  "slug": "paterson-nj"
+ },
+ {
+  "city": "Murfreesboro",
+  "state": "TN",
+  "slug": "murfreesboro-tn"
+ },
+ {
+  "city": "Macon",
+  "state": "GA",
+  "slug": "macon-ga"
+ },
+ {
+  "city": "Lakewood",
+  "state": "CO",
+  "slug": "lakewood-co"
+ },
+ {
+  "city": "Killeen",
+  "state": "TX",
+  "slug": "killeen-tx"
+ },
+ {
+  "city": "Springfield",
+  "state": "MA",
+  "slug": "springfield-ma"
+ },
+ {
+  "city": "Alexandria",
+  "state": "VA",
+  "slug": "alexandria-va"
+ },
+ {
+  "city": "Kansas City",
+  "state": "KS",
+  "slug": "kansas-city-ks"
+ },
+ {
+  "city": "Sunnyvale",
+  "state": "CA",
+  "slug": "sunnyvale-ca"
+ },
+ {
+  "city": "Hollywood",
+  "state": "FL",
+  "slug": "hollywood-fl"
+ },
+ {
+  "city": "Roseville",
+  "state": "CA",
+  "slug": "roseville-ca"
+ },
+ {
+  "city": "Charleston",
+  "state": "SC",
+  "slug": "charleston-sc"
+ },
+ {
+  "city": "Escondido",
+  "state": "CA",
+  "slug": "escondido-ca"
+ },
+ {
+  "city": "Joliet",
+  "state": "IL",
+  "slug": "joliet-il"
+ },
+ {
+  "city": "Naperville",
+  "state": "IL",
+  "slug": "naperville-il"
+ },
+ {
+  "city": "Bellevue",
+  "state": "WA",
+  "slug": "bellevue-wa"
+ },
+ {
+  "city": "Pasadena",
+  "state": "TX",
+  "slug": "pasadena-tx"
+ },
+ {
+  "city": "Rockford",
+  "state": "IL",
+  "slug": "rockford-il"
+ },
+ {
+  "city": "Savannah",
+  "state": "GA",
+  "slug": "savannah-ga"
+ },
+ {
+  "city": "Syracuse",
+  "state": "NY",
+  "slug": "syracuse-ny"
+ },
+ {
+  "city": "Torrance",
+  "state": "CA",
+  "slug": "torrance-ca"
+ },
+ {
+  "city": "Bridgeport",
+  "state": "CT",
+  "slug": "bridgeport-ct"
+ },
+ {
+  "city": "McAllen",
+  "state": "TX",
+  "slug": "mcallen-tx"
+ },
+ {
+  "city": "Mesquite",
+  "state": "TX",
+  "slug": "mesquite-tx"
+ },
+ {
+  "city": "Midland",
+  "state": "TX",
+  "slug": "midland-tx"
+ },
+ {
+  "city": "Denton",
+  "state": "TX",
+  "slug": "denton-tx"
+ },
+ {
+  "city": "Fullerton",
+  "state": "CA",
+  "slug": "fullerton-ca"
+ },
+ {
+  "city": "Orange",
+  "state": "CA",
+  "slug": "orange-ca"
+ },
+ {
+  "city": "Dayton",
+  "state": "OH",
+  "slug": "dayton-oh"
+ },
+ {
+  "city": "Pomona",
+  "state": "CA",
+  "slug": "pomona-ca"
+ },
+ {
+  "city": "Surprise",
+  "state": "AZ",
+  "slug": "surprise-az"
+ },
+ {
+  "city": "Columbia",
+  "state": "SC",
+  "slug": "columbia-sc"
+ },
+ {
+  "city": "Warren",
+  "state": "MI",
+  "slug": "warren-mi"
+ },
+ {
+  "city": "New Haven",
+  "state": "CT",
+  "slug": "new-haven-ct"
+ },
+ {
+  "city": "Waco",
+  "state": "TX",
+  "slug": "waco-tx"
+ },
+ {
+  "city": "Sterling Heights",
+  "state": "MI",
+  "slug": "sterling-heights-mi"
+ },
+ {
+  "city": "West Valley City",
+  "state": "UT",
+  "slug": "west-valley-city-ut"
+ },
+ {
+  "city": "Olathe",
+  "state": "KS",
+  "slug": "olathe-ks"
+ },
+ {
+  "city": "Cedar Rapids",
+  "state": "IA",
+  "slug": "cedar-rapids-ia"
+ },
+ {
+  "city": "Thornton",
+  "state": "CO",
+  "slug": "thornton-co"
+ },
+ {
+  "city": "Visalia",
+  "state": "CA",
+  "slug": "visalia-ca"
+ },
+ {
+  "city": "Elizabeth",
+  "state": "NJ",
+  "slug": "elizabeth-nj"
+ },
+ {
+  "city": "Carrollton",
+  "state": "TX",
+  "slug": "carrollton-tx"
+ },
+ {
+  "city": "Charleston",
+  "state": "WV",
+  "slug": "charleston-wv"
+ },
+ {
+  "city": "Round Rock",
+  "state": "TX",
+  "slug": "round-rock-tx"
+ },
+ {
+  "city": "Coral Springs",
+  "state": "FL",
+  "slug": "coral-springs-fl"
+ },
+ {
+  "city": "Stamford",
+  "state": "CT",
+  "slug": "stamford-ct"
+ },
+ {
+  "city": "Concord",
+  "state": "CA",
+  "slug": "concord-ca"
+ },
+ {
+  "city": "Topeka",
+  "state": "KS",
+  "slug": "topeka-ks"
+ }
+]

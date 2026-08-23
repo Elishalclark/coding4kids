@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unsubscribe - KidVibers</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=219" />
+  <style>
+    .un { max-width: 520px; margin: 70px auto; padding: 0 20px; text-align: center; }
+    .un-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 34px 28px; }
+    .un-card h1 { font-size: 1.5rem; font-weight: 900; margin: 10px 0; }
+    .un-card p { color: var(--text-dim); line-height: 1.65; }
+    .un-mail { font-weight: 800; color: var(--purple); word-break: break-all; }
+  </style>
+  <!-- No analytics on purpose: this page is reached from an email and carries the
+       recipient's address in the URL. It should not be sent to any measurement tool. -->
+</head>
+<body>
+  <main class="un">
+    <div class="un-card" id="card">
+      <div style="font-size:3rem;">✉️</div>
+      <h1 id="title">One moment…</h1>
+      <p id="msg">Checking your link.</p>
+      <div id="actions" style="margin-top:18px;"></div>
+    </div>
+    <p style="margin-top:18px;font-size:0.82rem;color:var(--text-faint);">
+      <a href="index.html" style="color:var(--text-dim);">← Back to KidVibers</a>
+    </p>
+  </main>
+
+  <script src="auth.js?v=219"></script>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const email = (q.get('e') || '').trim();
+    const token = (q.get('t') || '').trim();
+    const title = document.getElementById('title');
+    const msg = document.getElementById('msg');
+    const actions = document.getElementById('actions');
+
+    function show(t, m, html) {
+      title.textContent = t;
+      msg.innerHTML = m;
+      actions.innerHTML = html || '';
+    }
+
+    async function unsubscribe() {
+      if (!email || !token) {
+        show('This link is incomplete', "We couldn't read your unsubscribe link. Email " +
+          '<a href="mailto:support@kidvibers.com" style="color:var(--purple);font-weight:800;">support@kidvibers.com</a>' +
+          " and we'll take you off the list by hand.");
+        return;
+      }
+      const { ok, data } = await C4K.api('/api/unsubscribe', 'POST', { email, token });
+      if (!ok) {
+        show("That link isn't valid", (data && data.error) || 'Please try the link in your email again, or contact support.');
+        return;
+      }
+      show('You’re unsubscribed',
+        'We won’t send marketing emails to <span class="un-mail">' + C4K.esc(email) + '</span> any more.<br><br>' +
+        'You’ll still get important account emails — password resets and parental-consent links — because those are needed to use the account.',
+        '<button class="btn btn-outline" id="undo">Actually, keep me subscribed</button>');
+      const undo = document.getElementById('undo');
+      if (undo) undo.onclick = async () => {
+        undo.disabled = true;
+        const r = await C4K.api('/api/resubscribe', 'POST', { email, token });
+        if (r.ok) show('You’re back on the list',
+          'We’ll keep sending updates to <span class="un-mail">' + C4K.esc(email) + '</span>.');
+        else { undo.disabled = false; }
+      };
+    }
+    unsubscribe();
+  </script>
+</body>
+</html>

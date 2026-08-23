@@ -20,11 +20,20 @@ sed -i '' "s/?v=${CUR_V}\"/?v=${NEW_V}\"/g" ../*.html 2>/dev/null || true
 echo "   v${CUR_V} → v${NEW_V}"
 
 echo "📦 Copying the latest site files..."
-cp ../*.html public/ 2>/dev/null || true
-cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../tour.js ../styles.css public/ 2>/dev/null || true
-cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+# Copy every root asset by extension rather than naming files one by one. The old
+# allowlist had gone stale: analytics.js was never copied by either deploy path, so
+# every page 404'd on it in production — taking Consent Mode, the cookie banner,
+# Clarity and GTM with it. Keep this in step with .github/workflows/deploy.yml.
+rm -rf public && mkdir -p public
+cp ../*.html ../*.js ../*.css ../*.json ../*.txt ../*.xml ../*.svg ../*.png public/ 2>/dev/null || true
+# Generated landing pages (seo/build.py) live in subdirectories, so the globs miss them.
+cp -R ../p public/ 2>/dev/null || true
 # safety: never ship secrets
 rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
+# Fail loudly rather than deploying a site missing its own scripts.
+for f in analytics.js app.js auth.js styles.css index.html sitemap.xml; do
+  [ -f "public/$f" ] || { echo "❌ public/$f missing — refusing to deploy"; exit 1; }
+done
 if [ "$1" = "staging" ]; then
   echo "🔒 Deploying to STAGING (password-protected preview)..."
   wrangler deploy --env staging

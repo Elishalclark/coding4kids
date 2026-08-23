@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feature Flags - KidVibers Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=219" />
+  <style>
+    .adm-off { display: none !important; }
+    /* ── Login ── */
+    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .login-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 40px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg), var(--glow);
+    }
+    .login-card .logo { justify-content: center; margin-bottom: 8px; font-size: 1.5rem; }
+    .login-card h1 { text-align: center; font-size: 1.4rem; font-weight: 900; margin-bottom: 4px; }
+    .login-card .sub { text-align: center; color: var(--text-dim); font-size: 0.9rem; margin-bottom: 28px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label { display: block; font-size: 0.82rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; }
+    .login-field input {
+      width: 100%; padding: 13px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.95rem; outline: none;
+    }
+    .login-field input:focus { border-color: var(--border-bright); }
+    .login-error { color: #f87171; font-size: 0.85rem; font-weight: 700; min-height: 20px; margin-bottom: 10px; text-align: center; }
+    .login-hint { margin-top: 18px; text-align: center; font-size: 0.78rem; color: var(--text-faint); background: var(--bg); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .login-hint code { color: var(--purple); }
+
+    /* ── Dashboard shell: fixed dark sidebar + top bar, everything else unchanged underneath ── */
+    .admin-shell { display: none; }
+    .admin-shell.active { display: flex; min-height: 100vh; align-items: flex-start; }
+
+    .admin-sidebar {
+      width: 250px; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      background: linear-gradient(165deg, #1a1030 0%, #120c22 55%, #0c0916 100%);
+      border-right: 1px solid var(--border); padding: 20px 14px 24px; display: flex; flex-direction: column;
+    }
+    .admin-sidebar .sb-logo { display: flex; align-items: center; gap: 8px; padding: 4px 8px 20px; font-weight: 900; font-size: 1.05rem; color: #fff; }
+    .admin-sidebar .sb-group { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #7c6fa8; padding: 14px 10px 6px; }
+    .sb-link {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+      color: #cbb8ef; font-weight: 700; font-size: 0.88rem; text-decoration: none; cursor: pointer;
+      background: none; border: none; width: 100%; text-align: left; font-family: inherit;
+    }
+    .sb-link:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .sb-link.active { background: linear-gradient(135deg,#7c3aed,#db2777); color: #fff; }
+    .admin-sidebar .sb-spacer { flex: 1; }
+    .admin-sidebar .sb-footer { padding: 12px 10px 4px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 10px; }
+    .admin-sidebar .sb-who { font-size: 0.78rem; color: #9a8fc4; font-weight: 700; padding: 6px 10px 10px; }
+    .admin-sidebar .sb-who strong { color: #fff; display: block; font-size: 0.9rem; }
+
+    .admin-content { flex: 1; min-width: 0; }
+    .admin-topbar {
+      background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 14px 28px;
+      display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50;
+      flex-wrap: wrap; row-gap: 8px;
+    }
+    .admin-topbar .topbar-search { flex: 1; max-width: 380px; position: relative; }
+    .admin-topbar .topbar-search input {
+      width: 100%; box-sizing: border-box; padding: 9px 14px 9px 34px; border-radius: 50px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font-family: inherit; font-weight: 700; font-size: 0.85rem; outline: none;
+    }
+    .admin-topbar .topbar-search input:focus { border-color: var(--border-bright); }
+    .admin-topbar .topbar-search .ts-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+    .admin-bar .who { margin-left: auto; font-size: 0.85rem; color: var(--text-dim); font-weight: 700; }
+    .admin-bar .who strong { color: var(--purple); }
+    @media (max-width: 900px) {
+      .admin-sidebar { display: none; }         /* small screens: fall back to a simple top-only layout */
+      .admin-shell.active { display: block; }
+    }
+    @media (max-width: 640px) {
+      .admin-topbar { padding: 12px 16px; gap: 10px; }
+      #panelLabel { display: none; }            /* hide the "/ Super Admin Panel" tag on small phones */
+      .admin-bar .who { font-size: 0.78rem; }
+      .admin-main { padding-left: 16px; padding-right: 16px; }
+      .admin-topbar .topbar-search { order: 3; max-width: none; flex-basis: 100%; }
+    }
+
+    .admin-main { max-width: 1160px; margin: 0 auto; padding: 32px 24px 80px; }
+    .admin-main h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: 4px; }
+    .admin-main .lead { color: var(--text-dim); margin-bottom: 28px; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 36px; }
+    .stat-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px 22px; display: flex; align-items: center; gap: 14px;
+    }
+    .stat-box .ico-box {
+      width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; flex-shrink: 0; background: var(--purple-light); color: var(--purple);
+    }
+    .stat-box .stat-text { min-width: 0; }
+    .stat-box .big { font-size: 1.6rem; font-weight: 900; color: var(--text); line-height: 1.15; }
+    .stat-box .lbl { font-size: 0.8rem; color: var(--text-dim); font-weight: 700; }
+    .stat-box .trend { font-size: 0.74rem; color: var(--text-faint); font-weight: 700; margin-top: 2px; }
+
+    .admin-section { font-size: 1.15rem; font-weight: 900; color: var(--purple); margin: 34px 0 4px; padding-bottom: 8px; border-bottom: 2px solid var(--border); letter-spacing: -0.3px; }
+    .admin-section:first-of-type { margin-top: 10px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
+    .panel h3 { font-size: 1.1rem; font-weight: 900; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    /* For row-style panels (icon + text + button) that also get toggled by .super-only — the
+       toggle clears inline display, so the row layout needs to live in a class, not an inline
+       style, or it'd collapse back to block whenever a super admin's view re-shows it. */
+    .panel-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .admin-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .pill { font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 50px; }
+    .pill.active { background: rgba(52,211,153,0.16); color: var(--green); }
+    .pill.free { background: var(--purple-light); color: var(--purple); }
+    .pill.pro { background: rgba(244,114,182,0.16); color: var(--pink); }
+    .mini-btn { font-size: 0.75rem; padding: 5px 12px; border-radius: 50px; border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); cursor: pointer; font-weight: 700; }
+    .mini-btn:hover { border-color: var(--border-bright); color: var(--purple); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+    .le-lbl { display: flex; flex-direction: column; gap: 5px; font-weight: 800; font-size: 0.82rem; color: var(--text-dim); }
+    .le-in { padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 700; outline: none; }
+    .le-in:focus { border-color: var(--border-bright); }
+    .plan-ai-toggle { width: 38px; height: 22px; }
+    .chat-limit-in { width: 90px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family:'Nunito',sans-serif; font-weight:800; }
+  </style>
+  <!-- No analytics.js / GA / Clarity here on purpose: this console renders account
+       emails, family links and compliance exports. Same reasoning that keeps them out
+       of support-inbox.html and email-templates.html — never session-record real PII. -->
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div class="login-wrap" id="loginWrap" style="display:none;">
+    <div class="login-card">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <h1>Admin Login</h1>
+      <p class="sub">Sign in to the control panel</p>
+      <form onsubmit="doLogin(event)">
+        <div class="login-field">
+          <label>Username</label>
+          <input type="text" id="username" placeholder="admin" autocomplete="username" />
+        </div>
+        <div class="login-field">
+          <label>Password</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="login-error" id="loginError"></div>
+        <button type="submit" class="btn btn-primary btn-full btn-lg">Log In 🔐</button>
+      </form>
+      <div class="login-hint">
+        🔐 Admin &amp; Super Admin only. Credentials live in your private <code>admin_config.json</code>.
+      </div>
+    </div>
+  </div>
+
+  <!-- ✨ What's New — admin-facing items only (auth.js has the shared, audience-tagged list) -->
+  <div id="whatsNew" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(8,6,18,0.88);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:460px;width:100%;background:linear-gradient(160deg,#1e1040,#171327);border:1px solid var(--border-bright);border-radius:22px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:1.8rem;">✨</span>
+        <h2 style="font-size:1.4rem;font-weight:900;color:#fff;margin:0;flex:1;">What's New</h2>
+        <span id="wnVersion" style="font-size:0.72rem;font-weight:900;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;padding:3px 10px;border-radius:50px;">v1</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Here's the latest on KidVibers 🚀</p>
+      <ul id="wnList" style="list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:12px;"></ul>
+      <button onclick="closeWhatsNew()" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;font-weight:900;font-size:1rem;cursor:pointer;font-family:inherit;">Let's go! 🎉</button>
+    </div>
+  </div>
+
+  <!-- Printable session recap — shown when a Live Session ends, replacing a plain alert() so a
+       host can actually print/save it for a program report instead of it vanishing on dismiss. -->
+  <div id="recapModal" style="display:none;position:fixed;inset:0;z-index:9997;background:rgba(6,4,14,0.85);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+    <div id="recapCard" style="max-width:420px;width:100%;background:#fff;color:#111;border-radius:18px;padding:30px 28px;text-align:center;">
+      <div style="font-size:2.2rem;">📊</div>
+      <h2 style="font-size:1.3rem;font-weight:900;margin:8px 0 2px;">Session Recap</h2>
+      <p id="recapWhen" style="color:#666;font-size:0.82rem;margin-bottom:18px;"></p>
+      <div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🙋 Kids joined</span><strong id="recapJoins"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>🎨 Creations built</span><strong id="recapCreations"></strong></div>
+        <div style="display:flex;justify-content:space-between;background:#f7f5ff;border-radius:10px;padding:10px 16px;"><span>⏱️ Length</span><strong id="recapMins"></strong></div>
+      </div>
+      <p style="margin-top:18px;font-weight:800;color:#6d28d9;">Great job running a session! 🎉</p>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('recapModal').style.display='none';document.body.classList.remove('recap-printing');">Close</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+  </div>
+  <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
+
+  <!-- DASHBOARD -->
+  <div class="admin-shell" id="adminShell" data-admin-page="flags">
+    <aside class="admin-sidebar">
+      <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
+      <div class="sb-group">Dashboards</div>
+      <a class="sb-link" href="admin.html" data-page="dashboard">🏠 Dashboard</a>
+      <a class="sb-link" href="admin-live.html" data-page="live">🎟️ Live Sessions</a>
+      <a class="sb-link" href="admin-chat.html" data-page="chat">💬 Staff Chat</a>
+      <a class="sb-link" href="admin-create.html" data-page="create">➕ Create Account</a>
+      <a class="sb-link" href="admin-preview.html" data-page="preview">👁️ Preview Dashboards</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-search.html" data-page="search">🔎 Find Any Account</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-overview.html" data-page="overview">📊 Overview & Growth</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-people.html" data-page="people">👥 People & Accounts</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-admins.html" data-page="admins">🛡️ Admin Accounts</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-staff.html" data-page="staff">🕵️ Staff Logins</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-safety.html" data-page="safety">🛡️ Safety & Consent</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-data.html" data-page="data">📄 Data Requests</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-security.html" data-page="security">🔐 Security</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-audit.html" data-page="audit">🕵️ Audit Log</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-flags.html" data-page="flags">🚩 Feature Flags</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-billing.html" data-page="billing">💳 Billing & Promos</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-revenue.html" data-page="revenue">💰 Revenue</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-comms.html" data-page="comms">📣 Communication</a>
+      <a class="sb-link super-only" style="display:none;" href="admin-settings.html" data-page="settings">⚙️ Settings</a>
+      <a class="sb-link super-only" style="display:none;" href="email-templates.html" target="_blank" rel="noopener">✉️ Email Templates</a>
+      <a class="sb-link super-only" style="display:none;" href="support-inbox.html" target="_blank" rel="noopener">📥 Support Inbox</a>
+      <div class="sb-spacer"></div>
+      <div class="sb-footer">
+        <div class="sb-who">Logged in as<strong id="whoName">owner</strong></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;color:#cbb8ef;cursor:pointer;padding:6px 10px;" title="Browse the whole panel safely — every button still works, but nothing actually gets saved, suspended, deleted, or sent.">
+          <input type="checkbox" id="previewToggle" onchange="toggleAdminPreview(this)" />
+          🔍 Preview Mode
+        </label>
+        <button class="sb-link" onclick="doLogout()">🚪 Log Out</button>
+      </div>
+    </aside>
+
+    <div class="admin-content">
+      <button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top" style="display:none;position:fixed;bottom:24px;right:24px;z-index:50;width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#db2777);color:#fff;border:none;font-size:1.2rem;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,0.35);">⬆️</button>
+      <div class="admin-topbar">
+        <span style="font-weight:800;color:var(--text-dim);" id="panelLabel">/ Admin Panel</span>
+        <div class="topbar-search">
+          <span class="ts-ico">🔎</span>
+          <input id="topSearchIn" placeholder="Search any account…" oninput="topSearchSync(this.value)" />
+        </div>
+        <span class="who">👤 <strong id="whoName2">owner</strong></span>
+      </div>
+
+      <div id="previewBanner" style="display:none;align-items:center;gap:10px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;font-weight:800;font-size:0.88rem;padding:10px 20px;">
+        🔍 <strong>Preview Mode is ON</strong> — click anything you want. Nothing will actually be suspended, deleted, changed, or sent.
+        <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
+      </div>
+
+      <div class="admin-main" id="secDashboard">      <div class="panel super-only" id="secFlags" style="display:none;">
+        <h3>🚩 Feature Flags</h3>
+        <div>
+          <div style="font-weight:800;font-size:0.85rem;margin-bottom:8px;">Turn a feature off instantly for everyone, no redeploy needed</div>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="flagVibe" onchange="saveFlags()" /> 🎨 Vibe Studio</label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" id="flagSessions" onchange="saveFlags()" /> 🎟️ Live Sessions</label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;"><input type="checkbox" id="flagReferrals" onchange="saveFlags()" /> 🎁 Referrals</label>
+          <div id="flagsMsgOut" style="font-size:0.8rem;margin-top:8px;color:var(--text-dim);"></div>
+        </div>
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;">
+          <h4 style="font-size:0.9rem;font-weight:900;margin-bottom:6px;">⏰ Schedule a flag change</h4>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 10px;">Set a flag to flip automatically at a future time (checked hourly) — e.g. turn a feature on right at midnight for a launch, without staying up to click it yourself.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="schedFlagKey" class="le-in" style="width:150px;">
+              <option value="vibeStudio">🎨 Vibe Studio</option>
+              <option value="liveSessions">🎟️ Live Sessions</option>
+              <option value="referrals">🎁 Referrals</option>
+            </select>
+            <select id="schedFlagValue" class="le-in" style="width:100px;">
+              <option value="true">Turn ON</option>
+              <option value="false">Turn OFF</option>
+            </select>
+            <input id="schedFlagAt" class="le-in" type="datetime-local" style="width:200px;" />
+            <button class="btn btn-primary" onclick="scheduleFlag()">Schedule</button>
+          </div>
+          <div id="schedFlagMsg" style="font-size:0.82rem;font-weight:700;margin-top:8px;"></div>
+          <div id="schedFlagList" style="margin-top:10px;font-size:0.82rem;color:var(--text-dim);"></div>
+        </div>
+      </div>
+
+      <!-- Reset demo account (SUPER ADMIN ONLY) -->
+      <div class="panel panel-row super-only" style="display:none;">
+        <div style="font-size:1.8rem;">🧹</div>
+        <div style="flex:1;min-width:200px;">
+          <h3 style="margin-bottom:2px;">Reset demo account</h3>
+          <p class="hint" style="margin:0;">Clears whatever a demo left behind — extra Vibe Studio projects, today's AI chat quota, safety notices. Leaves the seeded lessons, boss wins, and tokens untouched.</p>
+          <div class="msg" id="resetDemoMsg"></div>
+        </div>
+        <button class="mini-btn" onclick="resetDemoAccount()">🧹 Reset demo</button>
+      </div>
+
+      <!-- Admin accounts (SUPER ADMIN ONLY) -->
+</div>
+    </div>
+  </div>
+
+  <!-- LESSON EDITOR MODAL (super admin) -->
+  <div class="modal-overlay hidden" id="lessonEditor">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">📝</span>
+        <div style="flex:1;"><div class="chat-name" id="leTitle">Edit Lesson</div><div class="chat-status">Title, level, XP &amp; publish</div></div>
+        <button class="modal-close" onclick="closeLessonEditor()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" id="leId" />
+        <label class="le-lbl">Emoji <input id="leEmoji" class="le-in" maxlength="4" placeholder="📘" /></label>
+        <label class="le-lbl">Title <input id="leName" class="le-in" placeholder="Lesson title" /></label>
+        <label class="le-lbl">Blurb <input id="leBlurb" class="le-in" placeholder="Short description" /></label>
+        <div style="display:flex;gap:12px;">
+          <label class="le-lbl" style="flex:1;">Level <input id="leLevel" class="le-in" placeholder="Ages 8+" /></label>
+          <label class="le-lbl" style="flex:1;">XP <input id="leXp" type="number" class="le-in" placeholder="50" /></label>
+          <label class="le-lbl" style="flex:1;">Unit <input id="leUnit" type="number" min="1" class="le-in" placeholder="1" /></label>
+        </div>
+        <label class="le-lbl" style="flex-direction:row;align-items:center;gap:8px;"><input id="lePublished" type="checkbox" checked /> Published (visible to kids)</label>
+        <div id="leErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;"></div>
+        <button class="btn btn-primary btn-lg" onclick="saveLesson()">Save Lesson</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suspend account modal -->
+  <div class="modal-overlay hidden" id="suspendModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">⏸️</span>
+        <div style="flex:1;"><div class="chat-name">Suspend account</div><div class="chat-status" id="suspWho">-</div></div>
+        <button class="modal-close" onclick="closeSuspend()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" id="suspId" />
+        <label class="le-lbl">How long?
+          <select id="suspDays" class="le-in">
+            <option value="1">1 day</option>
+            <option value="3">3 days</option>
+            <option value="7" selected>7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+            <option value="0">Permanent (until I unsuspend)</option>
+          </select>
+        </label>
+        <label class="le-lbl">Reason (kept on record &amp; emailed to the account)
+          <input id="suspReason" class="le-in" placeholder="e.g. Repeated rule-breaking in comments" /></label>
+        <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">They'll be logged out immediately and can't sign in for the chosen period. Timed suspensions lift automatically.</p>
+        <button class="btn btn-primary btn-lg" style="background:#f59e0b;border-color:#f59e0b;" onclick="confirmSuspend()">⏸️ Suspend account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set username / password modal -->
+  <div class="modal-overlay hidden" id="credsModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🔑</span>
+        <div style="flex:1;"><div class="chat-name">Set login</div><div class="chat-status" id="credsWho">-</div></div>
+        <button class="modal-close" onclick="closeCreds()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" id="credsId" />
+        <label class="le-lbl">New username <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
+          <input id="credsUser" class="le-in" autocomplete="off" placeholder="3-20 letters, numbers or _" /></label>
+        <label class="le-lbl">New password <span style="color:var(--text-faint);font-weight:600;">(leave blank to keep)</span>
+          <input id="credsPass" class="le-in" autocomplete="new-password" placeholder="at least 6 characters" /></label>
+        <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">Changing the password signs that account out of its current sessions. Tell the person their new login.</p>
+        <label class="le-lbl">Confirm it's you — your own password
+          <input id="credsMyPass" type="password" class="le-in" autocomplete="current-password" placeholder="Your super-admin password" /></label>
+        <div id="credsErr" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:16px;"></div>
+        <button class="btn btn-primary btn-lg" onclick="confirmCreds()">Save login</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=219"></script>
+  <script src="admin.js?v=219"></script>
+  <script src="pwa.js?v=219" defer></script>
+  <script src="editor.js?v=219" defer></script>
+</body>
+</html>

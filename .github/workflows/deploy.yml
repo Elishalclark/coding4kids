@@ -24,12 +24,22 @@ jobs:
       - name: Build the public/ assets folder
         run: |
           cd cloudflare
-          mkdir -p public
-          cp ../*.html public/ 2>/dev/null || true
-          cp ../app.js ../auth.js ../lessons.js ../editor.js ../pwa.js ../sw.js ../styles.css public/ 2>/dev/null || true
-          cp ../manifest.json ../robots.txt ../sitemap.xml public/ 2>/dev/null || true
+          rm -rf public && mkdir -p public
+          # Copy every root asset by extension rather than naming files one by one.
+          # The old allowlist had silently gone stale twice: analytics.js was never
+          # deployed at all (so every page 404'd on it, taking Consent Mode, the
+          # cookie banner, Clarity and GTM with it), and tour.js was missing here
+          # while present in deploy.sh. An allowlist that must be updated by hand
+          # every time a file is added will keep drifting; this cannot.
+          cp ../*.html ../*.js ../*.css ../*.json ../*.txt ../*.xml ../*.svg ../*.png public/ 2>/dev/null || true
+          # Generated landing pages live in subdirectories, so the globs above miss them.
+          cp -R ../p public/ 2>/dev/null || true
           # safety: never ship secrets or server-only files
           rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
+          # Fail loudly rather than deploying a site missing its own scripts.
+          for f in analytics.js app.js auth.js styles.css index.html sitemap.xml; do
+            [ -f "public/$f" ] || { echo "::error::public/$f missing — refusing to deploy"; exit 1; }
+          done
           echo "Built public/ with:" && ls public/
 
       - name: Deploy to Cloudflare

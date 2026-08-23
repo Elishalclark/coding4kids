@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="canonical" href="https://kidvibers.com/" />
+  <!-- Set per-section below. Hardcoding the homepage here told Google every ?p= section was
+       a duplicate of "/", so none of them could rank on their own. -->
+  <link rel="canonical" id="pgCanonical" href="https://kidvibers.com/page.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KidVibers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -237,6 +239,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     const key = new URLSearchParams(location.search).get('p');
     const pg = PAGES[key] || { title: 'Page not found', lead: 'That page does not exist yet.', body: '<p><a href="index.html">← Back home</a></p>' };
     document.title = pg.title.replace(/^[^A-Za-z]+/, '') + ' - KidVibers';
+    // Point the canonical at THIS section, not the homepage. Unknown/missing keys fall back to
+    // the bare page so a junk ?p= value can't mint an indexable URL of its own.
+    const canon = document.getElementById('pgCanonical');
+    if (canon) {
+      canon.href = PAGES[key]
+        ? 'https://kidvibers.com/page.html?p=' + encodeURIComponent(key)
+        : 'https://kidvibers.com/page.html';
+    }
     document.getElementById('pgTitle').textContent = pg.title;
     document.getElementById('pgLead').textContent = pg.lead;
     document.getElementById('pgBody').innerHTML = pg.body;

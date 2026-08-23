@@ -1,0 +1,224 @@
+[
+  {
+    "slug": "what-age-should-kids-start-coding",
+    "title": "What age should kids start coding?",
+    "desc": "Most kids can start around age 5-7 with visual, drag-and-drop coding, and move to typed code around 8-10. Here's what to expect at each stage.",
+    "intro": "There is no single right age, but there is a useful rule of thumb: if a child can read simple sentences and follow a two-step instruction, they can start coding.",
+    "sections": [
+      {"h": "Ages 5-7: coding without typing", "p": "At this age the goal is not syntax, it is sequencing - understanding that a computer does exactly what you tell it, in order, and nothing else. Drag-and-drop blocks work well because a child can build a working program without fighting a keyboard. Expect sessions of 10-15 minutes. Frustration usually means the session ran long, not that the child 'isn't ready'."},
+      {"h": "Ages 8-10: the switch to typed code", "p": "Somewhere around 8, most kids can handle typing real code. This is the age where <code>print(\"Hello\")</code> stops being intimidating and starts being satisfying. Typos become the main obstacle, which is actually the lesson: computers are literal. Keep sessions to 20-30 minutes and let them build something silly of their own after each lesson."},
+      {"h": "Ages 11-13: real projects", "p": "Now a child can hold a whole project in their head - variables, loops, functions, and a goal they chose themselves. This is when coding becomes self-motivating, because they can finally build the thing they actually wanted. The job of a parent shifts from teaching to unblocking."},
+      {"h": "Ages 14+: depth", "p": "Older beginners move faster than younger ones and can skip most of the scaffolding. If a teenager is starting from zero, do not put them in a program designed for eight-year-olds; they will quit. Start at typed code immediately."},
+      {"h": "The signs a child is ready", "p": "They ask how something on a screen works. They notice when a game is unfair. They like puzzles with a right answer. They enjoy building - blocks, Lego, Minecraft. None of these is required, but each one predicts an easier start."}
+    ],
+    "cta": "KidVibers is built for ages 6-16, and starts every child at the right level rather than the same one."
+  },
+  {
+    "slug": "teach-coding-without-knowing-how",
+    "title": "How do I teach my kid to code if I don't know how?",
+    "desc": "You don't need to know how to code to raise a kid who does. What actually matters is structure, unblocking, and not being the bottleneck.",
+    "intro": "This is the single most common worry parents have, and it is largely unfounded. Teaching coding and knowing coding are different skills, and the second one is optional.",
+    "sections": [
+      {"h": "Your job is not to explain, it is to protect the time", "p": "The most valuable thing a parent does is make coding a regular, unremarkable part of the week - the same way piano practice happens whether or not the parent plays piano. Consistency beats expertise. Twenty minutes, three times a week, will outperform a heroic Saturday every time."},
+      {"h": "Use something that checks the work for you", "p": "The reason parents get stuck is that they cannot tell whether the code is right. Pick a platform that checks the answer itself and explains why something failed. Then a wrong answer becomes feedback instead of a question you cannot answer."},
+      {"h": "Learn the three questions", "p": "You can unblock almost anything without reading code. Ask: <em>What did you expect to happen?</em> Then: <em>What actually happened?</em> Then: <em>What is the smallest thing you could change?</em> This is genuinely how professional programmers debug, and it works when you do not understand a single line on the screen."},
+      {"h": "Let them teach you", "p": "Ask your child to explain what their program does. Explaining is where understanding gets built, and it costs you nothing but attention. If they cannot explain it, they have not learned it yet - and now you both know."},
+      {"h": "What not to do", "p": "Do not sit and read the lesson ahead of them so you can stay in front. You will burn out and they will notice. Do not solve the bug for them even when you spot it. And do not treat a failed quiz as a discipline issue; it is data."}
+    ],
+    "cta": "KidVibers checks every answer server-side and gives kids hints when they're stuck, so you're never the bottleneck."
+  },
+  {
+    "slug": "scratch-vs-python-for-kids",
+    "title": "Scratch or Python: which should my kid learn first?",
+    "desc": "Block coding and typed code teach different things. Here's how to choose based on your child's age, reading level and patience.",
+    "intro": "This is usually framed as a rivalry, but they solve different problems. The right question is not which is better, it is which one your child needs right now.",
+    "sections": [
+      {"h": "What block coding is genuinely good at", "p": "Blocks remove two obstacles at once: typing and syntax errors. A six-year-old cannot misspell a keyword if the keyword is a shape they drag. That lets them focus entirely on logic - order, repetition, conditions - which is the part that actually transfers to every language later."},
+      {"h": "What block coding hides", "p": "Blocks make some things look easier than they are. Variables, scope and data types are all smoothed over. Kids who spend years in blocks often hit a wall when they move to text, not because text is harder, but because they never met the concepts blocks were protecting them from."},
+      {"h": "Why Python is the usual next step", "p": "Python reads closer to English than most languages, needs almost no boilerplate to do something visible, and has forgiving syntax. <code>print(\"Hi\")</code> does exactly what it looks like it does. That immediacy matters enormously for a child's motivation."},
+      {"h": "A practical sequence", "p": "If your child is under 8 or is a reluctant reader, start with blocks and move to Python within a year. If your child is 8 or older and reads comfortably, start with Python directly - many kids find blocks patronising and disengage. If they have already done blocks and seem bored, that boredom is the signal to switch."},
+      {"h": "The thing that actually matters", "p": "Neither choice is permanent, and neither is a mistake. A child who enjoys coding will learn the other one in weeks. A child who is bored will not learn either. Optimise for engagement, not for the theoretically correct order."}
+    ],
+    "cta": "KidVibers moves kids from visual concepts through to typed Python, JavaScript, HTML and CSS across 25 curriculum worlds."
+  },
+  {
+    "slug": "homeschool-computer-science-requirements",
+    "title": "Does homeschool computer science count toward requirements?",
+    "desc": "How coding work fits into homeschool record-keeping, portfolios and transcripts - and what to keep so it counts.",
+    "intro": "Requirements vary a great deal by state and country, so treat this as a guide to what to keep rather than legal advice. Check your own state's rules, because they genuinely differ.",
+    "sections": [
+      {"h": "Keep evidence, not just hours", "p": "Most reporting regimes want to see that learning happened, not just that time passed. Finished projects, completed lesson lists, quiz scores and dated certificates are all far more persuasive than a log that says '3 hours of computer science'."},
+      {"h": "What a good portfolio entry looks like", "p": "A dated record of what was covered, a sample of the child's actual work, and some form of assessment. If a platform gives you completion records and printable certificates, that is most of the entry already assembled."},
+      {"h": "Counting it as a subject", "p": "In many states, computer science can satisfy an elective, a technology requirement, or in some cases a maths credit at high-school level. The determining factor is usually rigour and hours, not the provider. Keep enough detail that you could justify the credit if asked."},
+      {"h": "For high school transcripts", "p": "If you are building a transcript, name the course something recognisable - 'Introduction to Computer Science' or 'Programming I' - rather than the brand name of the platform. List the topics covered and the hours. Admissions readers need to map it onto something familiar."},
+      {"h": "The mistake to avoid", "p": "Do not wait until reporting season to reconstruct the year from memory. Export or print records as you go. Platforms change, subscriptions lapse, and access to your own history is not guaranteed forever."}
+    ],
+    "cta": "KidVibers keeps a per-child record of lessons completed and quiz results, and issues printable certificates you can file directly."
+  },
+  {
+    "slug": "how-much-screen-time-coding",
+    "title": "Is coding screen time? How much is too much?",
+    "desc": "Not all screen time is equivalent. Here's how to think about creative screen time versus consumption, and where to draw a line.",
+    "intro": "Parents often feel a quiet guilt about adding more screen time, even for something educational. The distinction that helps most is between screens that consume attention and screens that require it.",
+    "sections": [
+      {"h": "Creation and consumption are different activities", "p": "Watching an autoplaying feed and building a working program are both 'screen time' in the sense that both involve a screen, and that is roughly where the similarity ends. One is designed to hold attention passively; the other demands sustained, effortful focus and produces something that did not exist before."},
+      {"h": "A workable limit", "p": "For most children, 20-40 minutes of focused coding is productive, and beyond about an hour the returns drop sharply - especially under 10. Frustration, sloppy guessing and clicking randomly are all signs the session has gone on too long, not signs of a bad attitude."},
+      {"h": "Watch for the good kind of absorption", "p": "There is a real difference between a child who is absorbed in solving something and a child who is stuck in a loop of trying things at random. The first is worth protecting even past your usual limit. The second should end the session."},
+      {"h": "Make the output visible", "p": "Ask to be shown what they made. It reframes the activity for both of you - it becomes something they did rather than something they were on, and it gives you an honest read on whether the time is producing anything."},
+      {"h": "Pair it with something physical", "p": "Coding sessions work better immediately before something active than immediately after. A tired child debugging is a miserable child debugging."}
+    ],
+    "cta": "KidVibers lessons are built in short, finishable chunks, so a session has a natural stopping point instead of running indefinitely."
+  },
+  {
+    "slug": "is-coding-still-worth-learning-with-ai",
+    "title": "Is coding still worth learning now that AI can write it?",
+    "desc": "AI writes a lot of code. That changes what's worth learning, but it doesn't remove the reason to learn it.",
+    "intro": "This is a fair question and deserves a straight answer rather than reassurance. AI genuinely does write working code, and it is reasonable to ask what is left.",
+    "sections": [
+      {"h": "What actually changed", "p": "Producing a block of syntactically correct code is no longer the hard part, and pretending otherwise would be dishonest. What has not changed is deciding what to build, judging whether the result is right, and understanding what went wrong when it is not."},
+      {"h": "You cannot supervise what you don't understand", "p": "Someone who cannot read code cannot tell working code from confidently wrong code. As more code is machine-generated, the ability to review it becomes more valuable, not less. That ability is built the same way it always was - by writing code yourself first."},
+      {"h": "Coding teaches something more general", "p": "Breaking a vague problem into precise steps, testing an assumption, isolating a fault - these transfer to almost everything. That was always the strongest argument for teaching kids to code, and it is untouched by AI."},
+      {"h": "The realistic view of jobs", "p": "Nobody should promise your child a specific career from a coding course. What is defensible is that fluency with computation is becoming a baseline literacy across many fields, in roughly the way spreadsheet literacy did a generation ago."},
+      {"h": "What we'd actually teach differently", "p": "Less emphasis on memorising syntax, more on reading code critically and describing problems precisely. Those are the durable skills."}
+    ],
+    "cta": "KidVibers teaches kids to write and debug their own code first - the foundation that makes reviewing anyone else's, human or machine, possible."
+  },
+  {
+    "slug": "my-kid-gets-frustrated-coding",
+    "title": "My kid gets frustrated and quits. What do I do?",
+    "desc": "Frustration in coding is usually a difficulty-calibration problem, not a character problem. Here's how to diagnose and fix it.",
+    "intro": "Almost every child hits this, and it is rarely about grit. Coding has an unusually harsh feedback loop: it fails completely and says nothing useful. That is hard for adults too.",
+    "sections": [
+      {"h": "First, check the difficulty", "p": "Frustration that appears suddenly usually means the jump between two lessons was too large. Going back one step and re-doing something they can already do is not a waste of time - it rebuilds the sense that this is solvable, which is the thing that actually broke."},
+      {"h": "Normalise the error message", "p": "Children often read an error as a verdict on them. It helps enormously to say out loud, repeatedly, that professional programmers see errors constantly all day and that the message is the computer trying to help. Read it together. Most of the time it says exactly what is wrong."},
+      {"h": "Shrink the problem", "p": "When they are stuck, do not debug the whole program. Ask them to delete everything except the smallest piece that should work, and run that. Getting one line working restores momentum faster than any encouragement."},
+      {"h": "Stop before the collapse, not after", "p": "If you can see the session turning, end it while something still works. Ending on a success - even a small one - is what determines whether they are willing to come back tomorrow."},
+      {"h": "When to be concerned", "p": "Frustration during a hard lesson is normal. Distress at the idea of starting at all is different, and usually means the level is wrong, the sessions are too long, or it has quietly become a source of pressure between you."}
+    ],
+    "cta": "KidVibers gives hints when a child is stuck rather than just marking them wrong, so a hard moment doesn't turn into a dead end."
+  },
+  {
+    "slug": "free-coding-for-kids",
+    "title": "Is there genuinely free coding for kids?",
+    "desc": "What 'free' usually means in kids' coding platforms, what to check before signing up, and what's actually free at KidVibers.",
+    "intro": "There is a lot genuinely available for free, and also a lot of 'free' that means a trial, a demo, or an ad-supported product aimed at your child. It is worth knowing which you are looking at.",
+    "sections": [
+      {"h": "The four kinds of free", "p": "A permanently free tier with real content. A time-limited trial. A free product paid for by advertising. And free-to-start where the useful part is locked. All four get described the same way in marketing, so check which one you are being offered before your child gets attached."},
+      {"h": "Ads are the one to watch", "p": "For a children's product, advertising is not just an annoyance - it means your child is the thing being monetised, and it usually implies tracking. If a kids' platform is free and ad-supported, read the privacy policy specifically for what is shared with third parties."},
+      {"h": "What to check before signing up", "p": "Does it require a parent to approve the account? Does it sell or share data? Are there public galleries or messaging between users? Can you delete your child's data on request? Those four answers tell you more than any feature list."},
+      {"h": "Free doesn't have to mean worse", "p": "Plenty of excellent material is free, particularly for beginners. The paid tiers usually buy depth, progress tracking and support rather than fundamentally better teaching at the start."}
+    ],
+    "cta": "KidVibers has a free tier and a free trial, no advertising at all, and never sells data."
+  },
+  {
+    "slug": "coding-for-kids-with-adhd",
+    "title": "Coding for kids with ADHD or who struggle to focus",
+    "desc": "Why coding often works unusually well for kids who find other subjects hard to sit through - and how to set it up.",
+    "intro": "Many parents are surprised to find that a child who cannot sit through twenty minutes of worksheets will happily spend an hour debugging. There are structural reasons for that.",
+    "sections": [
+      {"h": "The feedback loop is immediate", "p": "Run the code, see the result, now. There is no waiting until tomorrow to find out if you were right. For a child who struggles with delayed reward, that tightness is the whole difference."},
+      {"h": "It is genuinely interactive", "p": "Coding is not something you receive, it is something you do continuously. There is no passive stretch to drift out of. The activity itself keeps pulling attention back."},
+      {"h": "Set it up in short, finishable pieces", "p": "The single most effective adjustment is making sure every session has a visible end point that is reachable. 'Finish this lesson' works. 'Work on coding for a while' does not."},
+      {"h": "Let the interest lead", "p": "If they want to make a game, do the lessons that get to a game fastest, even out of order. Sequence matters less than momentum, and a motivated detour teaches more than a compliant march through the syllabus."},
+      {"h": "Reduce the friction to start", "p": "Same time, same place, already logged in. Most lost sessions are lost before the first line of code, in the gap between deciding to start and actually starting."}
+    ],
+    "cta": "KidVibers breaks the curriculum into short lessons with a clear finish line, and rewards completion with tokens and streaks."
+  },
+  {
+    "slug": "what-is-a-loop-for-kids",
+    "title": "How do I explain a loop to a child?",
+    "desc": "A plain-language explanation of loops you can use with a 7-year-old, with examples that actually land.",
+    "intro": "Loops are usually the second big idea a child meets, after sequencing, and they are the first that feels genuinely powerful.",
+    "sections": [
+      {"h": "The one-sentence version", "p": "A loop is how you tell the computer to do something again without writing it again."},
+      {"h": "An explanation that works out loud", "p": "Say: 'If I wanted you to clap five times, I could say clap, clap, clap, clap, clap. Or I could say: clap five times. The second one is a loop.' Almost every child gets it immediately, because they already find the first version annoying - which is exactly the instinct a programmer has."},
+      {"h": "Why it matters more than it looks", "p": "Loops are the first moment where writing less code does more work. That shift - from describing every step to describing the pattern - is the beginning of thinking like a programmer."},
+      {"h": "Where kids get stuck", "p": "Two places. First, off-by-one: looping four times instead of five. Second, forgetting that the thing being repeated can change each time round. Both are best fixed by having them predict the output before running it, then running it."},
+      {"h": "A good first exercise", "p": "Ask them to print the numbers 1 to 10 without writing ten lines. It is small, checkable, and the moment it works they understand loops properly."}
+    ],
+    "cta": "Loops are taught in Greenwood Basics, early in the KidVibers curriculum, with a quiz that checks understanding rather than recall."
+  },
+  {
+    "slug": "kids-coding-safety-online",
+    "title": "Is coding online safe for my child?",
+    "desc": "The specific risks in kids' coding platforms - public galleries, messaging, data collection - and what to check.",
+    "intro": "Coding platforms vary enormously on safety, and the differences are not obvious from the marketing. These are the things actually worth checking.",
+    "sections": [
+      {"h": "Public galleries", "p": "Many coding platforms let children publish projects publicly and let anyone comment. That is a genuine feature with genuine value - and also the single largest source of contact risk on these platforms. Decide deliberately whether you want it, rather than discovering it later."},
+      {"h": "Messaging between users", "p": "Ask specifically whether children can send each other messages, including through project comments or shared workspaces. 'Moderated' is not the same as 'absent', and moderation quality varies wildly."},
+      {"h": "What data is collected", "p": "For a child account, the defensible minimum is roughly: a name or nickname, a login, an age, a parent contact, and learning progress. If a platform wants more than that, it is worth asking why."},
+      {"h": "Who can approve the account", "p": "Under COPPA in the US, services aimed at under-13s need verifiable parental consent before collecting personal information. In practice, check whether the approval genuinely goes to you - or whether a child could complete it themselves."},
+      {"h": "Third parties", "p": "Read the privacy policy for what is shared, and with whom. Analytics is normal. Advertising networks on a children's product are not."}
+    ],
+    "cta": "KidVibers has no public gallery and no messaging between users at all, shows no ads, and requires a parent to approve every child account."
+  },
+  {
+    "slug": "coding-club-at-home",
+    "title": "How to run a coding club at home or in a co-op",
+    "desc": "A practical format for running coding with a group of kids, including mixed ages, without needing to teach it yourself.",
+    "intro": "Group coding works well because kids unblock each other, and it removes the pressure on one adult to have all the answers.",
+    "sections": [
+      {"h": "A format that works", "p": "Ninety minutes: fifteen minutes settling and reviewing what people made last time, forty-five minutes of individual work on their own track, twenty minutes of build-anything time, ten minutes of showing. The showing is not optional - it is what makes them come back."},
+      {"h": "Handle mixed ages by decoupling", "p": "Do not teach to the middle. Put every child on their own self-paced track so a six-year-old and a twelve-year-old can sit at the same table doing completely different work. The room stays social; the difficulty stays individual."},
+      {"h": "Use the older kids", "p": "A child who has just learned something is often better at explaining it than an adult who learned it long ago. Formalise it: whoever finishes first becomes the person others ask. It is genuinely useful and it is good for them."},
+      {"h": "What the adult actually does", "p": "Timekeeping, unblocking with the three debugging questions, and making sure the quiet child is not silently stuck. You do not need to know the material."},
+      {"h": "Keep a record", "p": "For homeschool co-ops especially, note what was covered each session. It takes two minutes and saves an afternoon later."}
+    ],
+    "cta": "KidVibers has a classroom mode with a join code, so a co-op leader can see everyone's progress in one place."
+  },
+  {
+    "slug": "does-my-kid-need-a-laptop-to-code",
+    "title": "Does my child need a laptop to learn coding?",
+    "desc": "What hardware actually matters for kids learning to code, and what works on a tablet or an older machine.",
+    "intro": "The honest answer is that a keyboard matters much more than a fast computer, and less than people assume overall.",
+    "sections": [
+      {"h": "A keyboard is the real requirement", "p": "Once a child moves past drag-and-drop blocks into typed code, a touchscreen keyboard becomes a serious obstacle. Symbols like brackets, quotes and colons are buried behind extra taps, and that friction genuinely reduces how much they get done."},
+      {"h": "Old computers are fine", "p": "Browser-based coding platforms run comfortably on machines that are years old, including Chromebooks. This is not an activity that needs a powerful computer."},
+      {"h": "Tablets: fine for blocks, awkward for text", "p": "For a young child doing visual coding, a tablet is perfectly good. If you attach a physical keyboard, a tablet becomes workable for typed code too."},
+      {"h": "Shared computers", "p": "If the family shares one machine, make sure each child has their own login on the platform so progress does not get mixed together. It also matters for safety - a shared account means shared data."},
+      {"h": "Internet", "p": "Worth checking whether the platform works offline. If your connection is unreliable, a platform that caches lessons locally will save a lot of frustration."}
+    ],
+    "cta": "KidVibers runs in any modern browser, works on older machines, and caches lessons so it keeps working when the connection drops."
+  },
+  {
+    "slug": "coding-for-kids-who-hate-maths",
+    "title": "Can my kid code if they're not good at maths?",
+    "desc": "The relationship between maths and coding is weaker than most people think. Here's what actually overlaps.",
+    "intro": "This belief keeps a lot of children away from coding unnecessarily. The overlap is real but much narrower than its reputation.",
+    "sections": [
+      {"h": "What coding actually needs", "p": "For everything a child will do in their first few years: counting, basic arithmetic, and comparing numbers. That is close to the whole list. Algebra, trigonometry and calculus appear in specific domains - graphics, simulation, machine learning - not in general programming."},
+      {"h": "What it does share with maths", "p": "The genuine overlap is structural thinking: breaking a problem down, being precise, following logic through several steps. A child who dislikes arithmetic drills may be very good at this and never have been given the chance to notice."},
+      {"h": "It often runs the other way", "p": "Plenty of children who disliked maths become more comfortable with it through coding, because a variable in a program is visibly useful in a way that x on a worksheet is not. Making it concrete changes the relationship."},
+      {"h": "Start somewhere non-numeric", "p": "Web pages, simple games and text-based programs all teach the core concepts with almost no arithmetic. If a child has decided they are 'bad at maths', do not open with a numbers lesson."}
+    ],
+    "cta": "KidVibers starts with words and pictures, not numbers - and has a whole world dedicated to making maths concrete through code."
+  },
+  {
+    "slug": "how-long-does-it-take-to-learn-to-code",
+    "title": "How long does it take a kid to learn to code?",
+    "desc": "Realistic timelines for children learning to code, and what 'knowing how to code' actually means at each stage.",
+    "intro": "The honest answer depends on what you mean by learning to code, so it helps to break it into milestones that are actually observable.",
+    "sections": [
+      {"h": "First working program: one session", "p": "A child should get something running on day one. If a platform takes weeks to reach a first result, that is a problem with the platform."},
+      {"h": "Comfortable with the basics: 3-6 months", "p": "At two or three short sessions a week, most children take a few months to be genuinely comfortable with sequencing, variables, loops and conditions. This is the stage where they stop needing to be told what to do next in a lesson."},
+      {"h": "Building their own things: 6-12 months", "p": "The real milestone is when a child starts a project you did not assign. This is when it stops being a subject and becomes a capability. Timing varies enormously and depends far more on motivation than aptitude."},
+      {"h": "Fluent enough to be useful: years", "p": "Same as any skill worth having. But 'useful' arrives much earlier than 'fluent' - a child who can automate something small or build a working web page has already crossed a real line."},
+      {"h": "What speeds it up most", "p": "Frequency over duration, projects they chose themselves, and not stalling on a lesson that is too hard for a week."}
+    ],
+    "cta": "KidVibers has 293 lessons across 25 worlds, so there's a clear next step from first program to real projects."
+  },
+  {
+    "slug": "coding-for-6-year-olds",
+    "title": "Coding for 6 and 7 year olds: what actually works",
+    "desc": "What to expect, how long sessions should be, and what to skip entirely when teaching coding to very young children.",
+    "intro": "Six is a reasonable starting age, provided the expectations match what a six-year-old can actually do.",
+    "sections": [
+      {"h": "Keep sessions to 10-15 minutes", "p": "This is the single most important adjustment. A short successful session beats a long one that ends badly, and at this age attention for a demanding task genuinely runs out around the fifteen-minute mark."},
+      {"h": "Reading level is the real constraint", "p": "Most difficulty at this age is reading, not logic. Look for lessons that use pictures and audio, and expect to read instructions aloud. A child who cannot read the instruction cannot fail the concept."},
+      {"h": "What to teach", "p": "Sequencing first: things happen in order. Then repetition. Then simple conditions. That is genuinely enough for a year. Resist the urge to accelerate because they are doing well."},
+      {"h": "What to skip", "p": "Typing real code, variables as abstract containers, and anything requiring accurate spelling. All of it can wait, and pushing it early is the most common way to make a young child decide coding is not for them."},
+      {"h": "Sit with them", "p": "At this age it is a shared activity, not an independent one. That is not a failure of the platform; it is the age."}
+    ],
+    "cta": "KidVibers starts at age 6 with picture-led lessons in Greenwood Basics, then builds gradually toward typed code."
+  }
+]

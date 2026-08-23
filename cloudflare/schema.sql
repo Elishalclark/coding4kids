@@ -90,3 +90,19 @@ CREATE TABLE account_requests (
             email TEXT, plan TEXT, requested_by TEXT, status TEXT DEFAULT 'pending',
             created_at TEXT, resolved_at TEXT, resolved_by TEXT
         );
+
+-- ── Drift catch-up ────────────────────────────────────────────────────────────
+-- schema.sql had fallen behind src/index.js: these are queried by the Worker but were
+-- never added here, so rebuilding a database from this file alone produced one that
+-- 500s as soon as a kid in a classroom makes an API call. Kept as ALTERs/CREATEs so
+-- the file stays runnable against both a fresh and an existing database.
+-- (Notification Center tables live in migrations/002; support inbox in migrations/003.)
+ALTER TABLE users ADD COLUMN schedule TEXT;
+
+-- Browser push subscriptions (note: named push_subs here, not push_subscriptions).
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint TEXT PRIMARY KEY,
+  p256dh TEXT,
+  auth TEXT,
+  user_id INTEGER
+);
