@@ -344,6 +344,21 @@ KidVibers · kidvibers.com`
       if (ok) { orClearForm(); loadOutreach(); }
     }
 
+    // Adds ~20 verified statewide homeschool organisations. Safe to press twice — anything
+    // already on the list is skipped by name.
+    async function orSeed() {
+      const msg = document.getElementById('orSaveMsg');
+      if (!confirm('Add the starter list of statewide homeschool organisations?\n\nThey come with names and websites but no contacts — find a named person on each site before emailing.')) return;
+      const { ok, data } = await C4K.api('/api/admin/outreach/seed', 'POST', {});
+      if (msg) {
+        msg.style.color = ok ? '#5ad17e' : '#ff8a8a';
+        msg.textContent = ok
+          ? `Added ${data.added}${data.skipped ? `, skipped ${data.skipped} already there` : ''}.`
+          : ((data && data.error) || 'Could not load the starter list.');
+      }
+      if (ok) loadOutreach();
+    }
+
     async function orDelete(id) {
       const o = OR_LIST.find(x => x.id === id);
       if (!confirm(`Remove ${o ? o.orgName : 'this organisation'} from the list?`)) return;
