@@ -4069,6 +4069,49 @@ const EMAIL_TEMPLATES =
 const OUTREACH_TYPES = ["homeschool", "library", "coop", "afterschool", "school"];
 const OUTREACH_STATUSES = ["new", "emailed", "replied", "meeting", "partnered", "declined"];
 
+// Starter list for the outreach tracker: real statewide homeschool organisations, verified
+// by name from public directories. Websites are only included where they were confirmed —
+// a guessed URL is worse than a blank one, because it looks checked and isn't. Contact
+// names and addresses are deliberately absent: those come from each organisation's own
+// contact page, and inventing them would bounce and cost sending reputation.
+const OUTREACH_SEED = [
+  ["Texas Home School Coalition", "Texas", "https://thsc.org"],
+  ["Texas Home Educators", "Texas", ""],
+  ["Christian Home Educators Fellowship of Oklahoma", "Oklahoma", "https://chefok.org"],
+  ["Families for Home Education (FHE)", "Missouri", "https://fhe-mo.org"],
+  ["Arizona Families for Home Education (AFHE)", "Arizona", "https://afhe.org"],
+  ["Homeschool Association of California (HSC)", "California", "https://hsc.org"],
+  ["Christian Home Educators Association of California", "California", "https://cheaofca.org"],
+  ["Christian Home Educators of Colorado (CHEC)", "Colorado", "https://chec.org"],
+  ["Florida Parent-Educators Association (FPEA)", "Florida", "https://fpea.com"],
+  ["Georgia Home Education Association (GHEA)", "Georgia", "https://ghea.org"],
+  ["Home Educators Association of Virginia (HEAV)", "Virginia", "https://heav.org"],
+  ["Tennessee Home Education Association (THEA)", "Tennessee", "https://homeschooling-tennessee.org"],
+  ["Christian Home Educators of Ohio (CHEO)", "Ohio", "https://cheohome.org"],
+  ["Homeschool Minnesota (MACHE)", "Minnesota", "https://homeschoolminnesota.org"],
+  ["Homeschool Iowa", "Iowa", "https://homeschooliowa.org"],
+  ["Homeschool Alabama", "Alabama", "https://homeschoolalabama.org"],
+  ["Michigan Christian Homeschool Network (MICHN)", "Michigan", ""],
+  ["Indiana Association of Home Educators (IAHE)", "Indiana", ""],
+  ["Illinois Homeschool Association (ILHSA)", "Illinois", ""],
+  ["South Carolina Home Educators Association (SCHEA)", "South Carolina", ""],
+];
+
+async function adminOutreachSeed(env, request) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  // Skip anything already on the list so this is safe to press twice.
+  const existing = new Set(((await env.DB.prepare("SELECT org_name FROM outreach").all()).results || [])
+    .map(r => (r.org_name || "").toLowerCase()));
+  const rows = OUTREACH_SEED.filter(([name]) => !existing.has(name.toLowerCase()));
+  if (!rows.length) return json({ ok: true, added: 0, skipped: OUTREACH_SEED.length });
+  await env.DB.batch(rows.map(([name, region, site]) => env.DB.prepare(
+    "INSERT INTO outreach (org_name,org_type,region,website,status,notes,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)"
+  ).bind(name, "homeschool", region, site || null, "new",
+    "Starter list. Find a named contact on their site before emailing — info@ addresses get ignored.",
+    u.username, nowIso())));
+  return json({ ok: true, added: rows.length, skipped: OUTREACH_SEED.length - rows.length });
+}
+
 async function adminOutreachList(env, request) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const rows = (await env.DB.prepare(
@@ -5461,6 +5504,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
   // ── Outreach tracker ──
   if (path === "/api/admin/outreach" && method === "GET") return adminOutreachList(env, request);
+  if (path === "/api/admin/outreach/seed" && method === "POST") return adminOutreachSeed(env, request);
   if (path === "/api/admin/outreach/save" && method === "POST") return adminOutreachSave(env, request, data);
   if (path === "/api/admin/outreach/delete" && method === "POST") return adminOutreachDelete(env, request, data);
   if (path === "/api/admin/outreach/send" && method === "POST") return adminOutreachSend(env, request, data);
