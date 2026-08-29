@@ -4139,12 +4139,35 @@ async function adminOutreachList(env, request) {
   const rows = (await env.DB.prepare(
     "SELECT * FROM outreach ORDER BY (status='new') DESC, follow_up_at IS NULL, follow_up_at, id DESC LIMIT 500"
   ).all()).results || [];
-  return json({ orgs: rows.map(r => ({
-    id: r.id, orgName: r.org_name, orgType: r.org_type, region: r.region,
-    contactName: r.contact_name, contactEmail: r.contact_email, website: r.website,
-    status: r.status, notes: r.notes,
-    lastContactedAt: r.last_contacted_at, followUpAt: r.follow_up_at,
-  })) });
+  return json({
+    orgs: rows.map(r => ({
+      id: r.id, orgName: r.org_name, orgType: r.org_type, region: r.region,
+      contactName: r.contact_name, contactEmail: r.contact_email, website: r.website,
+      status: r.status, notes: r.notes,
+      lastContactedAt: r.last_contacted_at, followUpAt: r.follow_up_at,
+    })),
+    // Which address these actually go out as. Worked out the same way sendEmail does it, so
+    // the panel shows the truth rather than an assumption — the from address lives in Worker
+    // variables you can't see from the page, and guessing wrong here means guessing wrong
+    // about deliverability too.
+    sender: outreachSender(env),
+  });
+}
+
+// The from/reply-to pair an outreach email will actually use, mirroring sendEmail's fallback
+// chain for marketing mail. Kept next to the endpoint that reports it so the two can't drift.
+function outreachSender(env) {
+  const from = env.MARKETING_FROM || env.EMAIL_FROM || "KidVibers <support@kidvibers.com>";
+  const replyTo = env.REPLY_TO || "support@kidvibers.com";
+  const addr = (from.match(/<([^>]+)>/) || [null, from])[1].trim();
+  const domain = addr.split("@")[1] || "";
+  return {
+    from, replyTo, address: addr, domain,
+    // A dedicated marketing sender keeps cold outreach off the same reputation as the
+    // parental-consent and password emails, which is what you want long term.
+    separate: !!env.MARKETING_FROM,
+    canSend: !!env.RESEND_API_KEY,
+  };
 }
 
 async function adminOutreachSave(env, request, data) {

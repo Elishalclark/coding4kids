@@ -252,7 +252,25 @@ KidVibers · kidvibers.com`
       const { ok, data } = await C4K.api('/api/admin/outreach');
       if (!ok) { rows.innerHTML = '<tr><td colspan="6" style="color:var(--text-faint);">Could not load.</td></tr>'; return; }
       OR_LIST = data.orgs || [];
+      renderOutreachSender(data.sender);
       renderOutreach();
+    }
+
+    // Show the address outreach actually goes out as. It's decided by Worker variables that
+    // aren't visible from this page, so without this you'd be guessing what recipients see.
+    function renderOutreachSender(s) {
+      const el = document.getElementById('orSenderLine');
+      if (!el) return;
+      if (!s) { el.textContent = ''; return; }
+      const esc = C4K.esc;
+      if (!s.canSend) {
+        el.innerHTML = `<span style="color:#f87171;font-weight:800;">⚠️ Sending is off — RESEND_API_KEY isn't set on the Worker, so ✉️ Send will fail.</span>`;
+        return;
+      }
+      const note = s.separate
+        ? `A separate marketing sender, so cold outreach can't damage the reputation your consent and password emails rely on. Good.`
+        : `This is the same address your consent and password emails use. Fine to start, but if outreach starts getting marked as spam it drags those down with it — set <code>MARKETING_FROM</code> to an address on a subdomain to keep them apart.`;
+      el.innerHTML = `Sends as <strong>${esc(s.from)}</strong> · replies go to <strong>${esc(s.replyTo)}</strong><div style="margin-top:4px;">${note}</div>`;
     }
 
     function renderOutreach() {
