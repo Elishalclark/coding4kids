@@ -120,6 +120,253 @@
     }
     // Session history — kept client-side after one fetch so the search box filters instantly.
     let SESSION_HISTORY = [];
+    // ── Outreach ──────────────────────────────────────────────────────────────
+    // Templates are per organisation type because the pitch genuinely differs: a librarian
+    // cares about running a session with no setup, a homeschool association cares about what
+    // its member families get. {{ORG}} and {{NAME}} are filled in at send time.
+    const OR_TEMPLATES = {
+      homeschool: {
+        label: '🏠 Homeschool org',
+        subject: 'A free coding curriculum for your member families',
+        body: `Hi {{NAME}},
+
+I run KidVibers, a self-paced coding curriculum for ages 6-16. I'm writing because homeschool families have turned out to be who it fits best, and I wondered whether it might be useful to {{ORG}}'s members.
+
+The reason it works at home is that the parent doesn't have to know how to code. Each lesson explains the concept, the child writes real code, and the platform checks the work — so nobody is waiting on a parent to unblock them. It also keeps per-child records and issues printable certificates, which helps for portfolio and reporting requirements.
+
+There's a free tier and a free trial, so families can try it without committing to anything. No ads, no public gallery, no messaging between users, and a parent has to approve every child account before the child can use it.
+
+If it seems useful, I'd be glad to put together whatever helps — a short write-up for your resource list, a printable one-pager on privacy and safety, or a group setup if any of your co-ops want to run coding together.
+
+Happy to answer any questions.
+
+Elisha Clark
+KidVibers · kidvibers.com`
+      },
+      library: {
+        label: '📚 Library',
+        subject: 'A drop-in coding session you can run with no setup',
+        body: `Hi {{NAME}},
+
+I run KidVibers, a coding platform for kids 6-16, and I wanted to reach out because it's built to work for exactly the kind of drop-in session libraries run.
+
+You can start a session and give out a code — children join and start coding straight away, with no account creation at the desk and no email addresses collected on the spot. It runs in the browser on the computers you already have, including older machines and Chromebooks, and there's nothing for IT to install or approve.
+
+It's also safe to run with light supervision: no ads, no public gallery, no messaging between users at all.
+
+There's a printable one-pager covering privacy, safety and data practices if that's useful for approvals or for parents asking at the desk. Free to use.
+
+If you'd like, I can walk you through setting up a session — it takes about five minutes.
+
+Elisha Clark
+KidVibers · kidvibers.com`
+      },
+      coop: {
+        label: '👨‍👩‍👧 Co-op',
+        subject: 'Coding for your co-op, without anyone having to teach it',
+        body: `Hi {{NAME}},
+
+I run KidVibers, a self-paced coding curriculum for ages 6-16, and I think it might suit how {{ORG}} already works.
+
+Mixed ages are usually the hard part of a co-op session. This decouples them: every child works on their own track at their own level, so a seven-year-old and a thirteen-year-old can sit at the same table doing completely different work. The room stays social; the difficulty stays individual.
+
+The leader creates one join code, families enter it once, and you can see everyone's progress in one place. You don't need to know how to code to run it — the lessons teach, the platform checks the work.
+
+Free tier and free trial, so there's no cost to trying it for a term.
+
+Happy to set up a group for you if you'd like to test it with a few families first.
+
+Elisha Clark
+KidVibers · kidvibers.com`
+      },
+      afterschool: {
+        label: '🌇 After-school',
+        subject: 'A coding activity that survives rotating attendance',
+        body: `Hi {{NAME}},
+
+I run KidVibers, a coding platform for kids 6-16. I'm writing because after-school programs have a specific problem it happens to solve.
+
+Attendance rotates, kids arrive at different times, and staff change week to week. Because every child is on their own self-paced track, none of that matters — they resume exactly where they left off, and there's no lesson plan to keep a group synchronised with. A new staff member can supervise competently on their first day with nothing to prepare.
+
+Every lesson has a visible finish line, so a child with twenty minutes still completes something rather than stopping mid-task.
+
+No ads, no public gallery, no messaging between children. Free tier available.
+
+Glad to help you set it up if it looks like a fit.
+
+Elisha Clark
+KidVibers · kidvibers.com`
+      },
+      school: {
+        label: '🏫 School / district',
+        subject: 'Classroom coding with per-student progress and a DPA',
+        body: `Hi {{NAME}},
+
+I run KidVibers, a coding curriculum for ages 6-16 built for teachers with a room full of students at different levels.
+
+You can add students in bulk from a CSV or hand out a class code, assign lessons with due dates, restrict logins to school hours, and download per-student progress reports. Each child works at their own level, so you're not teaching to the middle.
+
+On the compliance side there's a schools privacy page covering what's collected and how it's used, plus data processing terms — I can send that over if procurement needs it.
+
+Happy to arrange a walkthrough or set up a trial classroom.
+
+Elisha Clark
+KidVibers · kidvibers.com`
+      },
+    };
+
+    let OR_LIST = [], OR_TYPE = 'homeschool', OR_EDIT_ID = null;
+
+    function orRenderTabs() {
+      const wrap = document.getElementById('orTplTabs');
+      if (!wrap) return;
+      wrap.innerHTML = Object.entries(OR_TEMPLATES).map(([k, t]) =>
+        `<button class="mini-btn" data-tpl="${k}" onclick="orPickTemplate('${k}')" style="${k === OR_TYPE ? 'background:var(--purple);color:#fff;border-color:var(--purple);' : ''}">${C4K.esc(t.label)}</button>`
+      ).join('');
+    }
+    function orPickTemplate(k) {
+      if (!OR_TEMPLATES[k]) return;
+      OR_TYPE = k;
+      orResetTemplate();
+      orRenderTabs();
+    }
+    function orResetTemplate() {
+      const t = OR_TEMPLATES[OR_TYPE];
+      const s = document.getElementById('orTplSubject'), b = document.getElementById('orTplBody');
+      if (s) s.value = t.subject;
+      if (b) b.value = t.body;
+      const m = document.getElementById('orTplMsg'); if (m) m.textContent = '';
+    }
+    function orCopyTemplate() {
+      const b = document.getElementById('orTplBody'), s = document.getElementById('orTplSubject');
+      const m = document.getElementById('orTplMsg');
+      if (!b || !s) return;
+      navigator.clipboard.writeText(`Subject: ${s.value}\n\n${b.value}`).then(() => {
+        if (m) { m.style.color = '#5ad17e'; m.textContent = 'Copied.'; }
+      }).catch(() => { if (m) { m.style.color = '#ff8a8a'; m.textContent = 'Could not copy — select the text and copy manually.'; } });
+    }
+
+    async function loadOutreach() {
+      const rows = document.getElementById('orRows');
+      if (!rows) return;
+      const { ok, data } = await C4K.api('/api/admin/outreach');
+      if (!ok) { rows.innerHTML = '<tr><td colspan="6" style="color:var(--text-faint);">Could not load.</td></tr>'; return; }
+      OR_LIST = data.orgs || [];
+      renderOutreach();
+    }
+
+    function renderOutreach() {
+      const rows = document.getElementById('orRows');
+      if (!rows) return;
+      const q = (document.getElementById('orSearch')?.value || '').trim().toLowerCase();
+      const st = document.getElementById('orFilterStatus')?.value || '';
+      const today = new Date().toISOString().slice(0, 10);
+
+      const S = { new: ['Not contacted', '#f59e0b'], emailed: ['Emailed', '#60a5fa'], replied: ['Replied', '#5ad17e'],
+                  meeting: ['Meeting', '#a78bfa'], partnered: ['Partnered', '#22c55e'], declined: ['Declined', '#8b84a8'] };
+      const T = { homeschool: '🏠', coop: '👨‍👩‍👧', library: '📚', afterschool: '🌇', school: '🏫' };
+
+      setText('orStatTotal', OR_LIST.length);
+      ['new', 'emailed', 'replied', 'partnered'].forEach(k =>
+        setText('orStat' + k.charAt(0).toUpperCase() + k.slice(1), OR_LIST.filter(o => o.status === k).length));
+      setText('orStatDue', OR_LIST.filter(o => o.followUpAt && o.followUpAt <= today && o.status !== 'partnered' && o.status !== 'declined').length);
+
+      const list = OR_LIST.filter(o => {
+        if (st && o.status !== st) return false;
+        if (!q) return true;
+        return [o.orgName, o.contactName, o.contactEmail, o.region].some(v => (v || '').toLowerCase().includes(q));
+      });
+      if (!list.length) {
+        rows.innerHTML = `<tr><td colspan="6" style="color:var(--text-faint);">${OR_LIST.length ? 'Nothing matches that.' : 'Nobody on the list yet — add your first organisation above.'}</td></tr>`;
+        return;
+      }
+      rows.innerHTML = list.map(o => {
+        const [label, colour] = S[o.status] || S.new;
+        const due = o.followUpAt && o.followUpAt <= today && o.status !== 'partnered' && o.status !== 'declined';
+        return `<tr>
+          <td><strong>${T[o.orgType] || ''} ${C4K.esc(o.orgName)}</strong>
+            ${o.region ? `<div style="color:var(--text-faint);font-size:0.76rem;">${C4K.esc(o.region)}</div>` : ''}
+            ${o.website ? `<div><a href="${C4K.esc(o.website)}" target="_blank" rel="noopener" style="color:var(--purple);font-size:0.76rem;">website ↗</a></div>` : ''}</td>
+          <td>${o.contactName ? C4K.esc(o.contactName) : '<span style="color:var(--text-faint);">—</span>'}
+            ${o.contactEmail ? `<div style="font-size:0.76rem;"><a href="mailto:${C4K.esc(o.contactEmail)}" style="color:var(--purple);">${C4K.esc(o.contactEmail)}</a></div>` : ''}</td>
+          <td><span class="pill" style="background:${colour}22;color:${colour};border:1px solid ${colour}55;">${label}</span></td>
+          <td style="color:var(--text-dim);font-size:0.82rem;">${o.lastContactedAt ? C4K.esc(o.lastContactedAt.slice(0, 10)) : '—'}</td>
+          <td style="font-size:0.82rem;${due ? 'color:#f59e0b;font-weight:900;' : 'color:var(--text-dim);'}">${o.followUpAt ? C4K.esc(o.followUpAt) + (due ? ' ⚠️' : '') : '—'}</td>
+          <td style="white-space:nowrap;">
+            ${o.contactEmail ? `<button class="mini-btn" onclick="orSend(${o.id})" title="Send the template above to this contact">✉️ Send</button>` : ''}
+            <button class="mini-btn" onclick="orEdit(${o.id})">Edit</button>
+            <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="orDelete(${o.id})">Delete</button>
+          </td>
+        </tr>${o.notes ? `<tr><td colspan="6" style="border-top:none;padding-top:0;color:var(--text-dim);font-size:0.8rem;">📝 ${C4K.esc(o.notes)}</td></tr>` : ''}`;
+      }).join('');
+    }
+
+    function orClearForm() {
+      OR_EDIT_ID = null;
+      ['orName', 'orRegion', 'orContact', 'orEmail', 'orSite', 'orFollowUp', 'orNotes'].forEach(id => {
+        const e = document.getElementById(id); if (e) e.value = '';
+      });
+      const b = document.getElementById('orSaveBtn'); if (b) b.textContent = 'Add to the list';
+      const c = document.getElementById('orCancelBtn'); if (c) c.style.display = 'none';
+      setText('orSaveMsg', '');
+    }
+
+    function orEdit(id) {
+      const o = OR_LIST.find(x => x.id === id);
+      if (!o) return;
+      OR_EDIT_ID = id;
+      const set = (i, v) => { const e = document.getElementById(i); if (e) e.value = v || ''; };
+      set('orName', o.orgName); set('orRegion', o.region); set('orContact', o.contactName);
+      set('orEmail', o.contactEmail); set('orSite', o.website); set('orFollowUp', o.followUpAt);
+      set('orNotes', o.notes);
+      const t = document.getElementById('orType'); if (t) t.value = o.orgType;
+      const st = document.getElementById('orStatusEdit'); if (st) st.value = o.status;
+      const b = document.getElementById('orSaveBtn'); if (b) b.textContent = 'Save changes';
+      const c = document.getElementById('orCancelBtn'); if (c) c.style.display = '';
+      document.getElementById('outreachAddPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function orSave() {
+      const msg = document.getElementById('orSaveMsg');
+      const val = id => (document.getElementById(id)?.value || '').trim();
+      const payload = {
+        id: OR_EDIT_ID, orgName: val('orName'), orgType: val('orType'), region: val('orRegion'),
+        contactName: val('orContact'), contactEmail: val('orEmail'), website: val('orSite'),
+        followUpAt: val('orFollowUp'), notes: val('orNotes'),
+        status: OR_EDIT_ID ? (OR_LIST.find(o => o.id === OR_EDIT_ID)?.status || 'new') : 'new',
+      };
+      if (!payload.orgName) { if (msg) { msg.style.color = '#ff8a8a'; msg.textContent = 'Name the organisation first.'; } return; }
+      const { ok, data } = await C4K.api('/api/admin/outreach/save', 'POST', payload);
+      if (msg) {
+        msg.style.color = ok ? '#5ad17e' : '#ff8a8a';
+        msg.textContent = ok ? (OR_EDIT_ID ? 'Saved.' : 'Added.') : ((data && data.error) || 'Could not save.');
+      }
+      if (ok) { orClearForm(); loadOutreach(); }
+    }
+
+    async function orDelete(id) {
+      const o = OR_LIST.find(x => x.id === id);
+      if (!confirm(`Remove ${o ? o.orgName : 'this organisation'} from the list?`)) return;
+      const { ok } = await C4K.api('/api/admin/outreach/delete', 'POST', { id });
+      if (ok) loadOutreach();
+    }
+
+    // Sends whatever is currently in the template box, with {{ORG}} and {{NAME}} filled in.
+    async function orSend(id) {
+      const o = OR_LIST.find(x => x.id === id);
+      if (!o || !o.contactEmail) return;
+      const subj = document.getElementById('orTplSubject')?.value || '';
+      const raw = document.getElementById('orTplBody')?.value || '';
+      if (!subj.trim() || !raw.trim()) { alert('Write a subject and message in the template panel first.'); return; }
+      const fill = t => t.replace(/\{\{ORG\}\}/g, o.orgName || 'your organisation')
+                        .replace(/\{\{NAME\}\}/g, (o.contactName || '').split(' ')[0] || 'there');
+      const body = fill(raw);
+      if (!confirm(`Send to ${o.contactName || o.orgName} <${o.contactEmail}>?\n\nSubject: ${fill(subj)}\n\nPreview:\n${body.slice(0, 220)}…`)) return;
+      const { ok, data } = await C4K.api('/api/admin/outreach/send', 'POST', { id, subject: fill(subj), body });
+      alert(ok ? `Sent to ${data.sentTo}.` : ((data && data.error) || 'Could not send.'));
+      if (ok) loadOutreach();
+    }
+
     async function loadSessionHistory() {
       const rows = document.getElementById('sessionHistoryRows');
       if (!rows) return;
@@ -284,6 +531,7 @@
       { slug: 'billing',   file: 'admin-billing.html',      label: '💳 Billing & Promos', super: true },
       { slug: 'revenue',   file: 'admin-revenue.html',      label: '💰 Revenue', super: true },
       { slug: 'comms',     file: 'admin-comms.html',        label: '📣 Communication', super: true },
+      { slug: 'outreach',  file: 'admin-outreach.html',     label: '📣 Outreach', super: true },
       { slug: 'settings',  file: 'admin-settings.html',     label: '⚙️ Settings', super: true },
     ];
     function admCurrentPage() {
@@ -433,6 +681,10 @@
 
       // Only run the loaders whose panels exist on this page.
       const page = admCurrentPage();
+      if (page === 'outreach') {
+        if (typeof orRenderTabs === 'function') { orRenderTabs(); orResetTemplate(); }
+        if (typeof loadOutreach === 'function') loadOutreach();
+      }
       if (page === 'live') {
         if (typeof loadActiveSessions === 'function') loadActiveSessions();
         if (typeof loadSessionHistory === 'function') loadSessionHistory();

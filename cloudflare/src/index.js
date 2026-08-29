@@ -4063,6 +4063,79 @@ const EMAIL_TEMPLATES =
     }
   ];
 
+// ───────────────────────── Outreach tracker ─────────────────────────
+// Who has been approached, what was said, and what is owed a follow-up. Schema:
+// migrations/006_outreach.sql.
+const OUTREACH_TYPES = ["homeschool", "library", "coop", "afterschool", "school"];
+const OUTREACH_STATUSES = ["new", "emailed", "replied", "meeting", "partnered", "declined"];
+
+async function adminOutreachList(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const rows = (await env.DB.prepare(
+    "SELECT * FROM outreach ORDER BY (status='new') DESC, follow_up_at IS NULL, follow_up_at, id DESC LIMIT 500"
+  ).all()).results || [];
+  return json({ orgs: rows.map(r => ({
+    id: r.id, orgName: r.org_name, orgType: r.org_type, region: r.region,
+    contactName: r.contact_name, contactEmail: r.contact_email, website: r.website,
+    status: r.status, notes: r.notes,
+    lastContactedAt: r.last_contacted_at, followUpAt: r.follow_up_at,
+  })) });
+}
+
+async function adminOutreachSave(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const name = (data.orgName || "").trim().slice(0, 140);
+  if (!name) return json({ error: "An organisation name is required." }, 400);
+  const type = OUTREACH_TYPES.includes(data.orgType) ? data.orgType : "homeschool";
+  const status = OUTREACH_STATUSES.includes(data.status) ? data.status : "new";
+  const email = (data.contactEmail || "").trim().slice(0, 160);
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return json({ error: "That email address doesn't look right." }, 400);
+  const f = [
+    name, type, (data.region || "").trim().slice(0, 80) || null,
+    (data.contactName || "").trim().slice(0, 120) || null, email || null,
+    (data.website || "").trim().slice(0, 200) || null, status,
+    (data.notes || "").trim().slice(0, 4000) || null,
+    (data.followUpAt || "").trim() || null,
+  ];
+  if (data.id) {
+    await env.DB.prepare(
+      "UPDATE outreach SET org_name=?,org_type=?,region=?,contact_name=?,contact_email=?,website=?,status=?,notes=?,follow_up_at=? WHERE id=?"
+    ).bind(...f, data.id).run();
+  } else {
+    await env.DB.prepare(
+      "INSERT INTO outreach (org_name,org_type,region,contact_name,contact_email,website,status,notes,follow_up_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(...f, u.username, nowIso()).run();
+  }
+  return json({ ok: true });
+}
+
+async function adminOutreachDelete(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  await env.DB.prepare("DELETE FROM outreach WHERE id=?").bind(data.id).run();
+  return json({ ok: true });
+}
+
+// Send one outreach email and record it against the organisation in the same step, so the
+// tracker can't drift out of sync with what was actually sent.
+async function adminOutreachSend(env, request, data) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const row = await env.DB.prepare("SELECT * FROM outreach WHERE id=?").bind(data.id).first();
+  if (!row) return json({ error: "That organisation isn't in the list." }, 404);
+  if (!row.contact_email) return json({ error: "No contact email saved for this organisation yet." }, 400);
+  const subject = (data.subject || "").trim().slice(0, 200);
+  const body = (data.body || "").trim().slice(0, 8000);
+  if (!subject || !body) return json({ error: "Subject and message are required." }, 400);
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;">${escHtml(body).replace(/\n/g, "<br>")}</div>`;
+  // marketing:true — this is unsolicited commercial contact, so it honours the opt-out list
+  // and carries the unsubscribe link and postal address like any other campaign.
+  const ok = await sendEmail(env, row.contact_email, subject, html, null, { marketing: true });
+  if (!ok) return json({ error: "The email didn't send. Check RESEND_API_KEY, or whether this address has unsubscribed." }, 502);
+  await env.DB.prepare(
+    "UPDATE outreach SET status = CASE WHEN status='new' THEN 'emailed' ELSE status END, last_contacted_at=? WHERE id=?"
+  ).bind(nowIso(), row.id).run();
+  return json({ ok: true, sentTo: row.contact_email });
+}
+
 // ───────────────────────── Support inbox + email templates ─────────────────────────
 // Both standalone super-admin pages called these and got the Worker's catch-all 404, because
 // the handlers only ever existed in server.py. Schema: migrations/003_support_inbox.sql.
@@ -5307,6 +5380,12 @@ async function handleApi(env, request, path) {
   }
   if (path === "/api/site-edits" && method === "GET") return apiSiteEditsGet(env);
   if (path === "/api/notify-interest" && method === "POST") return apiNotifyInterest(env, request, data);
+  // ── Outreach tracker ──
+  if (path === "/api/admin/outreach" && method === "GET") return adminOutreachList(env, request);
+  if (path === "/api/admin/outreach/save" && method === "POST") return adminOutreachSave(env, request, data);
+  if (path === "/api/admin/outreach/delete" && method === "POST") return adminOutreachDelete(env, request, data);
+  if (path === "/api/admin/outreach/send" && method === "POST") return adminOutreachSend(env, request, data);
+
   // ── Support inbox + email templates (standalone super-admin pages) ──
   if (path === "/api/admin/email-templates" && method === "GET") return adminEmailTemplates(env, request);
   if (path === "/api/admin/support-inbox" && method === "GET") return adminSupportInbox(env, request);
