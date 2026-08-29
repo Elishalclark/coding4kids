@@ -38,6 +38,16 @@ ALREADY_APPLIED = re.compile(
     r"duplicate column name|already exists|table \w+ already exists", re.I
 )
 
+# The token can't reach D1 at all. That is a setup gap, not a broken migration, and it
+# must not block the deploy: without D1 access migrations were being run by hand anyway,
+# so failing here would take the whole site's deploy pipeline down over a missing optional
+# capability. Warn loudly and carry on. A migration that genuinely fails still stops
+# everything — that is the case where deploying would actually break production.
+NO_D1_ACCESS = re.compile(
+    r"code: *7403|not authorized to access this service|"
+    r"Authentication error|not valid or is not authorized", re.I
+)
+
 
 LOCAL = False   # set by --local; lets this be exercised against a throwaway database
 
@@ -92,8 +102,15 @@ def main():
         "filename TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
     ], args.database)
     if r.returncode != 0:
-        print("::error::could not create schema_migrations — check the API token has D1 edit permission")
-        print(r.stderr.strip()[:800])
+        blob = (r.stdout or "") + (r.stderr or "")
+        if NO_D1_ACCESS.search(blob):
+            print("::warning::CLOUDFLARE_API_TOKEN has no D1 access, so migrations were NOT applied.")
+            print("::warning::Add the 'D1: Edit' permission to the token to automate this.")
+            print("::warning::Until then, apply migrations/*.sql by hand before merging schema changes.")
+            print("Continuing with the deploy — the site still ships, it just isn't migrating itself yet.")
+            return 0
+        print("::error::could not create schema_migrations")
+        print(blob.strip()[:800])
         return 1
 
     done = applied_set(args.database)
