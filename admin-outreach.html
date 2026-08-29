@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live Sessions - KidVibers Admin</title>
+  <title>Outreach - KidVibers Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=219" />
@@ -190,7 +190,7 @@
   <style>@media print { body.recap-printing > *:not(#recapModal) { display:none !important; } body.recap-printing #recapModal { position:static !important; background:#fff !important; backdrop-filter:none !important; display:flex !important; } #recapCard { box-shadow:none !important; } }</style>
 
   <!-- DASHBOARD -->
-  <div class="admin-shell" id="adminShell" data-admin-page="live">
+  <div class="admin-shell" id="adminShell" data-admin-page="outreach">
     <aside class="admin-sidebar">
       <div class="sb-logo"><span class="logo-icon">🚀</span> Kid<strong>Vibers</strong></div>
       <div class="sb-group">Dashboards</div>
@@ -243,92 +243,116 @@
         <button onclick="document.getElementById('previewToggle').checked=false;toggleAdminPreview(document.getElementById('previewToggle'));" style="margin-left:auto;background:#fff;color:#0f766e;border:none;border-radius:50px;padding:5px 14px;font-weight:900;cursor:pointer;font-family:inherit;font-size:0.8rem;">Turn off</button>
       </div>
 
-      <div class="admin-main" id="secDashboard">      <div class="panel" id="secLiveSessions" style="background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);color:#fff;">
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-          <div style="font-size:1.8rem;">▶️</div>
-          <div style="flex:1;min-width:200px;">
-            <h3 style="margin-bottom:2px;color:#fff;">🎟️ Live drop-in session</h3>
-            <p style="margin:0;color:#dcfce7;font-size:0.85rem;">Start a session straight from the admin panel — great for a live pitch/demo. Kids join with just a nickname, no sign-up needed.</p>
-            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;cursor:pointer;">
-              <input type="checkbox" id="photoConsentBox" /> I've collected photo/video consent for this in-person session
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#dcfce7;font-weight:700;">
-              ⏱️ Session length:
-              <select id="sessHours" style="padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-family:inherit;">
-                <option value="1">1 hour</option><option value="2">2 hours</option><option value="4">4 hours</option>
-                <option value="8" selected>8 hours</option><option value="12">12 hours</option><option value="24">24 hours</option>
-              </select>
-            </label>
+      <div class="admin-main" id="secDashboard">      <h2 id="admPageTitle">📣 Outreach</h2>
+      <p class="lead">Institutions are the channel that scales: one librarian or co-op leader reaches dozens of families. This is who's been approached, what was said, and what's owed a follow-up.</p>
+
+      <div class="panel" id="outreachStatsPanel">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="orStatTotal">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">On the list</div>
           </div>
-          <button class="btn" id="startSessBtn" style="background:#fff;color:#15803d;font-weight:900;" onclick="startLiveSession()">Start a session</button>
-        </div>
-        <div id="sessLive" style="display:none;margin-top:14px;background:rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;text-align:center;">
-          <div style="font-size:0.78rem;font-weight:800;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">Kids: go to kidvibers.com/live → enter code</div>
-          <div id="sessCode" style="font-size:2.4rem;font-weight:900;letter-spacing:8px;margin:6px 0;color:#fff;">------</div>
-          <div style="font-size:0.8rem;color:#dcfce7;" id="sessExpiry"></div>
-          <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            <button id="sessLockBtn" class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="toggleLockSession()">🔒 Lock joins</button>
-            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="extendSession()">⏳ Add time</button>
-            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="newSessionCode()">🔄 New code</button>
-            <a id="sessFlyer" href="card.html" target="_blank" rel="noopener" class="mini-btn" style="text-decoration:none;background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);">🖨️ Print session flyer</a>
-            <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);" onclick="endLiveSession()">End session</button>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:#f59e0b;" id="orStatNew">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Not contacted</div>
           </div>
-          <div style="margin-top:14px;text-align:left;">
-            <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">👀 What kids are building (updates every 15s)</div>
-            <div id="sessFeed" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">Nobody's saved anything yet.</div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:#60a5fa;" id="orStatEmailed">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Emailed</div>
           </div>
-          <div style="margin-top:14px;text-align:left;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <div style="font-size:0.72rem;font-weight:900;color:#dcfce7;text-transform:uppercase;letter-spacing:0.05em;">🙋 Who's in the room</div>
-              <button class="mini-btn" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.4);font-size:0.7rem;padding:3px 8px;" onclick="exportRosterCSV()">⬇️ Export CSV</button>
-            </div>
-            <div id="sessRoster" style="max-height:140px;overflow-y:auto;font-size:0.82rem;color:#fff;">No one's joined yet.</div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:#5ad17e;" id="orStatReplied">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Replied</div>
+          </div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:#a78bfa;" id="orStatPartnered">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Partnered</div>
+          </div>
+          <div style="background:var(--surface-2);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:12px 16px;flex:1;min-width:110px;">
+            <div style="font-size:1.5rem;font-weight:900;color:#f59e0b;" id="orStatDue">0</div>
+            <div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Follow-up due</div>
           </div>
         </div>
       </div>
 
-      <!-- Staff chat — shared room for every admin + super_admin to message each other. -->
-      <div class="panel" id="lockAllPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-        <div style="font-size:1.8rem;">🔒</div>
-        <div style="flex:1;min-width:200px;">
-          <h3 style="margin-bottom:2px;">Session logout code</h3>
-          <p class="hint" style="margin:0;">For shared library/lab computers: kids can end their own session with this code so the next kid can log in. Leave blank to keep them locked in.</p>
-          <div class="msg" id="pinMsg"></div>
+      <div class="panel" id="outreachTemplatesPanel">
+        <h3>✉️ Outreach templates</h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Pick the type, edit if you like, then either copy it or send it straight to a saved contact below. <code>{{ORG}}</code> and <code>{{NAME}}</code> are filled in automatically when you send.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="orTplTabs"></div>
+        <label class="le-lbl">Subject<input id="orTplSubject" class="le-in" style="width:100%;" /></label>
+        <label class="le-lbl" style="display:block;margin-top:10px;">Message
+          <textarea id="orTplBody" class="le-in" rows="16" style="width:100%;font-family:inherit;line-height:1.55;"></textarea>
+        </label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center;">
+          <button class="btn btn-outline" onclick="orCopyTemplate()">📋 Copy to clipboard</button>
+          <button class="btn btn-outline" onclick="orResetTemplate()">↺ Reset to original</button>
+          <span id="orTplMsg" style="font-size:0.85rem;color:var(--text-dim);"></span>
         </div>
-        <input id="pinInput" maxlength="12" placeholder="e.g. 4821" style="width:120px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;font-family:inherit;text-align:center;letter-spacing:2px;" />
-        <button class="mini-btn" onclick="saveLogoutPin()">Save code</button>
       </div>
 
-      <!-- Emergency stop — ends every currently-active Live Session platform-wide, no matter
-           who's hosting it. For "something's gone wrong, shut every room down right now." -->
-      <div class="panel" id="endAllSessionsPanel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(239,68,68,0.4);">
-        <div style="font-size:1.8rem;">🛑</div>
-        <div style="flex:1;min-width:200px;">
-          <h3 style="margin-bottom:2px;">Emergency: end ALL live sessions</h3>
-          <p class="hint" style="margin:0;">Ends every active Live Session platform-wide right now, no matter who's hosting it. Use before/after a pitch, or if something's wrong mid-event.</p>
-          <div class="msg" id="endAllMsg"></div>
+      <div class="panel" id="outreachAddPanel">
+        <h3>➕ Add an organisation</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;">
+          <label class="le-lbl">Organisation<input id="orName" class="le-in" placeholder="Texas Home Educators" /></label>
+          <label class="le-lbl">Type
+            <select id="orType" class="le-in">
+              <option value="homeschool">🏠 Homeschool org</option>
+              <option value="coop">👨‍👩‍👧 Co-op</option>
+              <option value="library">📚 Library</option>
+              <option value="afterschool">🌇 After-school</option>
+              <option value="school">🏫 School / district</option>
+            </select>
+          </label>
+          <label class="le-lbl">State / region<input id="orRegion" class="le-in" placeholder="Texas" /></label>
+          <label class="le-lbl">Contact name<input id="orContact" class="le-in" placeholder="Jube Dankworth" /></label>
+          <label class="le-lbl">Contact email<input id="orEmail" class="le-in" type="email" placeholder="name@org.org" /></label>
+          <label class="le-lbl">Website<input id="orSite" class="le-in" placeholder="https://…" /></label>
+          <label class="le-lbl">Follow up on<input id="orFollowUp" class="le-in" type="date" /></label>
         </div>
-        <button class="mini-btn" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.5);color:#f87171;" onclick="endAllSessions()">🛑 End all sessions</button>
+        <label class="le-lbl" style="display:block;margin-top:10px;">Notes<textarea id="orNotes" class="le-in" rows="2" style="width:100%;" placeholder="How you found them, what they asked for…"></textarea></label>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+          <button class="btn btn-primary" id="orSaveBtn" onclick="orSave()">Add to the list</button>
+          <button class="btn btn-outline" id="orCancelBtn" style="display:none;" onclick="orClearForm()">Cancel edit</button>
+          <span id="orSaveMsg" style="font-size:0.85rem;"></span>
+        </div>
       </div>
 
-      <div class="panel" id="activeSessionsPanel">
-        <h3 style="display:flex;align-items:center;gap:10px;">🎟️ Currently Active Sessions <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadActiveSessions()">↻ Refresh</button></h3>
+      <div class="panel" id="outreachListPanel">
+        <h3 style="display:flex;align-items:center;gap:10px;">📋 The list
+          <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadOutreach()">↻ Refresh</button></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <input id="orSearch" class="le-in" placeholder="Search name, contact, region…" oninput="renderOutreach()" style="flex:1;min-width:200px;" />
+          <select id="orFilterStatus" class="le-in" onchange="renderOutreach()" style="max-width:180px;">
+            <option value="">All statuses</option>
+            <option value="new">Not contacted</option>
+            <option value="emailed">Emailed</option>
+            <option value="replied">Replied</option>
+            <option value="meeting">Meeting booked</option>
+            <option value="partnered">Partnered</option>
+            <option value="declined">Declined</option>
+          </select>
+        </div>
         <table class="admin-table">
-          <thead><tr><th>Host</th><th>Code</th><th>Kids joined</th><th>Locked</th><th>Expires</th><th></th></tr></thead>
-          <tbody id="activeSessionRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
+          <thead><tr><th>Organisation</th><th>Contact</th><th>Status</th><th>Last contacted</th><th>Follow up</th><th></th></tr></thead>
+          <tbody id="orRows"><tr><td colspan="6" style="color:var(--text-faint);">Loading…</td></tr></tbody>
         </table>
       </div>
 
-      <div class="panel" id="sessionHistoryPanel">
-        <h3 style="display:flex;align-items:center;gap:10px;">📜 Session History
-          <button class="mini-btn" style="font-size:0.72rem;padding:3px 10px;" onclick="loadSessionHistory()">↻ Refresh</button></h3>
-        <p style="color:var(--text-dim);font-size:0.84rem;margin:-4px 0 12px;">Every session that has finished — who ran it, which kids were in it, and how long it lasted.</p>
-        <input id="shSearch" class="le-in" placeholder="Search by host, code, session name or a kid's name…"
-               oninput="renderSessionHistory()" style="width:100%;max-width:420px;margin-bottom:12px;" />
-        <table class="admin-table">
-          <thead><tr><th>Ended</th><th>Host</th><th>Code</th><th>Kids</th><th>Lasted</th></tr></thead>
-          <tbody id="sessionHistoryRows"><tr><td colspan="5" style="color:var(--text-faint);">Loading…</td></tr></tbody>
-        </table>
+      <div class="panel" id="outreachSourcesPanel">
+        <h3>🔎 Where to find organisations</h3>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">These directories list real organisations with real contact pages. Work through one, add the ones that fit, and email them from here. Aim for 10–20 a week rather than a big push.</p>
+        <ul style="list-style:none;padding:0;display:grid;gap:10px;">
+          <li><a href="https://hslda.org/post/state-homeschool-organizations" target="_blank" rel="noopener" style="color:var(--purple);font-weight:800;">HSLDA — State Homeschool Organizations</a><div style="color:var(--text-dim);font-size:0.82rem;">The most complete list of state-level homeschool associations. Start here.</div></li>
+          <li><a href="https://freedomhomeschooling.com/state-homeschool-organizations/" target="_blank" rel="noopener" style="color:var(--purple);font-weight:800;">Freedom Homeschooling — State Organizations</a><div style="color:var(--text-dim);font-size:0.82rem;">Second list, overlaps with HSLDA but catches some it misses.</div></li>
+          <li><a href="https://www.theschoolhouse.org/post/homeschool-support-groups" target="_blank" rel="noopener" style="color:var(--purple);font-weight:800;">Homeschool support groups &amp; co-ops, state by state</a><div style="color:var(--text-dim);font-size:0.82rem;">Local co-ops. Smaller, but they answer faster than the big associations.</div></li>
+          <li><a href="https://www.ala.org/alsc/" target="_blank" rel="noopener" style="color:var(--purple);font-weight:800;">ALSC — Association for Library Service to Children</a><div style="color:var(--text-dim);font-size:0.82rem;">For libraries, the person you want is the youth services or children's librarian, not the director.</div></li>
+          <li><a href="https://www.imls.gov/research-evaluation/data-collection/public-libraries-survey" target="_blank" rel="noopener" style="color:var(--purple);font-weight:800;">IMLS Public Libraries Survey</a><div style="color:var(--text-dim);font-size:0.82rem;">Every public library system in the US as open data, with location and size. Good for finding systems near you.</div></li>
+        </ul>
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:14px;color:var(--text-dim);font-size:0.83rem;line-height:1.6;">
+          <strong style="color:var(--text);">Two rules worth keeping.</strong><br>
+          Use a real named contact wherever you can find one — <em>info@</em> addresses get ignored, a named youth services librarian does not.<br>
+          Never guess an address. A bounce costs you sender reputation, and reputation is what gets your parental-consent emails delivered.
+        </div>
       </div>
 
 </div>
