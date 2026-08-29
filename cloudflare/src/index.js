@@ -4075,26 +4075,48 @@ const OUTREACH_STATUSES = ["new", "emailed", "replied", "meeting", "partnered", 
 // names and addresses are deliberately absent: those come from each organisation's own
 // contact page, and inventing them would bounce and cost sending reputation.
 const OUTREACH_SEED = [
-  ["Texas Home School Coalition", "Texas", "https://thsc.org"],
-  ["Texas Home Educators", "Texas", ""],
-  ["Christian Home Educators Fellowship of Oklahoma", "Oklahoma", "https://chefok.org"],
-  ["Families for Home Education (FHE)", "Missouri", "https://fhe-mo.org"],
-  ["Arizona Families for Home Education (AFHE)", "Arizona", "https://afhe.org"],
-  ["Homeschool Association of California (HSC)", "California", "https://hsc.org"],
-  ["Christian Home Educators Association of California", "California", "https://cheaofca.org"],
-  ["Christian Home Educators of Colorado (CHEC)", "Colorado", "https://chec.org"],
-  ["Florida Parent-Educators Association (FPEA)", "Florida", "https://fpea.com"],
-  ["Georgia Home Education Association (GHEA)", "Georgia", "https://ghea.org"],
-  ["Home Educators Association of Virginia (HEAV)", "Virginia", "https://heav.org"],
-  ["Tennessee Home Education Association (THEA)", "Tennessee", "https://homeschooling-tennessee.org"],
-  ["Christian Home Educators of Ohio (CHEO)", "Ohio", "https://cheohome.org"],
-  ["Homeschool Minnesota (MACHE)", "Minnesota", "https://homeschoolminnesota.org"],
-  ["Homeschool Iowa", "Iowa", "https://homeschooliowa.org"],
-  ["Homeschool Alabama", "Alabama", "https://homeschoolalabama.org"],
-  ["Michigan Christian Homeschool Network (MICHN)", "Michigan", ""],
-  ["Indiana Association of Home Educators (IAHE)", "Indiana", ""],
-  ["Illinois Homeschool Association (ILHSA)", "Illinois", ""],
-  ["South Carolina Home Educators Association (SCHEA)", "South Carolina", ""],
+  // ── Statewide homeschool organisations ──
+  ["Texas Home School Coalition", "homeschool", "Texas", "https://thsc.org", ""],
+  ["Texas Home Educators", "homeschool", "Texas", "", "Reached out to us first."],
+  ["Christian Home Educators Fellowship of Oklahoma", "homeschool", "Oklahoma", "https://chefok.org", ""],
+  ["Families for Home Education (FHE)", "homeschool", "Missouri", "https://fhe-mo.org", ""],
+  ["Arizona Families for Home Education (AFHE)", "homeschool", "Arizona", "https://afhe.org", ""],
+  ["Homeschool Association of California (HSC)", "homeschool", "California", "https://hsc.org", ""],
+  ["Christian Home Educators Association of California", "homeschool", "California", "https://cheaofca.org", ""],
+  ["Christian Home Educators of Colorado (CHEC)", "homeschool", "Colorado", "https://chec.org", ""],
+  ["Florida Parent-Educators Association (FPEA)", "homeschool", "Florida", "https://fpea.com", ""],
+  ["Georgia Home Education Association (GHEA)", "homeschool", "Georgia", "https://ghea.org", ""],
+  ["Home Educators Association of Virginia (HEAV)", "homeschool", "Virginia", "https://heav.org", ""],
+  ["Tennessee Home Education Association (THEA)", "homeschool", "Tennessee", "https://homeschooling-tennessee.org", ""],
+  ["Christian Home Educators of Ohio (CHEO)", "homeschool", "Ohio", "https://cheohome.org", ""],
+  ["Homeschool Minnesota (MACHE)", "homeschool", "Minnesota", "https://homeschoolminnesota.org", ""],
+  ["Homeschool Iowa", "homeschool", "Iowa", "https://homeschooliowa.org", ""],
+  ["Homeschool Alabama", "homeschool", "Alabama", "https://homeschoolalabama.org", ""],
+  ["Michigan Christian Homeschool Network (MICHN)", "homeschool", "Michigan", "", "Website not confirmed — look it up."],
+  ["Indiana Association of Home Educators (IAHE)", "homeschool", "Indiana", "", "Website not confirmed — look it up."],
+  ["Illinois Homeschool Association (ILHSA)", "homeschool", "Illinois", "", "Website not confirmed — look it up."],
+  ["South Carolina Home Educators Association (SCHEA)", "homeschool", "South Carolina", "", "Website not confirmed — look it up."],
+
+  // ── Libraries ──
+  // These are the biggest systems in the country, which also makes them the slowest: they
+  // have procurement, vendor review and committees. Worth trying, but your own local branch
+  // will answer faster and is the better first call. Ask for youth services, not the director.
+  ["New York Public Library", "library", "New York, NY", "https://nypl.org", "Ask for Youth Services / Children's programming."],
+  ["Los Angeles Public Library", "library", "Los Angeles, CA", "https://lapl.org", "Ask for Youth Services / Children's programming."],
+  ["Chicago Public Library", "library", "Chicago, IL", "https://chipublib.org", "Ask for Youth Services / Children's programming."],
+  ["Houston Public Library", "library", "Houston, TX", "https://houstonlibrary.org", "Ask for Youth Services / Children's programming."],
+  ["Your local library branch", "library", "", "", "Add the branches near you. A local youth librarian answers far faster than a big system, and one good session becomes a referral to the rest of the system."],
+
+  // ── After-school ──
+  ["Afterschool Alliance", "afterschool", "National", "https://afterschoolalliance.org", "Has a national program finder — use it to source local programs to add here."],
+  ["Boys & Girls Clubs of America", "afterschool", "National", "https://bgca.org", "National office rarely buys; approach your nearest local Club directly."],
+  ["YMCA of the USA", "afterschool", "National", "https://ymca.org", "Same as BGCA — the local branch decides, not the national office."],
+
+  // ── Co-ops ──
+  // Deliberately not seeded with names. Co-ops are hyper-local, often a few families with a
+  // Facebook group and no website, and there is no national list to verify against. Inventing
+  // them would be worse than leaving this to a real search.
+  ["Homeschool co-ops near you", "coop", "", "https://www.theschoolhouse.org/post/homeschool-support-groups", "Not a real organisation — a placeholder. Co-ops are local and there's no national list, so search this directory for your state and add the ones you find. They reply faster than the big associations."],
 ];
 
 async function adminOutreachSeed(env, request) {
@@ -4104,11 +4126,11 @@ async function adminOutreachSeed(env, request) {
     .map(r => (r.org_name || "").toLowerCase()));
   const rows = OUTREACH_SEED.filter(([name]) => !existing.has(name.toLowerCase()));
   if (!rows.length) return json({ ok: true, added: 0, skipped: OUTREACH_SEED.length });
-  await env.DB.batch(rows.map(([name, region, site]) => env.DB.prepare(
+  const DEFAULT_NOTE = "Starter list. Find a named contact on their site before emailing — info@ addresses get ignored.";
+  await env.DB.batch(rows.map(([name, type, region, site, note]) => env.DB.prepare(
     "INSERT INTO outreach (org_name,org_type,region,website,status,notes,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)"
-  ).bind(name, "homeschool", region, site || null, "new",
-    "Starter list. Find a named contact on their site before emailing — info@ addresses get ignored.",
-    u.username, nowIso())));
+  ).bind(name, type, region || null, site || null, "new",
+    note ? `${note} ${DEFAULT_NOTE}` : DEFAULT_NOTE, u.username, nowIso())));
   return json({ ok: true, added: rows.length, skipped: OUTREACH_SEED.length - rows.length });
 }
 
