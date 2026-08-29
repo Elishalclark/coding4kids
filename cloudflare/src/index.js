@@ -5346,7 +5346,86 @@ async function apiPendingDeny(env, request) {
 
 // ───────────────────────── router ─────────────────────────
 
+// ───────────────────────── Self-healing schema ─────────────────────────
+// server.py has created its own tables on startup since the beginning; the Worker never
+// picked up the habit, so every schema change here needed someone to paste SQL into the
+// dashboard before the matching deploy — and forgetting meant a 500 in production.
+//
+// The Worker's D1 binding can run DDL directly. It doesn't need the deploy token's D1
+// scope, or the dashboard, or anyone remembering. Everything below is IF NOT EXISTS, so
+// this is a no-op once the tables exist.
+//
+// Runs once per isolate: the promise is cached, so it costs one batch on a cold start and
+// nothing afterwards. A failure is logged and swallowed rather than taking the API down —
+// if the tables already exist (the normal case) nothing here matters anyway.
+const SCHEMA_DDL = [
+  `CREATE TABLE IF NOT EXISTS sent_notifications (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, sent_by TEXT, audience TEXT, audience_detail TEXT,
+     title TEXT, body TEXT, recipients INTEGER NOT NULL DEFAULT 0,
+     emailed INTEGER NOT NULL DEFAULT 0, pushed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS scheduled_notifications (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, created_by TEXT, audience TEXT NOT NULL DEFAULT 'all',
+     role TEXT, user_id INTEGER, title TEXT, body TEXT NOT NULL, email INTEGER NOT NULL DEFAULT 0,
+     send_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_sched_notif_due ON scheduled_notifications (status, send_at)`,
+  `CREATE TABLE IF NOT EXISTS notification_automations (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, trigger_type TEXT NOT NULL,
+     trigger_days INTEGER NOT NULL DEFAULT 3, audience_role TEXT NOT NULL DEFAULT 'kid',
+     title TEXT, body TEXT NOT NULL, email INTEGER NOT NULL DEFAULT 0,
+     cooldown_days INTEGER NOT NULL DEFAULT 30, enabled INTEGER NOT NULL DEFAULT 1,
+     created_by TEXT, created_at TEXT NOT NULL, last_run_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS automation_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, automation_id INTEGER NOT NULL,
+     user_id INTEGER NOT NULL, sent_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_automation_log_pair ON automation_log (automation_id, user_id, sent_at)`,
+  `CREATE TABLE IF NOT EXISTS support_inbox (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, from_email TEXT, subject TEXT, body TEXT,
+     is_read INTEGER NOT NULL DEFAULT 0, received_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS email_opt_out (email TEXT PRIMARY KEY, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS session_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, session_name TEXT,
+     host_id INTEGER, host_name TEXT, host_username TEXT, host_role TEXT,
+     kid_count INTEGER NOT NULL DEFAULT 0, kids TEXT, started_at TEXT,
+     ended_at TEXT NOT NULL, ended_by TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_session_log_recent ON session_log (ended_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS outreach (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, org_name TEXT NOT NULL,
+     org_type TEXT NOT NULL DEFAULT 'homeschool', region TEXT, contact_name TEXT,
+     contact_email TEXT, website TEXT, status TEXT NOT NULL DEFAULT 'new', notes TEXT,
+     last_contacted_at TEXT, follow_up_at TEXT, created_by TEXT, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_outreach_status ON outreach (status, follow_up_at)`,
+  `CREATE TABLE IF NOT EXISTS push_subs (
+     endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, user_id INTEGER)`,
+];
+
+// SQLite has no ADD COLUMN IF NOT EXISTS, so these are attempted individually and their
+// "duplicate column name" failure is the expected outcome on every run after the first.
+const SCHEMA_COLUMNS = [
+  `ALTER TABLE users ADD COLUMN notif_opt_in INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN notif_opt_in_at TEXT`,
+  `ALTER TABLE users ADD COLUMN schedule TEXT`,
+];
+
+let schemaReady = null;
+function ensureSchema(env) {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      try {
+        await env.DB.batch(SCHEMA_DDL.map(sql => env.DB.prepare(sql)));
+      } catch (e) {
+        console.log("ensureSchema tables:", (e && e.message) || e);
+      }
+      for (const sql of SCHEMA_COLUMNS) {
+        try { await env.DB.prepare(sql).run(); } catch {}   // already there — expected
+      }
+    })();
+  }
+  return schemaReady;
+}
+
 async function handleApi(env, request, path) {
+  // Cached per isolate — one batch on a cold start, nothing after that.
+  await ensureSchema(env);
   const method = request.method;
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
