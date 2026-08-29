@@ -277,7 +277,10 @@
 
       <div class="panel" id="outreachTemplatesPanel">
         <h3>✉️ Outreach templates</h3>
-        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Pick the type, edit if you like, then either copy it or send it straight to a saved contact below. <code>{{ORG}}</code> and <code>{{NAME}}</code> are filled in automatically when you send.</p>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 12px;">Pick the type, edit if you like, then press <strong>✉️ Send</strong> on a row below — this panel is the message that gets sent. <code>{{ORG}}</code> and <code>{{NAME}}</code> are filled in automatically for each organisation, so you write it once and it comes out personalised.</p>
+        <div style="background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:10px 14px;margin:-4px 0 14px;color:var(--text-dim);font-size:0.82rem;line-height:1.6;">
+          The <strong style="color:var(--text);">✉️ Send</strong> button only appears on rows that have a <strong style="color:var(--text);">contact email saved</strong>. The starter list ships without addresses on purpose — guessing one bounces, and bounces damage the sender reputation your parental-consent emails depend on. Open the org's website, find a named person, then press <em>✉️ Add email first</em> on that row.
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="orTplTabs"></div>
         <label class="le-lbl">Subject<input id="orTplSubject" class="le-in" style="width:100%;" /></label>
         <label class="le-lbl" style="display:block;margin-top:10px;">Message
@@ -312,7 +315,7 @@
         <label class="le-lbl" style="display:block;margin-top:10px;">Notes<textarea id="orNotes" class="le-in" rows="2" style="width:100%;" placeholder="How you found them, what they asked for…"></textarea></label>
         <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
           <button class="btn btn-primary" id="orSaveBtn" onclick="orSave()">Add to the list</button>
-          <button class="btn btn-outline" onclick="orSeed()" title="Adds 20 real statewide homeschool organisations to get you started">📥 Load starter list</button>
+          <button class="btn btn-outline" onclick="orSeed()" title="Adds 29 real homeschool orgs, libraries and after-school programs to get you started. Safe to press twice — names already on the list are skipped.">📥 Load starter list</button>
           <button class="btn btn-outline" id="orCancelBtn" style="display:none;" onclick="orClearForm()">Cancel edit</button>
           <span id="orSaveMsg" style="font-size:0.85rem;"></span>
         </div>

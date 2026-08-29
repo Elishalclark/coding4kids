@@ -293,7 +293,11 @@ KidVibers · kidvibers.com`
           <td style="color:var(--text-dim);font-size:0.82rem;">${o.lastContactedAt ? C4K.esc(o.lastContactedAt.slice(0, 10)) : '—'}</td>
           <td style="font-size:0.82rem;${due ? 'color:#f59e0b;font-weight:900;' : 'color:var(--text-dim);'}">${o.followUpAt ? C4K.esc(o.followUpAt) + (due ? ' ⚠️' : '') : '—'}</td>
           <td style="white-space:nowrap;">
-            ${o.contactEmail ? `<button class="mini-btn" onclick="orSend(${o.id})" title="Send the template above to this contact">✉️ Send</button>` : ''}
+            ${o.contactEmail
+              ? `<button class="mini-btn" onclick="orSend(${o.id})" title="Send the template above to this contact">✉️ Send</button>`
+              // Without an address there is nothing to send to, and a row that just silently
+              // lacks the button looks broken. Say why, and make the fix one click away.
+              : `<button class="mini-btn" style="color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="orNeedsEmail(${o.id})" title="Add a contact email and the Send button appears">✉️ Add email first</button>`}
             <button class="mini-btn" onclick="orEdit(${o.id})">Edit</button>
             <button class="mini-btn" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="orDelete(${o.id})">Delete</button>
           </td>
@@ -324,6 +328,19 @@ KidVibers · kidvibers.com`
       const b = document.getElementById('orSaveBtn'); if (b) b.textContent = 'Save changes';
       const c = document.getElementById('orCancelBtn'); if (c) c.style.display = '';
       document.getElementById('outreachAddPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Opens the row for editing with the cursor already in the email box, so the one thing
+    // standing between this organisation and a sent email is the thing you're looking at.
+    function orNeedsEmail(id) {
+      orEdit(id);
+      const e = document.getElementById('orEmail');
+      if (e) setTimeout(() => { e.focus(); e.select(); }, 350);
+      const m = document.getElementById('orSaveMsg');
+      if (m) {
+        m.style.color = '#f59e0b';
+        m.textContent = 'Find a named contact on their website, paste the address here, then Save. ✉️ Send appears after that.';
+      }
     }
 
     async function orSave() {
