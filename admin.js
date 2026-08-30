@@ -769,7 +769,7 @@ KidVibers · kidvibers.com`
         if (uHead) { const th = uHead.querySelector('thead th:last-child'); if (th) th.textContent = 'Change Plan'; }
         userRowsEl.innerHTML = users.length ? users.map(u =>
           `<tr>
-             <td><strong>${C4K.esc(u.name)}</strong><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
+             <td><a href="#" onclick="openProfile(${u.id});return false;" title="Open ${C4K.esc(u.name)}'s full profile" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);"><strong>${C4K.esc(u.name)}</strong></a><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
              <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
              <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
              <td>
@@ -834,7 +834,6 @@ KidVibers · kidvibers.com`
         loadConsent();
         loadAccountRequests();
         loadSiteMessage();
-        loadToggles();
         loadInterest();
         loadChangeRequest();
         loadEmailEvents();
@@ -902,7 +901,7 @@ KidVibers · kidvibers.com`
         return `<tr${a.suspended ? ' style="opacity:.6;"' : ''}>
            <td class="super-only" style="display:none;"><input type="checkbox" class="bulkCb" data-id="${a.id}" ${(a.role === 'super_admin' || isDemo) ? 'disabled' : ''} onchange="updateBulkCount()" /></td>
            <td>${i + 1}</td>
-           <td><strong>${C4K.esc(a.name)}</strong>${suspBadge}${demoBadge}${a.notes ? ` <span title="${C4K.esc(a.notes)}" style="cursor:help;">📝</span>` : ''}</td>
+           <td><a href="#" onclick="openProfile(${a.id});return false;" title="Open the full profile" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);"><strong>${C4K.esc(a.name)}</strong></a>${suspBadge}${demoBadge}${a.notes ? ` <span title="${C4K.esc(a.notes)}" style="cursor:help;">📝</span>` : ''}</td>
            <td><span style="color:var(--text-dim);">@${C4K.esc(a.username)}</span>${(sup && a.role === 'kid' && a.parentEmail) ? `<br><span style="color:var(--text-faint);font-size:0.72rem;">📧 ${C4K.esc(a.parentEmail)}</span>` : ''}</td>
            <td>${_roleTag(a.role, a.plan)}</td>
            <td><span class="pill ${(a.plan==='pro'||a.plan==='family')?'pro':(a.plan==='trial'?'trial':'free')}">${a.plan}</span></td>
@@ -920,6 +919,87 @@ KidVibers · kidvibers.com`
          </tr>`; }).join('')
         : '<tr><td colspan="7" style="color:var(--text-faint);">No accounts match.</td></tr>';
     }
+    // ── Account profile card ──
+    // Click a name in People & Accounts to see everything on one screen instead of reading it
+    // out of a table row. Emails are tappable and open a Gmail compose window addressed to
+    // them. There is no password field: passwords are PBKDF2-hashed, so nobody can read one
+    // back — "🔑 Set login" gives them a new one, which is what you actually want when
+    // someone is locked out.
+    let _profileId = null;
+    function gmailTo(addr, subject) {
+      // Gmail's web compose. Falls back to the OS mail client if Gmail isn't signed in.
+      return 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(addr) +
+             (subject ? '&su=' + encodeURIComponent(subject) : '');
+    }
+    function mailLink(addr, subject) {
+      if (!addr) return '<span style="color:var(--text-faint);">—</span>';
+      const e = C4K.esc(addr);
+      return `<a href="${C4K.esc(gmailTo(addr, subject))}" target="_blank" rel="noopener"
+                 title="Write to ${e} in Gmail" style="color:var(--purple);font-weight:700;">${e} ✉️</a>`;
+    }
+    async function openProfile(id) {
+      _profileId = id;
+      const modal = document.getElementById('profileModal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      const body = document.getElementById('profileBody');
+      setText('profileWho', 'Loading…');
+      if (body) body.innerHTML = '<p style="color:var(--text-faint);">Loading…</p>';
+      const { ok, data } = await C4K.api('/api/admin/account?id=' + encodeURIComponent(id));
+      if (!ok || !data.account) {
+        if (body) body.innerHTML = `<p style="color:#f87171;">${C4K.esc((data && data.error) || 'Could not load that account.')}</p>`;
+        return;
+      }
+      const a = data.account;
+      setText('profileWho', `${a.name} · @${a.username}`);
+      const row = (label, value) =>
+        `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+           <div style="flex:0 0 140px;color:var(--text-dim);font-weight:800;font-size:0.8rem;">${label}</div>
+           <div style="flex:1;font-size:0.88rem;">${value}</div></div>`;
+      const dash = v => (v === null || v === undefined || v === '') ? '<span style="color:var(--text-faint);">—</span>' : C4K.esc(String(v));
+      const subj = `KidVibers — ${a.name}`;
+
+      let html = row('Name', dash(a.name)) + row('Username', '@' + C4K.esc(a.username)) +
+        row('Role', dash(a.role)) + row('Plan', `${dash(a.plan)}${a.effectivePlan && a.effectivePlan !== a.plan ? ` <span style="color:var(--text-faint);">(gets ${C4K.esc(a.effectivePlan)})</span>` : ''}`) +
+        row('Child’s email', mailLink(a.email, subj)) +
+        row('Parent’s email', mailLink(a.parentEmail, subj)) +
+        row('Age', dash(a.age ?? a.ageBand)) +
+        (a.school ? row('School / org', dash(a.school)) : '') +
+        (a.classCode ? row('Class code', dash(a.classCode)) : '') +
+        row('Joined', dash(a.joined)) + row('Last seen', dash(a.lastSeen)) +
+        row('Consent', `${dash(a.consentStatus)}${a.consentMethod ? ` <span style="color:var(--text-faint);">(${C4K.esc(a.consentMethod)})</span>` : ''}`) +
+        row('Suspended', a.suspended ? `<span style="color:#f59e0b;font-weight:800;">Yes${a.suspendUntil ? ' until ' + C4K.esc(a.suspendUntil.slice(0,10)) : ' (permanent)'}</span>${a.suspendReason ? '<br><span style="color:var(--text-dim);font-size:0.8rem;">' + C4K.esc(a.suspendReason) + '</span>' : ''}` : 'No') +
+        row('Progress', `${a.lessonsDone} lessons · ${a.worldsPassed} worlds · ${a.projects} projects · ${a.tokens} tokens`);
+
+      if (a.guardian) {
+        html += row('Belongs to', `<a href="#" onclick="openProfile(${a.guardian.id});return false;" style="color:var(--purple);font-weight:700;">${C4K.esc(a.guardian.name)}</a>
+          <span style="color:var(--text-faint);">(@${C4K.esc(a.guardian.username)}, ${C4K.esc(a.guardian.role)})</span>
+          ${a.guardian.email ? '<br>' + mailLink(a.guardian.email, subj) : ''}`);
+      }
+      if (a.kids && a.kids.length) {
+        html += row('Kids', a.kids.map(k =>
+          `<a href="#" onclick="openProfile(${k.id});return false;" style="color:var(--purple);font-weight:700;">${C4K.esc(k.name)}</a>`).join(', '));
+      }
+      html += row('Password', `<span style="color:var(--text-faint);">${C4K.esc(a.passwordNote)}</span>`);
+      html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+          <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);"
+            onclick="closeProfile();setCreds(${a.id},'${(a.name||'').replace(/'/g,"\\'").replace(/[<>]/g,'')}','${C4K.esc(a.username)}')">🔑 Set login</button>
+          <button class="mini-btn" onclick="closeProfile();sendNotice(${a.id},'${(a.name||'').replace(/'/g,"\\'").replace(/[<>]/g,'')}')">📨 Send notice</button>
+          <button class="mini-btn" onclick="impersonate(${a.id},'${C4K.esc(a.role)}')">Log in as</button>
+        </div>`;
+      if (body) body.innerHTML = html;
+    }
+    // These two switches load on their own, immediately, rather than taking their turn near
+    // the end of loadData() behind a dozen other requests. /api/site-config is public and
+    // cheap, and every second the boxes sit disabled is a second the page looks broken —
+    // while every second they'd have sat *enabled but wrong* was a chance to lock the site.
+    if (document.getElementById('tgSignups') || document.getElementById('tgLogins')) loadToggles();
+
+    function closeProfile() { document.getElementById('profileModal')?.classList.add('hidden'); }
+    document.getElementById('profileModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'profileModal') closeProfile();
+    });
+
     function exportAccountsCsv() {
       const rows = [['ID', 'Name', 'Username', 'Role', 'Plan', 'Joined', 'Suspended']];
       _allAccts.forEach(a => rows.push([a.id, a.name || '', a.username || '', a.role || '', a.plan || '', a.joined || '', a.suspended ? 'yes' : 'no']));
@@ -1605,28 +1685,68 @@ KidVibers · kidvibers.com`
     }
 
     // ── Login & sign-up toggles (super admin) ──
+    //
+    // These two switches can take the whole site down — nobody can log in, nobody can join —
+    // so they are deliberately paranoid about writing.
+    //
+    // The bug they're guarding against: an unchecked checkbox is the HTML default, and
+    // loadToggles() runs late in loadData(), behind an await on /api/admin/settings and
+    // several other loaders. For that whole window both boxes sit unchecked while the real
+    // setting is ON. Clicking one during the window read false for BOTH and saved false for
+    // BOTH — so touching sign-ups also killed logins, and it looked like deploying had done
+    // it, because visiting this page is what people do straight after a deploy.
+    let TOGGLES_LOADED = false;
     function tgLabel(on) { return on ? '🟢 ON' : '🔴 OFF'; }
     async function loadToggles() {
+      const sign = document.getElementById('tgSignups'), log = document.getElementById('tgLogins');
+      if (!sign && !log) return;
+      // Not clickable until we know the true value, so an early click can't write a default.
+      if (sign) sign.disabled = true;
+      if (log) log.disabled = true;
       const { ok, data } = await C4K.api('/api/site-config');
-      if (!ok) return;
-      const _g_tgSignups = document.getElementById('tgSignups');
-      if (_g_tgSignups) _g_tgSignups.checked = !!data.signupsEnabled;
-      const _g_tgLogins = document.getElementById('tgLogins');
-      if (_g_tgLogins) _g_tgLogins.checked = !!data.loginsEnabled;
+      if (!ok) {
+        // Leave them disabled. A toggle you can't read is a toggle you must not write.
+        setText('tgSignupsState', '⚠️ could not load');
+        setText('tgLoginsState', '⚠️ could not load');
+        return;
+      }
+      if (sign) { sign.checked = !!data.signupsEnabled; sign.disabled = false; }
+      if (log) { log.checked = !!data.loginsEnabled; log.disabled = false; }
       setText('tgSignupsState', tgLabel(data.signupsEnabled));
       setText('tgLoginsState', tgLabel(data.loginsEnabled));
+      TOGGLES_LOADED = true;
     }
-    async function saveToggles() {
-      const signups = document.getElementById('tgSignups').checked;
-      const logins = document.getElementById('tgLogins').checked;
-      const { ok, data } = await C4K.api('/api/admin/toggles', 'POST', { signups, logins });
+    // `which` is 'signups' or 'logins' — only the switch actually clicked is sent, so one
+    // toggle can never carry the other's stale value along with it.
+    async function saveToggles(which) {
       const m = document.getElementById('tgMsg');
+      const el = document.getElementById(which === 'logins' ? 'tgLogins' : 'tgSignups');
+      if (!el) return;
+      if (!TOGGLES_LOADED) {
+        if (m) { m.style.color = '#f87171'; m.textContent = 'Still loading the current setting — not saving yet.'; }
+        loadToggles();
+        return;
+      }
+      const on = el.checked;
+      // Turning either of these off locks people out of the live site, so say so out loud.
+      if (!on) {
+        const what = which === 'logins'
+          ? 'Turn OFF logins?\n\nNobody — kids, parents or teachers — will be able to sign in to kidvibers.com until you turn it back on.'
+          : 'Turn OFF sign-ups?\n\nNobody new will be able to create an account until you turn it back on.';
+        if (!confirm(what)) { el.checked = true; return; }
+      }
+      const { ok, data } = await C4K.api('/api/admin/toggles', 'POST', { [which]: on });
       if (ok) {
         setText('tgSignupsState', tgLabel(data.signupsEnabled));
         setText('tgLoginsState', tgLabel(data.loginsEnabled));
-        m.style.color = 'var(--green,#5ad17e)'; m.textContent = '✅ Saved.';
-        setTimeout(() => { if (m.textContent === '✅ Saved.') m.textContent = ''; }, 2500);
-      } else { m.style.color = '#f87171'; m.textContent = data.error || 'Could not save.'; }
+        if (m) {
+          m.style.color = 'var(--green,#5ad17e)'; m.textContent = '✅ Saved.';
+          setTimeout(() => { if (m.textContent === '✅ Saved.') m.textContent = ''; }, 2500);
+        }
+      } else if (m) {
+        m.style.color = '#f87171'; m.textContent = (data && data.error) || 'Could not save.';
+        el.checked = !on;   // put the switch back — it didn't take
+      }
     }
 
     // ── Site announcement (super admin) ──

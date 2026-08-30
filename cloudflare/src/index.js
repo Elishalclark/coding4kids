@@ -3430,6 +3430,55 @@ async function adminAccounts(env, request) {
   })) });
 }
 
+// Everything known about one account, for the profile card in People & Accounts.
+//
+// There is deliberately no password here. Passwords are stored as PBKDF2-SHA256 over a random
+// salt at 100k iterations — the plaintext was never written down anywhere, so it can't be
+// looked up or decrypted by anyone, including us. "Set a new password" is the real answer to
+// "they're locked out", and that already exists, so this returns what's needed to offer it
+// rather than pretending the old password could be shown.
+async function adminAccountDetail(env, request) {
+  const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const id = parseInt(new URL(request.url).searchParams.get("id") || "0", 10);
+  const r = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
+  if (!r) return json({ error: "No account with that id." }, 404);
+
+  const num = async (sql, ...b) => ((await env.DB.prepare(sql).bind(...b).first()) || {}).c || 0;
+  const [lessons, worlds, projects] = await Promise.all([
+    num("SELECT COUNT(*) c FROM progress WHERE user_id=?", id),
+    num("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1", id),
+    num("SELECT COUNT(*) c FROM projects WHERE user_id=?", id).catch(() => 0),
+  ]);
+  // Who they belong to, so a kid's row can point at the adult responsible for them.
+  let guardian = null;
+  if (r.family_id && r.family_id !== r.id) {
+    const g = await env.DB.prepare("SELECT id,name,username,role,parent_email FROM users WHERE id=?").bind(r.family_id).first();
+    if (g) guardian = { id: g.id, name: g.name, username: g.username, role: g.role, email: g.parent_email || null };
+  }
+  const kids = r.role === "kid" ? [] : ((await env.DB.prepare(
+    "SELECT id,name,username FROM users WHERE family_id=? AND role='kid' AND id<>? ORDER BY name"
+  ).bind(r.family_id ?? -1, id).all()).results || []).map(k => ({ id: k.id, name: k.name, username: k.username }));
+
+  const [susp, suspUntil] = suspensionStatus(r);
+  return json({ account: {
+    id: r.id, name: r.name, username: r.username, role: r.role, plan: r.plan,
+    effectivePlan: effectivePlan(r),
+    email: r.kid_email || null, parentEmail: r.parent_email || null,
+    age: r.age_years ?? null, ageBand: r.age_band || null,
+    school: r.school || null, classCode: r.class_code || null,
+    joined: (r.created_at || "").slice(0, 10),
+    lastSeen: (r.last_seen_at || "").slice(0, 16).replace("T", " ") || null,
+    consentStatus: r.consent_status || null, consentMethod: r.consent_method || null,
+    suspended: susp, suspendReason: r.suspend_reason || null, suspendUntil: suspUntil || null,
+    notes: r.admin_notes || "",
+    tokens: r.tokens ?? 0,
+    lessonsDone: lessons, worldsPassed: worlds, projects,
+    guardian, kids,
+    // Stated rather than implied, so the UI never has to guess why there's no password field.
+    passwordNote: "Passwords are hashed and cannot be shown. Use “Set login” to give them a new one.",
+  } });
+}
+
 // A quick free-text note super admin can leave on any account ("talked to them 6/1, wants X").
 async function apiSetAdminNotes(env, request, data) {
   const { err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
@@ -4005,6 +4054,14 @@ async function adminNotice(env, request, data) {
 // EMAIL_TEMPLATES so the page works against the Worker, which is what actually serves the site.
 const EMAIL_TEMPLATES =
   [
+    {
+      "id": "trial_ending",
+      "category": "transactional",
+      "featured": false,
+      "title": "⏳ Trial Ending Soon",
+      "subject": "Your KidVibers trial ends in {{DAYS}} days",
+      "body": "Hi {{NAME}},\n\nA quick heads-up: the KidVibers trial for {{KID}} ends in {{DAYS}} days, on {{END_DATE}}.\n\nHere's what {{KID}} has done so far:\n\n• {{LESSONS_DONE}} lessons finished\n• {{WORLDS_DONE}} worlds completed\n\nIf you'd like to keep going, you can pick a plan here — it takes about a minute, and nothing changes for {{KID}} in the meantime:\n\nhttps://kidvibers.com/pricing.html\n\nIf now isn't the right time, that's completely fine. Nothing is deleted — {{KID}}'s progress, projects and certificates all stay exactly where they are, and you can pick up again whenever you want.\n\nEither way, thanks for giving it a try. If something didn't work for you, I'd genuinely like to know — just reply to this email and I'll read it myself.\n\n— Elisha Clark\nFounder, KidVibers\nkidvibers.com"
+    },
     {
       "id": "features_announcement",
       "category": "marketing",
@@ -5670,6 +5727,7 @@ async function handleApi(env, request, path) {
   // admin GETs
   if (path === "/api/admin/users" && method === "GET") return adminUsers(env, request);
   if (path === "/api/admin/accounts" && method === "GET") return adminAccounts(env, request);
+  if (path === "/api/admin/account" && method === "GET") return adminAccountDetail(env, request);
   if (path === "/api/admin/notes" && method === "POST") return apiSetAdminNotes(env, request, data);
   if (path === "/api/admin/bulk-suspend" && method === "POST") return apiBulkSuspend(env, request, data);
   if (path === "/api/admin/bulk-message" && method === "POST") return apiBulkMessage(env, request, data);

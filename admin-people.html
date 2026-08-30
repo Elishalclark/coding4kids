@@ -323,6 +323,18 @@
     </div>
   </div>
 
+  <!-- Account profile card — click any name in the table -->
+  <div class="modal-overlay hidden" id="profileModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">👤</span>
+        <div style="flex:1;"><div class="chat-name">Account profile</div><div class="chat-status" id="profileWho">-</div></div>
+        <button class="modal-close" onclick="closeProfile()">✕</button>
+      </div>
+      <div id="profileBody" style="padding:14px 24px 24px;max-height:70vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <!-- Set username / password modal -->
   <div class="modal-overlay hidden" id="credsModal">
     <div class="modal">
