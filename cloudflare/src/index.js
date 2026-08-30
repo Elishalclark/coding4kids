@@ -8,6 +8,16 @@ const UNIT_NAMES = Object.fromEntries(Object.entries(WORLDS).map(([u, w]) => [u,
 const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
 
 // ───────────────────────── constants (mirror server.py) ─────────────────────────
+// Everything is free, for everyone, on every plan. Owner's call: with no user base yet, the
+// price was the thing stopping people rather than the thing earning anything.
+//
+// This one switch is the whole mechanism. Flipping it back to false restores paid plans
+// exactly as they were — the plan columns, Stripe wiring, limits and paywalls are all still
+// here and untouched, they're just never the binding constraint while this is true. Accounts
+// created while it's on are stored on real plans ("pro"/"family"), so they don't silently
+// lose anything if it's ever turned off; they'd keep what they were given.
+const EVERYTHING_FREE = true;
+
 const TRIAL_DAYS = 3;
 const PRO_LAUNCH_SLOTS = 50;   // first 50 kids get 30 days of Pro free
 const PRO_LAUNCH_DAYS = 30;
@@ -298,6 +308,12 @@ function trialDaysLeft(user) {
   return Math.max(0, Math.ceil(ms / 86400000));
 }
 function effectivePlan(user) {
+  // Every paywall in the app asks this function what someone is entitled to, so granting it
+  // here covers lessons, the AI buddy, boss battles, games, certificates and the shop in one
+  // place instead of hunting down each gate. "family" is kept where it's already set because
+  // it's strictly better than pro (unlimited AI chats rather than 100/day) — nobody should
+  // come out of this with less than they had.
+  if (EVERYTHING_FREE) return user.plan === "family" ? "family" : "pro";
   // A referral reward (or other promo) can temporarily grant Pro-level perks
   // (AI + unlimited lessons) on top of whatever plan the account is actually on.
   if (user.promo_pro_until && new Date(user.promo_pro_until) > new Date()) return "pro";
@@ -315,7 +331,17 @@ function promoDaysLeft(user) {
 function planCfg(settings, plan) {
   return settings[plan] || { ai: false, chatsPerDay: 0, lessonLimit: -1 };
 }
-function teacherPlanCfg(plan) { return TEACHER_PLANS[plan] || NO_TEACHER_PLAN; }
+// Teacher/school/district capacity. The only thing these plans actually gate is how many
+// students you may enrol, so while everything is free that cap is lifted rather than set to
+// some particular tier's number — a teacher, a library and a district all get "unlimited"
+// instead of a teacher being quietly relabelled a District Admin to achieve it.
+function teacherPlanCfg(plan) {
+  if (EVERYTHING_FREE) {
+    const base = TEACHER_PLANS[plan] || NO_TEACHER_PLAN;
+    return { ...base, label: base.price ? base.label : "Free — all features", price: 0, students: -1 };
+  }
+  return TEACHER_PLANS[plan] || NO_TEACHER_PLAN;
+}
 
 async function unitsPassed(env, userId) {
   const r = await env.DB.prepare("SELECT unit FROM unit_tests WHERE user_id=? AND passed=1 ORDER BY unit").bind(userId).all();
@@ -424,7 +450,10 @@ async function publicUser(env, user) {
 
   return {
     id: user.id, role: user.role, name: user.name, username: user.username,
-    plan: user.plan, effectivePlan: eff, trialDaysLeft: trialDaysLeft(user),
+    // No countdown while everything is free. An account still sitting on an old expired
+    // "trial" row would otherwise light up every "0 days left" nag in the UI despite having
+    // full Pro access — the clock is meaningless now, so don't send one.
+    plan: user.plan, effectivePlan: eff, trialDaysLeft: EVERYTHING_FREE ? null : trialDaysLeft(user),
     promoProDaysLeft: promoDaysLeft(user),
     ...teacher,
     hasAI: !!cfg.ai, chatsPerDay: cfg.chatsPerDay | 0, chatsUsedToday: await chatsUsedToday(env, user.id),
@@ -919,8 +948,12 @@ async function apiSignup(env, request, data) {
   const slotsUsed = await launchSlotsUsed(env);
   const getLaunchPro = slotsUsed < PRO_LAUNCH_SLOTS;
   const planDays = getLaunchPro ? PRO_LAUNCH_DAYS : TRIAL_DAYS;
-  const planName = getLaunchPro ? "pro" : "trial";
-  const trialEnds = new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+  // Stored as real Pro with no end date, not as a trial that effectivePlan happens to
+  // upgrade. Means the account keeps Pro on its own terms even if the switch is ever
+  // turned off, and no countdown is ever shown to a child who isn't on a clock.
+  const planName = EVERYTHING_FREE ? "pro" : (getLaunchPro ? "pro" : "trial");
+  const trialEnds = EVERYTHING_FREE ? null
+    : new Date(Date.now() + planDays * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
   const r = await createUser(env, {
     role: "kid", name, username, password, email, kid_email: kidEmail || null, age: ageBand, age_years: ageYears, plan: planName,
     trial_ends: trialEnds, consent_status: consentStatus, consent_method: null,
@@ -1280,7 +1313,9 @@ async function sendCertificateEmail(env, request, kid, unit, score) {
   const worldName = world.name ? `${world.emoji || "🏆"} ${world.name}` : `World ${unit}`;
   const done = (await env.DB.prepare("SELECT COUNT(*) c FROM progress WHERE user_id=?").bind(kid.id).first()).c || 0;
   const worlds = (await env.DB.prepare("SELECT COUNT(*) c FROM unit_tests WHERE user_id=? AND passed=1").bind(kid.id).first()).c || 0;
-  const isFree = !["pro", "family"].includes(kid.plan);
+  // effectivePlan, not the raw column — otherwise the celebration email tries to sell Pro to
+  // a family who already has everything.
+  const isFree = !["pro", "family"].includes(effectivePlan(kid));
   const upgrade = isFree ? `
     <div style="background:#f3e8ff;border:1px solid #d8b4fe;border-radius:10px;padding:14px 16px;margin-top:18px;">
       <div style="font-weight:800;color:#6d28d9;">🚀 Unlock everything for ${kid.name}</div>
@@ -1910,7 +1945,11 @@ async function apiProjectDeleteOwn(env, request, data) {
 // ───────────────────────── parent / teacher / district ─────────────────────────
 const GUARDIAN_ROLES = ["parent", "teacher"];
 const PLAN_LABEL = { free: "Free", pro: "Pro", family: "Family" };
-const PLAN_BLURB = {
+const PLAN_BLURB = EVERYTHING_FREE ? {
+  free: "Everything on KidVibers is free — every lesson, every world, and Byte your AI coding buddy.",
+  pro: "You've got everything: all 293 lessons, all 25 worlds, boss battles, and Byte your AI coding buddy. Free, with nothing to buy.",
+  family: "You've got everything for the whole family: every lesson, every world, and Byte the AI coding buddy for each kid. Free.",
+} : {
   free: "Start free with starter lessons, badges and the avatar shop. Upgrade any time.",
   pro: "Pro unlocks every lesson plus Byte, your AI coding buddy, for hints and explanations.",
   family: "The Family plan covers up to 4 kids with AI included, so everyone learns together.",
@@ -2099,9 +2138,12 @@ function recommendFromQuiz(a) {
   else if (exp === 0 || age === 0) { level = "Beginner"; startUnit = 1; }
   else { level = "Builder"; startUnit = { 0: 5, 1: 6, 3: 8 }[interest] ?? 2; }
   const bonusUnit = level === "Beginner" ? 15 : 16;
+  // The quiz used to recommend which plan to buy. There's nothing to buy now, so it just
+  // names what the account already has rather than pitching an upgrade to someone who is
+  // holding everything already.
   let plan;
   if (who === 1) plan = "family";
-  else if (helper === 0 || exp >= 2 || practice === 2) plan = "pro";
+  else if (EVERYTHING_FREE || helper === 0 || exp >= 2 || practice === 2) plan = "pro";
   else plan = "free";
   const interestWord = { 0: "games", 1: "websites", 2: "art & stories", 3: "smart AI" }[interest] || "code";
   const startWorld = UNIT_NAMES[startUnit] || "Greenwood Basics";
@@ -2120,7 +2162,9 @@ async function apiParentSignup(env, request, data) {
   const err = validateCredentials(name, username, password);
   if (err) return json({ error: err }, 400);
   const linkToken = (data.linkToken || "").trim();
-  const r = await createUser(env, { role: "parent", name, username, password, email, age: "", plan: "free", trial_ends: null });
+  // Family, not free: unlimited AI chats rather than Pro's 100/day, and it's what every kid
+  // they add inherits below.
+  const r = await createUser(env, { role: "parent", name, username, password, email, age: "", plan: EVERYTHING_FREE ? "family" : "free", trial_ends: null });
   if (r.error) return json({ error: r.error }, r.status || 400);
   await env.DB.prepare("UPDATE users SET family_id=? WHERE id=?").bind(r.uid, r.uid).run();
   let linked = null;
@@ -2150,7 +2194,9 @@ async function apiTeacherSignup(env, request, data) {
   const school = (data.school || "").trim() || "My Classroom", email = (data.email || "").trim();
   const err = validateCredentials(name, username, password);
   if (err) return json({ error: err }, 400);
-  const r = await createUser(env, { role: "teacher", name, username, password, email, age: "", plan: "none", trial_ends: null, school });
+  // "teacher" rather than "none" so classroom tools are on from the first minute; the student
+  // cap that normally separates the teacher/school/district tiers is lifted in teacherPlanCfg.
+  const r = await createUser(env, { role: "teacher", name, username, password, email, age: "", plan: EVERYTHING_FREE ? "teacher" : "none", trial_ends: null, school });
   if (r.error) return json({ error: r.error }, r.status || 400);
   await env.DB.prepare("UPDATE users SET family_id=?, class_code=? WHERE id=?").bind(r.uid, await genClassCode(env), r.uid).run();
   const row = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(r.uid).first();
@@ -2195,7 +2241,9 @@ async function apiParentAddKid(env, request, data) {
   }
 
   // Teachers' students & paid-family kids get "family" (AI on); a parent's free kid gets "free".
-  const kidPlan = isTeacher || paidFamily ? "family" : "free";
+  // While everything is free there is no such thing as a parent's "free kid" — a child added
+  // from a Family Dashboard gets the same account as one added by a teacher.
+  const kidPlan = EVERYTHING_FREE || isTeacher || paidFamily ? "family" : "free";
   const r = await createUser(env, {
     role: "kid", name, username, password, email: u.parent_email || "", age, plan: kidPlan, trial_ends: null,
     family_id: assignFamilyId, consent_status: "granted", consent_method: method, consent_by: grantedBy,

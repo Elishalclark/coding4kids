@@ -45,7 +45,7 @@
       "@type": "Offer",
       "price": "0",
       "priceCurrency": "USD",
-      "description": "Free to start. Pro plan from $9/mo."
+      "description": "Free. Every lesson, every world and the AI coding buddy, at no cost."
     },
     "author": {
       "@type": "Person",
@@ -398,9 +398,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div class="ai-lock hidden" id="aiLock">
           <div class="ai-lock-inner">
             <div class="ai-lock-icon">🔒</div>
-            <h3>AI is a Pro feature</h3>
-            <p id="aiLockMsg">Byte and the AI chatbots are unlocked on the <strong>Pro</strong> plan. Free and trial accounts don't include AI.</p>
-            <a href="#pricing" class="btn btn-primary">Upgrade to Pro 🚀</a>
+            <h3>Sign in to chat with Byte</h3>
+            <p id="aiLockMsg">Byte and the AI chatbots are free for everyone — you just need an account first.</p>
+            <a href="#" onclick="openLogin('signup');return false;" class="btn btn-primary">Create a free account 🚀</a>
           </div>
         </div>
         <div class="chat-header">
@@ -506,7 +506,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="section-inner" style="text-align:center;">
       <div class="section-tag">💎 Pricing</div>
       <h2 class="section-title">Simple Pricing for Every Coder</h2>
-      <p class="section-sub" style="margin:8px auto 0;max-width:620px;">Every account starts with a <strong>free 3-day trial</strong> - no credit card. Upgrade to <strong>Pro</strong> for the AI buddy and every lesson. Plans for families, teachers, and whole schools too.</p>
+      <p class="section-sub" style="margin:8px auto 0;max-width:620px;">Every account gets <strong>everything, free</strong> - all 293 lessons, all 25 worlds, and Byte the AI coding buddy. No credit card, no trial. Same for families, teachers, schools and districts.</p>
       <div style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:28px 0 4px;">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 22px;min-width:130px;">
           <div style="font-weight:900;color:var(--purple);text-transform:uppercase;font-size:0.74rem;letter-spacing:0.05em;">Free</div>
@@ -515,11 +515,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div style="background:var(--surface);border:2px solid var(--purple);border-radius:14px;padding:16px 22px;min-width:130px;position:relative;">
           <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple-mid,#7c3aed),var(--pink,#db2777));color:#fff;font-size:0.6rem;font-weight:900;padding:3px 10px;border-radius:50px;white-space:nowrap;">MOST POPULAR</div>
           <div style="font-weight:900;color:var(--purple);text-transform:uppercase;font-size:0.74rem;letter-spacing:0.05em;">Pro</div>
-          <div style="font-size:1.7rem;font-weight:900;">$9<span style="font-size:0.7rem;color:var(--text-dim);font-weight:700;">/mo</span></div>
+          <div style="font-size:1.7rem;font-weight:900;">$0<span style="font-size:0.7rem;color:var(--text-dim);font-weight:700;">/mo</span></div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 22px;min-width:130px;">
           <div style="font-weight:900;color:var(--purple);text-transform:uppercase;font-size:0.74rem;letter-spacing:0.05em;">Family</div>
-          <div style="font-size:1.7rem;font-weight:900;">$15<span style="font-size:0.7rem;color:var(--text-dim);font-weight:700;">/mo</span></div>
+          <div style="font-size:1.7rem;font-weight:900;">$0<span style="font-size:0.7rem;color:var(--text-dim);font-weight:700;">/mo</span></div>
         </div>
       </div>
       <a href="pricing.html" class="btn btn-primary btn-lg" style="margin-top:18px;">See our pricing →</a>
@@ -537,7 +537,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:28px;text-align:left;display:flex;flex-direction:column;">
           <div style="font-size:2.2rem;">🏫</div>
           <h3 style="font-size:1.3rem;font-weight:900;margin:6px 0;">School Plan</h3>
-          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">$105<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
+          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">Free<span style="font-size:1rem;color:var(--text-dim);font-weight:700;"> · unlimited students</span></div>
           <ul style="list-style:none;margin:14px 0;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.9rem;flex:1;">
             <li>✅ Up to <strong>550 students</strong></li>
             <li>✅ Full curriculum - 25 worlds, 293 lessons</li>
@@ -552,7 +552,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple-mid,#7c3aed),var(--pink,#db2777));color:#fff;font-size:0.66rem;font-weight:900;padding:4px 12px;border-radius:50px;white-space:nowrap;">BEST FOR DISTRICTS &amp; LIBRARIES</div>
           <div style="font-size:2.2rem;">🏛️</div>
           <h3 style="font-size:1.3rem;font-weight:900;margin:6px 0;">District Plan</h3>
-          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">$125<span style="font-size:1rem;color:var(--text-dim);font-weight:700;">/month</span></div>
+          <div style="font-size:2.2rem;font-weight:900;color:var(--purple);">Free<span style="font-size:1rem;color:var(--text-dim);font-weight:700;"> · unlimited students</span></div>
           <ul style="list-style:none;margin:14px 0;display:flex;flex-direction:column;gap:8px;color:var(--text-dim);font-weight:700;font-size:0.9rem;flex:1;">
             <li>✅ <strong>Unlimited students</strong></li>
             <li>✅ Everything in School</li>
@@ -570,7 +570,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <a href="quote.html" class="btn btn-primary btn-lg">📋 Get a Quote →</a>
       </div>
       <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);max-width:760px;margin:16px auto 0;">💳 You subscribe first - your account activates and you can add &amp; manage students right after payment.</div>
-      <p class="signup-fine" style="margin-top:14px;">Just one classroom? <a href="#" onclick="openTeacherSignup();return false;">Create a Teacher account</a> instead ($24/mo, up to 100 students).</p>
+      <p class="signup-fine" style="margin-top:14px;">Just one classroom? <a href="#" onclick="openTeacherSignup();return false;">Create a Teacher account</a> instead (free, unlimited students).</p>
       <div style="margin-top:20px;display:flex;justify-content:center;">
         <a href="https://join.slack.com/t/kidviberscommunity/shared_invite/zt-42c5812o4-fYR6zj_0_sxYcGNvcdM~4w" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border-bright);border-radius:50px;padding:12px 22px;font-weight:800;font-size:0.95rem;color:var(--text);text-decoration:none;">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#E01E5A"/></svg>
@@ -679,8 +679,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
       </div>
 
-      <div id="launchBannerHome" style="display:none;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:14px;padding:14px 20px;max-width:560px;margin:0 auto 22px;">
-        <span style="font-weight:900;">🎁 Launch offer:</span> the first 50 kids get <strong>30 days of Pro free</strong> — <span id="launchSlotsLeftHome" style="font-weight:900;">-</span> spots left!
+      <!-- Was a "first 50 kids get 30 days of Pro free" scarcity banner. There's no scarcity
+           and no Pro to win any more — everyone gets everything — so it says that instead. -->
+      <div style="background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:14px;padding:14px 20px;max-width:560px;margin:0 auto 22px;">
+        <span style="font-weight:900;">🎉 Everything is free.</span> All 293 lessons, all 25 worlds, and Byte the AI coding buddy — no trial, no credit card.
       </div>
 
       <button class="btn btn-primary btn-lg" onclick="openLogin('signup')" style="font-size:1.05rem;padding:14px 32px;">Log In / Sign Up 🚀</button>
@@ -821,11 +823,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
       <!-- SIGN UP VIEW (the kid signup, moved off the home page) -->
       <div id="signupView" style="display:none;padding:16px 24px 24px;">
-        <div id="launchBanner" style="display:none;background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">
-          <div style="font-size:1rem;font-weight:900;color:#fff;">🎁 First 50 kids get <strong>30 days of Pro free!</strong></div>
-          <div style="color:#dcfce7;font-size:0.85rem;margin-top:2px;"><span id="launchSlotsLeft" style="font-weight:900;color:#fff;">-</span> spots left.</div>
+        <div style="background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:1rem;font-weight:900;color:#fff;">🎉 Everything is free — every lesson, every world, Byte the AI buddy.</div>
+          <div style="color:#dcfce7;font-size:0.85rem;margin-top:2px;">No trial, no credit card, nothing to upgrade to.</div>
         </div>
-        <p id="signupSubtitle" style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">Create a free account and start a <strong>3-day trial</strong>. No credit card.</p>
+        <!-- Three ways in. Family and classroom signup already existed, but only as two small
+             text links below the fold of this panel, so most people never saw that anything
+             but a kid account was on offer. These open the same modals. -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;" id="signupTabs">
+          <button type="button" class="su-tab on" data-su="kid" onclick="pickSignup('kid')">🧒 Kid</button>
+          <button type="button" class="su-tab" data-su="parent" onclick="pickSignup('parent')">👨‍👩‍👧 Family</button>
+          <button type="button" class="su-tab" data-su="teacher" onclick="pickSignup('teacher')">🏫 Teacher</button>
+        </div>
+        <style>
+          .su-tab{flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);
+            color:var(--text-dim);font-family:inherit;font-weight:800;font-size:0.82rem;cursor:pointer;}
+          .su-tab.on{background:var(--purple);border-color:var(--purple);color:#fff;}
+        </style>
+        <p id="signupSubtitle" style="color:var(--text-dim);font-size:0.88rem;margin-bottom:12px;">Create a free account for your child. A parent approves it before they can start.</p>
         <!-- Parents can sign up fast with Google -->
         <div style="margin-bottom:12px;">
           <div style="font-weight:800;font-size:0.78rem;color:var(--text-faint);margin-bottom:6px;">👨‍👩‍👧 Parent? Sign up in one tap:</div>
@@ -914,11 +929,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <button type="button" class="plan-pick" data-plan="school" onclick="setSchoolPlan('school')"
             style="border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:12px;padding:12px;cursor:pointer;font-family:inherit;font-weight:800;text-align:left;">
-            🏫 School<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">$105/mo · 550 students</span>
+            🏫 School<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">Free · unlimited students</span>
           </button>
           <button type="button" class="plan-pick" data-plan="district" onclick="setSchoolPlan('district')"
             style="border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:12px;padding:12px;cursor:pointer;font-family:inherit;font-weight:800;text-align:left;">
-            🏛️ District<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">$125/mo · unlimited</span>
+            🏛️ District<br><span style="font-weight:700;color:var(--text-dim);font-size:0.8rem;">Free · unlimited students</span>
           </button>
         </div>
         <input type="text" id="scSchool" placeholder="School / district / library name" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
@@ -926,7 +941,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <input type="email" id="scEmail" placeholder="Your email" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="text" id="scUsername" placeholder="Choose a username" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
         <input type="password" id="scPassword" placeholder="Create a password (min 6 chars)" required class="form-input" style="background:var(--bg);color:var(--text);border-color:var(--border);" />
-        <div id="schoolPlanNote" style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);">💳 Next step is payment - your <strong>School Plan</strong> ($105/mo, up to 550 students) activates after checkout, then you can manage students.</div>
+        <div id="schoolPlanNote" style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-dim);">✅ Free — your <strong>School Plan</strong> with unlimited students. Create the account and you can add students straight away.</div>
         <div id="schoolError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
         <button type="submit" class="btn btn-primary btn-lg">Continue to Payment →</button>
       </form>
