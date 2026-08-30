@@ -245,6 +245,51 @@
 
       <div class="admin-main" id="secDashboard">      <h2 class="super-only admin-section" id="secOverview" style="display:none;">📊 Overview &amp; Growth</h2>
 
+      <!-- These two panels were left behind in admin.html when the panel was split into a
+           page per feature: this page shipped with the heading and the sidebar link but no
+           content at all, so Overview & Growth rendered as an empty screen. -->
+      <div class="panel" id="onlineNowPanel">
+        <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
+        <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>
+      </div>
+
+      <div class="panel" id="analyticsPanel">
+        <h3>📈 Analytics <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">how KidVibers is growing</span></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anNew">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">New kids (7d)</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anActive">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Active (7d)</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anConv">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Free→Pro</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anParents">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Parents/Teachers</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anCerts">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Certificates</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anGames">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Games played</div></div>
+        </div>
+        <!-- advanced tiles -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px;">
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#4ade80;" id="anMrr">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">MRR (est.)</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#22d3ee;" id="anRet">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">30-day retention</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:#fbbf24;" id="anStick">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Stickiness</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anRef">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Referrals</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anAvg">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Avg lessons/kid</div></div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:1.5rem;font-weight:900;color:var(--purple);" id="anEmails">-</div><div style="font-size:0.72rem;color:var(--text-dim);font-weight:800;">Emails collected</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📊 Signups — last 14 days</div>
+            <div id="anChart" style="display:flex;align-items:flex-end;gap:4px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+          </div>
+          <div>
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin-bottom:8px;">📈 New kids — last 6 weeks</div>
+            <div id="anWeekChart" style="display:flex;align-items:flex-end;gap:8px;height:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;"></div>
+          </div>
+        </div>
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">🏆 Most-completed lessons</div>
+        <div id="anTopLessons" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">💳 Kids by plan</div>
+        <div id="anPlanChart" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text-dim);margin:16px 0 8px;">📉 Weekly cohort retention <span style="font-weight:600;color:var(--text-faint);">— % of each week's new kids still doing lessons N weeks later</span></div>
+        <div id="cohortChart" style="overflow-x:auto;"></div>
+      </div>
+
       
 
 </div>
