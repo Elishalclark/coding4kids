@@ -189,7 +189,9 @@ function openLogin(view) {
 }
 function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); closeForgot(); }
 
-// ── Forgot password (parents & teachers) ──
+// ── "I have an account, I need a new login" ──
+// Was parents/teachers only. Kids are included now, but a child's link is emailed to the
+// PARENT, never the child — same posture as the consent gate.
 function openForgot() {
   document.querySelector('#loginModal form').style.display = 'none';
   document.getElementById('forgotLine').style.display = 'none';

@@ -36,14 +36,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </nav>
   <main style="max-width:440px;margin:60px auto;padding:0 20px;">
     <div class="card" style="padding:32px 28px;">
-      <h1 id="rTitle" style="font-size:1.5rem;font-weight:900;margin-bottom:6px;">🔑 Choose a new password</h1>
-      <p id="rSub" style="color:var(--text-dim);margin-bottom:18px;font-size:0.92rem;">Pick a new password for your KidVibers account.</p>
+      <h1 id="rTitle" style="font-size:1.5rem;font-weight:900;margin-bottom:6px;">🔑 Choose a new login</h1>
+      <p id="rSub" style="color:var(--text-dim);margin-bottom:18px;font-size:0.92rem;">Pick a new username and password for your KidVibers account.</p>
       <div id="form">
+        <!-- Username is offered too: kids forget which one they picked at least as often as
+             they forget the password, and a new password for a username you can't remember
+             doesn't actually get anyone logged in. Blank keeps the existing one. -->
+        <input id="uname" type="text" autocomplete="username" placeholder="New username (leave blank to keep yours)"
+          style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
         <input id="pw1" type="password" placeholder="New password (6+ characters)"
           style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
         <input id="pw2" type="password" placeholder="Confirm new password"
           style="width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;" />
-        <button class="btn btn-primary btn-lg" style="width:100%;" id="go" onclick="submitReset()">Update password</button>
+        <button class="btn btn-primary btn-lg" style="width:100%;" id="go" onclick="submitReset()">Save my new login</button>
         <p id="msg" style="margin-top:12px;font-weight:800;font-size:0.88rem;min-height:1em;"></p>
       </div>
     </div>
@@ -67,10 +72,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       if (p1.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; return; }
       if (p1 !== p2) { msg.textContent = 'Those passwords don’t match.'; return; }
       document.getElementById('go').disabled = true;
-      const { ok, data } = await C4K.api('/api/reset-password', 'POST', { token, password: p1 });
+      const username = document.getElementById('uname').value.trim();
+      const { ok, data } = await C4K.api('/api/reset-password', 'POST', { token, password: p1, username });
       if (ok) {
         document.getElementById('form').innerHTML =
-          '<p style="color:var(--green,#5ad17e);font-weight:800;">✅ Password updated! You can now log in with your new password.</p>' +
+          '<p style="color:var(--green,#5ad17e);font-weight:800;">✅ All set! Log in with these:</p>' +
+          '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;">' +
+            '<div style="font-size:0.76rem;color:var(--text-dim);font-weight:800;">Username</div>' +
+            '<div style="font-weight:900;font-size:1.1rem;user-select:all;">' + C4K.esc(data.username || '') + '</div>' +
+            '<div style="font-size:0.78rem;color:var(--text-dim);margin-top:8px;">Plus the password you just chose.</div>' +
+          '</div>' +
           '<a class="btn btn-primary btn-lg" style="width:100%;margin-top:12px;" href="index.html">Go to log in</a>';
       } else {
         msg.textContent = data.error || 'Could not reset password.';
