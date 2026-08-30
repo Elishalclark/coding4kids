@@ -5385,33 +5385,67 @@ async function apiBillingPortal(env, request) {
 }
 
 // ───────────────────────── consent + password reset ─────────────────────────
+// "I already have an account and need a new login."
+//
+// Kids used to be excluded here (role IN ('parent','teacher')), so a child who forgot their
+// password had no self-service route at all — an adult had to notice and fix it in the admin
+// panel. They're included now, but the link ALWAYS goes to the parent's address, never to the
+// child: the parent stays the one who can act on a child's account, which is the same posture
+// as the consent gate.
+//
+// The response is deliberately identical whether or not an account matched. Saying "no such
+// user" would turn this box into a way to test whether a given child's username exists.
 async function apiForgotPassword(env, request, data) {
   const who = (data.usernameOrEmail || "").trim();
-  const generic = json({ ok: true, message: "If an account matches, we've emailed a reset link." });
+  const generic = json({ ok: true, message: "If an account matches, we've emailed a reset link to the email on the account." });
   if (!who || await rateLimited(env, `forgot:${who.toLowerCase()}`, 3, 600)) return generic;
-  const row = await env.DB.prepare("SELECT * FROM users WHERE (username=? OR parent_email=?) AND role IN ('parent','teacher') LIMIT 1").bind(who, who).first();
-  if (row && row.parent_email) {
+  const row = await env.DB.prepare(
+    "SELECT * FROM users WHERE (username=? OR parent_email=? OR kid_email=?) AND role IN ('kid','parent','teacher') LIMIT 1"
+  ).bind(who, who, who).first();
+  // A child's link goes to the parent. Everyone else gets their own address.
+  const to = row && (row.role === "kid" ? row.parent_email : (row.parent_email || row.kid_email));
+  if (row && to) {
     const token = randToken(24);
     const expires = new Date(Date.now() + 2 * 3600000).toISOString().replace(/\.\d+Z$/, "Z");
     await env.DB.prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?").bind(token, expires, row.id).run();
     const url = `${siteUrl(env, request)}/reset.html?token=${token}`;
-    await sendEmail(env, row.parent_email, "Reset your KidVibers password",
-      `<p>Hi ${cleanName(row.name || "")}, we got a request to reset your KidVibers password.</p><p><a href="${url}">Click here to choose a new password</a> (expires in 2 hours).</p>`,
+    const forKid = row.role === "kid";
+    await sendEmail(env, to, forKid ? `New login for ${cleanName(row.name || "your child")} on KidVibers` : "Reset your KidVibers password",
+      forKid
+        ? `<p>Someone asked for a new login for <strong>${cleanName(row.name || "your child")}</strong> (username <strong>${escHtml(row.username)}</strong>) on KidVibers.</p>
+           <p><a href="${url}">Click here to choose a new username and password</a> — the link expires in 2 hours.</p>
+           <p style="color:#666;font-size:0.9rem;">If you didn't ask for this, you can ignore this email. Nothing changes until someone opens the link.</p>`
+        : `<p>Hi ${cleanName(row.name || "")}, we got a request to reset your KidVibers password.</p>
+           <p><a href="${url}">Click here to choose a new username and password</a> (expires in 2 hours).</p>`,
       FROM_PASSWORD);
   }
   return generic;
 }
+// Sets a new password, and optionally a new username. The username is part of it because kids
+// forget which one they picked at least as often as they forget the password, and a reset that
+// hands back a password for a username you can't remember doesn't get anybody logged in.
 async function apiResetPassword(env, request, data) {
   const token = (data.token || "").trim(), password = data.password || "";
+  const newUser = (data.username || "").trim();
   if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
   const row = await env.DB.prepare("SELECT * FROM users WHERE reset_token=?").bind(token).first();
   if (!row) return json({ error: "This reset link is invalid or already used." }, 400);
   const exp = row.reset_expires;
   if (!exp || new Date() >= new Date(exp.replace("Z", "Z"))) return json({ error: "This reset link has expired. Please request a new one." }, 400);
+  // Validate the username BEFORE writing the password, so a taken name doesn't leave someone
+  // with a changed password and a failed request telling them nothing worked.
+  if (newUser && newUser !== row.username) {
+    if (!USERNAME_RE.test(newUser)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+    const dup = await env.DB.prepare("SELECT 1 FROM users WHERE username=? AND id<>?").bind(newUser, row.id).first();
+    if (dup) return json({ error: "That username is already taken — try another." }, 409);
+  }
   const { hash, salt } = await hashPassword(password);
   await env.DB.prepare("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?").bind(hash, salt, row.id).run();
+  if (newUser && newUser !== row.username) {
+    await env.DB.prepare("UPDATE users SET username=? WHERE id=?").bind(newUser, row.id).run();
+  }
   await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(row.id).run();
-  return json({ ok: true });
+  return json({ ok: true, username: newUser || row.username });
 }
 
 async function apiConsentStart(env, request, data) {
