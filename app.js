@@ -469,6 +469,15 @@ function approveOnDevice() {
 function finishInvite() { window.location.href = 'dashboard.html'; }
 
 let parentLinkToken = null;
+// The signup panel's three tabs. Family and classroom accounts have their own modals already,
+// so the tab just opens the right one rather than there being a third copy of each form.
+function pickSignup(kind) {
+  document.querySelectorAll('#signupTabs .su-tab').forEach(b =>
+    b.classList.toggle('on', b.dataset.su === kind));
+  if (kind === 'parent') { openParentSignup(); return; }
+  if (kind === 'teacher') { openTeacherSignup(); return; }
+}
+
 async function openParentSignup(linkToken) {
   parentLinkToken = (typeof linkToken === 'string') ? linkToken : null;
   document.getElementById('parentModal').classList.remove('hidden');
@@ -542,7 +551,7 @@ function setSchoolPlan(plan) {
   });
   const info = SCHOOL_PLAN_INFO[plan];
   const note = document.getElementById('schoolPlanNote');
-  if (note) note.innerHTML = `💳 Next step is payment - your <strong>${info.label}</strong> (${info.price}, ${info.cap}) activates after checkout, then you can manage students.`;
+  if (note) note.innerHTML = `✅ Free — <strong>${info.label}</strong> with unlimited students. Create the account and you can add students straight away.`;
 }
 function openSchoolSignup(plan) {
   document.getElementById('schoolModal').classList.remove('hidden');
@@ -561,9 +570,11 @@ async function handleSchoolSignup(e) {
     username: document.getElementById('scUsername').value.trim(),
     password: document.getElementById('scPassword').value
   };
-  // Create the (teacher-type) school account, then go straight to payment for the chosen plan.
+  // School accounts used to be created and then sent straight to checkout, because adding
+  // students was gated on payment. Nothing is paid for now, so it goes to the dashboard and
+  // they can add students immediately.
   const { ok, data } = await C4K.teacherSignup(payload);
-  if (ok) { closeSchoolSignup(); window.location.href = 'checkout.html?plan=' + plan; }
+  if (ok) { closeSchoolSignup(); window.location.href = 'parent.html'; }
   else document.getElementById('schoolError').textContent = '❌ ' + (data.error || 'Could not create school account.');
 }
 document.getElementById('schoolModal')?.addEventListener('click', (e) => {
@@ -602,10 +613,12 @@ function refreshAuthUI() {
   const botGrid = document.querySelector('.bot-grid');
   if (botGrid) botGrid.classList.toggle('locked', !ai);
   const lockMsg = document.getElementById('aiLockMsg');
+  // Every account has AI now, so the only way to see this is signed out. It used to pitch an
+  // upgrade, which would be a lie to someone who already has everything.
   if (lockMsg && !ai) {
     lockMsg.innerHTML = u
-      ? `Hi ${u.name}! Your <strong>${u.effectivePlan}</strong> plan doesn't include AI. Upgrade to <strong>Pro</strong> to chat with Byte and the bots.`
-      : `Byte and the AI chatbots are unlocked on the <strong>Pro</strong> plan. Free and trial accounts don't include AI. Log in or upgrade to use them.`;
+      ? `Hi ${u.name}! Byte is free on your account — reload the page if the chat doesn't unlock.`
+      : `Byte and the AI chatbots are free for everyone — you just need an account first.`;
   }
 }
 
