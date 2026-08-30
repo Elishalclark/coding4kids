@@ -762,26 +762,33 @@ KidVibers · kidvibers.com`
       // per-kid or per-account list. The backend enforces this too (not just hidden in the UI).
       if (sup) {
         const userRowsEl = document.getElementById('userRows');
-        if (!userRowsEl) return;               // People page only
-        const users = (await C4K.api('/api/admin/users')).data.users || [];
-        const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
-        const uHead = userRowsEl.closest('table');
-        if (uHead) { const th = uHead.querySelector('thead th:last-child'); if (th) th.textContent = 'Change Plan'; }
-        userRowsEl.innerHTML = users.length ? users.map(u =>
-          `<tr>
-             <td><a href="#" onclick="openProfile(${u.id});return false;" title="Open ${C4K.esc(u.name)}'s full profile" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);"><strong>${C4K.esc(u.name)}</strong></a><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
-             <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
-             <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
-             <td>
-               <select onchange="setPlan(${u.id}, this.value)" class="mini-btn" style="padding:5px 8px;">
-                 <option ${u.plan==='free'?'selected':''}>free</option>
-                 <option ${u.plan==='trial'?'selected':''}>trial</option>
-                 <option ${u.plan==='pro'?'selected':''}>pro</option>
-                 <option ${u.plan==='family'?'selected':''}>family</option>
-               </select>
-             </td>
-           </tr>`).join('')
-          : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
+        // Recent Members — People page only. This was `if (!userRowsEl) return;`, which
+        // exited the WHOLE of loadData(). On every page that doesn't have this table —
+        // Overview included — analytics, Online Right Now, the accounts list and cohort
+        // retention all silently never ran, which is why Overview sat on "Loading…" with
+        // empty stat boxes. Guard the block, not the function.
+        if (userRowsEl) {
+          const users = (await C4K.api('/api/admin/users')).data.users || [];
+          const planClass = p => (p === 'pro' || p === 'family') ? 'pro' : (p === 'trial' ? 'trial' : 'free');
+          const uHead = userRowsEl.closest('table');
+          if (uHead) { const th = uHead.querySelector('thead th:last-child'); if (th) th.textContent = 'Change Plan'; }
+          userRowsEl.innerHTML = users.length ? users.map(u =>
+            `<tr>
+               <td><a href="#" onclick="openProfile(${u.id});return false;" title="Open ${C4K.esc(u.name)}'s full profile" style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--text-faint);"><strong>${C4K.esc(u.name)}</strong></a><br><span style="color:var(--text-faint);font-size:0.78rem;">@${C4K.esc(u.username)}</span>${u.parentEmail ? `<br><span style="color:var(--text-dim);font-size:0.74rem;">📧 ${C4K.esc(u.parentEmail)}</span>` : ''}</td>
+               <td><span class="pill ${planClass(u.effectivePlan)}">${u.effectivePlan}</span></td>
+               <td>${u.hasAI ? '🤖 yes' : '- no'}</td>
+               <td>
+                 <select onchange="setPlan(${u.id}, this.value)" class="mini-btn" style="padding:5px 8px;">
+                   <option ${u.plan==='free'?'selected':''}>free</option>
+                   <option ${u.plan==='trial'?'selected':''}>trial</option>
+                   <option ${u.plan==='pro'?'selected':''}>pro</option>
+                   <option ${u.plan==='family'?'selected':''}>family</option>
+                 </select>
+               </td>
+             </tr>`).join('')
+            : '<tr><td colspan="4" style="color:var(--text-faint);">No kid accounts yet - sign one up on the home page!</td></tr>';
+        }
+
 
         // every registered account, kept forever
         const accts = (await C4K.api('/api/admin/accounts')).data.accounts || [];
