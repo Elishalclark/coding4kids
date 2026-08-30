@@ -54,6 +54,23 @@ jobs:
           for f in analytics.js app.js auth.js styles.css index.html sitemap.xml; do
             [ -f "public/$f" ] || { echo "::error::public/$f missing — refusing to deploy"; exit 1; }
           done
+
+          # Cache-bust every asset with this commit's SHA.
+          #
+          # Script and stylesheet tags carry a hand-maintained "?v=NNN". That number is a
+          # promise to the browser that the file behind the URL hasn't changed, so a visitor
+          # who has been here before keeps running the CACHED copy until it moves. Nobody
+          # remembers to bump it, so shipped fixes were invisible to exactly the people who
+          # use the site most — a whole day's work could land and returning users would see
+          # none of it, with no error anywhere to explain why.
+          #
+          # Rewriting it to the commit SHA at build time makes it change automatically on
+          # every deploy that touches anything, and never change when nothing ships.
+          SHA_SHORT="${GITHUB_SHA::8}"
+          find public -name '*.html' -print0 | xargs -0 sed -i "s/?v=[0-9][0-9]*/?v=${SHA_SHORT}/g"
+          echo "Cache-busted assets to ?v=${SHA_SHORT}"
+          grep -oh '?v=[a-z0-9]*' public/index.html | sort -u | head -3
+
           echo "Built public/ with:" && ls public/
 
       - name: Deploy to Cloudflare
