@@ -250,11 +250,11 @@
         <h3>🔧 Login &amp; Sign-up Controls <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">site-wide</span></h3>
         <p style="color:var(--text-dim);font-size:0.85rem;margin:-4px 0 14px;">Turn public sign-ups or logins on/off for the whole site. Admin &amp; super-admin logins always work, so you can never lock yourself out.</p>
         <label style="display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:12px;">
-          <input type="checkbox" id="tgSignups" onchange="saveToggles()" /> Allow new sign-ups
+          <input type="checkbox" id="tgSignups" disabled onchange="saveToggles('signups')" /> Allow new sign-ups
           <span id="tgSignupsState" style="font-size:0.8rem;font-weight:700;"></span>
         </label>
         <label style="display:flex;align-items:center;gap:10px;font-weight:800;">
-          <input type="checkbox" id="tgLogins" onchange="saveToggles()" /> Allow logins (kids/parents/teachers)
+          <input type="checkbox" id="tgLogins" disabled onchange="saveToggles('logins')" /> Allow logins (kids/parents/teachers)
           <span id="tgLoginsState" style="font-size:0.8rem;font-weight:700;"></span>
         </label>
         <div id="tgMsg" style="font-weight:700;font-size:0.85rem;margin-top:10px;min-height:1em;color:var(--green,#5ad17e);"></div>
@@ -366,6 +366,18 @@
         <p style="color:var(--text-faint);font-size:0.8rem;margin:0;">They'll be logged out immediately and can't sign in for the chosen period. Timed suspensions lift automatically.</p>
         <button class="btn btn-primary btn-lg" style="background:#f59e0b;border-color:#f59e0b;" onclick="confirmSuspend()">⏸️ Suspend account</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Account profile card — click any name in the table -->
+  <div class="modal-overlay hidden" id="profileModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">👤</span>
+        <div style="flex:1;"><div class="chat-name">Account profile</div><div class="chat-status" id="profileWho">-</div></div>
+        <button class="modal-close" onclick="closeProfile()">✕</button>
+      </div>
+      <div id="profileBody" style="padding:14px 24px 24px;max-height:70vh;overflow-y:auto;"></div>
     </div>
   </div>
 
