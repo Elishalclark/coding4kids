@@ -4682,6 +4682,48 @@ async function adminSuspend(env, request, data) {
   await logConsent(env, target.id, target.username, suspend ? "suspended" : "reinstated", `super admin (${u.username})`, reason);
   return json({ ok: true, name: target.name, suspended: suspend, until });
 }
+// Words a child can read back over the phone without spelling it out. No I/l/O/0 lookalikes,
+// nothing that spells anything unfortunate when two are joined.
+const PW_WORDS = [
+  "tiger", "rocket", "panda", "comet", "dragon", "waffle", "cactus", "penguin", "banjo",
+  "mango", "robot", "pickle", "walrus", "turtle", "noodle", "jetpack", "muffin", "kitten",
+  "puzzle", "wizard", "meteor", "pumpkin", "otter", "gadget", "bubble", "falcon",
+];
+function generatePassword() {
+  const b = new Uint32Array(3); crypto.getRandomValues(b);
+  const w1 = PW_WORDS[b[0] % PW_WORDS.length];
+  const w2 = PW_WORDS[b[1] % PW_WORDS.length];
+  const n = 10 + (b[2] % 90);   // always two digits, never leading zero
+  return `${w1}-${w2}-${n}`;
+}
+
+// Give a locked-out account a brand-new password and show it to the admin ONCE.
+//
+// This exists because "just show me the kid's password" is impossible: passwords are PBKDF2
+// over a random salt, so the plaintext was never stored and cannot be recovered by anyone.
+// The actual need behind that request — "a kid can't get in and I need something to tell
+// them" — is met by minting a fresh one instead. It's returned in this single response and
+// then only ever exists as a hash, so the database still can't leak anyone's password.
+async function adminGeneratePassword(env, request, data) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
+  if (!target) return json({ error: "Account not found." }, 404);
+  if (target.username === DEMO_USERNAME) return json({ error: "The pitch demo account's login is protected." }, 403);
+  // Same step-up as set-credentials: taking over an account is sensitive even for an owner.
+  const confirmPass = (data.myPassword || "").toString();
+  if (!confirmPass || !(await verifyPassword(confirmPass, u.salt, u.password_hash))) {
+    return json({ error: "Re-enter your own password to confirm this change." }, 401);
+  }
+  const password = generatePassword();
+  const { hash, salt } = await hashPassword(password);
+  await env.DB.prepare("UPDATE users SET password_hash=?, salt=? WHERE id=?").bind(hash, salt, target.id).run();
+  // Their old sessions die with the old password, same as any reset.
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
+  await logConsent(env, target.id, target.username, "password_reset_by_admin",
+    `super admin (${u.username})`, "Password regenerated from the account profile card.");
+  return json({ ok: true, username: target.username, password });
+}
+
 async function adminSetCredentials(env, request, data) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   // Step-up auth: changing someone else's login credentials is sensitive enough to re-confirm
@@ -5902,6 +5944,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/admin/delete-user" && method === "POST") return adminDeleteUser(env, request, data);
   if (path === "/api/admin/suspend" && method === "POST") return adminSuspend(env, request, data);
   if (path === "/api/admin/set-credentials" && method === "POST") return adminSetCredentials(env, request, data);
+  if (path === "/api/admin/generate-password" && method === "POST") return adminGeneratePassword(env, request, data);
   if (path === "/api/admin/create-account" && method === "POST") return adminCreateAccount(env, request, data);
   if (path === "/api/admin/account-requests/resolve" && method === "POST") return adminResolveRequest(env, request, data);
   if (path === "/api/admin/site-message" && method === "POST") return adminSiteMessage(env, request, data);
