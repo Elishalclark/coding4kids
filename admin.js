@@ -987,7 +987,11 @@ KidVibers · kidvibers.com`
         html += row('Kids', a.kids.map(k =>
           `<a href="#" onclick="openProfile(${k.id});return false;" style="color:var(--purple);font-weight:700;">${C4K.esc(k.name)}</a>`).join(', '));
       }
-      html += row('Password', `<span style="color:var(--text-faint);">${C4K.esc(a.passwordNote)}</span>`);
+      // No password to print — see adminGeneratePassword in the Worker for why. What you can
+      // do is mint a new one and read it out, which is the thing you actually wanted.
+      html += row('Password', `<div id="pwSlot"><button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);"
+            onclick="makePassword(${a.id})">🎲 Make a new password</button>
+          <div style="color:var(--text-faint);font-size:0.78rem;margin-top:5px;">Can't be shown — passwords are stored scrambled, so there's nothing saved to look up. This makes a fresh one and shows it to you once.</div></div>`);
       html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
           <button class="mini-btn" style="color:#60a5fa;border-color:rgba(96,165,250,.4);"
             onclick="closeProfile();setCreds(${a.id},'${(a.name||'').replace(/'/g,"\\'").replace(/[<>]/g,'')}','${C4K.esc(a.username)}')">🔑 Set login</button>
@@ -1001,6 +1005,31 @@ KidVibers · kidvibers.com`
     // cheap, and every second the boxes sit disabled is a second the page looks broken —
     // while every second they'd have sat *enabled but wrong* was a chance to lock the site.
     if (document.getElementById('tgSignups') || document.getElementById('tgLogins')) loadToggles();
+
+    // Mint a new password for a locked-out account and show it once, in place, big enough to
+    // read out loud. It is never stored in readable form — after this response it only exists
+    // as a hash, so there is no second chance to see it and nothing to leak later.
+    async function makePassword(id) {
+      const slot = document.getElementById('pwSlot');
+      if (!slot) return;
+      if (!confirm("Make a new password for this account?\n\nTheir current password stops working straight away and they'll be signed out. You'll see the new one once — write it down before closing.")) return;
+      const myPassword = prompt('Confirm your own password to continue:');
+      if (!myPassword) return;
+      slot.innerHTML = '<span style="color:var(--text-faint);">Working…</span>';
+      const { ok, data } = await C4K.api('/api/admin/generate-password', 'POST', { userId: id, myPassword });
+      if (!ok) {
+        slot.innerHTML = `<span style="color:#f87171;font-weight:700;">${C4K.esc((data && data.error) || 'Could not do that.')}</span>
+          <div style="margin-top:6px;"><button class="mini-btn" onclick="makePassword(${id})">Try again</button></div>`;
+        return;
+      }
+      slot.innerHTML = `
+        <div style="background:rgba(90,209,126,.12);border:1px solid rgba(90,209,126,.45);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--text-dim);">New password for @${C4K.esc(data.username)}</div>
+          <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1.35rem;font-weight:900;letter-spacing:.5px;margin:6px 0;user-select:all;">${C4K.esc(data.password)}</div>
+          <button class="mini-btn" onclick="navigator.clipboard.writeText('${C4K.esc(data.password)}').then(()=>{this.textContent='✅ Copied';})">📋 Copy</button>
+          <div style="color:#f59e0b;font-weight:700;font-size:0.78rem;margin-top:8px;">Write this down now — it can't be shown again.</div>
+        </div>`;
+    }
 
     function closeProfile() { document.getElementById('profileModal')?.classList.add('hidden'); }
     document.getElementById('profileModal')?.addEventListener('click', (e) => {
