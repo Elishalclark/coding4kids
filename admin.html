@@ -269,8 +269,17 @@
           Sent to you automatically every morning: signups, who coded, and anything that needs you.
           Press this to get today's now.
         </p>
-        <button class="btn btn-primary" id="digestNowBtn" onclick="sendDailyDigestNow()">📧 Email me today's digest</button>
-        <span id="digestNowMsg" style="margin-left:10px;font-weight:800;font-size:0.86rem;"></span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="digestTo" class="le-in" type="email" placeholder="Send to (blank = the usual address)"
+            style="min-width:250px;flex:1;max-width:340px;" />
+          <button class="btn btn-primary" id="digestNowBtn" onclick="sendDailyDigestNow()">📧 Send it now</button>
+        </div>
+        <div id="digestNowMsg" style="margin-top:10px;font-weight:800;font-size:0.86rem;"></div>
+        <p style="color:var(--text-faint);font-size:0.78rem;margin:8px 0 0;">
+          Leave it blank and it goes where the daily one goes. Put your own address in to test delivery
+          directly — useful because support@kidvibers.com is a forwarding address, not a real mailbox,
+          and mail sent from that address to itself can be dropped rather than delivered.
+        </p>
       </div>
 
       <div class="panel" id="onlineNowPanel">
