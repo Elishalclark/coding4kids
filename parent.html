@@ -288,6 +288,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </div>
     </div>
 
+    <!-- Kids who used the class code on the home page and are waiting to be let in. Hidden
+         entirely when there are none, so it isn't a permanently empty box on the dashboard. -->
+    <div id="classReqCard" style="display:none;background:var(--surface);border:1px solid rgba(245,158,11,.5);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
+      <h2 style="font-size:1.2rem;font-weight:900;margin:0 0 4px;">🙋 Waiting to join your class <span id="classReqCount" style="color:#f59e0b;"></span></h2>
+      <p style="color:var(--text-dim);font-size:0.87rem;margin:0 0 14px;">
+        They used your class code. Give each one a password and tell it to them — they can't log in until you do.
+      </p>
+      <div id="classReqRows"></div>
+    </div>
+
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
       <h2 id="kidsHeading" style="font-size:1.2rem;font-weight:900;margin:0;">Your Kids</h2>
       <span id="reportTool" style="display:none;margin-left:auto;">
@@ -515,6 +525,47 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       for (let u = 1; u <= 25; u++) sel.innerHTML += `<option value="${u}">${WORLD_NAMES[u] || 'World ' + u}</option>`;
       loadAssignments();
     }
+    // ── Kids waiting to join via the class code ──
+    async function loadClassRequests() {
+      const card = document.getElementById('classReqCard'), rows = document.getElementById('classReqRows');
+      if (!card || !rows) return;
+      const { ok, data } = await C4K.api('/api/class/requests');
+      const list = (ok && data.requests) || [];
+      if (!list.length) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      document.getElementById('classReqCount').textContent = `(${list.length})`;
+      rows.innerHTML = list.map(r => `
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--border);">
+          <div style="flex:1;min-width:150px;">
+            <strong>${C4K.esc(r.name)}</strong>
+            <div style="color:var(--text-dim);font-size:0.8rem;">wants the username <strong>${C4K.esc(r.username)}</strong> · asked ${C4K.esc(r.asked)}</div>
+          </div>
+          <input id="cr${r.id}" type="text" placeholder="Password for them (6+)" autocomplete="off"
+            style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-weight:700;min-width:170px;" />
+          <button class="btn btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="decideClassReq(${r.id}, true)">✅ Approve</button>
+          <button class="btn btn-outline" style="font-size:0.82rem;padding:8px 14px;" onclick="decideClassReq(${r.id}, false)">Decline</button>
+        </div>`).join('');
+    }
+    async function decideClassReq(id, approve) {
+      const box = document.getElementById('cr' + id);
+      const password = box ? box.value : '';
+      if (approve && password.trim().length < 6) { alert('Give them a password of at least 6 characters, then press Approve.'); box?.focus(); return; }
+      if (!approve && !confirm('Decline this request? They will not get an account.')) return;
+      const { ok, data } = await C4K.api('/api/class/requests/decide', 'POST', { id, approve, password });
+      if (!ok) { alert(data.error || 'Could not do that.'); return; }
+      if (approve) {
+        // The teacher has to be able to tell the child what to type, and this is the only
+        // moment the password is readable — it's hashed the instant it's stored.
+        alert(`✅ ${data.name} is in.\n\nTell them:\n  Username: ${data.username}\n  Password: ${password}`);
+        // The roster is rendered inline during page init, not by a function we can call again,
+        // so a reload is what actually shows the new student in Your Kids. The alert above is
+        // modal, so it has already been read and dismissed by the time this runs.
+        location.reload();
+        return;
+      }
+      loadClassRequests();
+    }
+
     async function loadAssignments() {
       const isTeacher = ME_ROLE === 'teacher';
       // Teachers get completion counts; kids just get the list.
@@ -741,6 +792,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       // Session-hosting "What's New" items are only relevant to teachers (parents can't host a
       // Live Session) — the general/kid items already cover the homepage for a plain parent.
       if (isTeacher && !me.isPreview) openWhatsNew();
+      if (isTeacher) loadClassRequests();
       // Relabel the page for teachers (classroom) vs parents (family)
       document.querySelector('.pd-head h1').textContent = isTeacher ? '🍎 Classroom Dashboard' : '👨‍👩‍👧 Family Dashboard';
       const paidFamily = me.plan === 'family';

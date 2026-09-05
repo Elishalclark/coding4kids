@@ -480,6 +480,42 @@ function pickSignup(kind) {
   if (kind === 'teacher') { openTeacherSignup(); return; }
 }
 
+// ── Join a class with a code (no account yet) ──
+// Sends a request for the teacher to approve. Nothing here creates a login — the child never
+// picks a password, so a pending request can't be used to get in.
+function openClassJoin() {
+  document.getElementById('classJoinModal').classList.remove('hidden');
+  document.getElementById('cjMsg').textContent = '';
+  ['cjCode', 'cjName', 'cjUser'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  document.getElementById('cjCode').focus();
+}
+function closeClassJoin() { document.getElementById('classJoinModal')?.classList.add('hidden'); }
+document.getElementById('classJoinModal')?.addEventListener('click', e => {
+  if (e.target.id === 'classJoinModal') closeClassJoin();
+});
+async function submitClassJoin() {
+  const msg = document.getElementById('cjMsg'), go = document.getElementById('cjGo');
+  const classCode = document.getElementById('cjCode').value.trim().toUpperCase();
+  const name = document.getElementById('cjName').value.trim();
+  const username = document.getElementById('cjUser').value.trim();
+  msg.style.color = '#f87171';
+  if (!classCode) { msg.textContent = 'Enter the code your teacher gave you.'; return; }
+  if (!name) { msg.textContent = 'Enter your first name.'; return; }
+  if (username.length < 3) { msg.textContent = 'Pick a username with at least 3 characters.'; return; }
+  go.disabled = true;
+  const { ok, data } = await C4K.api('/api/class/request', 'POST', { classCode, name, username });
+  go.disabled = false;
+  if (!ok) { msg.textContent = data.error || 'Could not send that.'; return; }
+  document.getElementById('cjForm').innerHTML =
+    '<div style="text-align:center;padding:10px 0;">' +
+      '<div style="font-size:2.4rem;">🎉</div>' +
+      '<p style="font-weight:900;font-size:1.05rem;margin:8px 0 6px;">Sent to ' + C4K.esc(data.teacherName || 'your teacher') + '!</p>' +
+      '<p style="color:var(--text-dim);font-size:0.9rem;">They\'ll approve you and give you your password. ' +
+        'Come back and log in with <strong>' + C4K.esc(username) + '</strong> once they have.</p>' +
+      '<button class="btn btn-primary btn-lg" style="width:100%;margin-top:14px;" onclick="closeClassJoin()">Got it</button>' +
+    '</div>';
+}
+
 async function openParentSignup(linkToken) {
   parentLinkToken = (typeof linkToken === 'string') ? linkToken : null;
   document.getElementById('parentModal').classList.remove('hidden');

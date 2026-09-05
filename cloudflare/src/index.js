@@ -1860,6 +1860,105 @@ async function apiClassJoin(env, request, data) {
   return json({ ok: true, user: await publicUser(env, row), groupName: grp.groupName || (teacher.school || "the classroom"), groupLabel: grp.groupLabel || "Classroom" });
 }
 
+// ───────────────────── join a classroom with a code, before having an account ─────────────────────
+//
+// A kid types the teacher's code on the home page with a name and a username they'd like. That
+// creates a REQUEST, not an account — no password is chosen by the child and none is set until
+// the teacher approves and picks one. Nothing about the request can log in.
+//
+// This is deliberately the only signup path that collects no email and no age from the child:
+// under COPPA a school may consent on a parent's behalf for classroom use, and the teacher
+// pressing Approve is that consent, recorded as consent_method='class_code' like the existing
+// class-join flow. A pending row gives a child nothing, so an unapproved request is harmless.
+
+async function apiClassRequest(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  // Tight, because this endpoint takes no credentials at all.
+  if (await rateLimited(env, `classreq:${ip}`, 8, 3600))
+    return json({ error: "Too many tries from here. Please wait a bit and try again." }, 429);
+  if (!(await authEnabled(env, "signups"))) return json({ error: "Sign-ups are temporarily paused. Please check back soon." }, 403);
+
+  const code = (data.classCode || "").trim().toUpperCase();
+  const name = cleanName((data.name || "").trim()).slice(0, 40);
+  const username = (data.username || "").trim();
+  if (!code) return json({ error: "Enter the class code your teacher gave you." }, 400);
+  if (!name) return json({ error: "Enter your first name." }, 400);
+  if (!USERNAME_RE.test(username)) return json({ error: "Username must be 3-20 letters, numbers or underscores." }, 400);
+
+  const teacher = await env.DB.prepare("SELECT * FROM users WHERE role='teacher' AND class_code=?").bind(code).first();
+  if (!teacher) return json({ error: "That class code wasn't found. Double-check it with your teacher." }, 404);
+
+  // Taken names are caught here so the child can pick another one straight away, rather than
+  // the teacher discovering the clash later and having to go back to them.
+  const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(username).first();
+  if (taken) return json({ error: "That username is taken — try another one." }, 409);
+  const dup = await env.DB.prepare("SELECT 1 FROM class_requests WHERE username=? AND status='pending'").bind(username).first();
+  if (dup) return json({ error: "Someone already asked for that username — try another one." }, 409);
+
+  await env.DB.prepare(
+    "INSERT INTO class_requests (teacher_id,class_code,name,username,status,created_at) VALUES (?,?,?,?,'pending',?)"
+  ).bind(teacher.id, code, name, username, nowIso()).run();
+
+  if (teacher.parent_email) {
+    await sendEmail(env, teacher.parent_email, `${name} wants to join your KidVibers classroom`,
+      `<p><strong>${escHtml(name)}</strong> asked to join your classroom using code <strong>${escHtml(code)}</strong>, with the username <strong>${escHtml(username)}</strong>.</p>
+       <p>Open your <a href="${siteUrl(env, request)}/parent.html">Classroom Dashboard</a> to approve them and set their password. They can't sign in until you do.</p>`);
+  }
+  return json({ ok: true, teacherName: teacher.school || teacher.name || "your teacher" });
+}
+
+// What the teacher sees waiting for them.
+async function apiClassRequests(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Teachers only." }, 403);
+  const rows = (await env.DB.prepare(
+    "SELECT id,name,username,class_code,created_at FROM class_requests WHERE teacher_id=? AND status='pending' ORDER BY id"
+  ).bind(u.id).all()).results || [];
+  return json({ requests: rows.map(r => ({
+    id: r.id, name: r.name, username: r.username, code: r.class_code,
+    asked: (r.created_at || "").slice(0, 10),
+  })) });
+}
+
+// Approve (creating the account with a teacher-chosen password) or decline.
+async function apiClassRequestDecide(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Teachers only." }, 403);
+  const row = await env.DB.prepare("SELECT * FROM class_requests WHERE id=? AND teacher_id=? AND status='pending'")
+    .bind(data.id, u.id).first();
+  if (!row) return json({ error: "That request isn't waiting any more." }, 404);
+
+  if (!data.approve) {
+    await env.DB.prepare("DELETE FROM class_requests WHERE id=?").bind(row.id).run();
+    return json({ ok: true, declined: true });
+  }
+
+  const password = (data.password || "").toString();
+  if (password.length < 6) return json({ error: "Give them a password of at least 6 characters." }, 400);
+
+  // Re-check capacity and the username now, not at request time: both can change while a
+  // request sits waiting, and approving into a full class or onto a taken name would fail
+  // half-way through and leave the request in an unclear state.
+  const cfg = teacherPlanCfg(u.plan);
+  const used = (await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE role='kid' AND family_id=?").bind(u.family_id).first()).c;
+  if (cfg.students !== -1 && used >= cfg.students) return json({ error: "Your classroom is full." }, 403);
+  const taken = await env.DB.prepare("SELECT 1 FROM users WHERE username=?").bind(row.username).first();
+  if (taken) return json({ error: `The username "${row.username}" was taken while this was waiting. Decline it and ask them to try another.` }, 409);
+
+  const grantedBy = `${u.school || u.username} (code ${row.class_code})`;
+  const r = await createUser(env, {
+    role: "kid", name: row.name, username: row.username, password,
+    email: u.parent_email || "", age: "", plan: "family", trial_ends: null,
+    consent_status: "granted", consent_method: "class_code", consent_by: grantedBy,
+  });
+  if (r.error) return json({ error: r.error }, r.status || 400);
+  await env.DB.prepare("UPDATE users SET family_id=?, consent_at=? WHERE id=?").bind(u.family_id, nowIso(), r.uid).run();
+  await env.DB.prepare("DELETE FROM class_requests WHERE id=?").bind(row.id).run();
+  await logConsent(env, r.uid, row.username, "class_request_approved", grantedBy,
+    `Teacher approved a join request from code ${row.class_code} and set the first password.`);
+  return json({ ok: true, username: row.username, name: row.name });
+}
+
 // ───────────────────────── private projects (Vibe Studio) ─────────────────────────
 // Projects are private to the child's own account. There is no public gallery,
 // sharing, likes, or comments feature — kids only save their own work.
@@ -5663,6 +5762,16 @@ const SCHEMA_DDL = [
      contact_email TEXT, website TEXT, status TEXT NOT NULL DEFAULT 'new', notes TEXT,
      last_contacted_at TEXT, follow_up_at TEXT, created_by TEXT, created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_outreach_status ON outreach (status, follow_up_at)`,
+  // A kid asking to join a classroom from the home page, before any account exists. Holds only
+  // a display name and a wanted username — no password, no email, no age. Nothing here is an
+  // account until a teacher approves it, and the row is deleted either way once they decide.
+  `CREATE TABLE IF NOT EXISTS class_requests (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     teacher_id INTEGER NOT NULL, class_code TEXT NOT NULL,
+     name TEXT NOT NULL, username TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_class_requests ON class_requests (teacher_id, status)`,
   `CREATE TABLE IF NOT EXISTS push_subs (
      endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, user_id INTEGER)`,
 ];
@@ -5965,6 +6074,9 @@ async function handleApi(env, request, path) {
   if (path === "/api/ai" && method === "POST") return apiAi(env, request, data);
   if (path === "/api/request-upgrade" && method === "POST") return apiRequestUpgrade(env, request);
   if (path === "/api/class/join" && method === "POST") return apiClassJoin(env, request, data);
+  if (path === "/api/class/request" && method === "POST") return apiClassRequest(env, request, data);
+  if (path === "/api/class/requests" && method === "GET") return apiClassRequests(env, request);
+  if (path === "/api/class/requests/decide" && method === "POST") return apiClassRequestDecide(env, request, data);
 
   // gallery / projects / comments
   if (path === "/api/projects/save" && method === "POST") return apiProjectSave(env, request, data);
