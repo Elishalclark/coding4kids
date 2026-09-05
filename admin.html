@@ -261,6 +261,18 @@
 
       <!-- Kid search (SUPER ADMIN ONLY) — pinned at the very top since it's the fastest way to
            jump straight to one specific account instead of scrolling the whole dashboard. -->
+      <!-- The same email the daily cron sends, on demand — how you check it still works
+           without waiting for tomorrow morning. -->
+      <div class="panel super-only" id="dailyDigestPanel" style="display:none;">
+        <h3>☀️ Daily digest email</h3>
+        <p style="color:var(--text-dim);font-size:0.87rem;margin:-6px 0 12px;">
+          Sent to you automatically every morning: signups, who coded, and anything that needs you.
+          Press this to get today's now.
+        </p>
+        <button class="btn btn-primary" id="digestNowBtn" onclick="sendDailyDigestNow()">📧 Email me today's digest</button>
+        <span id="digestNowMsg" style="margin-left:10px;font-weight:800;font-size:0.86rem;"></span>
+      </div>
+
       <div class="panel" id="onlineNowPanel">
         <h3>🟢 Online Right Now <span style="font-size:0.7rem;color:var(--text-faint);font-weight:700;">active in the last 5 minutes, any role</span></h3>
         <div id="onlineNowBody" style="color:var(--text-dim);font-size:0.85rem;">Loading…</div>

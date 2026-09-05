@@ -5946,6 +5946,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/shop" && method === "GET") return apiShop(env, request);
   if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
   if (path === "/api/parent/digest-now" && method === "POST") return apiSendDigestNow(env, request);
+  if (path === "/api/admin/daily-digest-now" && method === "POST") return adminDailyDigestNow(env, request);
   if (path === "/api/teacher/progress" && method === "GET") return apiTeacherProgress(env, request);
   if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
   if (path.startsWith("/api/parent/kid-data/") && method === "GET") {
@@ -6682,6 +6683,20 @@ async function runDailyOwnerDigest(env) {
         .bind("cron:daily-digest", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run();
     } catch {}
   }
+}
+
+// "Send me today's digest now" — the same email the cron sends, on demand.
+//
+// Useful beyond impatience: it's how you check the digest still works without waiting a day,
+// and how you get today's numbers before the morning send. Rate-limited because it's an email
+// send behind a button.
+async function adminDailyDigestNow(env, request) {
+  const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
+  if (await rateLimited(env, `ownerdigest:${u.id}`, 6, 3600))
+    return json({ error: "You can send this a few times an hour — try again shortly." }, 429);
+  if (!env.RESEND_API_KEY) return json({ error: "Email isn't configured (RESEND_API_KEY is not set), so nothing can be sent." }, 503);
+  await runDailyOwnerDigest(env);
+  return json({ ok: true, sentTo: env.ADMIN_EMAIL || "support@kidvibers.com" });
 }
 
 async function runDailySafetyDigest(env) {
