@@ -144,7 +144,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <p class="hero-sub" data-i18n="heroSub">Short, fun lessons. Real projects. Epic rewards. No boring textbooks - just a coding adventure made for kids ages 6-16.</p>
       <div class="hero-btns">
         <a href="#" class="btn btn-primary btn-lg" onclick="openLogin('signup');return false;" data-i18n="heroCta">Start for Free 🚀</a>
-        <a href="#" class="btn btn-outline btn-lg" onclick="seeDemo(this);return false;" data-i18n="heroDemo">🎬 See a Live Demo</a>
+        <a href="#" class="btn btn-outline btn-lg" onclick="openDemoPicker();return false;" data-i18n="heroDemo">🎬 Demo</a>
       </div>
       <div style="margin-top:14px;">
         <a href="#" onclick="openJoinSession();return false;" data-i18n="heroJoin"
@@ -895,6 +895,31 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div id="parentError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
         <button type="submit" class="btn btn-primary btn-lg">Create Family Account 👨‍👩‍👧</button>
       </form>
+    </div>
+  </div>
+
+  <!-- DEMO ROLE PICKER — the admin roles are deliberately absent, and the server enforces
+       that too (DEMO_ROLES); these buttons are presentation, not the access decision. -->
+  <div class="modal-overlay hidden" id="demoModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🎬</span>
+        <div style="flex:1;"><div class="chat-name">Try a demo</div><div class="chat-status">Pick who you want to be</div></div>
+        <button class="modal-close" onclick="closeDemoPicker()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;">
+        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:14px;">
+          Look around with sample data — no sign-up, nothing saved, and no real accounts touched.
+        </p>
+        <div style="display:grid;gap:10px;" id="demoRoleBtns">
+          <button class="btn btn-primary btn-lg" onclick="startRoleDemo('kid', this)">🧒 A kid — lessons, worlds &amp; Byte</button>
+          <button class="btn btn-outline btn-lg" onclick="startRoleDemo('parent', this)">👨‍👩‍👧 A parent — the family dashboard</button>
+          <button class="btn btn-outline btn-lg" onclick="startRoleDemo('teacher', this)">🍎 A teacher — one classroom</button>
+          <button class="btn btn-outline btn-lg" onclick="startRoleDemo('school', this)">🏫 A school — many classrooms</button>
+          <button class="btn btn-outline btn-lg" onclick="startRoleDemo('district', this)">🏛️ A district — many schools</button>
+        </div>
+        <p id="demoMsg" style="margin-top:12px;font-weight:800;font-size:0.86rem;min-height:1em;"></p>
+      </div>
     </div>
   </div>
 
