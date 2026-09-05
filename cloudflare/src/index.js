@@ -6603,6 +6603,87 @@ async function runAnnualSafetyReminder(env) {
 
 // A daily rollup of the day's safety-relevant activity, so nothing needs to be pieced together
 // from individual alert emails — one summary a day.
+// A plain-English "how did yesterday go" email to the owner, every morning.
+//
+// Sent by the site itself rather than by an external monitor, because only the site can see
+// the numbers that actually matter — who signed up, who's waiting on a teacher, who's owed a
+// follow-up. It reuses the Resend setup that already sends consent and password mail, so
+// there's no second service to configure and no API key living anywhere new.
+//
+// Written to be skimmable in ten seconds on a phone. Every number is counted from the
+// database at send time; nothing here is estimated or carried over from a previous run.
+async function runDailyOwnerDigest(env) {
+  try {
+    const since = new Date(Date.now() - 86400000).toISOString().replace(/\.\d+Z$/, "Z");
+    const one = async (sql, ...b) => ((await env.DB.prepare(sql).bind(...b).first()) || {}).c || 0;
+
+    const [newKids, newGrownups, activeKids, lessonsDone, pendingClass, pendingConsent, totalKids, followUpsDue, errors] =
+      await Promise.all([
+        one("SELECT COUNT(*) c FROM users WHERE role='kid' AND created_at >= ?", since),
+        one("SELECT COUNT(*) c FROM users WHERE role IN ('parent','teacher') AND created_at >= ?", since),
+        one("SELECT COUNT(*) c FROM users WHERE role='kid' AND last_seen_at >= ?", since),
+        one("SELECT COUNT(*) c FROM progress WHERE completed_at >= ?", since).catch(() => 0),
+        one("SELECT COUNT(*) c FROM class_requests WHERE status='pending'").catch(() => 0),
+        one("SELECT COUNT(*) c FROM users WHERE role='kid' AND consent_status='pending'"),
+        one("SELECT COUNT(*) c FROM users WHERE role='kid'"),
+        one("SELECT COUNT(*) c FROM outreach WHERE follow_up_at IS NOT NULL AND follow_up_at <= ? AND status NOT IN ('partnered','declined')",
+            new Date().toISOString().slice(0, 10)).catch(() => 0),
+        one("SELECT COUNT(*) c FROM error_log WHERE created_at >= ?", since).catch(() => 0),
+      ]);
+
+    // The headline is whichever fact he'd most want to know first — a real signup beats
+    // everything, and "nothing happened" is said plainly rather than dressed up.
+    const headline = newKids > 0
+      ? `🎉 ${newKids} new ${newKids === 1 ? "kid" : "kids"} signed up yesterday!`
+      : newGrownups > 0
+        ? `👋 ${newGrownups} new ${newGrownups === 1 ? "grown-up" : "grown-ups"} signed up yesterday.`
+        : "No new signups yesterday.";
+
+    // Only things that genuinely need him. An empty list is the good outcome, and saying so
+    // beats padding the email with items that don't need action.
+    const todo = [];
+    if (pendingClass) todo.push(`${pendingClass} kid${pendingClass === 1 ? "" : "s"} waiting for a teacher to approve them (Classroom Dashboard)`);
+    if (pendingConsent) todo.push(`${pendingConsent} account${pendingConsent === 1 ? "" : "s"} still waiting on a parent to approve — they can't use the site yet`);
+    if (followUpsDue) todo.push(`${followUpsDue} outreach follow-up${followUpsDue === 1 ? "" : "s"} due (Admin → Outreach)`);
+    if (errors) todo.push(`${errors} error${errors === 1 ? "" : "s"} logged in the last 24h (Admin → Security)`);
+
+    const row = (label, value) =>
+      `<tr><td style="padding:6px 0;color:#555;">${label}</td><td style="padding:6px 0;text-align:right;font-weight:800;font-size:1.05rem;">${value}</td></tr>`;
+
+    const html = `
+      <p style="font-size:1.1rem;font-weight:800;margin:0 0 14px;">${escHtml(headline)}</p>
+      <table width="100%" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:0.95rem;">
+        ${row("New kids", newKids)}
+        ${row("New parents / teachers", newGrownups)}
+        ${row("Kids who coded yesterday", activeKids)}
+        ${row("Lessons finished", lessonsDone)}
+        ${row("Kids on KidVibers in total", totalKids)}
+      </table>
+      ${todo.length
+        ? `<p style="font-weight:800;margin:18px 0 6px;">Needs you:</p><ul style="margin:0;padding-left:20px;color:#444;">${todo.map(t => `<li style="margin-bottom:4px;">${escHtml(t)}</li>`).join("")}</ul>`
+        : `<p style="margin:18px 0 0;color:#16a34a;font-weight:800;">Nothing needs you today. ✅</p>`}
+      <p style="margin-top:20px;color:#777;font-size:0.85rem;">
+        Counted from the live database this morning. If a number looks wrong, it's the number — not a guess.
+      </p>`;
+
+    // Sent directly rather than through notifyAdmin, which wraps plain text and would strip
+    // the table. Same address it uses: ADMIN_EMAIL, falling back to support@.
+    await sendEmail(env, env.ADMIN_EMAIL || "support@kidvibers.com",
+      `☀️ KidVibers daily — ${headline}`,
+      `<div style="font-family:Arial,sans-serif;max-width:520px;color:#222;line-height:1.6;">
+         <div style="background:#7c3aed;color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;font-weight:800;">☀️ Good morning — KidVibers</div>
+         <div style="border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:18px 20px;">${html}</div>
+       </div>`,
+      "KidVibers <support@kidvibers.com>");
+  } catch (e) {
+    // A broken digest must never take the rest of the daily cron down with it.
+    try {
+      await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
+        .bind("cron:daily-digest", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run();
+    } catch {}
+  }
+}
+
 async function runDailySafetyDigest(env) {
   const since = new Date(Date.now() - 24 * 3600000).toISOString();
   const openIncidents = (await env.DB.prepare("SELECT COUNT(*) c FROM notices WHERE kind='safety' AND resolved=0").first()).c || 0;
@@ -6912,6 +6993,7 @@ export default {
     const now = new Date();
     // Run weekly digest on Mondays (day 1), re-engagement every day.
     if (now.getUTCDay() === 1) { ctx.waitUntil(runWeeklyDigest(env)); ctx.waitUntil(runWeeklyExecSummary(env)); ctx.waitUntil(runWeeklyMrrSnapshot(env)); }
+    ctx.waitUntil(runDailyOwnerDigest(env));
     ctx.waitUntil(runReengagement(env));
     ctx.waitUntil(runSafetyEscalation(env));
     ctx.waitUntil(runStaleSessionLock(env));
