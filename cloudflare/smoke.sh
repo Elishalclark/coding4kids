@@ -68,6 +68,26 @@ check "POST /api/admin/breach-notice"     403 "$(code_post /api/admin/breach-not
 check "GET /api/incident-log"             403 "$(code_get /api/incident-log)"
 check "GET /api/my-logins"                401 "$(code_get /api/my-logins)"
 
+# ── The public demo must never hand out an admin role ──
+# The picker on the home page only draws non-admin buttons, but that's presentation. This
+# checks the SERVER refuses, which is the thing that actually protects the admin panel.
+# Deliberately only tests the rejection: a successful demo would write a preview_sessions row,
+# and a scheduled job shouldn't leave rows behind every time it runs.
+# Two requests per run against a 20/hour limit, so a 6-hourly schedule plus deploys stays well
+# clear of it. What matters is that the role is never ACCEPTED — a 200 here would mean anyone
+# can reach the admin panel — and neither 400 nor 429 is a 200.
+#
+# Careful adding checks against heavily rate-limited routes: $CURL uses --retry-all-errors,
+# which retries a 429 and then prints NOTHING, so the check fails with an empty status rather
+# than a useful one. /api/class/request (8/hour) is left out for exactly that reason — it would
+# be flaky by construction, and a check that cries wolf is worse than no check. The anonymous
+# 403 below covers the security-relevant half of that feature and creates nothing.
+checkAny "POST /api/demo/role (admin refused)"       "$(code_post /api/demo/role '{"role":"admin"}')" 400 429
+checkAny "POST /api/demo/role (super_admin refused)" "$(code_post /api/demo/role '{"role":"super_admin"}')" 400 429
+
+# ── Class join requests: the teacher-only list must reject anonymous callers ──
+check "GET /api/class/requests (anonymous)" 403 "$(code_get /api/class/requests)"
+
 # ── Baseline security headers present on every response ──
 HEADERS=$(curl -s -D - -o /dev/null --max-time 15 "$BASE/")
 check "X-Frame-Options header present"      1 "$(echo "$HEADERS" | grep -ic 'X-Frame-Options')"
