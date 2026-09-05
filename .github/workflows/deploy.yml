@@ -79,3 +79,17 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: cloudflare
           command: deploy
+
+      # A green deploy only means Cloudflare accepted the upload — it says nothing about
+      # whether the site still works. These checks hit the live site read-only and fail the
+      # run loudly if a page 404s, an auth gate stops rejecting anonymous requests, quiz
+      # answers leak into the public payload, or a security header goes missing.
+      #
+      # It runs after the deploy rather than before because there is nothing to test until
+      # the new code is actually serving. A failure here means the deploy that just happened
+      # broke something, which is exactly the moment you want to know.
+      - name: Smoke test the live site
+        run: |
+          echo "Waiting a few seconds for the new version to be serving…"
+          sleep 15
+          bash cloudflare/smoke.sh https://kidvibers.com

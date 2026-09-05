@@ -1,0 +1,30 @@
+name: Smoke tests (scheduled)
+
+# Checks the LIVE site is healthy, on a timer rather than only when something is deployed.
+#
+# A deploy-time check only catches breakage that a deploy caused. Plenty of ways the site can
+# go down have nothing to do with pushing code — an expired certificate, a Cloudflare or D1
+# incident, a DNS change, a Worker hitting a limit, a secret being rotated or revoked. Without
+# this the first report would be a parent emailing to say the site is broken.
+#
+# Every check is read-only: no accounts created, nothing written, no rows left behind. That's
+# what makes it safe to point at production on a schedule.
+#
+# When a run fails, GitHub emails the repository owner. Nothing else to configure.
+
+on:
+  schedule:
+    # Every 6 hours. Frequent enough that an outage is caught the same day, rare enough that
+    # it isn't hammering the site or the free Actions minutes.
+    - cron: '0 */6 * * *'
+  workflow_dispatch: {}      # "Run workflow" button in the Actions tab, for checking on demand
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests against kidvibers.com
+        run: bash cloudflare/smoke.sh https://kidvibers.com
