@@ -152,6 +152,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           🎟️ At a library or class? Join a session with a code →
         </a>
       </div>
+      <!-- Separate from the drop-in session link above: that one is a one-off room you leave
+           when it ends, this one asks a teacher for a real account that keeps your progress. -->
+      <div style="margin-top:10px;">
+        <a href="#" onclick="openClassJoin();return false;"
+           style="display:inline-flex;align-items:center;gap:8px;background:rgba(124,58,237,0.18);border:1px solid rgba(167,139,250,0.5);color:#c4b5fd;font-weight:800;font-size:0.9rem;padding:10px 18px;border-radius:50px;text-decoration:none;">
+          🎓 Got a class code from your teacher? Join their class →
+        </a>
+      </div>
       <div class="hero-stats">
         <div class="stat"><span class="stat-num">293</span><span class="stat-label" data-i18n="statLessons">Fun Lessons</span></div>
         <div class="stat-divider"></div>
@@ -887,6 +895,34 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div id="parentError" style="color:#f87171;font-weight:700;font-size:0.88rem;min-height:18px;"></div>
         <button type="submit" class="btn btn-primary btn-lg">Create Family Account 👨‍👩‍👧</button>
       </form>
+    </div>
+  </div>
+
+  <!-- JOIN A CLASS WITH A CODE — asks the teacher for an account, doesn't create one -->
+  <div class="modal-overlay hidden" id="classJoinModal">
+    <div class="modal">
+      <div class="chat-header">
+        <span class="chat-avatar">🎓</span>
+        <div style="flex:1;"><div class="chat-name">Join your class</div><div class="chat-status">Your teacher approves it</div></div>
+        <button class="modal-close" onclick="closeClassJoin()">✕</button>
+      </div>
+      <div style="padding:18px 24px 24px;" id="cjForm">
+        <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:14px;">
+          Enter the code your teacher gave you and pick a username. Your teacher will approve you
+          and give you a password — <strong>you don't make one here</strong>.
+        </p>
+        <input id="cjCode" class="form-input" placeholder="Class code (like ABC123)" autocomplete="off"
+          style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--text);border-color:var(--border);margin-bottom:10px;text-transform:uppercase;letter-spacing:2px;font-weight:900;" />
+        <input id="cjName" class="form-input" placeholder="Your first name" autocomplete="given-name"
+          style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--text);border-color:var(--border);margin-bottom:10px;" />
+        <input id="cjUser" class="form-input" placeholder="Pick a username (3-20 letters/numbers)" autocomplete="off"
+          style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--text);border-color:var(--border);margin-bottom:14px;" />
+        <button class="btn btn-primary btn-lg" style="width:100%;" id="cjGo" onclick="submitClassJoin()">Ask to join 🎓</button>
+        <p id="cjMsg" style="margin-top:10px;font-weight:800;font-size:0.86rem;min-height:1em;"></p>
+        <p class="signup-fine" style="color:var(--text-faint);font-size:0.76rem;margin-top:6px;">
+          We don't ask for your email or your age here — your teacher is the one who says yes.
+        </p>
+      </div>
     </div>
   </div>
 
