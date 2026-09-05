@@ -5006,6 +5006,31 @@ async function apiAdminPreview(env, request, data) {
   return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt });
 }
 
+// Public "try a demo as…" from the home page. Same synthetic-user machinery as the admin
+// role preview, with two differences that matter: no login is required, and the admin roles
+// are not in the list.
+//
+// The role whitelist lives here on the server, not in the page's buttons. A visitor editing
+// the request to ask for "admin" gets a 400 — the front end choosing which buttons to draw
+// is presentation, never the access decision.
+const DEMO_ROLES = ["kid", "parent", "teacher", "school", "district"];
+
+async function apiDemoRole(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `demorole:${ip}`, 20, 3600))
+    return json({ error: "That's a lot of demos! Give it a minute and try again." }, 429);
+  const role = (data.role || "").trim().toLowerCase();
+  if (!DEMO_ROLES.includes(role)) return json({ error: "Pick one of: " + DEMO_ROLES.join(", ") }, 400);
+  await env.DB.prepare("DELETE FROM preview_sessions WHERE expires_at < ?").bind(nowIso()).run();
+  const token = randToken(32);
+  // Shorter than the admin preview's two hours: this is a look around, not a work session,
+  // and every issued token is a row somebody anonymous caused us to write.
+  const expiresAt = new Date(Date.now() + 45 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  await env.DB.prepare("INSERT INTO preview_sessions (token, role, expires_at) VALUES (?,?,?)").bind(token, role, expiresAt).run();
+  const redirects = { kid: "dashboard.html", parent: "parent.html", teacher: "parent.html", school: "district.html", district: "district.html" };
+  return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt });
+}
+
 async function adminImpersonate(env, request, data) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   const target = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(data.userId).first();
@@ -5801,6 +5826,10 @@ function ensureSchema(env) {
   return schemaReady;
 }
 
+// POSTs a preview session may still make: ending the demo, and starting another one. Nothing
+// here writes anything belonging to a real account.
+const PREVIEW_WRITE_ALLOWED = new Set(["/api/logout", "/api/demo/role"]);
+
 async function handleApi(env, request, path) {
   // Cached per isolate — one batch on a cold start, nothing after that.
   await ensureSchema(env);
@@ -5808,11 +5837,31 @@ async function handleApi(env, request, path) {
   let data = {};
   if (method === "POST") { try { data = await request.json(); } catch { data = {}; } }
 
+  // ── Preview sessions are read-only, enforced here rather than per endpoint ──
+  //
+  // A preview session is a synthetic user (mockUserForRole, id 0) with no real account behind
+  // it. Individual handlers grew `if (u.isPreview)` guards over time, but only about a dozen
+  // of them, and the gaps were real: a preview teacher could create actual kid accounts and
+  // save actual projects. That was survivable while previewing was admin-only; it is not
+  // survivable now the home page hands these sessions to anonymous visitors, who would
+  // otherwise be able to fill the database with junk.
+  //
+  // One gate on the way in beats auditing every handler and re-auditing every new one. The
+  // existing per-endpoint guards still stand — they return nicer, more specific fake data —
+  // and this only catches whatever they miss.
+  if (method !== "GET" && !PREVIEW_WRITE_ALLOWED.has(path)) {
+    const pu = await userFromToken(env, bearer(request));
+    if (pu && pu.isPreview) {
+      return json({ error: "This is a demo, so nothing here is saved. Create a free account to do this for real.", demo: true }, 403);
+    }
+  }
+
   // public GETs
   if (path === "/api/launch-slots" && method === "GET") return apiLaunchSlots(env);
   if (path === "/api/site-config" && method === "GET")
     return json({ signupsEnabled: await authEnabled(env, "signups"), loginsEnabled: await authEnabled(env, "logins"), stripeEnabled: !!env.STRIPE_SECRET_KEY, vapidPublicKey: env.VAPID_PUBLIC_KEY || null });
   if (path === "/api/status" && method === "GET") return apiPublicStatus(env);
+  if (path === "/api/demo/role" && method === "POST") return apiDemoRole(env, request, data);
 
   // ── Push notification subscription ──
   if (path === "/api/push/subscribe" && method === "POST") {

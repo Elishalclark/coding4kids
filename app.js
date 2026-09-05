@@ -480,6 +480,37 @@ function pickSignup(kind) {
   if (kind === 'teacher') { openTeacherSignup(); return; }
 }
 
+// ── "Demo" — look around as any non-admin role ──
+// Replaces the old one-click kid-only demo. The server decides which roles are allowed
+// (DEMO_ROLES), so these buttons only choose what to offer, never what's permitted.
+function openDemoPicker() {
+  document.getElementById('demoModal').classList.remove('hidden');
+  document.getElementById('demoMsg').textContent = '';
+}
+function closeDemoPicker() { document.getElementById('demoModal')?.classList.add('hidden'); }
+document.getElementById('demoModal')?.addEventListener('click', e => {
+  if (e.target.id === 'demoModal') closeDemoPicker();
+});
+async function startRoleDemo(role, btn) {
+  const msg = document.getElementById('demoMsg');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = 'Loading…'; btn.disabled = true; }
+  msg.style.color = 'var(--text-dim)'; msg.textContent = '';
+  const { ok, data } = await C4K.api('/api/demo/role', 'POST', { role });
+  if (!ok || !data.token) {
+    if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+    msg.style.color = '#f87171';
+    msg.textContent = (data && data.error) || 'Could not start the demo right now.';
+    return;
+  }
+  C4K.setToken(data.token);
+  C4K.user = null;                      // force a fresh /api/me as the demo role
+  // The kid demo keeps the guided tour the old button had; the grown-up dashboards are
+  // self-explanatory enough that a tour would just be in the way.
+  if (role === 'kid' && typeof startTour === 'function') { closeDemoPicker(); startTour(); return; }
+  location.href = data.redirectUrl || 'dashboard.html';
+}
+
 // ── Join a class with a code (no account yet) ──
 // Sends a request for the teacher to approve. Nothing here creates a login — the child never
 // picks a password, so a pending request can't be used to get in.
