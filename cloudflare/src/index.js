@@ -5216,8 +5216,28 @@ async function sendEmail(env, to, subject, html, from, opts) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST", headers, body: JSON.stringify(payload),
     });
+    // Record WHY a send failed. This used to return res.ok and throw the response body away,
+    // so a rejected send was indistinguishable from a delivered one anywhere upstream — which
+    // is exactly the state that made "it said sent but no email arrived" impossible to debug.
+    // Resend's body names the real reason: unverified domain, bad key, invalid recipient.
+    if (!res.ok) {
+      let why = "";
+      try { why = (await res.text()).slice(0, 300); } catch {}
+      console.log("email rejected:", res.status, why);
+      try {
+        await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
+          .bind("email:send", `${res.status} to=${to} from=${payload.from} :: ${why}`, nowIso()).run();
+      } catch {}
+    }
     return res.ok;
-  } catch (e) { console.log("email failed:", e); return false; }
+  } catch (e) {
+    console.log("email failed:", e);
+    try {
+      await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
+        .bind("email:send", `threw to=${to} :: ${((e && e.message) || String(e)).slice(0, 300)}`, nowIso()).run();
+    } catch {}
+    return false;
+  }
 }
 const FROM_PASSWORD = "KidVibers <password@kidvibers.com>";
 
@@ -5946,7 +5966,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/shop" && method === "GET") return apiShop(env, request);
   if (path === "/api/parent/family" && method === "GET") return apiParentFamily(env, request);
   if (path === "/api/parent/digest-now" && method === "POST") return apiSendDigestNow(env, request);
-  if (path === "/api/admin/daily-digest-now" && method === "POST") return adminDailyDigestNow(env, request);
+  if (path === "/api/admin/daily-digest-now" && method === "POST") return adminDailyDigestNow(env, request, data);
   if (path === "/api/teacher/progress" && method === "GET") return apiTeacherProgress(env, request);
   if (path === "/api/parent/messages" && method === "GET") return apiParentMessages(env, request);
   if (path.startsWith("/api/parent/kid-data/") && method === "GET") {
@@ -6613,7 +6633,10 @@ async function runAnnualSafetyReminder(env) {
 //
 // Written to be skimmable in ten seconds on a phone. Every number is counted from the
 // database at send time; nothing here is estimated or carried over from a previous run.
-async function runDailyOwnerDigest(env) {
+// Returns true only if the email was actually accepted for delivery. The caller needs the
+// truth: reporting "sent" for a message the email service rejected is worse than reporting
+// nothing, because it sends you looking in your inbox instead of at the real problem.
+async function runDailyOwnerDigest(env, toOverride) {
   try {
     const since = new Date(Date.now() - 86400000).toISOString().replace(/\.\d+Z$/, "Z");
     const one = async (sql, ...b) => ((await env.DB.prepare(sql).bind(...b).first()) || {}).c || 0;
@@ -6669,19 +6692,26 @@ async function runDailyOwnerDigest(env) {
 
     // Sent directly rather than through notifyAdmin, which wraps plain text and would strip
     // the table. Same address it uses: ADMIN_EMAIL, falling back to support@.
-    await sendEmail(env, env.ADMIN_EMAIL || "support@kidvibers.com",
+    //
+    // Sending support@ -> support@ is a plausible way for this to vanish: the domain's MX is
+    // Cloudflare Email Routing, which forwards rather than hosting a mailbox, and a message
+    // addressed to the same address it came from can be dropped rather than looped. Hence
+    // toOverride, so a real destination can be used and tested.
+    const sentOk = await sendEmail(env, toOverride || env.ADMIN_EMAIL || "support@kidvibers.com",
       `☀️ KidVibers daily — ${headline}`,
       `<div style="font-family:Arial,sans-serif;max-width:520px;color:#222;line-height:1.6;">
          <div style="background:#7c3aed;color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;font-weight:800;">☀️ Good morning — KidVibers</div>
          <div style="border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:18px 20px;">${html}</div>
        </div>`,
       "KidVibers <support@kidvibers.com>");
+    return sentOk;
   } catch (e) {
     // A broken digest must never take the rest of the daily cron down with it.
     try {
       await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
         .bind("cron:daily-digest", ((e && e.message) || String(e)).slice(0, 500), nowIso()).run();
     } catch {}
+    return false;
   }
 }
 
@@ -6690,13 +6720,25 @@ async function runDailyOwnerDigest(env) {
 // Useful beyond impatience: it's how you check the digest still works without waiting a day,
 // and how you get today's numbers before the morning send. Rate-limited because it's an email
 // send behind a button.
-async function adminDailyDigestNow(env, request) {
+async function adminDailyDigestNow(env, request, data) {
   const { u, err } = await requireRole(env, request, ["super_admin"]); if (err) return err;
   if (await rateLimited(env, `ownerdigest:${u.id}`, 6, 3600))
     return json({ error: "You can send this a few times an hour — try again shortly." }, 429);
   if (!env.RESEND_API_KEY) return json({ error: "Email isn't configured (RESEND_API_KEY is not set), so nothing can be sent." }, 503);
-  await runDailyOwnerDigest(env);
-  return json({ ok: true, sentTo: env.ADMIN_EMAIL || "support@kidvibers.com" });
+  const to = (data && data.to || "").trim();
+  if (to && !/^\S+@\S+\.\S+$/.test(to)) return json({ error: "That doesn't look like an email address." }, 400);
+  const dest = to || env.ADMIN_EMAIL || "support@kidvibers.com";
+  // Report what actually happened. The first version returned ok:true regardless of whether
+  // the email service accepted the message, which is how "it said sent but nothing arrived"
+  // became possible — the button was reporting that the code ran, not that mail was sent.
+  const sent = await runDailyOwnerDigest(env, to || null);
+  if (!sent) {
+    return json({
+      error: `The email service rejected the send to ${dest}. The reason is now recorded in Admin → Security → error log under "email:send".`,
+      sentTo: dest, rejected: true,
+    }, 502);
+  }
+  return json({ ok: true, sentTo: dest });
 }
 
 async function runDailySafetyDigest(env) {

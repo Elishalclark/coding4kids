@@ -933,12 +933,15 @@ KidVibers · kidvibers.com`
       if (!btn) return;
       btn.disabled = true;
       if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…'; }
-      const { ok, data } = await C4K.api('/api/admin/daily-digest-now', 'POST', {});
+      const to = (document.getElementById('digestTo')?.value || '').trim();
+      const { ok, data } = await C4K.api('/api/admin/daily-digest-now', 'POST', { to });
       btn.disabled = false;
       if (!msg) return;
       if (ok) {
         msg.style.color = 'var(--green,#5ad17e)';
-        msg.textContent = `✅ Sent to ${data.sentTo}. Check your inbox.`;
+        // "Accepted", not "delivered" — the mail service taking it is the last thing this
+        // page can actually observe. Claiming delivery would be claiming more than we know.
+        msg.textContent = `✅ Accepted for delivery to ${data.sentTo}. If it doesn't arrive, check spam — then tell me.`;
       } else {
         msg.style.color = '#f87171';
         msg.textContent = (data && data.error) || 'Could not send it.';
