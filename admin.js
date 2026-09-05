@@ -926,6 +926,25 @@ KidVibers · kidvibers.com`
          </tr>`; }).join('')
         : '<tr><td colspan="7" style="color:var(--text-faint);">No accounts match.</td></tr>';
     }
+    // Fires the same digest the daily cron sends. Disabled while in flight so an impatient
+    // second click doesn't send two emails.
+    async function sendDailyDigestNow() {
+      const btn = document.getElementById('digestNowBtn'), msg = document.getElementById('digestNowMsg');
+      if (!btn) return;
+      btn.disabled = true;
+      if (msg) { msg.style.color = 'var(--text-dim)'; msg.textContent = 'Sending…'; }
+      const { ok, data } = await C4K.api('/api/admin/daily-digest-now', 'POST', {});
+      btn.disabled = false;
+      if (!msg) return;
+      if (ok) {
+        msg.style.color = 'var(--green,#5ad17e)';
+        msg.textContent = `✅ Sent to ${data.sentTo}. Check your inbox.`;
+      } else {
+        msg.style.color = '#f87171';
+        msg.textContent = (data && data.error) || 'Could not send it.';
+      }
+    }
+
     // ── Account profile card ──
     // Click a name in People & Accounts to see everything on one screen instead of reading it
     // out of a table row. Emails are tappable and open a Gmail compose window addressed to
