@@ -2027,6 +2027,12 @@ async function apiProjectSave(env, request, data) {
 async function apiProjectsMine(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u) return json({ error: "not logged in" }, 401);
+  // A demo reads its own scratch state, not the projects table — where user_id 0 would match
+  // nothing and the studio would look empty even after the visitor saved something.
+  if (u.isPreview) {
+    const state = await demoStateGet(env, bearer(request));
+    return json({ projects: (state && state.projects) || [], demo: true });
+  }
   const rows = (await env.DB.prepare("SELECT id,title,code,updated_at FROM projects WHERE user_id=? ORDER BY updated_at DESC").bind(u.id).all()).results || [];
   return json({ projects: rows.map((r) => ({ id: r.id, title: r.title, code: r.code, updatedAt: (r.updated_at || "").slice(0, 16).replace("T", " ") })) });
 }
@@ -3109,6 +3115,12 @@ async function apiDistrictAssignSchool(env, request, data) {
 async function apiParentFamily(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || !["parent", "teacher", "super_admin"].includes(u.role)) return json({ error: "forbidden" }, 403);
+  // Demo parents and teachers get a made-up roster. Without it the whole point of these two
+  // dashboards — seeing how your kids or your class are doing — is a blank page.
+  if (u.isPreview) {
+    const state = await demoStateGet(env, bearer(request));
+    return json({ kids: (state && state.kids) || [], demo: true });
+  }
   const kids = (await env.DB.prepare("SELECT * FROM users WHERE role='kid' AND family_id=? ORDER BY id").bind(u.family_id).all()).results || [];
   const kidsPub = [];
   for (const k of kids) {
@@ -5015,20 +5027,70 @@ async function apiAdminPreview(env, request, data) {
 // is presentation, never the access decision.
 const DEMO_ROLES = ["kid", "parent", "teacher", "school", "district"];
 
+// How long a demo lasts, and therefore how long anything typed into it survives.
+const DEMO_MINUTES = 30;
+
+// A demo starts with content already in it, because an empty dashboard demos nothing — a
+// visitor can't tell "new account" from "broken". These are obviously-fake names for the same
+// reason: nobody should mistake demo rows for real families.
+function demoSeed(role) {
+  const day = n => new Date(Date.now() - n * 86400000).toISOString().slice(0, 16).replace("T", " ");
+  const projects = [
+    { id: 9001, title: "Space Dodger", updatedAt: day(1), code: "// Move the ship with the arrow keys!\nlet ship = { x: 160, y: 320 };\nlet score = 0;\n\nfunction update() {\n  score = score + 1;\n  drawShip(ship.x, ship.y);\n}" },
+    { id: 9002, title: "My First Website", updatedAt: day(3), code: "<h1>Hi, I'm Alex!</h1>\n<p>I'm learning to code on KidVibers.</p>\n<button onclick=\"alert('You clicked it!')\">Click me</button>" },
+    { id: 9003, title: "Rainbow Drawing", updatedAt: day(6), code: "const colors = ['red','orange','yellow','green','blue','purple'];\nfor (let i = 0; i < colors.length; i++) {\n  drawStripe(colors[i], i * 40);\n}" },
+  ];
+  // The roster the grown-up dashboards show. Varied on purpose: someone racing ahead, someone
+  // who's stopped, someone brand new — that's what a real classroom looks like, and it's what
+  // makes the progress view worth looking at.
+  const kids = [
+    { id: 9101, name: "Alex", username: "demo_alex", lessonsDone: 47, worldsPassed: 3, lastActive: day(0), effectivePlan: "family", hasAI: true },
+    { id: 9102, name: "Sam", username: "demo_sam", lessonsDone: 112, worldsPassed: 7, lastActive: day(0), effectivePlan: "family", hasAI: true },
+    { id: 9103, name: "Riley", username: "demo_riley", lessonsDone: 8, worldsPassed: 0, lastActive: day(9), effectivePlan: "family", hasAI: true },
+    { id: 9104, name: "Jordan", username: "demo_jordan", lessonsDone: 0, worldsPassed: 0, lastActive: null, effectivePlan: "family", hasAI: true },
+  ];
+  return {
+    tokens: 250,
+    projects: role === "kid" ? projects : [],
+    kids: role === "kid" ? [] : kids,
+    // Anything the visitor does during the demo is appended here and dies with the session.
+    added: [],
+  };
+}
+
+async function demoStateGet(env, token) {
+  const row = await env.DB.prepare("SELECT data FROM demo_state WHERE token=?").bind(token).first();
+  if (!row) return null;
+  try { return JSON.parse(row.data); } catch { return null; }
+}
+async function demoStateSet(env, token, state, expiresAt) {
+  await env.DB.prepare(
+    "INSERT INTO demo_state (token,data,expires_at) VALUES (?,?,?) ON CONFLICT(token) DO UPDATE SET data=excluded.data"
+  ).bind(token, JSON.stringify(state), expiresAt).run();
+}
+
 async function apiDemoRole(env, request, data) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   if (await rateLimited(env, `demorole:${ip}`, 20, 3600))
     return json({ error: "That's a lot of demos! Give it a minute and try again." }, 429);
   const role = (data.role || "").trim().toLowerCase();
   if (!DEMO_ROLES.includes(role)) return json({ error: "Pick one of: " + DEMO_ROLES.join(", ") }, 400);
-  await env.DB.prepare("DELETE FROM preview_sessions WHERE expires_at < ?").bind(nowIso()).run();
+  // Sweep expired demos on the way in. This is what actually deletes what a visitor typed:
+  // it happens on the next demo start after they leave, and again on the hourly cron, so
+  // nothing lingers waiting for someone to come back.
+  const now = nowIso();
+  await env.DB.prepare("DELETE FROM preview_sessions WHERE expires_at < ?").bind(now).run();
+  await env.DB.prepare("DELETE FROM demo_state WHERE expires_at < ?").bind(now).run();
+
   const token = randToken(32);
   // Shorter than the admin preview's two hours: this is a look around, not a work session,
   // and every issued token is a row somebody anonymous caused us to write.
-  const expiresAt = new Date(Date.now() + 45 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const expiresAt = new Date(Date.now() + DEMO_MINUTES * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   await env.DB.prepare("INSERT INTO preview_sessions (token, role, expires_at) VALUES (?,?,?)").bind(token, role, expiresAt).run();
+  // Start it with content already in it rather than an empty account.
+  await demoStateSet(env, token, demoSeed(role), expiresAt);
   const redirects = { kid: "dashboard.html", parent: "parent.html", teacher: "parent.html", school: "district.html", district: "district.html" };
-  return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt });
+  return json({ ok: true, token, role, redirectUrl: redirects[role], expiresAt, minutes: DEMO_MINUTES });
 }
 
 async function adminImpersonate(env, request, data) {
@@ -5817,6 +5879,12 @@ const SCHEMA_DDL = [
      status TEXT NOT NULL DEFAULT 'pending',
      created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_class_requests ON class_requests (teacher_id, status)`,
+  // Everything a demo visitor sees or does, as one JSON blob per demo token. Kept apart from
+  // the real tables entirely: a demo can't touch a real account even by accident, and clearing
+  // a demo is one DELETE rather than hunting rows across the schema. Rows die with the session.
+  `CREATE TABLE IF NOT EXISTS demo_state (
+     token TEXT PRIMARY KEY, data TEXT NOT NULL, expires_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_demo_state_exp ON demo_state (expires_at)`,
   `CREATE TABLE IF NOT EXISTS push_subs (
      endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, user_id INTEGER)`,
 ];
@@ -5850,6 +5918,47 @@ function ensureSchema(env) {
 // here writes anything belonging to a real account.
 const PREVIEW_WRITE_ALLOWED = new Set(["/api/logout", "/api/demo/role"]);
 
+// Writes a demo visitor is allowed to make, applied to that demo's scratch state only.
+// Returns a Response when it handled the call, or null to let the caller refuse it.
+//
+// Deliberately a short list. The point isn't to reimplement the product against a JSON blob —
+// it's that the two things someone actually tries in a demo (save a project, change how their
+// character looks) should work instead of erroring.
+async function demoWrite(env, token, path, data) {
+  if (!token) return null;
+  const row = await env.DB.prepare("SELECT expires_at FROM demo_state WHERE token=?").bind(token).first();
+  if (!row) return null;
+  const state = (await demoStateGet(env, token)) || demoSeed("kid");
+
+  if (path === "/api/projects/save") {
+    const title = cleanName((data.title || "My project").toString()).slice(0, TITLE_MAX);
+    const code = (data.code || "").toString().slice(0, CODE_MAX);
+    const id = Number(data.id) || 0;
+    const existing = id && state.projects.find(p => p.id === id);
+    if (existing) { existing.title = title; existing.code = code; existing.updatedAt = nowIso().slice(0, 16).replace("T", " "); }
+    else {
+      if (state.projects.length >= PROJECT_MAX) return json({ error: "That's the project limit for the demo." }, 400);
+      state.projects.unshift({ id: 9500 + state.projects.length, title, code, updatedAt: nowIso().slice(0, 16).replace("T", " ") });
+    }
+    await demoStateSet(env, token, state, row.expires_at);
+    return json({ ok: true, id: existing ? existing.id : state.projects[0].id, demo: true });
+  }
+
+  if (path === "/api/projects/delete") {
+    state.projects = state.projects.filter(p => p.id !== Number(data.id));
+    await demoStateSet(env, token, state, row.expires_at);
+    return json({ ok: true, demo: true });
+  }
+
+  if (path === "/api/avatar") {
+    state.avatar = data.avatar || data;
+    await demoStateSet(env, token, state, row.expires_at);
+    return json({ ok: true, avatar: state.avatar, demo: true });
+  }
+
+  return null;
+}
+
 async function handleApi(env, request, path) {
   // Cached per isolate — one batch on a cold start, nothing after that.
   await ensureSchema(env);
@@ -5872,6 +5981,11 @@ async function handleApi(env, request, path) {
   if (method !== "GET" && !PREVIEW_WRITE_ALLOWED.has(path)) {
     const pu = await userFromToken(env, bearer(request));
     if (pu && pu.isPreview) {
+      // A few actions are worth letting a visitor actually do, or the demo is a museum: saving
+      // a project, and changing the avatar. They're written to the demo's own scratch state,
+      // never to a real table, and that state is deleted when the demo expires.
+      const handled = await demoWrite(env, bearer(request), path, data);
+      if (handled) return handled;
       return json({ error: "This is a demo, so nothing here is saved. Create a free account to do this for real.", demo: true }, 403);
     }
   }
@@ -7045,6 +7159,19 @@ export default {
       ctx.waitUntil(runDueScheduledNotifications(env));
       ctx.waitUntil(runNotificationAutomations(env));
       ctx.waitUntil(runExpiredSessionSweep(env));
+      // Delete what demo visitors typed once their 30 minutes are up. The demo-start path
+      // sweeps too, but that only fires when somebody new arrives — this guarantees the data
+      // goes on a quiet day rather than sitting there until the next visitor.
+      ctx.waitUntil((async () => {
+        try {
+          const now = nowIso();
+          await env.DB.prepare("DELETE FROM demo_state WHERE expires_at < ?").bind(now).run();
+          await env.DB.prepare("DELETE FROM preview_sessions WHERE expires_at < ?").bind(now).run();
+        } catch (e) {
+          await env.DB.prepare("INSERT INTO error_log (path,message,created_at) VALUES (?,?,?)")
+            .bind("cron:demo-sweep", ((e && e.message) || String(e)).slice(0, 300), nowIso()).run().catch(() => {});
+        }
+      })());
       return;
     }
     const now = new Date();
