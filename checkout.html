@@ -165,6 +165,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   <script src="auth.js?v=220"></script>
   <script>
+    // Apple Guideline 3.1.1: an app can't offer its own way to pay for digital
+    // subscriptions unless it goes through Apple's in-app purchase. Block the
+    // whole checkout flow inside the wrapped app and send people to the website.
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      document.getElementById('coMain').innerHTML =
+        '<div class="co-card" style="grid-column:1/-1;text-align:center;">' +
+        '<h2>Subscriptions aren\'t available in the app</h2>' +
+        '<p style="color:var(--text-dim);">To subscribe or change your plan, please visit <strong>kidvibers.com</strong> in a web browser.</p>' +
+        '</div>';
+    } else {
     const PRICES = { pro: 9, family: 15, teacher: 24, school: 105, district: 125 };
     const ANNUAL = { pro: 108, family: 180, teacher: 288, school: 1260, district: 1500 };
     let billingInterval = 'month';
@@ -356,6 +366,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       // School/District buyers go to the new District/Library dashboard.
       if (DISTRICT_PLANS.includes(plan)) { location.href = 'district.html'; return; }
       location.href = C4K.homeFor(C4K.user);
+    }
+
+    // Async functions aren't hoisted out of this else-block the way plain
+    // `function` declarations are, so expose the ones the inline onclick/
+    // onsubmit attributes above call by name.
+    window.notifyInterest = notifyInterest;
+    window.startStripeCheckout = startStripeCheckout;
+    window.payWithCard = payWithCard;
     }
   </script>
   <script src="pwa.js?v=220" defer></script>

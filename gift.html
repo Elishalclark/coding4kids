@@ -137,6 +137,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   <script src="auth.js?v=220"></script>
   <script>
+    // Apple Guideline 3.1.1: don't let a gift purchase be started from inside the app.
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      document.querySelector('main.gf').innerHTML =
+        '<div class="form-card" style="text-align:center;">' +
+        '<h2>Gifting isn\'t available in the app</h2>' +
+        '<p style="color:var(--text-dim);">To send a gift subscription, please visit <strong>kidvibers.com</strong> in a web browser.</p>' +
+        '</div>';
+    } else {
     let selectedPlan = 'pro';
     function selectPlan(p) {
       selectedPlan = p;
@@ -164,6 +172,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       });
       if (ok && data.url) { window.location.href = data.url; }
       else { btn.textContent = '🎁 Continue to payment'; btn.disabled = false; alert(data.error || 'Could not start checkout. Try again.'); }
+    }
+
+    // checkout() is async, so it isn't hoisted out of this else-block the way
+    // a plain `function` declaration is - expose it for the button's onclick.
+    window.checkout = checkout;
     }
   </script>
 </body>
