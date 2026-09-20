@@ -607,3 +607,96 @@ const C4K = {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
 })();
+
+// ── Native app shell polish (Capacitor) ──────────────────────────────────────────────
+// Runs ONLY inside the real iOS/Android app. window.Capacitor is injected automatically by
+// the native host into every page its WebView loads — including a remote server.url page
+// like this one — and simply does not exist in a normal browser tab, so every line below is
+// a complete no-op on the website. Nobody visiting kidvibers.com in Chrome or Safari is
+// affected by any of this.
+//
+// This is what turns "a website loaded in a box" into something that behaves like an app:
+// a themed status bar instead of a mismatched white/black one, a splash that hides once the
+// page is actually ready instead of a website page just cutting in, no browser-style
+// rubber-band overscroll, external links opening in an in-app sheet instead of kicking out
+// to Safari/Chrome, light haptic feedback on real actions, and a hardware back button that
+// behaves like it does in every other app instead of doing nothing.
+(function () {
+  if (typeof window === 'undefined' || !window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
+  const P = window.Capacitor.Plugins || {};
+
+  // 'DARK' style = light (white) status bar text/icons — correct for this dark background
+  // (#0c0a18). Verified against @capacitor/status-bar's own definitions rather than guessed:
+  // the naming refers to which background the style suits, not the text color itself.
+  try {
+    if (P.StatusBar) {
+      P.StatusBar.setStyle({ style: 'DARK' }).catch(() => {});
+      P.StatusBar.setBackgroundColor({ color: '#0c0a18' }).catch(() => {});
+      P.StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+    }
+  } catch (e) {}
+
+  // Hide the native splash once THIS page is actually interactive, not on a fixed timer —
+  // a timer either flashes unstyled content (too short) or holds an already-ready app on a
+  // blank screen for no reason (too long).
+  try {
+    if (P.SplashScreen) {
+      const hideSplash = () => P.SplashScreen.hide().catch(() => {});
+      if (document.readyState === 'complete') hideSplash();
+      else window.addEventListener('load', hideSplash, { once: true });
+    }
+  } catch (e) {}
+
+  // Kill the rubber-band/bounce overscroll on the page background — standard browser
+  // behavior, and one of the clearest "this is a webpage" tells when it shows up somewhere
+  // that's supposed to be an app. Scrolling within an actual scrollable area is unaffected;
+  // this only stops the whole page sliding when a drag goes past its top/bottom edge.
+  try {
+    const style = document.createElement('style');
+    style.textContent = 'html, body { overscroll-behavior: none; }';
+    document.head.appendChild(style);
+  } catch (e) {}
+
+  // External links open in an in-app browser sheet instead of leaving the app entirely, so
+  // a curious tap doesn't dump a kid or parent out into a separate Safari/Chrome app. Only
+  // links that actually leave kidvibers.com are intercepted — internal links keep
+  // navigating the app's own WebView exactly as they do on the website.
+  try {
+    if (P.Browser) {
+      document.addEventListener('click', function (e) {
+        const a = e.target.closest && e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href') || '';
+        if (!/^https?:\/\//i.test(href) || href.indexOf('kidvibers.com') !== -1) return;
+        e.preventDefault();
+        P.Browser.open({ url: href }).catch(() => { window.location.href = href; });
+      }, true);
+    }
+  } catch (e) {}
+
+  // A light tap on every primary button — real apps respond to touch, websites don't, and
+  // this is the single highest-leverage, lowest-risk way to make that true here. Scoped to
+  // .btn-primary specifically so it reads as deliberate feedback on a real action (Start for
+  // Free, Save, Submit) rather than buzzing on every click on the page.
+  try {
+    if (P.Haptics) {
+      document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('.btn-primary')) {
+          P.Haptics.impact({ style: 'LIGHT' }).catch(() => {});
+        }
+      }, true);
+    }
+  } catch (e) {}
+
+  // Android hardware back button: step back through the app's own history when there is
+  // any, otherwise let Android send the app to background (never force-kill the process —
+  // that's jarring and loses state a normal "home" press wouldn't).
+  try {
+    if (P.App) {
+      P.App.addListener('backButton', function (info) {
+        if (info && info.canGoBack) window.history.back();
+        else P.App.minimizeApp ? P.App.minimizeApp() : P.App.exitApp();
+      });
+    }
+  } catch (e) {}
+})();

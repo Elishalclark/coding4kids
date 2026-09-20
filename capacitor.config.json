@@ -1,0 +1,27 @@
+{
+  "appId": "com.kidvibers.app",
+  "appName": "KidVibers",
+  "webDir": "app-shell",
+  "backgroundColor": "#0c0a18",
+  "server": {
+    "url": "https://kidvibers.com",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0c0a18"
+  },
+  "android": {
+    "backgroundColor": "#0c0a18"
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "body"
+    },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0c0a18"
+    }
+  }
+}
