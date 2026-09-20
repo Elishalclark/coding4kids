@@ -88,6 +88,23 @@ function initGoogle() {
   google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleSignIn });
 }
 function renderGoogleBtn() {
+  // Google Identity Services actively refuses to run inside an embedded WebView like the
+  // native app's — it shows "This browser or app may not be secure" instead of a working
+  // button. Rather than ship a button that's broken specifically inside the app, it's not
+  // rendered there at all, so the app offers only username/password: KidVibers' own account
+  // system. That also happens to be the exact condition Apple's App Review Guideline 4.8
+  // exempts from needing "Sign in with Apple" as well — an app that "exclusively uses your
+  // own account setup and sign-in systems" doesn't trigger the requirement. Nothing changes
+  // on the website; Google Sign-In keeps working there exactly as before.
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    // Hide the whole surrounding block (the "OR" divider, the "sign up in one tap" caption),
+    // not just the button — an empty box under a label that says "sign up in one tap" reads
+    // as broken, not as a feature that simply isn't here.
+    const area = document.getElementById('googleArea'); if (area) area.style.display = 'none';
+    const signupBtn = document.getElementById('googleBtnSignup');
+    if (signupBtn && signupBtn.parentElement) signupBtn.parentElement.style.display = 'none';
+    return;
+  }
   initGoogle();
   if (!googleInited) { setTimeout(renderGoogleBtn, 400); return; }   // wait for the GIS library to load
   // Render the button into whichever container(s) are on the page (login tab + signup tab).
