@@ -50,6 +50,12 @@ jobs:
           cp -R ../p public/ 2>/dev/null || true
           # safety: never ship secrets or server-only files
           rm -f public/data.db public/admin_config.json public/server.py public/test_email.py 2>/dev/null || true
+          # The Capacitor app scaffold lives at the repo root (package.json, capacitor.config.json,
+          # package-lock.json) so `npx cap` commands work from anywhere in the repo, which puts it
+          # right in the path of the *.json glob above. None of it is secret, but none of it
+          # belongs on the live site either — it's build tooling for the App Store wrapper, not
+          # a website asset.
+          rm -f public/package.json public/package-lock.json public/capacitor.config.json 2>/dev/null || true
           # Fail loudly rather than deploying a site missing its own scripts.
           for f in analytics.js app.js auth.js styles.css index.html sitemap.xml; do
             [ -f "public/$f" ] || { echo "::error::public/$f missing — refusing to deploy"; exit 1; }

@@ -18,3 +18,21 @@ package-lock.json
 
 # SEO build input: exported from the production D1 lessons table, not source
 seo/content/lessons.json
+
+# App Store / Play Store wrapper (Capacitor) — the project files under ios/ and android/ are
+# committed (that's how you check out a working Xcode/Android Studio project on another
+# machine), but build output and machine-specific paths are not.
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+ios/DerivedData/
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/captures/
+android/.idea/
+*.keystore
+*.jks
+!debug.keystore

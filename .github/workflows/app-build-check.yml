@@ -1,0 +1,69 @@
+name: App wrapper build check
+
+# Proves the iOS and Android projects (the App Store / Play Store wrapper around kidvibers.com)
+# are still in a buildable state, without needing an Apple or Google developer account.
+#
+# Neither job signs or uploads anything anywhere — that needs real developer accounts and
+# secrets that don't exist yet. This is the step before that: catching a broken native project
+# the moment a change breaks it, rather than discovering it the day someone finally tries to
+# submit to a store. An unsigned debug build (Android) and an unsigned simulator build (iOS)
+# don't require any certificates at all, which is what makes this runnable today.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "android/**"
+      - "ios/**"
+      - "app-shell/**"
+      - "capacitor.config.json"
+      - "package.json"
+      - ".github/workflows/app-build-check.yml"
+  workflow_dispatch: {}
+
+jobs:
+  android-debug-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build an unsigned debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # Keeps a copy attached to the run so it can be sideloaded onto an Android device/emulator
+      # to look at, without needing a Play Console account.
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kidvibers-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  ios-simulator-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No signing at all: a simulator build doesn't need a certificate or provisioning
+      # profile, so this works before an Apple Developer account exists. It cannot produce
+      # something installable on a real iPhone or submittable to the App Store — that step
+      # comes later, once there's an account and signing credentials to add as secrets.
+      - name: Build for the iOS Simulator (unsigned)
+        working-directory: ios/App
+        run: |
+          xcodebuild build \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO

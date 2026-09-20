@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Apple's required "privacy manifest": since spring 2024, App Store Connect rejects a build if
+  it uses certain system APIs (like UserDefaults, which the WebView/Capacitor runtime touches
+  for local storage) without declaring why. This is separate from the App Store Connect privacy
+  "nutrition label" questionnaire — that one covers what KidVibers itself collects (parent
+  email, progress, etc.) and gets filled in when the listing is created. This file only covers
+  the wrapper's own use of iOS system APIs.
+
+  NSPrivacyTracking is false and NSPrivacyTrackingDomains is empty: this app does not track
+  users across other companies' apps or websites for advertising, matching KidVibers having no
+  ad SDKs and no behavioral advertising anywhere in the product.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
