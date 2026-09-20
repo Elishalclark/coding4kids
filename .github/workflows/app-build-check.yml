@@ -27,11 +27,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
+      # Capacitor's own .gitignore for this project (android/.gitignore) deliberately excludes
+      # capacitor-cordova-android-plugins/ and app/src/main/assets/public — its convention is
+      # that `cap sync` regenerates them right before every build, on whatever machine builds
+      # it, rather than committing generated output. android/settings.gradle references the
+      # plugins folder unconditionally, so skipping this step fails the build outright with
+      # "does not exist" rather than something subtler.
+      - name: Install deps and sync the native project
+        run: |
+          npm ci || npm install
+          npx cap sync android
 
       - name: Build an unsigned debug APK
         working-directory: android
@@ -52,6 +67,19 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Same reason as the Android job's sync step: ios/.gitignore excludes App/App/public
+      # (the copied web assets) and capacitor-cordova-ios-plugins, on the assumption cap sync
+      # runs first. Skipping it fails the Xcode build with "the file public couldn't be
+      # opened" rather than anything that points at the real cause.
+      - name: Install deps and sync the native project
+        run: |
+          npm ci || npm install
+          npx cap sync ios
 
       # No signing at all: a simulator build doesn't need a certificate or provisioning
       # profile, so this works before an Apple Developer account exists. It cannot produce

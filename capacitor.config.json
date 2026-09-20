@@ -14,5 +14,14 @@
   },
   "android": {
     "backgroundColor": "#0c0a18"
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "body"
+    },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0c0a18"
+    }
   }
 }
