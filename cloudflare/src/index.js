@@ -3269,6 +3269,42 @@ async function apiParentDeleteKid(env, request, data) {
   return json({ ok: true, name: kid.name });
 }
 
+// Self-service deletion of the guardian's OWN account — the login used to sign into the app,
+// not one of their kids. Apple's App Review Guideline 5.1.1(v) requires any app that lets
+// someone create an account to also let them delete it from within the app; this is that, and
+// it applies equally to the website.
+//
+// Deliberately narrower than managedFamilyIds(), which a district-plan teacher's other guardian
+// actions use: that can span every school in a district, and self-deletion cascading that far
+// would be catastrophic and clearly not what "delete my account" should ever mean for one
+// person. This only ever touches the guardian's own direct family (their own kids/students),
+// found the same way account creation set it up: a guardian's family_id IS their own id.
+async function apiAccountDeleteSelf(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || !GUARDIAN_ROLES.includes(u.role)) return json({ error: "Only a parent or teacher account can do this." }, 403);
+  if (DISTRICT_PLANS.includes(u.plan) || u.district_id != null) {
+    return json({ error: "District and school accounts can't self-delete here, since other schools may depend on this login. Email support@kidvibers.com and we'll help." }, 400);
+  }
+  const confirmPass = (data.myPassword || "").toString();
+  if (!confirmPass || !(await verifyPassword(confirmPass, u.salt, u.password_hash))) {
+    return json({ error: "Re-enter your password to confirm this permanent deletion." }, 401);
+  }
+  const kids = (await env.DB.prepare("SELECT id, name FROM users WHERE role='kid' AND family_id=?").bind(u.family_id).all()).results || [];
+  for (const kid of kids) {
+    for (const sql of ["DELETE FROM progress WHERE user_id=?", "DELETE FROM unit_tests WHERE user_id=?", "DELETE FROM sessions WHERE user_id=?",
+      "DELETE FROM chat_usage WHERE user_id=?", "DELETE FROM screen_time WHERE user_id=?", "DELETE FROM messages WHERE child_id=?", "DELETE FROM users WHERE id=?"])
+      await env.DB.prepare(sql).bind(kid.id).run();
+  }
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(u.id).run();
+  const username = u.username, uid = u.id;
+  await env.DB.prepare("DELETE FROM users WHERE id=?").bind(uid).run();
+  // consent_log's child_id/username columns carry no foreign key to users, so writing the
+  // audit trail after the row is gone is fine — same order the per-kid deletion above it uses.
+  for (const kid of kids) await logConsent(env, kid.id, kid.name, "deleted", username, "Deleted along with the guardian's own self-deleted account");
+  await logConsent(env, uid, username, "deleted", username, "Guardian self-deleted their own account" + (kids.length ? ` and ${kids.length} kid(s)` : ""));
+  return json({ ok: true, kidsDeleted: kids.length });
+}
+
 async function districtOwner(env, request) {
   const u = await userFromToken(env, bearer(request));
   if (!u || u.role !== "teacher" || u.family_id == null || !DISTRICT_PLANS.includes(u.plan)) return null;
@@ -6184,6 +6220,7 @@ async function handleApi(env, request, path) {
   if (path === "/api/parent/nudge" && method === "POST") return apiParentNudge(env, request, data);
   if (path === "/api/parent/signout-kid" && method === "POST") return apiParentSignoutKid(env, request, data);
   if (path === "/api/parent/delete-kid" && method === "POST") return apiParentDeleteKid(env, request, data);
+  if (path === "/api/account/delete-self" && method === "POST") return apiAccountDeleteSelf(env, request, data);
   if (path === "/api/account/update" && method === "POST") return apiAccountUpdate(env, request, data);
   if (path === "/api/parent/update-kid" && method === "POST") return apiParentUpdateKid(env, request, data);
   if (path === "/api/district/schools" && method === "GET") return apiDistrictSchools(env, request);

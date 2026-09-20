@@ -121,7 +121,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <p class="hint">As the parent/guardian, you can change your kids' username or email here.</p>
       <div id="kidsList"></div>
     </div>
+
+    <!-- Self-service account deletion. Not shown to kids: their account is removed by a
+         parent/guardian instead (see the Kids card on the guardian's own settings), which is
+         the expected pattern for a children's product rather than letting a young child
+         unilaterally delete their own progress. Not shown to district/school accounts either
+         — other schools may depend on that login, so it's a support-request instead. -->
+    <div class="card" id="dangerCard" style="display:none;border-color:rgba(239,68,68,.35);">
+      <h2 style="color:#f87171;">⚠️ Delete my account</h2>
+      <p class="hint" id="dangerHint">Permanently deletes your login and every kid under it. This cannot be undone.</p>
+      <button class="btn btn-outline" style="color:#f87171;border-color:rgba(239,68,68,.4);" onclick="openDeleteAccount()">🗑️ Delete my account &amp; all data</button>
+    </div>
   </main>
+
+  <!-- Delete-my-account confirmation -->
+  <div class="st" id="dangerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:420px;margin:20px;">
+      <h2 style="color:#f87171;">⚠️ Permanently delete your account?</h2>
+      <p class="hint" id="dangerModalMsg">This deletes your login and everything under it. It cannot be undone.</p>
+      <div class="field"><label>Enter your password to confirm</label><input type="password" id="dangerPassword" placeholder="Your password" /></div>
+      <div id="dangerError" style="color:#f87171;font-weight:700;font-size:0.85rem;min-height:18px;margin-top:6px;"></div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="btn btn-outline" onclick="closeDeleteAccount()" style="flex:1;">Cancel</button>
+        <button class="btn btn-primary" id="dangerConfirmBtn" onclick="confirmDeleteAccount()" style="flex:1;background:#dc2626;border-color:#dc2626;">Delete permanently</button>
+      </div>
+    </div>
+  </div>
 
   <div class="st" id="stGate" style="display:none;text-align:center;padding-top:80px;">
     <div style="font-size:3rem;">🔒</div>
@@ -171,6 +196,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       }
       // Recent logins — shown for any account role that isn't a kid (kids share family devices a lot).
       if (!isKid) { document.getElementById('loginsCard').style.display = ''; loadLogins(); }
+      // Delete my account — parent/teacher only, and only a direct (non-district) account.
+      // District/school plans are excluded here in the UI too, not just server-side, so nobody
+      // sees a button that would just come back with "contact support" every time.
+      if ((ME.role === 'parent' || ME.role === 'teacher') && !ME.isDistrict) {
+        document.getElementById('dangerCard').style.display = '';
+        if (ME.role === 'teacher') document.getElementById('dangerHint').textContent =
+          'Permanently deletes your login and every student in your classroom. This cannot be undone.';
+      }
     })();
     async function loadLogins() {
       const { ok: lOk, data: lData } = await C4K.api('/api/my-logins');
@@ -251,6 +284,36 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const { ok, data } = await C4K.api('/api/parent/update-kid', 'POST', body);
       if (ok) { msg.style.color = 'var(--green,#5ad17e)'; msg.textContent = '✅ Saved: ' + (data.changed || []).join(' & '); document.getElementById('kp_' + id).value = ''; }
       else { msg.style.color = '#f87171'; msg.textContent = (data && data.error) || 'Could not save.'; }
+    }
+
+    // ── Delete my account ──
+    function openDeleteAccount() {
+      const kidCount = (document.getElementById('kidsList')?.children.length) || 0;
+      document.getElementById('dangerModalMsg').textContent = kidCount
+        ? `This deletes your login and all ${kidCount} kid${kidCount === 1 ? '' : 's'} under it. It cannot be undone.`
+        : 'This deletes your login and everything under it. It cannot be undone.';
+      document.getElementById('dangerPassword').value = '';
+      document.getElementById('dangerError').textContent = '';
+      document.getElementById('dangerModal').style.display = 'flex';
+      document.getElementById('dangerPassword').focus();
+    }
+    function closeDeleteAccount() { document.getElementById('dangerModal').style.display = 'none'; }
+    async function confirmDeleteAccount() {
+      const btn = document.getElementById('dangerConfirmBtn');
+      const err = document.getElementById('dangerError');
+      const myPassword = document.getElementById('dangerPassword').value;
+      if (!myPassword) { err.textContent = 'Enter your password to confirm.'; return; }
+      if (!confirm('Are you completely sure? This is permanent and cannot be undone.')) return;
+      btn.disabled = true; err.textContent = '';
+      const { ok, data } = await C4K.api('/api/account/delete-self', 'POST', { myPassword });
+      if (!ok) { btn.disabled = false; err.textContent = (data && data.error) || 'Could not delete your account.'; return; }
+      // The account is gone and its session token is invalid the instant this returns — nothing
+      // to log out of, just leave.
+      alert('Your account has been deleted.' + (data.kidsDeleted ? ` ${data.kidsDeleted} kid account(s) were removed with it.` : ''));
+      // The account and its session are already gone server-side, so there's nothing for
+      // /api/logout to do — just clear the local token the same way C4K.logout() does.
+      C4K.setToken(null); C4K.user = null;
+      location.href = 'index.html';
     }
   </script>
   <script src="pwa.js?v=220" defer></script>
