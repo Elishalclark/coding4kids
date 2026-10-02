@@ -30,10 +30,11 @@ async function verifySecret(secret, saltHex, expected) {
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // no 0/O/1/I - easy to read aloud
+// 4 digits, easy to read aloud and type on a phone keypad - these are low-stakes,
+// view-only codes (not a password), so the smaller 10,000-combo space is fine.
 function genWeeklyCode() {
-  let s = ""; const b = new Uint8Array(5); crypto.getRandomValues(b);
-  for (let i = 0; i < 5; i++) s += CODE_ALPHABET[b[i] % CODE_ALPHABET.length];
-  return s;
+  const b = new Uint32Array(1); crypto.getRandomValues(b);
+  return String(b[0] % 10000).padStart(4, "0");
 }
 function genRecoveryKey() {
   const groups = [];
