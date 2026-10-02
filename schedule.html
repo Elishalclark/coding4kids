@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Day - KidVibers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=220" />
+  <style>
+    :root { --sc-accent: #e2897d; }
+    .sched { max-width: 1080px; margin: 0 auto; padding: 24px 24px 90px; }
+    .sc-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 20px; }
+    .sc-head { display:flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color: var(--text-dim); margin-bottom:14px; }
+    .sc-head .right { margin-left:auto; color: var(--text-faint); text-transform:none; letter-spacing:0; font-weight:800; }
+
+    .sc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; margin-bottom:22px; }
+    .sc-clock { font-size: clamp(2.4rem, 7vw, 4rem); font-weight:900; font-variant-numeric: tabular-nums; line-height:1; }
+    .sc-clock .ampm { font-size:1.2rem; color: var(--text-dim); margin-left:6px; }
+    .sc-date-box { text-align:right; min-width:260px; }
+    .sc-date-box .dow { font-size:1.15rem; font-weight:900; }
+    .sc-badges { display:flex; gap:8px; justify-content:flex-end; margin:6px 0; flex-wrap:wrap; }
+    .sc-badge { background: var(--surface-2); border:1px solid var(--border); border-radius:50px; padding:4px 12px; font-size:0.76rem; font-weight:800; color: var(--text-dim); }
+    .sc-badge.type { background: rgba(226,137,125,0.18); color: var(--sc-accent); border-color: rgba(226,137,125,0.4); }
+    .sc-progress-lbl { font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color: var(--text-faint); margin-top:4px; }
+    .sc-progress-track { width:260px; max-width:60vw; height:6px; border-radius:4px; background: var(--surface-2); margin:4px 0; overflow:hidden; }
+    .sc-progress-fill { height:100%; background: var(--sc-accent); border-radius:4px; transition: width .4s; }
+    .sc-progress-times { display:flex; justify-content:space-between; font-size:0.72rem; color: var(--text-faint); }
+    .sc-progress-pct { font-size:1.3rem; font-weight:900; color: var(--sc-accent); }
+
+    .sc-grid2 { display:grid; grid-template-columns: 1fr 1.3fr; gap:20px; align-items:start; }
+    @media (max-width: 760px) { .sc-grid2 { grid-template-columns: 1fr; } }
+
+    .sc-countdown { font-size: 3rem; font-weight:900; color: var(--sc-accent); font-variant-numeric: tabular-nums; }
+    .sc-bell-sub { color: var(--text-dim); font-size:0.85rem; margin-top:4px; }
+
+    .sc-period-row { display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:10px; font-size:0.86rem; }
+    .sc-period-row .ptime { color: var(--text-faint); font-size:0.78rem; min-width:118px; }
+    .sc-period-row .ptag { font-size:0.68rem; font-weight:900; color: var(--text-faint); min-width:46px; text-transform:uppercase; }
+    .sc-period-row .plabel { flex:1; font-weight:800; }
+    .sc-period-row.now { background: rgba(226,137,125,0.14); border:1px solid rgba(226,137,125,0.4); }
+    .sc-now-pill { background: var(--sc-accent); color:#1a0f0d; font-size:0.65rem; font-weight:900; padding:2px 8px; border-radius:50px; }
+
+    .sc-portal-btn { display:flex; align-items:center; gap:12px; background: var(--sc-accent); color:#1a0f0d; border-radius:12px; padding:14px 16px; text-decoration:none; font-weight:900; }
+    .sc-portal-btn .sub { font-weight:700; font-size:0.78rem; opacity:0.75; }
+    .sc-portal-btn .arrow { margin-left:auto; }
+
+    .sc-tabs { display:flex; gap:6px; margin-bottom:10px; }
+    .sc-tab { background: var(--surface-2); border:1px solid var(--border); border-radius:50px; padding:5px 14px; font-size:0.78rem; font-weight:800; color: var(--text-dim); cursor:pointer; font-family:inherit; }
+    .sc-tab.active { background: var(--sc-accent); color:#1a0f0d; border-color: var(--sc-accent); }
+    .sc-search-row { display:flex; gap:8px; }
+    .sc-search-row input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background: var(--bg); color: var(--text); font-family:inherit; font-weight:700; }
+
+    .sc-week { display:grid; grid-template-columns: repeat(auto-fit, minmax(100px,1fr)); gap:10px; }
+    .sc-week-day { background: var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+    .sc-week-day.today { background: rgba(226,137,125,0.14); border-color: var(--sc-accent); }
+    .sc-week-day .wd { font-size:0.72rem; font-weight:900; color: var(--text-dim); display:flex; justify-content:space-between; }
+    .sc-week-day .wt { font-size:0.76rem; font-weight:800; margin-top:6px; color: var(--sc-accent); }
+    .sc-week-day .wt.off { color: var(--text-faint); }
+
+    .sc-off-section-lbl { font-size:0.68rem; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color: var(--text-faint); margin:14px 0 8px; }
+    .sc-off-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap:10px; }
+    .sc-off-item { background: var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+    .sc-off-item .od { font-weight:900; font-size:0.86rem; display:flex; justify-content:space-between; gap:8px; }
+    .sc-off-item .orel { color: var(--sc-accent); font-size:0.7rem; font-weight:800; white-space:nowrap; }
+    .sc-off-item .olbl { color: var(--text-dim); font-size:0.78rem; margin-top:2px; }
+    .sc-off-item.past { opacity:0.5; }
+    .sc-off-item.past .orel { color: var(--text-faint); }
+
+    .sc-fab { position:fixed; right:22px; bottom:22px; z-index:50; }
+    .sc-lock { max-width:440px; margin:70px auto; text-align:center; }
+    .sc-lock input { width:100%; box-sizing:border-box; text-align:center; letter-spacing:4px; font-size:1.3rem; font-weight:900; padding:14px; border-radius:12px; border:1px solid var(--border); background: var(--bg); color: var(--text); font-family:inherit; margin:14px 0 8px; text-transform:uppercase; }
+
+    /* ── Customize panel ── */
+    #custOverlay { display:none; position:fixed; inset:0; z-index:9000; background:rgba(6,4,14,0.85); backdrop-filter:blur(4px); overflow-y:auto; padding:24px 16px; }
+    .cust-box { max-width:680px; margin:0 auto; background: var(--surface); border:1px solid var(--border-bright); border-radius:var(--radius); padding:28px; }
+    .cust-sec { border-top:1px solid var(--border); padding-top:18px; margin-top:18px; }
+    .cust-sec:first-of-type { border-top:none; padding-top:0; margin-top:0; }
+    .cust-sec h3 { font-size:0.95rem; font-weight:900; margin-bottom:10px; }
+    .cust-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+    .cust-row .field { flex:1; min-width:130px; margin-bottom:0; }
+    .cust-row input, .cust-row select { width:100%; box-sizing:border-box; padding:9px 11px; border-radius:8px; border:1px solid var(--border); background: var(--bg); color: var(--text); font-family:inherit; font-weight:700; font-size:0.85rem; }
+    .cust-row label { display:block; font-size:0.7rem; font-weight:800; color: var(--text-dim); margin-bottom:4px; }
+    .cust-table-row { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+    .cust-table-row input { flex:1; min-width:70px; padding:7px 9px; border-radius:7px; border:1px solid var(--border); background: var(--bg); color: var(--text); font-family:inherit; font-size:0.8rem; font-weight:700; }
+    .cust-table-row .rm { background:none; border:none; color:#f87171; font-size:1.1rem; cursor:pointer; padding:2px 6px; }
+    .cust-hint { font-size:0.74rem; color: var(--text-faint); margin:4px 0 8px; }
+  </style>
+  <script src="/analytics.js?v=220"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo"><span class="logo-icon">🚀</span><span>Kid<strong>Vibers</strong></span></a>
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+        <a href="dashboard.html" class="btn btn-ghost">← Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Locked: ask for this week's code -->
+  <div id="lockScreen" class="sched hidden">
+    <div class="sc-card sc-lock">
+      <div style="font-size:2.4rem;">🔒</div>
+      <h2 style="font-size:1.25rem;font-weight:900;margin-top:6px;">Enter this week's code</h2>
+      <p style="color:var(--text-dim);font-size:0.88rem;">Ask your teacher for this week's Day Dashboard code to unlock your schedule.</p>
+      <input id="unlockInput" type="text" placeholder="CODE" maxlength="8" autocomplete="off" />
+      <div id="unlockMsg" style="color:#f87171;font-size:0.82rem;font-weight:700;min-height:16px;margin-bottom:8px;"></div>
+      <button class="btn btn-primary btn-full" onclick="submitUnlock()">Unlock My Day</button>
+    </div>
+  </div>
+
+  <!-- Unlocked: the dashboard -->
+  <div id="schedWrap" class="sched hidden">
+    <div class="sc-top">
+      <div>
+        <div class="sc-clock"><span id="clockTime">--:--:--</span><span class="ampm" id="clockAmPm">AM</span></div>
+      </div>
+      <div class="sc-date-box">
+        <div class="dow" id="dateLine">—</div>
+        <div class="sc-badges">
+          <span class="sc-badge type" id="dayTypeBadge">—</span>
+          <span class="sc-badge" id="periodLabelBadge">—</span>
+        </div>
+        <div class="sc-progress-lbl">Through the school day</div>
+        <div class="sc-progress-track"><div class="sc-progress-fill" id="progFill" style="width:0%"></div></div>
+        <div class="sc-progress-times">
+          <span id="progStart">—</span>
+          <span class="sc-progress-pct" id="progPct">0%</span>
+          <span id="progEnd">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="sc-card">
+        <div class="sc-head">→ Bell Countdown</div>
+        <div id="bellStatus">
+          <div class="sc-bell-sub" id="bellNowLabel">—</div>
+          <div class="sc-countdown" id="bellCountdown">--:--</div>
+          <div class="sc-bell-sub" id="bellNextLabel"></div>
+        </div>
+      </div>
+      <div class="sc-card">
+        <div class="sc-head">📋 Today's Schedule <span class="right" id="dayOfYearLbl"></span></div>
+        <div id="todayPeriods"></div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="sc-card">
+        <div class="sc-head">🔗 Student Portal</div>
+        <a id="portalBtn" class="sc-portal-btn" href="#" target="_blank" rel="noopener">
+          <span>↗</span>
+          <span>
+            <div id="portalLabel">Go to Student Portal</div>
+            <div class="sub" id="portalSub">Opens in a new tab</div>
+          </span>
+          <span class="arrow">›</span>
+        </a>
+      </div>
+      <div class="sc-card">
+        <div class="sc-head">🔍 Quick Search</div>
+        <div class="sc-tabs" id="searchTabs"></div>
+        <div class="sc-search-row">
+          <input id="qsInput" placeholder="Search Google" onkeydown="if(event.key==='Enter')runSearch()" />
+          <button class="btn btn-primary" onclick="runSearch()">🔍 Search</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-head">📅 This Week</div>
+      <div class="sc-week" id="weekStrip"></div>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-head">📆 Days Off</div>
+      <div class="sc-off-section-lbl">Upcoming</div>
+      <div class="sc-off-grid" id="offUpcoming"></div>
+      <div class="sc-off-section-lbl">Already Had</div>
+      <div class="sc-off-grid" id="offPast"></div>
+    </div>
+
+    <div class="sc-fab">
+      <button class="btn btn-primary btn-lg" onclick="openCustomize()">✏️ Customize</button>
+    </div>
+  </div>
+
+  <!-- Customize panel -->
+  <div id="custOverlay">
+    <div class="cust-box">
+      <h2 style="font-size:1.3rem;font-weight:900;margin-bottom:4px;">Customize My Day</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:10px;">Make it match your real school. Everything here is yours to edit.</p>
+
+      <div class="cust-sec">
+        <h3>🔗 Student portal link</h3>
+        <div class="cust-row">
+          <div class="field"><label>Button label</label><input id="cPortalLabel" /></div>
+          <div class="field"><label>Subtext</label><input id="cPortalSub" /></div>
+        </div>
+        <div class="cust-row"><div class="field"><label>URL</label><input id="cPortalUrl" placeholder="https://..." /></div></div>
+      </div>
+
+      <div class="cust-sec">
+        <h3>⏰ School hours &amp; year</h3>
+        <div class="cust-row">
+          <div class="field"><label>Day starts</label><input id="cHourStart" type="time" /></div>
+          <div class="field"><label>Day ends</label><input id="cHourEnd" type="time" /></div>
+        </div>
+        <div class="cust-row">
+          <div class="field"><label>School year starts</label><input id="cYearStart" type="date" /></div>
+          <div class="field"><label>Total weeks</label><input id="cYearWeeks" type="number" min="1" max="52" /></div>
+        </div>
+        <div class="cust-row"><div class="field"><label>Period label (e.g. "Six Weeks 2")</label><input id="cPeriodLabel" placeholder="optional" /></div></div>
+      </div>
+
+      <div class="cust-sec">
+        <h3>🔁 Day rotation (A/B days, etc.)</h3>
+        <div class="cust-row">
+          <div class="field"><label>Cycle (comma-separated — use one label like "Day" if you don't rotate)</label><input id="cCycle" placeholder="A Day, B Day" /></div>
+          <div class="field"><label>Anchor date (this date = the 1st label)</label><input id="cAnchor" type="date" /></div>
+        </div>
+        <p class="cust-hint">Example overrides for a single date that breaks the pattern (e.g. an early-release "Split" day):</p>
+        <div id="overrideRows"></div>
+        <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addOverrideRow()">+ Add override</button>
+      </div>
+
+      <div class="cust-sec">
+        <h3>🔔 Bell schedule</h3>
+        <p class="cust-hint">"Applies to" = All, or one of your cycle labels above, to only show a period on certain days.</p>
+        <div id="periodRows"></div>
+        <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addPeriodRow()">+ Add period</button>
+      </div>
+
+      <div class="cust-sec">
+        <h3>📆 Days off</h3>
+        <div id="daysOffRows"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addDayOffRow()">+ Add day off</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="restoreDefaultDaysOff()">↺ Restore default US calendar</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:22px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeCustomize()">Cancel</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveCustomize()">Save</button>
+      </div>
+      <div id="custMsg" style="text-align:center;font-size:0.82rem;font-weight:700;min-height:18px;margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <script src="auth.js?v=220"></script>
+  <script>
+    let ME = null, DATA = null, LOCKED = false, lastRenderedDate = null, curEngine = 'google';
+    const ENGINES = {
+      google:    q => 'https://www.google.com/search?q=' + encodeURIComponent(q),
+      youtube:   q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q),
+      wikipedia: q => 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(q),
+    };
+
+    // ── date helpers ──
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function toISO(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    function parseISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+    function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+    function isWeekday(d) { const w = d.getDay(); return w >= 1 && w <= 5; }
+    function timeToMin(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+    function fmtTime(t) {
+      const [h, m] = t.split(':').map(Number);
+      const ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12;
+      return `${h12}:${pad2(m)} ${ap}`;
+    }
+    function nthWeekday(year, month, weekday, n) {
+      let d = new Date(year, month, 1), count = 0;
+      while (true) { if (d.getDay() === weekday) { count++; if (count === n) return d; } d = addDays(d, 1); }
+    }
+    function lastWeekday(year, month, weekday) {
+      let d = new Date(year, month + 1, 0);
+      while (d.getDay() !== weekday) d = addDays(d, -1);
+      return d;
+    }
+
+    function defaultDaysOff(schoolYearStartYear) {
+      const Y = schoolYearStartYear;
+      const items = [];
+      const add = (d, label, d2) => items.push({ start: toISO(d), end: toISO(d2 || d), label });
+      add(nthWeekday(Y, 8, 1, 1), 'Labor Day');
+      add(nthWeekday(Y, 9, 1, 2), 'Columbus Day');
+      add(new Date(Y, 10, 11), 'Veterans Day');
+      const thx = nthWeekday(Y, 10, 4, 4);
+      add(addDays(thx, -1), 'Thanksgiving Break', addDays(thx, 1));
+      add(new Date(Y, 11, 23), 'Winter Break', new Date(Y + 1, 0, 2));
+      add(nthWeekday(Y + 1, 0, 1, 3), 'Dr. Martin Luther King Jr. Day');
+      add(nthWeekday(Y + 1, 1, 1, 3), "Presidents' Day");
+      const spring = nthWeekday(Y + 1, 2, 1, 2);
+      add(spring, 'Spring Break', addDays(spring, 4));
+      add(lastWeekday(Y + 1, 4, 1), 'Memorial Day');
+      add(nthWeekday(Y + 1, 5, 5, 1), 'School Year Ends (edit me!)');
+      return items.sort((a, b) => a.start.localeCompare(b.start));
+    }
+
+    function defaultTemplate() {
+      const today = new Date();
+      const Y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
+      return {
+        portal: { label: 'Student Portal', sub: 'Opens in a new tab', url: '' },
+        hours: { start: '08:45', end: '15:45' },
+        year: { start: `${Y}-08-11`, weeks: 36, periodLabel: '' },
+        rotation: { cycle: ['Day'], anchorDate: `${Y}-08-11`, overrides: {} },
+        periods: [
+          { tag: '1', label: 'Period 1', start: '08:45', end: '09:35', days: 'all' },
+          { tag: '2', label: 'Period 2', start: '09:39', end: '10:29', days: 'all' },
+          { tag: '3', label: 'Period 3', start: '10:33', end: '11:23', days: 'all' },
+          { tag: '4', label: 'Period 4', start: '11:27', end: '12:17', days: 'all' },
+          { tag: 'LUNCH', label: 'Lunch', start: '12:17', end: '12:47', days: 'all' },
+          { tag: '5', label: 'Period 5', start: '12:51', end: '13:41', days: 'all' },
+          { tag: '6', label: 'Period 6', start: '13:45', end: '14:35', days: 'all' },
+          { tag: '7', label: 'Period 7', start: '14:39', end: '15:29', days: 'all' },
+        ],
+        daysOff: defaultDaysOff(Y),
+      };
+    }
+
+    function isDaysOff(dateStr, daysOff) { return (daysOff || []).some(d => dateStr >= d.start && dateStr <= d.end); }
+    function dayTypeFor(dateStr, data) {
+      if (isDaysOff(dateStr, data.daysOff)) return null;
+      const d = parseISO(dateStr);
+      if (!isWeekday(d)) return null;
+      if (data.rotation.overrides && data.rotation.overrides[dateStr]) return data.rotation.overrides[dateStr];
+      const cycle = (data.rotation.cycle && data.rotation.cycle.length) ? data.rotation.cycle : ['Day'];
+      const anchor = parseISO(data.rotation.anchorDate || data.year.start);
+      let count = 0, cur = new Date(anchor);
+      if (toISO(anchor) === dateStr) return cycle[0];
+      if (anchor < d) {
+        while (toISO(cur) !== dateStr) { cur = addDays(cur, 1); if (isWeekday(cur) && !isDaysOff(toISO(cur), data.daysOff)) count++; }
+      } else {
+        while (toISO(cur) !== dateStr) { cur = addDays(cur, -1); if (isWeekday(cur) && !isDaysOff(toISO(cur), data.daysOff)) count--; }
+      }
+      const idx = ((count % cycle.length) + cycle.length) % cycle.length;
+      return cycle[idx];
+    }
+    function periodsForDate(dateStr, data) {
+      const type = dayTypeFor(dateStr, data);
+      if (type === null) return { type: null, periods: [] };
+      const list = (data.periods || []).filter(p => p.days === 'all' || p.days === type)
+        .slice().sort((a, b) => timeToMin(a.start) - timeToMin(b.start));
+      return { type, periods: list };
+    }
+    function bellStatus(now, periods) {
+      const curMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      for (let i = 0; i < periods.length; i++) {
+        const p = periods[i], s = timeToMin(p.start), e = timeToMin(p.end);
+        if (curMin >= s && curMin < e) {
+          const next = periods[i + 1] || null;
+          return { current: p, secsLeft: Math.max(0, Math.round((e - curMin) * 60)), next,
+            nextInSecs: next ? Math.max(0, Math.round((timeToMin(next.start) - curMin) * 60)) : null };
+        }
+      }
+      const next = periods.find(p => timeToMin(p.start) > curMin) || null;
+      return { current: null, secsLeft: null, next,
+        nextInSecs: next ? Math.max(0, Math.round((timeToMin(next.start) - curMin) * 60)) : null };
+    }
+    function schoolDayProgress(now, hours) {
+      const s = timeToMin(hours.start), e = timeToMin(hours.end);
+      const cur = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      if (cur <= s) return 0; if (cur >= e) return 100;
+      return Math.round(((cur - s) / (e - s)) * 1000) / 10;
+    }
+    function schoolDayNumber(dateStr, data) {
+      const start = parseISO(data.year.start), target = parseISO(dateStr);
+      if (target < start) return 0;
+      let n = 0, cur = new Date(start);
+      while (true) {
+        if (isWeekday(cur) && !isDaysOff(toISO(cur), data.daysOff)) n++;
+        if (toISO(cur) === dateStr) break;
+        cur = addDays(cur, 1);
+        if (cur - target > 365 * 86400000) break;
+      }
+      return n;
+    }
+    function weekNumber(dateStr, data) {
+      const diff = Math.floor((parseISO(dateStr) - parseISO(data.year.start)) / 86400000);
+      return Math.max(1, Math.floor(diff / 7) + 1);
+    }
+    function relTime(dateStr, todayStr) {
+      const diffDays = Math.round((parseISO(dateStr) - parseISO(todayStr)) / 86400000);
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Tomorrow';
+      if (diffDays === -1) return 'Yesterday';
+      if (diffDays > 0) return diffDays < 14 ? `in ${diffDays} days` : diffDays < 60 ? `in ${Math.round(diffDays / 7)} wks` : `in ${Math.round(diffDays / 30)} mo`;
+      const ad = Math.abs(diffDays);
+      return ad < 14 ? `${ad} days ago` : ad < 60 ? `${Math.round(ad / 7)} wks ago` : `${Math.round(ad / 30)} mo ago`;
+    }
+    function fmtDateRange(start, end) {
+      const o = { month: 'short', day: 'numeric' };
+      const s = parseISO(start).toLocaleDateString('en-US', o);
+      if (start === end) return s;
+      const e = parseISO(end).toLocaleDateString('en-US', o);
+      return `${s} - ${e}`;
+    }
+
+    // ── render ──
+    function renderClock() {
+      const now = new Date();
+      let h = now.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12;
+      document.getElementById('clockTime').textContent = `${h12}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+      document.getElementById('clockAmPm').textContent = ap;
+
+      const todayStr = toISO(now);
+      if (todayStr !== lastRenderedDate) { renderStatic(); lastRenderedDate = todayStr; }
+
+      const pct = schoolDayProgress(now, DATA.hours);
+      document.getElementById('progFill').style.width = pct + '%';
+      document.getElementById('progPct').textContent = pct + '%';
+
+      const { periods } = periodsForDate(todayStr, DATA);
+      const st = bellStatus(now, periods);
+      const fmtCountdown = secs => secs == null ? '—:—' : `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`;
+      if (st.current) {
+        document.getElementById('bellNowLabel').textContent = `${st.current.label} ends in`;
+        document.getElementById('bellCountdown').textContent = fmtCountdown(st.secsLeft);
+        document.getElementById('bellNextLabel').textContent = st.next ? `${st.next.label} starts in ${fmtCountdown(st.nextInSecs)}` : 'Last period of the day';
+      } else if (st.next) {
+        document.getElementById('bellNowLabel').textContent = `${st.next.label} starts in`;
+        document.getElementById('bellCountdown').textContent = fmtCountdown(st.nextInSecs);
+        document.getElementById('bellNextLabel').textContent = '';
+      } else {
+        document.getElementById('bellNowLabel').textContent = periods.length ? 'School is out for the day' : 'No school today';
+        document.getElementById('bellCountdown').textContent = '🎉';
+        document.getElementById('bellNextLabel').textContent = '';
+      }
+      highlightNowRow(st.current);
+    }
+
+    function highlightNowRow(current) {
+      document.querySelectorAll('#todayPeriods .sc-period-row').forEach(row => {
+        const isNow = current && row.dataset.label === current.label && row.dataset.start === current.start;
+        row.classList.toggle('now', !!isNow);
+        const pill = row.querySelector('.sc-now-pill');
+        if (pill) pill.remove();
+        if (isNow) { const span = document.createElement('span'); span.className = 'sc-now-pill'; span.textContent = 'NOW'; row.appendChild(span); }
+      });
+    }
+
+    function renderStatic() {
+      const now = new Date(), todayStr = toISO(now);
+      document.getElementById('dateLine').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const type = dayTypeFor(todayStr, DATA);
+      document.getElementById('dayTypeBadge').textContent = type || 'No School';
+      const wk = weekNumber(todayStr, DATA);
+      document.getElementById('periodLabelBadge').textContent = DATA.year.periodLabel ? DATA.year.periodLabel + ` · Week ${wk} of ${DATA.year.weeks}` : `Week ${wk} of ${DATA.year.weeks}`;
+      document.getElementById('progStart').textContent = fmtTime(DATA.hours.start);
+      document.getElementById('progEnd').textContent = fmtTime(DATA.hours.end);
+
+      const { periods } = periodsForDate(todayStr, DATA);
+      const dayNum = schoolDayNumber(todayStr, DATA);
+      document.getElementById('dayOfYearLbl').textContent = periods.length ? `Day ${dayNum} of ${DATA.year.weeks * 5}` : '';
+      const tp = document.getElementById('todayPeriods');
+      tp.innerHTML = periods.length ? periods.map(p => `
+        <div class="sc-period-row" data-label="${C4K.esc(p.label)}" data-start="${p.start}">
+          <span class="ptime">${fmtTime(p.start)} - ${fmtTime(p.end)}</span>
+          <span class="ptag">${C4K.esc(p.tag || '')}</span>
+          <span class="plabel">${C4K.esc(p.label)}</span>
+        </div>`).join('') : `<p style="color:var(--text-dim);font-size:0.85rem;">No school today — enjoy the day off! 🎉</p>`;
+
+      // Portal
+      document.getElementById('portalLabel').textContent = DATA.portal.label || 'Student Portal';
+      document.getElementById('portalSub').textContent = DATA.portal.sub || 'Opens in a new tab';
+      document.getElementById('portalBtn').href = DATA.portal.url || '#';
+
+      // Quick search tabs
+      const tabs = document.getElementById('searchTabs');
+      tabs.innerHTML = Object.keys(ENGINES).map(k =>
+        `<button class="sc-tab ${k === curEngine ? 'active' : ''}" onclick="setEngine('${k}')">${k[0].toUpperCase() + k.slice(1)}</button>`).join('');
+      document.getElementById('qsInput').placeholder = 'Search ' + (curEngine[0].toUpperCase() + curEngine.slice(1));
+
+      // This week strip (Mon-Fri of the current week)
+      const dow = now.getDay();
+      const monday = addDays(now, dow === 0 ? -6 : 1 - dow);
+      const week = document.getElementById('weekStrip');
+      week.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const d = addDays(monday, i), ds = toISO(d);
+        const t = dayTypeFor(ds, DATA);
+        const div = document.createElement('div');
+        div.className = 'sc-week-day' + (ds === todayStr ? ' today' : '');
+        div.innerHTML = `<div class="wd"><span>${d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}</span><span>${d.getDate()}</span></div>
+          <div class="wt ${t ? '' : 'off'}">${t || 'No School'}</div>`;
+        week.appendChild(div);
+      }
+
+      // Days off
+      const sorted = (DATA.daysOff || []).slice().sort((a, b) => a.start.localeCompare(b.start));
+      const upcoming = sorted.filter(d => d.end >= todayStr);
+      const past = sorted.filter(d => d.end < todayStr).slice(-6).reverse();
+      const card = (d, isPast) => `<div class="sc-off-item ${isPast ? 'past' : ''}">
+          <div class="od"><span>${fmtDateRange(d.start, d.end)}</span><span class="orel">${relTime(isPast ? d.end : d.start, todayStr)}</span></div>
+          <div class="olbl">${C4K.esc(d.label)}</div></div>`;
+      document.getElementById('offUpcoming').innerHTML = upcoming.length ? upcoming.map(d => card(d, false)).join('') : `<p style="color:var(--text-dim);font-size:0.82rem;">Nothing coming up.</p>`;
+      document.getElementById('offPast').innerHTML = past.length ? past.map(d => card(d, true)).join('') : `<p style="color:var(--text-dim);font-size:0.82rem;">None yet.</p>`;
+
+      renderClock.lastPeriods = periods;
+    }
+
+    function setEngine(k) { curEngine = k; renderStatic(); }
+    function runSearch() {
+      const q = document.getElementById('qsInput').value.trim();
+      if (!q) return;
+      const url = ENGINES[curEngine](q);
+      const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    // ── load / unlock ──
+    async function load() {
+      ME = await C4K.loadMe();
+      if (!ME) { location.href = 'index.html'; return; }
+      if (ME.role !== 'kid' && !ME.isPreview) {
+        location.href = (ME.role === 'parent' || ME.role === 'teacher') ? 'parent.html' : 'index.html';
+        return;
+      }
+      const { ok, data } = await C4K.api('/api/daydash');
+      if (!ok) { location.href = 'dashboard.html'; return; }
+      LOCKED = !!data.locked;
+      if (LOCKED) {
+        document.getElementById('lockScreen').classList.remove('hidden');
+        return;
+      }
+      DATA = data.data;
+      if (!DATA) {
+        DATA = defaultTemplate();
+        await C4K.api('/api/daydash/save', 'POST', { data: DATA });
+      }
+      document.getElementById('schedWrap').classList.remove('hidden');
+      renderStatic();
+      lastRenderedDate = toISO(new Date());
+      renderClock();
+      setInterval(renderClock, 1000);
+    }
+
+    async function submitUnlock() {
+      const code = document.getElementById('unlockInput').value.trim();
+      const msg = document.getElementById('unlockMsg');
+      if (!code) { msg.textContent = 'Enter a code.'; return; }
+      const { ok, data } = await C4K.api('/api/daydash/unlock', 'POST', { code });
+      if (!ok) { msg.textContent = data.error || 'Could not unlock.'; return; }
+      document.getElementById('lockScreen').classList.add('hidden');
+      load();
+    }
+
+    // ── customize panel ──
+    function openCustomize() {
+      document.getElementById('cPortalLabel').value = DATA.portal.label || '';
+      document.getElementById('cPortalSub').value = DATA.portal.sub || '';
+      document.getElementById('cPortalUrl').value = DATA.portal.url || '';
+      document.getElementById('cHourStart').value = DATA.hours.start;
+      document.getElementById('cHourEnd').value = DATA.hours.end;
+      document.getElementById('cYearStart').value = DATA.year.start;
+      document.getElementById('cYearWeeks').value = DATA.year.weeks;
+      document.getElementById('cPeriodLabel').value = DATA.year.periodLabel || '';
+      document.getElementById('cCycle').value = (DATA.rotation.cycle || ['Day']).join(', ');
+      document.getElementById('cAnchor').value = DATA.rotation.anchorDate || DATA.year.start;
+
+      const ov = document.getElementById('overrideRows'); ov.innerHTML = '';
+      Object.entries(DATA.rotation.overrides || {}).forEach(([date, label]) => addOverrideRow(date, label));
+
+      const pr = document.getElementById('periodRows'); pr.innerHTML = '';
+      (DATA.periods || []).forEach(p => addPeriodRow(p));
+
+      const dr = document.getElementById('daysOffRows'); dr.innerHTML = '';
+      (DATA.daysOff || []).forEach(d => addDayOffRow(d));
+
+      document.getElementById('custMsg').textContent = '';
+      document.getElementById('custOverlay').style.display = 'block';
+    }
+    function closeCustomize() { document.getElementById('custOverlay').style.display = 'none'; }
+
+    function addOverrideRow(date, label) {
+      const row = document.createElement('div');
+      row.className = 'cust-table-row';
+      row.innerHTML = `<input type="date" class="ov-date" value="${date || ''}" />
+        <input type="text" class="ov-label" placeholder="e.g. Split" value="${label ? C4K.esc(label) : ''}" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('overrideRows').appendChild(row);
+    }
+    function addPeriodRow(p) {
+      p = p || { tag: '', label: '', start: '08:00', end: '08:45', days: 'all' };
+      const row = document.createElement('div');
+      row.className = 'cust-table-row';
+      row.innerHTML = `<input type="text" class="p-tag" placeholder="Tag" value="${C4K.esc(p.tag || '')}" style="max-width:60px;" />
+        <input type="text" class="p-label" placeholder="Name" value="${C4K.esc(p.label || '')}" />
+        <input type="time" class="p-start" value="${p.start}" />
+        <input type="time" class="p-end" value="${p.end}" />
+        <input type="text" class="p-days" placeholder="All" value="${C4K.esc(p.days || 'all')}" style="max-width:90px;" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('periodRows').appendChild(row);
+    }
+    function addDayOffRow(d) {
+      d = d || { start: toISO(new Date()), end: toISO(new Date()), label: '' };
+      const row = document.createElement('div');
+      row.className = 'cust-table-row';
+      row.innerHTML = `<input type="date" class="d-start" value="${d.start}" />
+        <input type="date" class="d-end" value="${d.end}" />
+        <input type="text" class="d-label" placeholder="Label" value="${C4K.esc(d.label || '')}" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('daysOffRows').appendChild(row);
+    }
+    function restoreDefaultDaysOff() {
+      if (!confirm('Replace your current days-off list with the default US school calendar?')) return;
+      const Y = parseISO(document.getElementById('cYearStart').value || DATA.year.start).getFullYear();
+      const dr = document.getElementById('daysOffRows'); dr.innerHTML = '';
+      defaultDaysOff(Y).forEach(d => addDayOffRow(d));
+    }
+
+    async function saveCustomize() {
+      const cycle = document.getElementById('cCycle').value.split(',').map(s => s.trim()).filter(Boolean);
+      const overrides = {};
+      document.querySelectorAll('#overrideRows .cust-table-row').forEach(r => {
+        const date = r.querySelector('.ov-date').value, label = r.querySelector('.ov-label').value.trim();
+        if (date && label) overrides[date] = label;
+      });
+      const periods = Array.from(document.querySelectorAll('#periodRows .cust-table-row')).map(r => ({
+        tag: r.querySelector('.p-tag').value.trim(),
+        label: r.querySelector('.p-label').value.trim() || 'Period',
+        start: r.querySelector('.p-start').value || '08:00',
+        end: r.querySelector('.p-end').value || '08:45',
+        days: r.querySelector('.p-days').value.trim() || 'all',
+      }));
+      const daysOff = Array.from(document.querySelectorAll('#daysOffRows .cust-table-row')).map(r => ({
+        start: r.querySelector('.d-start').value,
+        end: r.querySelector('.d-end').value || r.querySelector('.d-start').value,
+        label: r.querySelector('.d-label').value.trim() || 'Day off',
+      })).filter(d => d.start);
+
+      const newData = {
+        portal: {
+          label: document.getElementById('cPortalLabel').value.trim() || 'Student Portal',
+          sub: document.getElementById('cPortalSub').value.trim() || 'Opens in a new tab',
+          url: document.getElementById('cPortalUrl').value.trim(),
+        },
+        hours: { start: document.getElementById('cHourStart').value || '08:00', end: document.getElementById('cHourEnd').value || '15:00' },
+        year: {
+          start: document.getElementById('cYearStart').value || DATA.year.start,
+          weeks: Math.max(1, parseInt(document.getElementById('cYearWeeks').value, 10) || 36),
+          periodLabel: document.getElementById('cPeriodLabel').value.trim(),
+        },
+        rotation: {
+          cycle: cycle.length ? cycle : ['Day'],
+          anchorDate: document.getElementById('cAnchor').value || document.getElementById('cYearStart').value,
+          overrides,
+        },
+        periods, daysOff,
+      };
+      const msg = document.getElementById('custMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const { ok, data } = await C4K.api('/api/daydash/save', 'POST', { data: newData });
+      if (!ok) { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not save.'; return; }
+      DATA = newData;
+      lastRenderedDate = null;
+      renderClock();
+      msg.style.color = 'var(--green,#4ade80)'; msg.textContent = '✅ Saved!';
+      setTimeout(closeCustomize, 600);
+    }
+
+    load();
+  </script>
+  <script src="pwa.js?v=220" defer></script>
+</body>
+</html>

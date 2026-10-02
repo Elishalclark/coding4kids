@@ -151,6 +151,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <button class="btn btn-outline" style="font-size:0.82rem;padding:8px 14px;" onclick="copyTeacherCode()">📋 Copy</button>
     </div>
 
+    <div id="dayDashCode" class="hidden" style="margin-bottom:28px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;">
+      <span style="font-size:1.5rem;">🗓️</span>
+      <div style="flex:1;min-width:160px;">
+        <strong>Day Dashboard code · this week</strong>
+        <div style="color:var(--text-dim);font-size:0.85rem;">Share this with your class so they can unlock their bell-schedule dashboard. It changes every Monday.</div>
+      </div>
+      <span id="ddCode" style="font-size:1.4rem;font-weight:900;letter-spacing:3px;color:var(--pink);background:var(--bg);border:1px dashed var(--border-bright);border-radius:10px;padding:8px 16px;">-----</span>
+      <button class="btn btn-outline" style="font-size:0.82rem;padding:8px 14px;" onclick="copyDayDashCode()">📋 Copy</button>
+    </div>
+
     <!-- Live drop-in session (library / kiosk) -->
     <div id="liveSessionCard" class="hidden" style="margin-bottom:28px;background:linear-gradient(135deg,#0f3d2e,#15803d 70%,#16a34a);border:1px solid var(--border-bright);border-radius:var(--radius);padding:20px 24px;color:#fff;">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -771,6 +781,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       setTimeout(() => b.textContent = t, 1200);
     }
 
+    async function loadDayDashCode() {
+      const { ok, data } = await C4K.api('/api/daydash/code');
+      if (ok) document.getElementById('ddCode').textContent = data.code;
+    }
+    function copyDayDashCode() {
+      const code = document.getElementById('ddCode').textContent.trim();
+      navigator.clipboard?.writeText(code);
+      const b = event.target; const t = b.textContent; b.textContent = '✅ Copied';
+      setTimeout(() => b.textContent = t, 1200);
+    }
+
     // ── What's New — staff-only items (auth.js has the shared, audience-tagged list) ──
     function openWhatsNew(force) {
       C4K.showWhatsNew({ audience: 'staff', storageKey: 'c4k_wn_seen_staff', listId: 'wnList', versionId: 'wnVersion', popupId: 'whatsNew', force });
@@ -826,6 +847,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         if (me.classCode) {
           document.getElementById('tcCode').textContent = me.classCode;
           document.getElementById('teacherCode').classList.remove('hidden');
+          document.getElementById('dayDashCode').classList.remove('hidden');
+          loadDayDashCode();
         }
         // Session logout PIN
         document.getElementById('pinCard').classList.remove('hidden');

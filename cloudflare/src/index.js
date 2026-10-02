@@ -1959,6 +1959,81 @@ async function apiClassRequestDecide(env, request, data) {
   return json({ ok: true, username: row.username, name: row.name });
 }
 
+// ───────────────────────── Day Dashboard (bell schedule / days-off widget) ─────────────────────────
+//
+// A kid-customizable "what's happening at school today" page: live clock, bell schedule,
+// day-type rotation (A/B days etc.), and a days-off calendar. Entirely stored as one JSON
+// blob per kid (day_dash_json) so the shape can evolve without new migrations.
+//
+// Classroom kids (family_id -> a teacher) must unlock it each week with a short code the
+// teacher can see on their own dashboard - the same code for the whole class, rotating every
+// Monday so an old code a former student has doesn't keep working forever. Kids under a
+// parent account (no classroom) have no code to ask for, so they're never gated.
+function weekKeyFor(d) {
+  const day = d.getUTCDay();   // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day;   // offset back to this week's Monday
+  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff));
+  return monday.toISOString().slice(0, 10);
+}
+async function genDayDashCode(env) {
+  for (let tries = 0; tries < 50; tries++) {
+    let code = ""; const b = new Uint8Array(5); crypto.getRandomValues(b);
+    for (let i = 0; i < 5; i++) code += CODE_ALPHABET[b[i] % CODE_ALPHABET.length];
+    const exists = await env.DB.prepare("SELECT 1 FROM users WHERE day_dash_code=?").bind(code).first();
+    if (!exists) return code;
+  }
+  return "D" + randToken(4).slice(0, 4).toUpperCase();
+}
+async function apiDayDashCode(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "teacher") return json({ error: "Only a teacher account has a classroom code." }, 403);
+  const wk = weekKeyFor(new Date());
+  if (u.day_dash_code_week !== wk || !u.day_dash_code) {
+    const code = await genDayDashCode(env);
+    await env.DB.prepare("UPDATE users SET day_dash_code=?, day_dash_code_week=? WHERE id=?").bind(code, wk, u.id).run();
+    return json({ code, week: wk });
+  }
+  return json({ code: u.day_dash_code, week: wk });
+}
+async function apiDayDashUnlock(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid account can unlock the Day Dashboard." }, 403);
+  if (await rateLimited(env, `daydashunlock:${u.id}`, 10, 600))
+    return json({ error: "That's a lot of tries. Ask your teacher for this week's code." }, 429);
+  const guardian = u.family_id ? await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(u.family_id).first() : null;
+  if (!guardian || guardian.role !== "teacher") return json({ error: "There's no classroom code to enter." }, 400);
+  const code = (data.code || "").trim().toUpperCase().replace(/ /g, "");
+  if (!code) return json({ error: "Enter this week's code." }, 400);
+  const wk = weekKeyFor(new Date());
+  if (guardian.day_dash_code_week !== wk || !guardian.day_dash_code || code !== guardian.day_dash_code)
+    return json({ error: "That code is wrong or expired - ask your teacher for this week's code." }, 401);
+  await env.DB.prepare("UPDATE users SET day_dash_unlock_week=? WHERE id=?").bind(wk, u.id).run();
+  return json({ ok: true });
+}
+async function dayDashGate(env, u) {
+  const guardian = u.family_id ? await env.DB.prepare("SELECT role FROM users WHERE id=?").bind(u.family_id).first() : null;
+  const gated = !!(guardian && guardian.role === "teacher");
+  return { gated, unlocked: !gated || u.day_dash_unlock_week === weekKeyFor(new Date()) };
+}
+async function apiDayDashGet(env, request) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid account has a Day Dashboard." }, 403);
+  const { unlocked } = await dayDashGate(env, u);
+  let data = null;
+  if (unlocked && u.day_dash_json) { try { data = JSON.parse(u.day_dash_json); } catch {} }
+  return json({ locked: !unlocked, data });
+}
+async function apiDayDashSave(env, request, data) {
+  const u = await userFromToken(env, bearer(request));
+  if (!u || u.role !== "kid") return json({ error: "Only a kid account has a Day Dashboard." }, 403);
+  const { unlocked } = await dayDashGate(env, u);
+  if (!unlocked) return json({ error: "Enter this week's code first." }, 403);
+  const payload = JSON.stringify(data.data || {});
+  if (payload.length > 40000) return json({ error: "That's too much to save - trim it down a bit." }, 400);
+  await env.DB.prepare("UPDATE users SET day_dash_json=? WHERE id=?").bind(payload, u.id).run();
+  return json({ ok: true });
+}
+
 // ───────────────────────── private projects (Vibe Studio) ─────────────────────────
 // Projects are private to the child's own account. There is no public gallery,
 // sharing, likes, or comments feature — kids only save their own work.
@@ -5931,6 +6006,10 @@ const SCHEMA_COLUMNS = [
   `ALTER TABLE users ADD COLUMN notif_opt_in INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE users ADD COLUMN notif_opt_in_at TEXT`,
   `ALTER TABLE users ADD COLUMN schedule TEXT`,
+  `ALTER TABLE users ADD COLUMN day_dash_code TEXT`,
+  `ALTER TABLE users ADD COLUMN day_dash_code_week TEXT`,
+  `ALTER TABLE users ADD COLUMN day_dash_unlock_week TEXT`,
+  `ALTER TABLE users ADD COLUMN day_dash_json TEXT`,
 ];
 
 let schemaReady = null;
@@ -6298,6 +6377,10 @@ async function handleApi(env, request, path) {
   if (path === "/api/class/request" && method === "POST") return apiClassRequest(env, request, data);
   if (path === "/api/class/requests" && method === "GET") return apiClassRequests(env, request);
   if (path === "/api/class/requests/decide" && method === "POST") return apiClassRequestDecide(env, request, data);
+  if (path === "/api/daydash/code" && method === "GET") return apiDayDashCode(env, request);
+  if (path === "/api/daydash/unlock" && method === "POST") return apiDayDashUnlock(env, request, data);
+  if (path === "/api/daydash" && method === "GET") return apiDayDashGet(env, request);
+  if (path === "/api/daydash/save" && method === "POST") return apiDayDashSave(env, request, data);
 
   // gallery / projects / comments
   if (path === "/api/projects/save" && method === "POST") return apiProjectSave(env, request, data);
