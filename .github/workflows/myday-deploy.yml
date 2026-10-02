@@ -1,0 +1,49 @@
+name: Deploy My Day (standalone)
+
+# Publishes the separate "My Day" bell-schedule dashboard - its own Worker, with no
+# KidVibers accounts or shared login. Lives entirely under myday/ and only redeploys
+# when that directory (or this workflow) changes.
+#
+# Uses the same CLOUDFLARE_API_TOKEN repo secret as the main site's deploy workflow -
+# no extra setup needed. It reuses the main site's D1 database but only ever touches
+# its own myday_* tables, created automatically on first request.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "myday/**"
+      - ".github/workflows/myday-deploy.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: myday
+          command: deploy
+
+      - name: Smoke test the deployed Worker
+        run: |
+          URL="${{ steps.deploy.outputs.deployment-url }}"
+          if [ -z "$URL" ]; then
+            echo "Could not find the deployed URL in wrangler's output - skipping the live check."
+            exit 0
+          fi
+          echo "Deployed to: $URL"
+          echo "Waiting a few seconds for the new version to be serving…"
+          sleep 10
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/")
+          if [ "$code" != "200" ]; then
+            echo "::error::Landing page returned HTTP $code"
+            exit 1
+          fi
+          echo "✅ Landing page is live (HTTP 200)"

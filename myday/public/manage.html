@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage My Day</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="myday.css" />
+</head>
+<body>
+  <div class="topbar">
+    <a href="index.html" class="logo">🗓️ My <span>Day</span></a>
+    <div class="right"><button class="btn btn-outline" onclick="signOut()" id="signOutBtn" style="display:none;">Sign out</button></div>
+  </div>
+
+  <!-- Enter recovery key -->
+  <div id="keyGate" class="wrap hidden">
+    <div class="card lock-box">
+      <div style="font-size:2.4rem;">🔑</div>
+      <h2 style="font-size:1.2rem;font-weight:900;margin-top:6px;">Enter your recovery key</h2>
+      <p style="color:var(--text-dim);font-size:0.88rem;">The one shown when you created your class.</p>
+      <input id="keyInput" placeholder="XXXX-XXXX-XXXX" autocomplete="off" />
+      <div class="err" id="keyErr"></div>
+      <button class="btn btn-primary btn-full" onclick="submitKey()">Open my class</button>
+    </div>
+  </div>
+
+  <!-- Managed class -->
+  <div id="manageWrap" class="wrap hidden">
+    <div class="card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:1.5rem;">🗓️</span>
+      <div style="flex:1;min-width:160px;">
+        <strong id="mClassName">—</strong>
+        <div style="color:var(--text-dim);font-size:0.85rem;">This week's code — share it with your students. Changes every Monday.</div>
+      </div>
+      <span id="mCode" style="font-size:1.4rem;font-weight:900;letter-spacing:3px;color:var(--accent);background:var(--bg);border:1px dashed var(--border-bright);border-radius:10px;padding:8px 16px;">-----</span>
+      <button class="btn btn-outline" onclick="copyCode()">📋 Copy</button>
+    </div>
+
+    <div class="sc-top">
+      <div><div class="sc-clock"><span id="clockTime">--:--:--</span><span class="ampm" id="clockAmPm">AM</span></div></div>
+      <div class="sc-date-box">
+        <div class="dow" id="dateLine">—</div>
+        <div class="sc-badges"><span class="sc-badge type" id="dayTypeBadge">—</span><span class="sc-badge" id="periodLabelBadge">—</span></div>
+        <div class="sc-progress-lbl">Through the school day</div>
+        <div class="sc-progress-track"><div class="sc-progress-fill" id="progFill" style="width:0%"></div></div>
+        <div class="sc-progress-times"><span id="progStart">—</span><span class="sc-progress-pct" id="progPct">0%</span><span id="progEnd">—</span></div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="card">
+        <div class="sc-head">→ Bell Countdown</div>
+        <div class="sc-bell-sub" id="bellNowLabel">—</div>
+        <div class="sc-countdown" id="bellCountdown">--:--</div>
+        <div class="sc-bell-sub" id="bellNextLabel"></div>
+      </div>
+      <div class="card">
+        <div class="sc-head">📋 Today's Schedule <span class="right" id="dayOfYearLbl"></span></div>
+        <div id="todayPeriods"></div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="card">
+        <div class="sc-head">🔗 Student Portal</div>
+        <a id="portalBtn" class="sc-portal-btn" href="#" target="_blank" rel="noopener">
+          <span>↗</span>
+          <span><div id="portalLabel">Go to Student Portal</div><div class="sub" id="portalSub">Opens in a new tab</div></span>
+          <span class="arrow">›</span>
+        </a>
+      </div>
+      <div class="card">
+        <div class="sc-head">🔍 Quick Search</div>
+        <div class="sc-tabs" id="searchTabs"></div>
+        <div class="sc-search-row">
+          <input id="qsInput" placeholder="Search Google" onkeydown="if(event.key==='Enter')MyDay.runSearch()" />
+          <button class="btn btn-primary" onclick="MyDay.runSearch()">🔍 Search</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sc-head">📅 This Week</div>
+      <div class="sc-week" id="weekStrip"></div>
+    </div>
+
+    <div class="card">
+      <div class="sc-head">📆 Days Off</div>
+      <div class="sc-off-section-lbl">Upcoming</div>
+      <div class="sc-off-grid" id="offUpcoming"></div>
+      <div class="sc-off-section-lbl">Already Had</div>
+      <div class="sc-off-grid" id="offPast"></div>
+    </div>
+
+    <div class="sc-fab" id="customizeFab">
+      <button class="btn btn-primary btn-lg" onclick="openCustomize()">✏️ Customize</button>
+    </div>
+  </div>
+
+  <!-- Customize panel -->
+  <div id="custOverlay">
+    <div class="cust-box">
+      <h2 style="font-size:1.3rem;font-weight:900;margin-bottom:4px;">Customize My Day</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:10px;">Make it match your real school. Everything here is yours to edit.</p>
+
+      <div class="cust-sec">
+        <h3>🔗 Student portal link</h3>
+        <div class="cust-row">
+          <div class="field"><label>Button label</label><input id="cPortalLabel" /></div>
+          <div class="field"><label>Subtext</label><input id="cPortalSub" /></div>
+        </div>
+        <div class="cust-row"><div class="field"><label>URL</label><input id="cPortalUrl" placeholder="https://..." /></div></div>
+      </div>
+
+      <div class="cust-sec">
+        <h3>⏰ School hours &amp; year</h3>
+        <div class="cust-row">
+          <div class="field"><label>Day starts</label><input id="cHourStart" type="time" /></div>
+          <div class="field"><label>Day ends</label><input id="cHourEnd" type="time" /></div>
+        </div>
+        <div class="cust-row">
+          <div class="field"><label>School year starts</label><input id="cYearStart" type="date" /></div>
+          <div class="field"><label>Total weeks</label><input id="cYearWeeks" type="number" min="1" max="52" /></div>
+        </div>
+        <div class="cust-row"><div class="field"><label>Period label (e.g. "Six Weeks 2")</label><input id="cPeriodLabel" placeholder="optional" /></div></div>
+      </div>
+
+      <div class="cust-sec">
+        <h3>🔁 Day rotation (A/B days, etc.)</h3>
+        <div class="cust-row">
+          <div class="field"><label>Cycle (comma-separated — use one label like "Day" if you don't rotate)</label><input id="cCycle" placeholder="A Day, B Day" /></div>
+          <div class="field"><label>Anchor date (this date = the 1st label)</label><input id="cAnchor" type="date" /></div>
+        </div>
+        <p class="cust-hint">Overrides for a single date that breaks the pattern (e.g. an early-release "Split" day):</p>
+        <div id="overrideRows"></div>
+        <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addOverrideRow()">+ Add override</button>
+      </div>
+
+      <div class="cust-sec">
+        <h3>🔔 Bell schedule</h3>
+        <p class="cust-hint">"Applies to" = All, or one of your cycle labels above, to only show a period on certain days.</p>
+        <div id="periodRows"></div>
+        <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addPeriodRow()">+ Add period</button>
+      </div>
+
+      <div class="cust-sec">
+        <h3>📆 Days off</h3>
+        <div id="daysOffRows"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addDayOffRow()">+ Add day off</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="restoreDefaultDaysOff()">↺ Restore default US calendar</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:22px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeCustomize()">Cancel</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveCustomize()">Save</button>
+      </div>
+      <div id="custMsg" style="text-align:center;font-size:0.82rem;font-weight:700;min-height:18px;margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <script src="myday.js"></script>
+  <script>
+    let RECOVERY_KEY = null;
+
+    async function boot() {
+      const saved = (() => { try { return localStorage.getItem('myday_key'); } catch { return null; } })();
+      if (saved) { RECOVERY_KEY = saved; const ok = await loadClass(); if (ok) return; }
+      document.getElementById('keyGate').classList.remove('hidden');
+    }
+    async function submitKey() {
+      const key = document.getElementById('keyInput').value.trim().toUpperCase();
+      const err = document.getElementById('keyErr');
+      if (!key) { err.textContent = 'Enter your recovery key.'; return; }
+      RECOVERY_KEY = key;
+      const ok = await loadClass();
+      if (!ok) return;   // loadClass already wrote the error into #keyErr
+      try { localStorage.setItem('myday_key', key); } catch {}
+      document.getElementById('keyGate').classList.add('hidden');
+    }
+    async function loadClass() {
+      const res = await fetch('/api/myday/manage/get', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY }) });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        document.getElementById('keyErr').textContent = data.error || 'Wrong recovery key.';
+        // Only a genuine auth rejection (401) means the key itself is wrong - a 429 just
+        // means too many attempts right now, so keep the saved key for the next retry
+        // instead of signing the owner out of their own class over a rate limit.
+        if (res.status !== 429) {
+          try { localStorage.removeItem('myday_key'); } catch {}
+          RECOVERY_KEY = null;
+        }
+        return false;
+      }
+      document.getElementById('mClassName').textContent = data.name;
+      document.getElementById('manageWrap').classList.remove('hidden');
+      document.getElementById('signOutBtn').style.display = '';
+      MyDay.start(data.data || MyDay.defaultTemplate(), { showCustomize: true });
+      await loadCode();
+      return true;
+    }
+    async function loadCode() {
+      const res = await fetch('/api/myday/manage/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY }) });
+      const data = await res.json();
+      if (res.ok) document.getElementById('mCode').textContent = data.weeklyCode;
+    }
+    function copyCode() {
+      const code = document.getElementById('mCode').textContent.trim();
+      navigator.clipboard?.writeText(code);
+      const b = event.target; const t = b.textContent; b.textContent = '✅ Copied';
+      setTimeout(() => b.textContent = t, 1200);
+    }
+    function signOut() {
+      try { localStorage.removeItem('myday_key'); } catch {}
+      location.reload();
+    }
+
+    function openCustomize() {
+      const DATA = MyDay.getData();
+      document.getElementById('cPortalLabel').value = DATA.portal.label || '';
+      document.getElementById('cPortalSub').value = DATA.portal.sub || '';
+      document.getElementById('cPortalUrl').value = DATA.portal.url || '';
+      document.getElementById('cHourStart').value = DATA.hours.start;
+      document.getElementById('cHourEnd').value = DATA.hours.end;
+      document.getElementById('cYearStart').value = DATA.year.start;
+      document.getElementById('cYearWeeks').value = DATA.year.weeks;
+      document.getElementById('cPeriodLabel').value = DATA.year.periodLabel || '';
+      document.getElementById('cCycle').value = (DATA.rotation.cycle || ['Day']).join(', ');
+      document.getElementById('cAnchor').value = DATA.rotation.anchorDate || DATA.year.start;
+
+      const ov = document.getElementById('overrideRows'); ov.innerHTML = '';
+      Object.entries(DATA.rotation.overrides || {}).forEach(([date, label]) => addOverrideRow(date, label));
+      const pr = document.getElementById('periodRows'); pr.innerHTML = '';
+      (DATA.periods || []).forEach(p => addPeriodRow(p));
+      const dr = document.getElementById('daysOffRows'); dr.innerHTML = '';
+      (DATA.daysOff || []).forEach(d => addDayOffRow(d));
+
+      document.getElementById('custMsg').textContent = '';
+      document.getElementById('custOverlay').style.display = 'block';
+    }
+    function closeCustomize() { document.getElementById('custOverlay').style.display = 'none'; }
+    function addOverrideRow(date, label) {
+      const row = document.createElement('div'); row.className = 'cust-table-row';
+      row.innerHTML = `<input type="date" class="ov-date" value="${date || ''}" />
+        <input type="text" class="ov-label" placeholder="e.g. Split" value="${label ? MyDay.esc(label) : ''}" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('overrideRows').appendChild(row);
+    }
+    function addPeriodRow(p) {
+      p = p || { tag: '', label: '', start: '08:00', end: '08:45', days: 'all' };
+      const row = document.createElement('div'); row.className = 'cust-table-row';
+      row.innerHTML = `<input type="text" class="p-tag" placeholder="Tag" value="${MyDay.esc(p.tag || '')}" style="max-width:60px;" />
+        <input type="text" class="p-label" placeholder="Name" value="${MyDay.esc(p.label || '')}" />
+        <input type="time" class="p-start" value="${p.start}" />
+        <input type="time" class="p-end" value="${p.end}" />
+        <input type="text" class="p-days" placeholder="All" value="${MyDay.esc(p.days || 'all')}" style="max-width:90px;" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('periodRows').appendChild(row);
+    }
+    function addDayOffRow(d) {
+      d = d || { start: MyDay.toISO(new Date()), end: MyDay.toISO(new Date()), label: '' };
+      const row = document.createElement('div'); row.className = 'cust-table-row';
+      row.innerHTML = `<input type="date" class="d-start" value="${d.start}" />
+        <input type="date" class="d-end" value="${d.end}" />
+        <input type="text" class="d-label" placeholder="Label" value="${MyDay.esc(d.label || '')}" />
+        <button class="rm" onclick="this.parentElement.remove()">✕</button>`;
+      document.getElementById('daysOffRows').appendChild(row);
+    }
+    function restoreDefaultDaysOff() {
+      if (!confirm('Replace your current days-off list with the default US school calendar?')) return;
+      const Y = MyDay.parseISO(document.getElementById('cYearStart').value || MyDay.getData().year.start).getFullYear();
+      const dr = document.getElementById('daysOffRows'); dr.innerHTML = '';
+      MyDay.defaultDaysOff(Y).forEach(d => addDayOffRow(d));
+    }
+    async function saveCustomize() {
+      const cycle = document.getElementById('cCycle').value.split(',').map(s => s.trim()).filter(Boolean);
+      const overrides = {};
+      document.querySelectorAll('#overrideRows .cust-table-row').forEach(r => {
+        const date = r.querySelector('.ov-date').value, label = r.querySelector('.ov-label').value.trim();
+        if (date && label) overrides[date] = label;
+      });
+      const periods = Array.from(document.querySelectorAll('#periodRows .cust-table-row')).map(r => ({
+        tag: r.querySelector('.p-tag').value.trim(),
+        label: r.querySelector('.p-label').value.trim() || 'Period',
+        start: r.querySelector('.p-start').value || '08:00',
+        end: r.querySelector('.p-end').value || '08:45',
+        days: r.querySelector('.p-days').value.trim() || 'all',
+      }));
+      const daysOff = Array.from(document.querySelectorAll('#daysOffRows .cust-table-row')).map(r => ({
+        start: r.querySelector('.d-start').value,
+        end: r.querySelector('.d-end').value || r.querySelector('.d-start').value,
+        label: r.querySelector('.d-label').value.trim() || 'Day off',
+      })).filter(d => d.start);
+
+      const newData = {
+        portal: {
+          label: document.getElementById('cPortalLabel').value.trim() || 'Student Portal',
+          sub: document.getElementById('cPortalSub').value.trim() || 'Opens in a new tab',
+          url: document.getElementById('cPortalUrl').value.trim(),
+        },
+        hours: { start: document.getElementById('cHourStart').value || '08:00', end: document.getElementById('cHourEnd').value || '15:00' },
+        year: {
+          start: document.getElementById('cYearStart').value || MyDay.getData().year.start,
+          weeks: Math.max(1, parseInt(document.getElementById('cYearWeeks').value, 10) || 36),
+          periodLabel: document.getElementById('cPeriodLabel').value.trim(),
+        },
+        rotation: {
+          cycle: cycle.length ? cycle : ['Day'],
+          anchorDate: document.getElementById('cAnchor').value || document.getElementById('cYearStart').value,
+          overrides,
+        },
+        periods, daysOff,
+      };
+      const msg = document.getElementById('custMsg');
+      msg.style.color = 'var(--text-dim)'; msg.textContent = 'Saving…';
+      const res = await fetch('/api/myday/manage/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY, data: newData }) });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { msg.style.color = '#f87171'; msg.textContent = data.error || 'Could not save.'; return; }
+      MyDay.setData(newData);
+      msg.style.color = '#4ade80'; msg.textContent = '✅ Saved!';
+      setTimeout(closeCustomize, 600);
+    }
+
+    boot();
+  </script>
+</body>
+</html>

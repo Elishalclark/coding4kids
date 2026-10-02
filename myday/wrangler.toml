@@ -1,0 +1,19 @@
+name = "myday"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+account_id = "3021aff7dc59bb05483ada6d03b99ad7"
+
+# No custom domain yet - deploys to myday.<subdomain>.workers.dev for free.
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+# Reuses the same D1 database as the main KidVibers site, but in its own tables
+# (myday_*) that have no foreign keys into and no relation to the `users` table -
+# this is a fully separate product with no KidVibers accounts or logins.
+[[d1_databases]]
+binding = "DB"
+database_name = "kidvibers"
+database_id = "195abd8a-85e7-4740-b127-31bab6cc499e"

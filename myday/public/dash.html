@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Day</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="myday.css" />
+</head>
+<body>
+  <div class="topbar">
+    <a href="index.html" class="logo">🗓️ My <span>Day</span></a>
+    <div class="right"><span id="className" style="color:var(--text-dim);font-weight:800;font-size:0.9rem;"></span></div>
+  </div>
+
+  <div id="loadErr" class="wrap hidden">
+    <div class="card" style="max-width:440px;margin:60px auto;text-align:center;">
+      <div style="font-size:2.4rem;">🤔</div>
+      <h2 style="font-size:1.2rem;font-weight:900;margin-top:6px;">Couldn't find that one</h2>
+      <p style="color:var(--text-dim);font-size:0.9rem;" id="loadErrMsg"></p>
+      <a href="index.html" class="btn btn-primary">← Back home</a>
+    </div>
+  </div>
+
+  <div id="schedWrap" class="wrap hidden">
+    <div class="sc-top">
+      <div><div class="sc-clock"><span id="clockTime">--:--:--</span><span class="ampm" id="clockAmPm">AM</span></div></div>
+      <div class="sc-date-box">
+        <div class="dow" id="dateLine">—</div>
+        <div class="sc-badges">
+          <span class="sc-badge type" id="dayTypeBadge">—</span>
+          <span class="sc-badge" id="periodLabelBadge">—</span>
+        </div>
+        <div class="sc-progress-lbl">Through the school day</div>
+        <div class="sc-progress-track"><div class="sc-progress-fill" id="progFill" style="width:0%"></div></div>
+        <div class="sc-progress-times"><span id="progStart">—</span><span class="sc-progress-pct" id="progPct">0%</span><span id="progEnd">—</span></div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="card">
+        <div class="sc-head">→ Bell Countdown</div>
+        <div class="sc-bell-sub" id="bellNowLabel">—</div>
+        <div class="sc-countdown" id="bellCountdown">--:--</div>
+        <div class="sc-bell-sub" id="bellNextLabel"></div>
+      </div>
+      <div class="card">
+        <div class="sc-head">📋 Today's Schedule <span class="right" id="dayOfYearLbl"></span></div>
+        <div id="todayPeriods"></div>
+      </div>
+    </div>
+
+    <div class="sc-grid2">
+      <div class="card">
+        <div class="sc-head">🔗 Student Portal</div>
+        <a id="portalBtn" class="sc-portal-btn" href="#" target="_blank" rel="noopener">
+          <span>↗</span>
+          <span><div id="portalLabel">Go to Student Portal</div><div class="sub" id="portalSub">Opens in a new tab</div></span>
+          <span class="arrow">›</span>
+        </a>
+      </div>
+      <div class="card">
+        <div class="sc-head">🔍 Quick Search</div>
+        <div class="sc-tabs" id="searchTabs"></div>
+        <div class="sc-search-row">
+          <input id="qsInput" placeholder="Search Google" onkeydown="if(event.key==='Enter')MyDay.runSearch()" />
+          <button class="btn btn-primary" onclick="MyDay.runSearch()">🔍 Search</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sc-head">📅 This Week</div>
+      <div class="sc-week" id="weekStrip"></div>
+    </div>
+
+    <div class="card">
+      <div class="sc-head">📆 Days Off</div>
+      <div class="sc-off-section-lbl">Upcoming</div>
+      <div class="sc-off-grid" id="offUpcoming"></div>
+      <div class="sc-off-section-lbl">Already Had</div>
+      <div class="sc-off-grid" id="offPast"></div>
+    </div>
+  </div>
+
+  <script src="myday.js"></script>
+  <script>
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const code = (params.get('code') || '').trim().toUpperCase();
+      if (!code) { location.href = 'index.html'; return; }
+      let res, data;
+      try { res = await fetch('/api/myday/view?code=' + encodeURIComponent(code)); data = await res.json(); }
+      catch { res = { ok: false }; data = { error: 'Network error. Try again.' }; }
+      if (!res.ok || !data.ok) {
+        document.getElementById('loadErrMsg').textContent = (data && data.error) || 'That code is wrong or expired.';
+        document.getElementById('loadErr').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('className').textContent = data.name || '';
+      document.getElementById('schedWrap').classList.remove('hidden');
+      MyDay.start(data.data || MyDay.defaultTemplate(), { showCustomize: false });
+    })();
+  </script>
+</body>
+</html>
