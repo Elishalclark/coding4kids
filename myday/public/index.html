@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Day - a bell schedule &amp; days-off dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="myday.css" />
+  <style>
+    .hero { text-align: center; padding: 50px 20px 10px; }
+    .hero h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 900; margin-bottom: 10px; }
+    .hero p { color: var(--text-dim); max-width: 520px; margin: 0 auto; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 760px; margin: 30px auto; padding: 0 20px; }
+    @media (max-width: 680px) { .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">🗓️ My <span>Day</span></div>
+  </div>
+
+  <div class="hero">
+    <h1>Know exactly what's happening at school today</h1>
+    <p>A live bell schedule, countdown, days off, and quick links — made by whoever runs your class, shared with one code each week.</p>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>🔑 Join a class</h2>
+      <p class="sub">Got a 4-digit code from your teacher this week? Enter it here.</p>
+      <div class="field"><input id="viewCode" placeholder="4-digit code" maxlength="4" inputmode="numeric" autocomplete="off" /></div>
+      <div class="err" id="viewErr"></div>
+      <button class="btn btn-primary btn-full" onclick="goView()">Join →</button>
+    </div>
+
+    <div class="card">
+      <h2>✏️ Set up a class</h2>
+      <p class="sub">Create your own bell schedule and days-off calendar, then share the weekly code with your students.</p>
+      <div class="field"><input id="className" placeholder="Class or school name" maxlength="80" /></div>
+      <div class="err" id="createErr"></div>
+      <button class="btn btn-outline btn-full" onclick="createClass()">Create a class</button>
+    </div>
+  </div>
+
+  <div style="max-width:760px;margin:0 auto;padding:0 20px;">
+    <div class="card" id="keyCard" style="display:none;">
+      <h2>🔑 Save this recovery key!</h2>
+      <p class="sub">This is the only way back in to edit your schedule. It's shown once — write it down somewhere safe.</p>
+      <div class="key-reveal"><div class="key" id="newKey"></div></div>
+      <button class="btn btn-primary btn-full" onclick="goManage()">I saved it — go to my class →</button>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <h2>Already have a class?</h2>
+      <a href="manage.html" class="btn btn-outline">Manage my class</a>
+    </div>
+  </div>
+
+  <script>
+    let pendingKey = null;
+    function goView() {
+      const code = document.getElementById('viewCode').value.trim();
+      const err = document.getElementById('viewErr');
+      if (!code) { err.textContent = 'Enter a code first.'; return; }
+      location.href = 'dash.html?code=' + encodeURIComponent(code.toUpperCase());
+    }
+    async function createClass() {
+      const name = document.getElementById('className').value.trim();
+      const err = document.getElementById('createErr');
+      if (!name) { err.textContent = 'Give your class a name.'; return; }
+      err.textContent = '';
+      const res = await fetch('/api/myday/classes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      const data = await res.json();
+      if (!res.ok) { err.textContent = data.error || 'Could not create a class.'; return; }
+      pendingKey = data.recoveryKey;
+      document.getElementById('newKey').textContent = data.recoveryKey;
+      document.getElementById('keyCard').style.display = '';
+      document.getElementById('keyCard').scrollIntoView({ behavior: 'smooth' });
+    }
+    function goManage() {
+      if (pendingKey) { try { localStorage.setItem('myday_key', pendingKey); } catch {} }
+      location.href = 'manage.html';
+    }
+  </script>
+</body>
+</html>
