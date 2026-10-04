@@ -48,23 +48,37 @@ const MyDay = (() => {
     add(nthWeekday(Y + 1, 5, 5, 1), 'School Year Ends (edit me!)');
     return items.sort((a, b) => a.start.localeCompare(b.start));
   }
+  // Mansfield ISD STEM's actual structure: Mon/Wed are A Day, Tue/Thu are B Day, Fri is a
+  // "Split" day where every class meets once, compressed to 45 min. Core classes (90 min)
+  // meet on both A and B days; electives are deliberately left out of the default - the
+  // owner adds their own via Customize, which the mandatory tour points them to.
   function defaultTemplate() {
     const today = new Date();
     const Y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
+    const core = (label, start, end) => ({ tag: '', label, start, end, days: 'A Day,B Day' });
+    const split = (label, start, end) => ({ tag: '', label, start, end, days: 'Split' });
     return {
       portal: { label: 'Student Portal', sub: 'Opens in a new tab', url: '' },
-      hours: { start: '08:45', end: '15:45' },
+      hours: { start: '08:45', end: '16:45' },
       year: { start: `${Y}-08-11`, weeks: 36, periodLabel: '' },
-      rotation: { cycle: ['Day'], anchorDate: `${Y}-08-11`, overrides: {} },
+      rotation: {
+        mode: 'weekday',
+        weekdayMap: { 1: 'A Day', 2: 'B Day', 3: 'A Day', 4: 'B Day', 5: 'Split' },
+        cycle: ['A Day', 'B Day'], anchorDate: `${Y}-08-11`, overrides: {},
+      },
       periods: [
-        { tag: '1', label: 'Period 1', start: '08:45', end: '09:35', days: 'all' },
-        { tag: '2', label: 'Period 2', start: '09:39', end: '10:29', days: 'all' },
-        { tag: '3', label: 'Period 3', start: '10:33', end: '11:23', days: 'all' },
-        { tag: '4', label: 'Period 4', start: '11:27', end: '12:17', days: 'all' },
-        { tag: 'LUNCH', label: 'Lunch', start: '12:17', end: '12:47', days: 'all' },
-        { tag: '5', label: 'Period 5', start: '12:51', end: '13:41', days: 'all' },
-        { tag: '6', label: 'Period 6', start: '13:45', end: '14:35', days: 'all' },
-        { tag: '7', label: 'Period 7', start: '14:39', end: '15:29', days: 'all' },
+        core('Math', '08:45', '10:15'),
+        core('Social Studies', '10:15', '11:45'),
+        { tag: 'LUNCH', label: 'Lunch', start: '11:45', end: '12:15', days: 'A Day,B Day' },
+        core('Science', '12:15', '13:45'),
+        core('Reading', '13:45', '15:15'),
+        core('Design Time', '15:15', '16:45'),
+        split('Math', '08:45', '09:30'),
+        split('Social Studies', '09:30', '10:15'),
+        split('Science', '10:15', '11:00'),
+        split('Reading', '11:00', '11:45'),
+        { tag: 'LUNCH', label: 'Lunch', start: '11:45', end: '12:15', days: 'Split' },
+        split('Design Time', '12:15', '13:00'),
       ],
       daysOff: defaultDaysOff(Y),
     };
@@ -75,6 +89,12 @@ const MyDay = (() => {
     const d = parseISO(dateStr);
     if (!isWeekday(d)) return null;
     if (data.rotation.overrides && data.rotation.overrides[dateStr]) return data.rotation.overrides[dateStr];
+    // Fixed mode: the day of the week alone decides the type (Mon is always "A Day", etc.) -
+    // it never drifts, unlike a counting cycle.
+    if (data.rotation.mode === 'weekday') {
+      const map = data.rotation.weekdayMap || {};
+      return map[d.getDay()] ?? null;
+    }
     const cycle = (data.rotation.cycle && data.rotation.cycle.length) ? data.rotation.cycle : ['Day'];
     const anchor = parseISO(data.rotation.anchorDate || data.year.start);
     let count = 0, cur = new Date(anchor);
@@ -87,10 +107,16 @@ const MyDay = (() => {
     const idx = ((count % cycle.length) + cycle.length) % cycle.length;
     return cycle[idx];
   }
+  // A period's `days` field is "all", a single label ("B Day"), or a comma-separated list
+  // ("A Day,B Day") for a class that meets on more than one day type with the same slot.
+  function periodAppliesTo(p, type) {
+    if (p.days === 'all') return true;
+    return p.days.split(',').map(s => s.trim()).includes(type);
+  }
   function periodsForDate(dateStr, data) {
     const type = dayTypeFor(dateStr, data);
     if (type === null) return { type: null, periods: [] };
-    const list = (data.periods || []).filter(p => p.days === 'all' || p.days === type)
+    const list = (data.periods || []).filter(p => periodAppliesTo(p, type))
       .slice().sort((a, b) => timeToMin(a.start) - timeToMin(b.start));
     return { type, periods: list };
   }
@@ -107,6 +133,14 @@ const MyDay = (() => {
     const next = periods.find(p => timeToMin(p.start) > curMin) || null;
     return { current: null, secsLeft: null, next,
       nextInSecs: next ? Math.max(0, Math.round((timeToMin(next.start) - curMin) * 60)) : null };
+  }
+  // Different day types can run different lengths (a "Split" Friday ends much earlier than
+  // a full A/B day), so the progress bar's start/end come from today's own first and last
+  // period rather than one fixed hours.start/end - data.hours is only a fallback for a day
+  // with no periods defined at all.
+  function hoursForPeriods(periods, fallback) {
+    if (!periods.length) return fallback;
+    return { start: periods[0].start, end: periods[periods.length - 1].end };
   }
   function schoolDayProgress(now, hours) {
     const s = timeToMin(hours.start), e = timeToMin(hours.end);
@@ -159,11 +193,11 @@ const MyDay = (() => {
     const todayStr = toISO(now);
     if (todayStr !== lastRenderedDate) { renderStatic(); lastRenderedDate = todayStr; }
 
-    const pct = schoolDayProgress(now, DATA.hours);
+    const { periods } = periodsForDate(todayStr, DATA);
+    const pct = schoolDayProgress(now, hoursForPeriods(periods, DATA.hours));
     document.getElementById('progFill').style.width = pct + '%';
     document.getElementById('progPct').textContent = pct + '%';
 
-    const { periods } = periodsForDate(todayStr, DATA);
     const st = bellStatus(now, periods);
     const fmtCountdown = secs => secs == null ? '—:—' : `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`;
     if (st.current) {
@@ -195,10 +229,12 @@ const MyDay = (() => {
     document.getElementById('dayTypeBadge').textContent = type || 'No School';
     const wk = weekNumber(todayStr, DATA);
     document.getElementById('periodLabelBadge').textContent = DATA.year.periodLabel ? DATA.year.periodLabel + ` · Week ${wk} of ${DATA.year.weeks}` : `Week ${wk} of ${DATA.year.weeks}`;
-    document.getElementById('progStart').textContent = fmtTime(DATA.hours.start);
-    document.getElementById('progEnd').textContent = fmtTime(DATA.hours.end);
 
     const { periods } = periodsForDate(todayStr, DATA);
+    const todayHours = hoursForPeriods(periods, DATA.hours);
+    document.getElementById('progStart').textContent = fmtTime(todayHours.start);
+    document.getElementById('progEnd').textContent = fmtTime(todayHours.end);
+
     const dayNum = schoolDayNumber(todayStr, DATA);
     document.getElementById('dayOfYearLbl').textContent = periods.length ? `Day ${dayNum} of ${DATA.year.weeks * 5}` : '';
     const tp = document.getElementById('todayPeriods');
