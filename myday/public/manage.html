@@ -130,17 +130,35 @@
       <div class="cust-sec">
         <h3>🔁 Day rotation (A/B days, etc.)</h3>
         <div class="cust-row">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:800;font-size:0.82rem;color:var(--text);">
+            <input type="checkbox" id="cWeekdayMode" onchange="toggleRotationMode()" style="width:auto;" />
+            Fixed by day of the week (Mon is always the same type, etc.) instead of a repeating cycle
+          </label>
+        </div>
+        <div id="weekdayRotationFields" class="hidden">
+          <div class="cust-row">
+            <div class="field"><label>Monday</label><input id="cWdMon" placeholder="A Day" /></div>
+            <div class="field"><label>Tuesday</label><input id="cWdTue" placeholder="B Day" /></div>
+            <div class="field"><label>Wednesday</label><input id="cWdWed" placeholder="A Day" /></div>
+          </div>
+          <div class="cust-row">
+            <div class="field"><label>Thursday</label><input id="cWdThu" placeholder="B Day" /></div>
+            <div class="field"><label>Friday</label><input id="cWdFri" placeholder="Split" /></div>
+          </div>
+          <p class="cust-hint">Leave a day blank for "no school that weekday" (rare, but some schools do a 4-day week).</p>
+        </div>
+        <div id="cycleRotationFields" class="cust-row">
           <div class="field"><label>Cycle (comma-separated — use one label like "Day" if you don't rotate)</label><input id="cCycle" placeholder="A Day, B Day" /></div>
           <div class="field"><label>Anchor date (this date = the 1st label)</label><input id="cAnchor" type="date" /></div>
         </div>
-        <p class="cust-hint">Overrides for a single date that breaks the pattern (e.g. an early-release "Split" day):</p>
+        <p class="cust-hint">Overrides for a single date that breaks the pattern (e.g. an unexpected early-release day):</p>
         <div id="overrideRows"></div>
         <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addOverrideRow()">+ Add override</button>
       </div>
 
       <div class="cust-sec">
         <h3>🔔 Bell schedule</h3>
-        <p class="cust-hint">"Applies to" = All, or one of your cycle labels above, to only show a period on certain days.</p>
+        <p class="cust-hint">"Applies to" = All, one day type (e.g. "B Day"), or a comma list ("A Day,B Day") for a class that meets on more than one.</p>
         <div id="periodRows"></div>
         <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addPeriodRow()">+ Add period</button>
       </div>
@@ -159,6 +177,15 @@
         <button class="btn btn-primary" style="flex:1;" onclick="saveCustomize()">Save</button>
       </div>
       <div id="custMsg" style="text-align:center;font-size:0.82rem;font-weight:700;min-height:18px;margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- Mandatory first-run tour - no close button, no backdrop dismiss, must step through. -->
+  <div id="tourOverlay" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(6,4,14,0.92);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div style="max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);padding:30px;text-align:center;">
+      <div id="tourDots" style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;"></div>
+      <div id="tourBody"></div>
+      <button class="btn btn-primary btn-full" id="tourNextBtn" style="margin-top:20px;" onclick="tourNext()">Next →</button>
     </div>
   </div>
 
@@ -200,7 +227,37 @@
       document.getElementById('signOutBtn').style.display = '';
       MyDay.start(data.data || MyDay.defaultTemplate(), { showCustomize: true });
       await loadCode();
+      if (!data.tourDone) startTour();
       return true;
+    }
+
+    // ── Mandatory first-run tour: no close button, no backdrop dismiss. ──
+    const TOUR_STEPS = [
+      { emoji: '👋', title: 'Welcome to My Day!', body: 'This is your class\'s own schedule dashboard - a live clock, bell countdown, and days off, all for your students.' },
+      { emoji: '🔑', title: 'This week\'s code', body: 'Right below here is a 4-digit code that changes every Monday. Share it with your students - they type it in at the My Day homepage to see (not edit) this exact schedule.' },
+      { emoji: '🔔', title: 'Your bell schedule is already set up', body: 'Math, Social Studies, Science, Reading, and Design Time are pre-loaded for both A Day and B Day (90 min each). Monday &amp; Wednesday are A Days, Tuesday &amp; Thursday are B Days, and Friday is a Split day - every class meets once, compressed to 45 minutes.' },
+      { emoji: '🎨', title: 'Add your own electives', body: 'The core classes are set, but electives are up to you. Open <strong>✏️ Customize</strong> → Bell schedule → <strong>+ Add period</strong>, and set "Applies to" as A Day, B Day, or both.' },
+      { emoji: '⚙️', title: 'Everything else is yours to edit too', body: 'Portal link, school hours, days off (there\'s a starter US holiday calendar already loaded), and the day rotation itself - it\'s all in the Customize panel whenever you need it.' },
+    ];
+    let tourStep = 0;
+    function startTour() {
+      tourStep = 0;
+      renderTourStep();
+      document.getElementById('tourOverlay').classList.remove('hidden');
+    }
+    function renderTourStep() {
+      const s = TOUR_STEPS[tourStep];
+      document.getElementById('tourBody').innerHTML = `<div style="font-size:2.6rem;">${s.emoji}</div>
+        <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">${s.title}</h2>
+        <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;">${s.body}</p>`;
+      document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((_, i) =>
+        `<span style="width:7px;height:7px;border-radius:50%;background:${i === tourStep ? 'var(--accent)' : 'var(--border)'};"></span>`).join('');
+      document.getElementById('tourNextBtn').textContent = tourStep === TOUR_STEPS.length - 1 ? "Let's go! 🚀" : 'Next →';
+    }
+    async function tourNext() {
+      if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); return; }
+      document.getElementById('tourOverlay').classList.add('hidden');
+      fetch('/api/myday/manage/tour-done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY }) }).catch(() => {});
     }
     async function loadCode() {
       const res = await fetch('/api/myday/manage/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY }) });
@@ -230,6 +287,15 @@
       document.getElementById('cPeriodLabel').value = DATA.year.periodLabel || '';
       document.getElementById('cCycle').value = (DATA.rotation.cycle || ['Day']).join(', ');
       document.getElementById('cAnchor').value = DATA.rotation.anchorDate || DATA.year.start;
+      const wdMode = DATA.rotation.mode === 'weekday';
+      document.getElementById('cWeekdayMode').checked = wdMode;
+      const wm = DATA.rotation.weekdayMap || {};
+      document.getElementById('cWdMon').value = wm[1] || '';
+      document.getElementById('cWdTue').value = wm[2] || '';
+      document.getElementById('cWdWed').value = wm[3] || '';
+      document.getElementById('cWdThu').value = wm[4] || '';
+      document.getElementById('cWdFri').value = wm[5] || '';
+      toggleRotationMode();
 
       const ov = document.getElementById('overrideRows'); ov.innerHTML = '';
       Object.entries(DATA.rotation.overrides || {}).forEach(([date, label]) => addOverrideRow(date, label));
@@ -242,6 +308,11 @@
       document.getElementById('custOverlay').style.display = 'block';
     }
     function closeCustomize() { document.getElementById('custOverlay').style.display = 'none'; }
+    function toggleRotationMode() {
+      const wd = document.getElementById('cWeekdayMode').checked;
+      document.getElementById('weekdayRotationFields').classList.toggle('hidden', !wd);
+      document.getElementById('cycleRotationFields').classList.toggle('hidden', wd);
+    }
     function addOverrideRow(date, label) {
       const row = document.createElement('div'); row.className = 'cust-table-row';
       row.innerHTML = `<input type="date" class="ov-date" value="${date || ''}" />
@@ -307,7 +378,17 @@
           weeks: Math.max(1, parseInt(document.getElementById('cYearWeeks').value, 10) || 36),
           periodLabel: document.getElementById('cPeriodLabel').value.trim(),
         },
-        rotation: {
+        rotation: document.getElementById('cWeekdayMode').checked ? {
+          mode: 'weekday',
+          weekdayMap: {
+            1: document.getElementById('cWdMon').value.trim(),
+            2: document.getElementById('cWdTue').value.trim(),
+            3: document.getElementById('cWdWed').value.trim(),
+            4: document.getElementById('cWdThu').value.trim(),
+            5: document.getElementById('cWdFri').value.trim(),
+          },
+          overrides,
+        } : {
           cycle: cycle.length ? cycle : ['Day'],
           anchorDate: document.getElementById('cAnchor').value || document.getElementById('cYearStart').value,
           overrides,

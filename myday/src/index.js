@@ -62,6 +62,7 @@ async function ensureSchema(env) {
       weekly_code TEXT,
       weekly_code_week TEXT,
       data_json TEXT,
+      tour_done INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     )`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_myday_weekly_code ON myday_classes (weekly_code, weekly_code_week)`),
@@ -69,6 +70,10 @@ async function ensureSchema(env) {
       key TEXT PRIMARY KEY, count INTEGER NOT NULL, window_start TEXT NOT NULL
     )`),
   ]);
+  // SQLite has no ADD COLUMN IF NOT EXISTS - already-deployed tables (created before this
+  // column existed) get it added here; the "duplicate column" failure on every run after
+  // the first is expected and ignored.
+  try { await env.DB.prepare("ALTER TABLE myday_classes ADD COLUMN tour_done INTEGER NOT NULL DEFAULT 0").run(); } catch {}
 }
 
 async function rateLimited(env, key, max, windowSec) {
@@ -125,7 +130,7 @@ async function apiManageGet(env, request, data) {
   const row = await findClassForKey(env, data.key);
   if (!row) return json({ error: "That recovery key wasn't found." }, 401);
   let parsed = null; if (row.data_json) { try { parsed = JSON.parse(row.data_json); } catch {} }
-  return json({ ok: true, name: row.name, data: parsed, weeklyCode: row.weekly_code, weeklyCodeWeek: row.weekly_code_week });
+  return json({ ok: true, name: row.name, data: parsed, weeklyCode: row.weekly_code, weeklyCodeWeek: row.weekly_code_week, tourDone: !!row.tour_done });
 }
 
 async function apiManageSave(env, request, data) {
@@ -137,6 +142,18 @@ async function apiManageSave(env, request, data) {
   const payload = JSON.stringify(data.data || {});
   if (payload.length > 40000) return json({ error: "That's too much to save - trim it down a bit." }, 400);
   await env.DB.prepare("UPDATE myday_classes SET data_json=? WHERE id=?").bind(payload, row.id).run();
+  return json({ ok: true });
+}
+
+// Marks the mandatory first-time tour as seen, so it only ever blocks the owner once per
+// class - never shown to students (they never have the recovery key to call this).
+async function apiManageTourDone(env, request, data) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  if (await rateLimited(env, `myday:auth:${ip}`, 20, 600))
+    return json({ error: "Too many attempts. Wait a few minutes." }, 429);
+  const row = await findClassForKey(env, data.key);
+  if (!row) return json({ error: "That recovery key wasn't found." }, 401);
+  await env.DB.prepare("UPDATE myday_classes SET tour_done=1 WHERE id=?").bind(row.id).run();
   return json({ ok: true });
 }
 
@@ -183,6 +200,7 @@ export default {
         if (path === "/api/myday/manage/get" && method === "POST") return await apiManageGet(env, request, data);
         if (path === "/api/myday/manage/save" && method === "POST") return await apiManageSave(env, request, data);
         if (path === "/api/myday/manage/code" && method === "POST") return await apiManageCode(env, request, data);
+        if (path === "/api/myday/manage/tour-done" && method === "POST") return await apiManageTourDone(env, request, data);
         if (path === "/api/myday/view" && method === "GET") return await apiView(env, request);
         return json({ error: "Not found." }, 404);
       } catch (e) {
