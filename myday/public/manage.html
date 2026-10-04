@@ -231,13 +231,14 @@
       return true;
     }
 
-    // ── Mandatory first-run tour: no close button, no backdrop dismiss. ──
+    // ── Mandatory first-run tour: no close button, no backdrop dismiss. This is also where
+    // the class actually gets set up - the "schedule" step shows the real A/B Day lineup
+    // with the two elective slots as live inputs, and finishing the tour saves those names.
     const TOUR_STEPS = [
-      { emoji: '👋', title: 'Welcome to My Day!', body: 'This is your class\'s own schedule dashboard - a live clock, bell countdown, and days off, all for your students.' },
-      { emoji: '🔑', title: 'This week\'s code', body: 'Right below here is a 4-digit code that changes every Monday. Share it with your students - they type it in at the My Day homepage to see (not edit) this exact schedule.' },
-      { emoji: '🔔', title: 'Your bell schedule is already set up', body: 'Math, Social Studies, Science, Reading, and Design Time are pre-loaded for both A Day and B Day (90 min each). Monday &amp; Wednesday are A Days, Tuesday &amp; Thursday are B Days, and Friday is a Split day - every class meets once, compressed to 45 minutes.' },
-      { emoji: '🎨', title: 'Add your own electives', body: 'The core classes are set, but electives are up to you. Open <strong>✏️ Customize</strong> → Bell schedule → <strong>+ Add period</strong>, and set "Applies to" as A Day, B Day, or both.' },
-      { emoji: '⚙️', title: 'Everything else is yours to edit too', body: 'Portal link, school hours, days off (there\'s a starter US holiday calendar already loaded), and the day rotation itself - it\'s all in the Customize panel whenever you need it.' },
+      { type: 'info', emoji: '👋', title: 'Welcome to My Day!', body: 'This is your class\'s own schedule dashboard - a live clock, bell countdown, and days off, all for your students.' },
+      { type: 'schedule' },
+      { type: 'info', emoji: '🔑', title: 'This week\'s code', body: 'Right below here is a 4-digit code that changes every Monday. Share it with your students - they type it in at the My Day homepage to see (not edit) this exact schedule.' },
+      { type: 'info', emoji: '⚙️', title: 'Everything else is yours to edit too', body: 'Friday is a Split day - this same lineup, with everything but Lunch and ISTEM compressed to 45 min. Portal link, school hours, days off (there\'s a starter US holiday calendar already loaded), and the day rotation itself are all in the <strong>✏️ Customize</strong> panel whenever you need them.' },
     ];
     let tourStep = 0;
     function startTour() {
@@ -245,18 +246,49 @@
       renderTourStep();
       document.getElementById('tourOverlay').classList.remove('hidden');
     }
+    // Placeholder labels the tour lets the owner rename right in the schedule step. Lunch,
+    // Learn and ISTEM are structural/fixed, so they stay plain text, not inputs.
+    const NAMEABLE = ['Elective 1', 'Elective 2', 'Core 1', 'Core 2'];
+    const nameableId = label => 'tourName_' + label.replace(/\s+/g, '_');
     function renderTourStep() {
       const s = TOUR_STEPS[tourStep];
-      document.getElementById('tourBody').innerHTML = `<div style="font-size:2.6rem;">${s.emoji}</div>
-        <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">${s.title}</h2>
-        <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;">${s.body}</p>`;
+      const body = document.getElementById('tourBody');
+      if (s.type === 'schedule') {
+        const DATA = MyDay.getData();
+        const regular = (DATA.periods || []).filter(p => p.days === 'A Day,B Day').slice().sort((a, b) => a.start.localeCompare(b.start));
+        body.innerHTML = `<div style="font-size:2.6rem;">🔔</div>
+          <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">Your A Day &amp; B Day schedule</h2>
+          <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;margin-bottom:12px;">Same every day - Lunch and ISTEM are fixed and can't move. Name your two electives and two core classes:</p>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:6px;">` +
+          regular.map(p => {
+            const time = `${MyDay.esc(p.start)}–${MyDay.esc(p.end)}`;
+            if (NAMEABLE.includes(p.label)) {
+              return `<div class="cust-table-row"><span style="min-width:108px;font-size:0.78rem;color:var(--text-faint);">${time}</span>
+                <input type="text" id="${nameableId(p.label)}" placeholder="${MyDay.esc(p.label)}" style="flex:1;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:0.85rem;font-weight:700;" /></div>`;
+            }
+            return `<div style="display:flex;gap:10px;padding:6px 0;font-size:0.85rem;"><span style="min-width:108px;color:var(--text-faint);font-size:0.78rem;">${time}</span><span style="font-weight:800;">${MyDay.esc(p.label)}</span></div>`;
+          }).join('') + `</div>`;
+      } else {
+        body.innerHTML = `<div style="font-size:2.6rem;">${s.emoji}</div>
+          <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">${s.title}</h2>
+          <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;">${s.body}</p>`;
+      }
       document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((_, i) =>
         `<span style="width:7px;height:7px;border-radius:50%;background:${i === tourStep ? 'var(--accent)' : 'var(--border)'};"></span>`).join('');
       document.getElementById('tourNextBtn').textContent = tourStep === TOUR_STEPS.length - 1 ? "Let's go! 🚀" : 'Next →';
     }
+    function applyNamedPeriods(data) {
+      const names = {};
+      NAMEABLE.forEach(label => { const v = (document.getElementById(nameableId(label))?.value || '').trim(); if (v) names[label] = v; });
+      (data.periods || []).forEach(p => { if (names[p.label]) p.label = names[p.label]; });
+    }
     async function tourNext() {
+      if (TOUR_STEPS[tourStep].type === 'schedule') applyNamedPeriods(MyDay.getData());
       if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); return; }
       document.getElementById('tourOverlay').classList.add('hidden');
+      MyDay.setData(MyDay.getData());
+      const data = MyDay.getData();
+      await fetch('/api/myday/manage/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY, data }) }).catch(() => {});
       fetch('/api/myday/manage/tour-done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: RECOVERY_KEY }) }).catch(() => {});
     }
     async function loadCode() {
