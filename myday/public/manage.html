@@ -238,7 +238,7 @@
       { type: 'info', emoji: '👋', title: 'Welcome to My Day!', body: 'This is your class\'s own schedule dashboard - a live clock, bell countdown, and days off, all for your students.' },
       { type: 'schedule' },
       { type: 'info', emoji: '🔑', title: 'This week\'s code', body: 'Right below here is a 4-digit code that changes every Monday. Share it with your students - they type it in at the My Day homepage to see (not edit) this exact schedule.' },
-      { type: 'info', emoji: '⚙️', title: 'Everything else is yours to edit too', body: 'Friday is a Split day - this same lineup, with everything but Lunch and ISTEM compressed to 45 min. Portal link, school hours, days off (there\'s a starter US holiday calendar already loaded), and the day rotation itself are all in the <strong>✏️ Customize</strong> panel whenever you need them.' },
+      { type: 'info', emoji: '⚙️', title: 'Everything else is yours to edit too', body: 'This same bell schedule is set for every school day for now - if Friday actually runs differently, that\'s an easy edit. Portal link, school hours, days off (there\'s a starter US holiday calendar already loaded), and the day rotation itself are all in the <strong>✏️ Customize</strong> panel whenever you need them.' },
     ];
     let tourStep = 0;
     function startTour() {
@@ -247,8 +247,8 @@
       document.getElementById('tourOverlay').classList.remove('hidden');
     }
     // Placeholder labels the tour lets the owner rename right in the schedule step. Lunch,
-    // Learn and ISTEM are structural/fixed, so they stay plain text, not inputs.
-    const NAMEABLE = ['Elective 1', 'Elective 2', 'Core 1', 'Core 2'];
+    // Lunch and Advisory are fixed/structural, so they stay plain text, not inputs.
+    const NAMEABLE = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
     const nameableId = label => 'tourName_' + label.replace(/\s+/g, '_');
     function renderTourStep() {
       const s = TOUR_STEPS[tourStep];
@@ -257,8 +257,8 @@
         const DATA = MyDay.getData();
         const regular = (DATA.periods || []).filter(p => p.days === 'A Day,B Day').slice().sort((a, b) => a.start.localeCompare(b.start));
         body.innerHTML = `<div style="font-size:2.6rem;">🔔</div>
-          <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">Your A Day &amp; B Day schedule</h2>
-          <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;margin-bottom:12px;">Same every day - Lunch and ISTEM are fixed and can't move. Name your two electives and two core classes:</p>
+          <h2 style="font-size:1.25rem;font-weight:900;margin:8px 0 6px;">Your bell schedule</h2>
+          <p style="color:var(--text-dim);font-size:0.9rem;line-height:1.5;margin-bottom:12px;">The real Mansfield ISD STEM bell times are already set. Name each period:</p>
           <div style="text-align:left;display:flex;flex-direction:column;gap:6px;">` +
           regular.map(p => {
             const time = `${MyDay.esc(p.start)}–${MyDay.esc(p.end)}`;
