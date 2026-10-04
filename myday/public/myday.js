@@ -76,44 +76,45 @@ const MyDay = (() => {
   }
   // Mansfield ISD STEM's real structure: 2 electives first, then a core class, a "Learn"
   // period, lunch (fixed 12:46-1:26 Mon-Thu), a 2nd "Learn" period, ISTEM (fixed 2:13-2:37
-  // Mon-Thu), then a 2nd core class. Friday ("Split") compresses every block to 45 minutes
-  // (Lunch/ISTEM keep their own length, 40/24 min) and lets them fall wherever that lands,
-  // since pinning them to the Mon-Thu clock times too isn't compatible with compressing
-  // everything around them.
+  // every day, including Friday), then a 2nd core class. A Day and B Day run the same
+  // order/times but are genuinely different subjects, not the same periods shared between
+  // them - each gets its own set of nameable slots. Friday ("Split") compresses every block
+  // to 45 minutes except ISTEM, which stays fixed.
+  const DAY_PREFIXES = { 'A Day': 'A', 'B Day': 'B', 'Split': 'F' };
   function defaultTemplate() {
     const today = new Date();
     const Y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
-    const regularBlocks = [
-      { label: 'Elective 1', minutes: 45 },
-      { label: 'Elective 2', minutes: 45 },
-      { label: 'Core 1', minutes: 90 },
-      { label: 'Learn', minutes: 45 },
-      { label: 'Lunch', tag: 'LUNCH', fixedStart: '12:46', fixedEnd: '13:26' },
-      { label: 'Learn', minutes: 45 },
-      { label: 'ISTEM', tag: 'ISTEM', fixedStart: '14:13', fixedEnd: '14:37' },
-      { label: 'Core 2', minutes: 90 },
-    ];
-    // Friday keeps Lunch/ISTEM's own length but not their exact clock time - pinning both
-    // to fixed times while also compressing every other block to 45 min is incompatible
-    // (the flexible block right before a fixed one would have to silently absorb however
-    // much got compressed out elsewhere, which doesn't make sense for a "Learn" period).
-    const splitBlocks = regularBlocks.map(b => {
-      if (b.tag === 'LUNCH') return { label: b.label, tag: b.tag, minutes: timeToMin(b.fixedEnd) - timeToMin(b.fixedStart) };
-      if (b.tag === 'ISTEM') return { label: b.label, tag: b.tag, minutes: timeToMin(b.fixedEnd) - timeToMin(b.fixedStart) };
-      return { ...b, minutes: 45 };
-    });
-    const regular = buildDaySequence('08:45', regularBlocks, 'A Day,B Day');
+    const blocksFor = (dayLabel, coreMinutes) => {
+      const p = DAY_PREFIXES[dayLabel];
+      return [
+        { label: `${p} Elective 1`, minutes: 45 },
+        { label: `${p} Elective 2`, minutes: 45 },
+        { label: `${p} Core 1`, minutes: coreMinutes },
+        { label: `${p} Learn 1`, minutes: 45 },
+        { label: 'Lunch', tag: 'LUNCH', fixedStart: '12:46', fixedEnd: '13:26' },
+        { label: `${p} Learn 2`, minutes: 45 },
+        { label: 'ISTEM', tag: 'ISTEM', fixedStart: '14:13', fixedEnd: '14:37' },
+        { label: `${p} Core 2`, minutes: coreMinutes },
+      ];
+    };
+    // Friday keeps ISTEM at its own fixed clock time but not Lunch - compressing every
+    // other block to 45 min while ALSO pinning Lunch to its Mon-Thu time isn't compatible
+    // (the flexible block right before a fixed one would silently absorb whatever got
+    // compressed out elsewhere). Only ISTEM stays genuinely fixed on a Split day.
+    const splitBlocks = blocksFor('Split', 45).map(b => b.tag === 'LUNCH' ? { label: b.label, tag: b.tag, minutes: 45 } : b);
+    const a = buildDaySequence('08:45', blocksFor('A Day', 90), 'A Day');
+    const b = buildDaySequence('08:45', blocksFor('B Day', 90), 'B Day');
     const split = buildDaySequence('08:45', splitBlocks, 'Split');
     return {
       portal: { label: 'Student Portal', sub: 'Opens in a new tab', url: '' },
-      hours: { start: '08:45', end: regular[regular.length - 1].end },
+      hours: { start: '08:45', end: a[a.length - 1].end },
       year: { start: `${Y}-08-11`, weeks: 36, periodLabel: '' },
       rotation: {
         mode: 'weekday',
         weekdayMap: { 1: 'A Day', 2: 'B Day', 3: 'A Day', 4: 'B Day', 5: 'Split' },
         cycle: ['A Day', 'B Day'], anchorDate: `${Y}-08-11`, overrides: {},
       },
-      periods: [...regular, ...split],
+      periods: [...a, ...b, ...split],
       daysOff: defaultDaysOff(Y),
     };
   }
