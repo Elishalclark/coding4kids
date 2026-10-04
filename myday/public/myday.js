@@ -48,36 +48,60 @@ const MyDay = (() => {
     add(nthWeekday(Y + 1, 5, 5, 1), 'School Year Ends (edit me!)');
     return items.sort((a, b) => a.start.localeCompare(b.start));
   }
-  // Builds a day's period list from a flat sequence of [label,minutes] blocks, inserting a
-  // 4-minute passing period between every one - the real structure both A Day and B Day
-  // share: 2 electives at the start (45 min), then 5 core classes (90 min) with lunch right
-  // after the first one. "Split" Friday is the same sequence with every block at 45 min.
+  // Builds a day's period list from a sequence of blocks, inserting a 4-minute passing
+  // period between every one. A block is either flexible ({label, minutes}) or fixed to an
+  // exact clock time ({label, fixedStart, fixedEnd} - Lunch and ISTEM, which never move).
+  // A flexible block immediately before a fixed one stretches or shrinks to land exactly on
+  // the fixed block's start (minus the usual 4-minute passing) instead of using its nominal
+  // `minutes` - that's how the 2nd "Learn" period absorbs whatever's left between Lunch's
+  // fixed end and ISTEM's fixed start, even though that gap isn't a clean 45 minutes.
   function buildDaySequence(startTime, blocks, dayLabel) {
     const periods = [];
+    const fmtMin = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     let cur = timeToMin(startTime);
-    const addMin = (t, m) => { const h = Math.floor((t + m) / 60), mi = (t + m) % 60; return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`; };
-    blocks.forEach((b, i) => {
-      const end = addMin(cur, b.minutes);
-      periods.push({ tag: b.tag || '', label: b.label, start: addMin(cur, 0), end, days: dayLabel });
-      cur = timeToMin(end);
-      if (i < blocks.length - 1) cur += 4;   // 4-minute passing period between classes
-    });
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i], next = blocks[i + 1];
+      let start, end;
+      if (b.fixedStart) {
+        start = timeToMin(b.fixedStart);
+        end = timeToMin(b.fixedEnd);
+      } else {
+        start = cur;
+        end = (next && next.fixedStart) ? (timeToMin(next.fixedStart) - 4) : (cur + b.minutes);
+      }
+      periods.push({ tag: b.tag || '', label: b.label, start: fmtMin(start), end: fmtMin(end), days: dayLabel });
+      cur = end + 4;
+    }
     return periods;
   }
+  // Mansfield ISD STEM's real structure: 2 electives first, then a core class, a "Learn"
+  // period, lunch (fixed 12:46-1:26 Mon-Thu), a 2nd "Learn" period, ISTEM (fixed 2:13-2:37
+  // Mon-Thu), then a 2nd core class. Friday ("Split") compresses every block to 45 minutes
+  // (Lunch/ISTEM keep their own length, 40/24 min) and lets them fall wherever that lands,
+  // since pinning them to the Mon-Thu clock times too isn't compatible with compressing
+  // everything around them.
   function defaultTemplate() {
     const today = new Date();
     const Y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
     const regularBlocks = [
       { label: 'Elective 1', minutes: 45 },
       { label: 'Elective 2', minutes: 45 },
-      { label: 'Math', minutes: 90 },
-      { label: 'Lunch', minutes: 30, tag: 'LUNCH' },
-      { label: 'Social Studies', minutes: 90 },
-      { label: 'Science', minutes: 90 },
-      { label: 'Reading', minutes: 90 },
-      { label: 'Design Time', minutes: 90 },
+      { label: 'Core 1', minutes: 90 },
+      { label: 'Learn', minutes: 45 },
+      { label: 'Lunch', tag: 'LUNCH', fixedStart: '12:46', fixedEnd: '13:26' },
+      { label: 'Learn', minutes: 45 },
+      { label: 'ISTEM', tag: 'ISTEM', fixedStart: '14:13', fixedEnd: '14:37' },
+      { label: 'Core 2', minutes: 90 },
     ];
-    const splitBlocks = regularBlocks.map(b => b.tag === 'LUNCH' ? b : { ...b, minutes: 45 });
+    // Friday keeps Lunch/ISTEM's own length but not their exact clock time - pinning both
+    // to fixed times while also compressing every other block to 45 min is incompatible
+    // (the flexible block right before a fixed one would have to silently absorb however
+    // much got compressed out elsewhere, which doesn't make sense for a "Learn" period).
+    const splitBlocks = regularBlocks.map(b => {
+      if (b.tag === 'LUNCH') return { label: b.label, tag: b.tag, minutes: timeToMin(b.fixedEnd) - timeToMin(b.fixedStart) };
+      if (b.tag === 'ISTEM') return { label: b.label, tag: b.tag, minutes: timeToMin(b.fixedEnd) - timeToMin(b.fixedStart) };
+      return { ...b, minutes: 45 };
+    });
     const regular = buildDaySequence('08:45', regularBlocks, 'A Day,B Day');
     const split = buildDaySequence('08:45', splitBlocks, 'Split');
     return {
