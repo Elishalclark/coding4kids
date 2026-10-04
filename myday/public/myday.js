@@ -48,38 +48,48 @@ const MyDay = (() => {
     add(nthWeekday(Y + 1, 5, 5, 1), 'School Year Ends (edit me!)');
     return items.sort((a, b) => a.start.localeCompare(b.start));
   }
-  // Mansfield ISD STEM's actual structure: Mon/Wed are A Day, Tue/Thu are B Day, Fri is a
-  // "Split" day where every class meets once, compressed to 45 min. Core classes (90 min)
-  // meet on both A and B days; electives are deliberately left out of the default - the
-  // owner adds their own via Customize, which the mandatory tour points them to.
+  // Builds a day's period list from a flat sequence of [label,minutes] blocks, inserting a
+  // 4-minute passing period between every one - the real structure both A Day and B Day
+  // share: 2 electives at the start (45 min), then 5 core classes (90 min) with lunch right
+  // after the first one. "Split" Friday is the same sequence with every block at 45 min.
+  function buildDaySequence(startTime, blocks, dayLabel) {
+    const periods = [];
+    let cur = timeToMin(startTime);
+    const addMin = (t, m) => { const h = Math.floor((t + m) / 60), mi = (t + m) % 60; return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`; };
+    blocks.forEach((b, i) => {
+      const end = addMin(cur, b.minutes);
+      periods.push({ tag: b.tag || '', label: b.label, start: addMin(cur, 0), end, days: dayLabel });
+      cur = timeToMin(end);
+      if (i < blocks.length - 1) cur += 4;   // 4-minute passing period between classes
+    });
+    return periods;
+  }
   function defaultTemplate() {
     const today = new Date();
     const Y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
-    const core = (label, start, end) => ({ tag: '', label, start, end, days: 'A Day,B Day' });
-    const split = (label, start, end) => ({ tag: '', label, start, end, days: 'Split' });
+    const regularBlocks = [
+      { label: 'Elective 1', minutes: 45 },
+      { label: 'Elective 2', minutes: 45 },
+      { label: 'Math', minutes: 90 },
+      { label: 'Lunch', minutes: 30, tag: 'LUNCH' },
+      { label: 'Social Studies', minutes: 90 },
+      { label: 'Science', minutes: 90 },
+      { label: 'Reading', minutes: 90 },
+      { label: 'Design Time', minutes: 90 },
+    ];
+    const splitBlocks = regularBlocks.map(b => b.tag === 'LUNCH' ? b : { ...b, minutes: 45 });
+    const regular = buildDaySequence('08:45', regularBlocks, 'A Day,B Day');
+    const split = buildDaySequence('08:45', splitBlocks, 'Split');
     return {
       portal: { label: 'Student Portal', sub: 'Opens in a new tab', url: '' },
-      hours: { start: '08:45', end: '16:45' },
+      hours: { start: '08:45', end: regular[regular.length - 1].end },
       year: { start: `${Y}-08-11`, weeks: 36, periodLabel: '' },
       rotation: {
         mode: 'weekday',
         weekdayMap: { 1: 'A Day', 2: 'B Day', 3: 'A Day', 4: 'B Day', 5: 'Split' },
         cycle: ['A Day', 'B Day'], anchorDate: `${Y}-08-11`, overrides: {},
       },
-      periods: [
-        core('Math', '08:45', '10:15'),
-        core('Social Studies', '10:15', '11:45'),
-        { tag: 'LUNCH', label: 'Lunch', start: '11:45', end: '12:15', days: 'A Day,B Day' },
-        core('Science', '12:15', '13:45'),
-        core('Reading', '13:45', '15:15'),
-        core('Design Time', '15:15', '16:45'),
-        split('Math', '08:45', '09:30'),
-        split('Social Studies', '09:30', '10:15'),
-        split('Science', '10:15', '11:00'),
-        split('Reading', '11:00', '11:45'),
-        { tag: 'LUNCH', label: 'Lunch', start: '11:45', end: '12:15', days: 'Split' },
-        split('Design Time', '12:15', '13:00'),
-      ],
+      periods: [...regular, ...split],
       daysOff: defaultDaysOff(Y),
     };
   }
