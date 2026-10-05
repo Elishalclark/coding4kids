@@ -30,6 +30,30 @@ const MyDay = (() => {
     while (d.getDay() !== weekday) d = addDays(d, -1);
     return d;
   }
+  // Mansfield ISD STEM's real 2026-27 "Days Off" list - not a generic US-holiday guess.
+  // Cross-checked between the actual dashboard screenshot shared earlier (which had the
+  // specific district-only entries no generic calendar would know: the Oct 9 Parent-Teacher
+  // Conference day, the Sep 18 end-of-six-weeks holiday, and the two named Bad Weather days)
+  // and Mansfield ISD's own published 2026-27 calendar (which confirmed the shared dates:
+  // Labor Day, Columbus Day, Thanksgiving, MLK Day, Presidents' Day, Spring Break). Specific
+  // to this one school year - defaultDaysOff() above is kept as the generic fallback for
+  // whatever year comes after this one, until there's a real calendar to import for it too.
+  function mansfieldDaysOff() {
+    return [
+      { start: '2026-09-07', end: '2026-09-07', label: 'Labor Day' },
+      { start: '2026-09-18', end: '2026-09-18', label: 'Student Holiday - End of 1st Six Weeks' },
+      { start: '2026-10-09', end: '2026-10-09', label: 'Parent-Teacher Conferences - Student Holiday' },
+      { start: '2026-10-12', end: '2026-10-12', label: 'Columbus Day' },
+      { start: '2026-11-23', end: '2026-11-27', label: 'Thanksgiving Break' },
+      { start: '2026-12-18', end: '2027-01-06', label: 'Winter Break & Staff Days' },
+      { start: '2027-01-18', end: '2027-01-18', label: 'Dr. Martin Luther King, Jr. Day' },
+      { start: '2027-02-12', end: '2027-02-12', label: 'Bad Weather Day #1 - Student Holiday' },
+      { start: '2027-02-15', end: '2027-02-15', label: "Presidents' Day" },
+      { start: '2027-03-15', end: '2027-03-19', label: 'Spring Break' },
+      { start: '2027-03-26', end: '2027-03-26', label: 'Bad Weather Day #2 - Student Holiday' },
+      { start: '2027-05-21', end: '2027-05-21', label: 'Teacher Workday - School Year Ends' },
+    ];
+  }
   function defaultDaysOff(schoolYearStartYear) {
     const Y = schoolYearStartYear;
     const items = [];
@@ -105,17 +129,21 @@ const MyDay = (() => {
     const a = buildDaySequence('08:45', blocksFor('A Day', 90), 'A Day');
     const b = buildDaySequence('08:45', blocksFor('B Day', 90), 'B Day');
     const split = buildDaySequence('08:45', splitBlocks, 'Split');
+    // The real 2026-27 school year: Aug 12, 2026 - May 21, 2027, 36 weeks. Falls back to a
+    // generic start/calendar once a future year's real dates aren't known yet (see
+    // mansfieldDaysOff() above).
+    const realYear = Y === 2026;
     return {
       portal: { label: 'Student Portal', sub: 'Opens in a new tab', url: '' },
       hours: { start: '08:45', end: a[a.length - 1].end },
-      year: { start: `${Y}-08-11`, weeks: 36, periodLabel: '' },
+      year: { start: realYear ? '2026-08-12' : `${Y}-08-11`, weeks: 36, periodLabel: '' },
       rotation: {
         mode: 'weekday',
         weekdayMap: { 1: 'A Day', 2: 'B Day', 3: 'A Day', 4: 'B Day', 5: 'Split' },
-        cycle: ['A Day', 'B Day'], anchorDate: `${Y}-08-11`, overrides: {},
+        cycle: ['A Day', 'B Day'], anchorDate: realYear ? '2026-08-12' : `${Y}-08-11`, overrides: {},
       },
       periods: [...a, ...b, ...split],
-      daysOff: defaultDaysOff(Y),
+      daysOff: realYear ? mansfieldDaysOff() : defaultDaysOff(Y),
     };
   }
   function isDaysOff(dateStr, daysOff) { return (daysOff || []).some(d => dateStr >= d.start && dateStr <= d.end); }
@@ -337,7 +365,7 @@ const MyDay = (() => {
   function getData() { return DATA; }
 
   return {
-    esc, toISO, parseISO, defaultTemplate, defaultDaysOff,
+    esc, toISO, parseISO, defaultTemplate, defaultDaysOff, mansfieldDaysOff,
     start, setData, getData, setEngine, runSearch,
   };
 })();

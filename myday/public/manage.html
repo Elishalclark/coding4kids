@@ -168,7 +168,7 @@
         <div id="daysOffRows"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="addDayOffRow()">+ Add day off</button>
-          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="restoreDefaultDaysOff()">↺ Restore default US calendar</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 12px;" onclick="restoreDefaultDaysOff()">↺ Restore default calendar</button>
         </div>
       </div>
 
@@ -384,10 +384,14 @@
       document.getElementById('daysOffRows').appendChild(row);
     }
     function restoreDefaultDaysOff() {
-      if (!confirm('Replace your current days-off list with the default US school calendar?')) return;
-      const Y = MyDay.parseISO(document.getElementById('cYearStart').value || MyDay.getData().year.start).getFullYear();
+      const yearStart = document.getElementById('cYearStart').value || MyDay.getData().year.start;
+      const Y = MyDay.parseISO(yearStart).getFullYear();
+      const useReal = Y === 2026;
+      if (!confirm(useReal
+        ? 'Replace your current days-off list with the real Mansfield ISD 2026-27 calendar?'
+        : 'Replace your current days-off list with the default US school calendar?')) return;
       const dr = document.getElementById('daysOffRows'); dr.innerHTML = '';
-      MyDay.defaultDaysOff(Y).forEach(d => addDayOffRow(d));
+      (useReal ? MyDay.mansfieldDaysOff() : MyDay.defaultDaysOff(Y)).forEach(d => addDayOffRow(d));
     }
     async function saveCustomize() {
       const cycle = document.getElementById('cCycle').value.split(',').map(s => s.trim()).filter(Boolean);
